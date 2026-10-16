@@ -1,0 +1,313 @@
+:root {
+    color-scheme: light;
+    --felt: #164633;
+    --felt-deep: #103527;
+    --surface: #ffffff;
+    --surface-soft: #f1f5f1;
+    --ink: #17251e;
+    --muted: #53665a;
+    --line: #d9e2da;
+    --accent: #176b49;
+    --accent-hover: #105437;
+    --shadow: 0 12px 32px rgb(12 37 25 / 14%);
+}
+
+html,
+body {
+    background: var(--felt-deep);
+    color: var(--ink);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: clamp(14px, 1rem + 0.15vw, 18px);
+    line-height: 1.45;
+}
+
+#DivHele {
+    background:
+        radial-gradient(ellipse at 48% 42%, rgb(44 112 79 / 45%), transparent 62%),
+        linear-gradient(145deg, var(--felt), var(--felt-deep));
+}
+
+#DivHovedmeny {
+    align-content: center;
+    justify-items: center;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    gap: 14px;
+    padding: clamp(18px, 5vw, 56px);
+    background:
+        radial-gradient(ellipse at 50% 35%, rgb(41 106 74 / 90%), transparent 62%),
+        linear-gradient(140deg, #174a35, #0d2f22);
+    color: #fff;
+}
+
+.game-logo {
+    width: min(100%, 760px);
+    grid-row: auto;
+}
+
+.game-logo img {
+    width: min(92%, 620px);
+    max-height: 28vh;
+    filter: drop-shadow(0 12px 22px rgb(0 0 0 / 23%));
+}
+
+#DivHovedmeny button,
+button {
+    border: 1px solid rgb(255 255 255 / 18%);
+    border-radius: 12px;
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-weight: 650;
+    text-shadow: none;
+    box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+    transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+#DivHovedmeny button {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    width: min(100%, 430px);
+    padding: 12px 22px;
+}
+
+#DivHovedmeny > div:last-child {
+    display: none;
+}
+
+button:hover {
+    background: var(--accent-hover);
+    box-shadow: 0 8px 18px rgb(0 0 0 / 22%);
+    transform: translateY(-1px);
+}
+
+button:active {
+    padding: 1vmin;
+    transform: translateY(1px);
+}
+
+button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+    outline: 3px solid #e6c765;
+    outline-offset: 3px;
+}
+
+#DivFKnapper,
+#DivPKnapper {
+    z-index: 1;
+    align-content: center;
+    color: #fff;
+}
+
+#DivFKnapper > button,
+#DivPKnapper > button {
+    border: 1px solid rgb(255 255 255 / 24%);
+    background: rgb(255 255 255 / 12%);
+    box-shadow: 0 3px 10px rgb(0 0 0 / 18%);
+}
+
+#DivFKnapper > button:hover,
+#DivPKnapper > button:hover {
+    background: rgb(255 255 255 / 24%);
+}
+
+#DivFKnapper > div {
+    font-size: 0.82rem;
+    text-align: center;
+}
+
+#DivBord,
+#DivSpillere,
+#DivPKnapper,
+#DivKort {
+    min-width: 0;
+}
+
+#DivBord {
+    overflow: auto;
+    border: 1px solid rgb(255 255 255 / 12%);
+    border-radius: 16px;
+    background: rgb(255 255 255 / 94%);
+    box-shadow: var(--shadow);
+}
+
+#DivSpillere {
+    gap: 8px;
+    overflow-y: auto;
+    padding: 10px;
+    color: var(--ink);
+}
+
+#DivSpillere > div {
+    flex: 0 0 auto;
+    max-height: none;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: 0 3px 10px rgb(17 43 27 / 7%);
+}
+
+#DivSpillere > div.MinTur {
+    border-color: #9bc9ad;
+    background: #eaf6ed;
+    box-shadow: inset 4px 0 var(--accent);
+}
+
+#DivSpillere > div.Ferdig {
+    max-height: none;
+    border-color: transparent;
+    background: rgb(255 255 255 / 8%);
+    color: #fff;
+}
+
+#DivSpillere > div > button {
+    min-height: 44px;
+    padding: 8px 12px;
+}
+
+#DivKort {
+    color: #fff;
+}
+
+#DivKort.KortKort {
+    gap: 2px;
+    padding: 10px 14px 6px;
+}
+
+#DivKort.KortKort > span > img {
+    border-radius: 8px;
+    filter: drop-shadow(0 4px 8px rgb(0 0 0 / 24%));
+}
+
+.dialog-container {
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgb(7 22 15 / 72%);
+    backdrop-filter: blur(5px);
+    visibility: hidden;
+    transition: opacity 0.333s ease, visibility 0s linear 0.333s;
+}
+
+.dialog-container--visible {
+    visibility: visible;
+    transition-delay: 0s;
+}
+
+.dialogVindu {
+    position: relative;
+    inset: auto;
+    width: min(100%, 560px);
+    min-width: 0;
+    max-height: min(90dvh, 760px);
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--surface);
+    box-shadow: 0 24px 72px rgb(0 0 0 / 34%);
+    transform: translateY(18px);
+}
+
+.dialog-container--visible .dialogVindu {
+    transform: translateY(0);
+}
+
+.dialogTittel {
+    padding-top: 18px;
+    color: var(--ink);
+    font-size: 1.2rem;
+    font-weight: 750;
+}
+
+.dialogBody {
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.dialogBody input,
+.dialogBody select {
+    width: 100%;
+    min-height: 48px;
+    padding: 8px 12px;
+    border: 1px solid #aebeb1;
+    border-radius: 8px;
+    color: var(--ink);
+    font: inherit;
+}
+
+.dialogFooter {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.dialogFooter > button {
+    flex: 0 0 48px;
+    width: 48px;
+    min-width: 48px;
+    height: 48px;
+    min-height: 48px;
+    padding: 10px;
+}
+
+.tips {
+    padding: 12px;
+    border-color: var(--line);
+    border-radius: 12px;
+    background: var(--surface-soft);
+}
+
+.tips button {
+    min-height: 44px;
+    padding: 9px 14px;
+}
+
+@media (min-width: 761px) and (orientation: landscape) {
+    #DivHele:not(.SePaaModus) {
+        grid-template-columns: minmax(220px, 0.85fr) minmax(0, 2fr) minmax(240px, 0.95fr);
+        grid-template-rows: 72px minmax(0, 1fr) 64px minmax(145px, 0.42fr);
+    }
+
+    #DivFKnapper {
+        grid-column: 1 / -1;
+    }
+
+    #DivSpillere {
+        grid-column: 1 / 2;
+        grid-row: 2 / 3;
+    }
+
+    #DivBord {
+        grid-column: 2 / 3;
+        grid-row: 2 / 3;
+    }
+
+    #DivPKnapper,
+    #DivKort {
+        grid-column: 1 / 3;
+    }
+
+    #DivPKnapper {
+        grid-row: 3 / 4;
+    }
+
+    #DivKort {
+        grid-row: 4 / 5;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0.01ms !important;
+    }
+}

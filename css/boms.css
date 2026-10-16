@@ -1,0 +1,403 @@
+#DivHele {
+    height: 100%;
+    width: 100%;
+    display: grid;
+    align-items: stretch;
+    justify-items: stretch;
+    background-color: #bfbaba;
+}
+
+@media (orientation: landscape) {
+    #DivHele {
+        grid-template-columns: 200px 3fr 2fr;
+        grid-template-rows: 12vmin 1fr 12vmin 1fr;
+    }
+
+        #DivHele.SePaaModus {
+            grid-template-rows: 12vmin 1fr 0px 0px;
+        }
+
+        #DivHele.KunKortModus {
+            grid-template-rows: 12vmin 0px 12vmin 1fr;
+        }
+
+    #DivReklameBred {
+        display: none;
+    }
+
+    #DivReklameKvadrat {
+        grid-column: 1 / 2;
+        grid-row: 1 / 3;
+    }
+
+    #DivFKnapper {
+        grid-column: 2 / 4;
+        grid-row: 1 / 2;
+    }
+
+    #DivBord {
+        grid-column: 2 / 3;
+        grid-row: 2 / 3;
+    }
+
+    #DivSpillere {
+        grid-column: 3 / 4;
+        grid-row: 2 / 5;
+    }
+
+    .KunKortModus > #DivSpillere {
+        grid-row: 2 / 3;
+    }
+
+    #DivPKnapper {
+        grid-column: 1 / 3;
+        grid-row: 3 / 4;
+    }
+
+    #DivKort {
+        grid-column: 1 / 3;
+        grid-row: 4 / 5;
+    }
+
+    .KunKortModus > #DivPKnapper,
+    .KunKortModus > #DivKort {
+        grid-column: 2 / 4;
+    }
+}
+
+@media (orientation: portrait) {
+    #DivHele {
+        grid-template-columns: 2fr 1fr;
+        grid-template-rows: 12vmin 1fr 94px 12vmin 1fr;
+    }
+
+        #DivHele.SePaaModus {
+            grid-template-rows: 12vmin 1fr 94px 0px 0px;
+        }
+
+        #DivHele.KunKortModus {
+            grid-template-rows: 12vmin 0px 94px 12vmin 1fr;
+        }
+
+    #DivReklameKvadrat {
+        display: none;
+    }
+
+    #DivReklameBred {
+        grid-column: 1 / -1;
+        grid-row: 3 / 4;
+    }
+
+    #DivFKnapper {
+        grid-column: 1 / -1;
+        grid-row: 1 / 2;
+    }
+
+    #DivBord {
+        grid-column: 1 / 2;
+        grid-row: 2 / 3;
+    }
+
+    #DivSpillere {
+        grid-column: 2 / 3;
+        grid-row: 2 / 3;
+    }
+
+    #DivPKnapper {
+        grid-column: 1 / -1;
+        grid-row: 4 / 5;
+    }
+
+    #DivKort {
+        grid-column: 1 / -1;
+        grid-row: 5 / 6;
+    }
+}
+
+#DivSpillere {
+    display: flex;
+    flex-direction: column;
+}
+
+    #DivSpillere > div {
+        border: 1px solid #6f6a6a;
+        background-color: #9f9a9a;
+        border-radius: 9px;
+        margin: 3px;
+        padding: 5px;
+        flex-basis: 100%;
+        max-height: 7em;
+    }
+
+        #DivSpillere > div.MinTur {
+            background-color: #7f7a7a;
+        }
+
+        #DivSpillere > div.Ferdig {
+            border-color: transparent;
+            background-color: transparent;
+            max-height: 3.3em;
+        }
+
+        #DivSpillere > div > button {
+            float: right;
+        }
+
+        #DivSpillere > div > img {
+            /* Kortet som sist ble lagt på */
+            float: right;
+            height: 3.5em;
+        }
+
+div.scroll {
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.Spillernavn {
+    font-weight: bold;
+}
+
+.SpillerKortBakgrunner > img {
+    height: 0.9em;
+}
+
+.SpillerKortPlassering > img {
+    height: 1.5em;
+}
+
+#SpanHoppover {
+    float: right;
+}
+
+    #SpanHoppover img {
+        height: 2em;
+    }
+
+.BordKortstokk {
+    /* For å sette kortet i midten: */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+    .BordKortstokk img {
+        position: absolute;
+        height: 25vh;
+    }
+
+.BordForklaring .tips img {
+    height: 2em;
+}
+
+.SePaaModus .BordKortstokk img {
+    height: 50vh;
+}
+
+.KunKortModus > #DivBord {
+    display: none;
+}
+
+.BordKortstokker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+    .BordKortstokker img {
+        height: 25vh;
+    }
+
+.SePaaModus .BordKortstokker img {
+    height: 50vh;
+}
+
+.tips {
+    border: 1px solid #6f6a6a;
+    border-radius: 9px;
+    margin: 3px;
+}
+
+.BordBytte {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+    .BordBytte .bytte {
+        border: 1px solid #6f6a6a;
+        border-radius: 9px;
+        margin: 3px;
+        display: grid;
+        grid-template-columns: 4em;
+        grid-template-rows: 2em 2em;
+    }
+
+    .BordBytte .passivbytte {
+        background-color: #9f9a9a;
+    }
+
+    .BordBytte .aktivbytte {
+        background-color: #7f7a7a;
+    }
+
+    .BordBytte .bytte .bytteFigur img {
+        height: 4em;
+    }
+
+    .BordBytte .bytte .bytteFigur {
+        grid-column: 1 / 2;
+        grid-row: 1 / 3;
+    }
+
+    .BordBytte .bytte .bytteTittel {
+        grid-column: 2 / 3;
+        grid-row: 1 / 2;
+        font-weight: bold;
+    }
+
+    .BordBytte .bytte .bytteKort {
+        grid-column: 2 / 3;
+        grid-row: 2 / 3;
+    }
+
+        .BordBytte .bytte .bytteKort img {
+            height: 2em;
+        }
+
+.AskKort img {
+    height: 8em;
+}
+
+#DivReklameBred,
+#DivReklameKvadrat {
+    text-align: center;
+    background-color: #bfbaba;
+    vertical-align: middle;
+}
+
+#DivPKnapper.MinTur,
+#DivKort.MinTur {
+    animation: MinTurBakgrunn 10s;
+}
+
+@keyframes MinTurBakgrunn {
+    0% {
+        background-color: transparent;
+    }
+
+    2% {
+        background-color: #000000;
+    }
+
+    3% {
+        background-color: #000000;
+    }
+
+    5% {
+        background-color: transparent;
+    }
+
+    100% {
+        background-color: transparent;
+    }
+}
+
+#SpanSpillerNick,
+#SpanSpillId {
+    font-weight: bold;
+    font-size: 150%;
+}
+
+#DivKort.KortKort {
+    display: flex;
+    align-items: stretch;
+    overflow: hidden;
+}
+
+.KortForklaring > div {
+    width: 67%;
+}
+
+.tips div {
+    margin: 10px;
+}
+
+.tips img.itekst {
+    height: 1em;
+    vertical-align: text-bottom;
+}
+
+    .tips img.itekst:hover {
+        height: 3em;
+    }
+
+#DivKort.KortKort > span {
+    flex-basis: 100%;
+    width: 10px;
+    max-width: 20vw;
+}
+
+    #DivKort.KortKort > span > img {
+        border: 1px solid transparent;
+        margin: 2px;
+        padding: 1px;
+        height: 30vmax;
+        -webkit-filter: contrast(.5);
+        filter: contrast(.5);
+    }
+
+.KunKortModus > #DivKort > span > img {
+    min-width: 2cm;
+    width: 20vmin;
+    max-width: 5cm;
+}
+
+#DivKort.KortKort.MinTur > span > img {
+    -webkit-filter: none;
+    filter: none;
+}
+
+#DivKort.KortKort > span > img:hover {
+    border: 1px solid black;
+}
+
+input {
+    font-size: 150%;
+}
+
+    input:invalid {
+        border: 2px dashed red;
+        animation: InvalidBakgrunn 0.3s;
+    }
+
+@keyframes InvalidBakgrunn {
+    0% {
+        background-color: white;
+    }
+
+    40% {
+        background-color: red;
+    }
+
+    60% {
+        background-color: red;
+    }
+
+    100% {
+        background-color: white;
+    }
+}
+
+#DivFKnapper > button > img {
+    height: 6vmin;
+}
+
+#DivPKnapper > button > img {
+    height: 6vmin;
+}
+
+.dialogFooter > button > img {
+    height: 56px;
+}

@@ -1,0 +1,148 @@
+* {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+}
+
+html {
+    height: 100%;
+    width: 100%;
+}
+
+body {
+    color: black;
+    height: 100%;
+    width: 100%;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    font-size: 2vmax;
+}
+
+button {
+    padding: 1vmin;
+    font-family: "Trebuchet MS", Arial, Verdana;
+    border-radius: 1.5vmin;
+    border: 1px solid #d9d9d9;
+    text-shadow: 1px 1px #fff;
+    margin: 0.5vmin;
+}
+
+    button:hover {
+        background-color: #f0f0f0;
+    }
+
+    button:active {
+        background-color: #e0e0e0;
+        padding: 1.5vmin 0.5vmin 0.5vmin 1.5vmin;
+    }
+
+.melding {
+    display: inline-block;
+    position: relative;
+    background: #819c7a;
+    border-radius: .4em;
+    margin-left: 1em;
+    padding: .1em .3em .1em .3em;
+    font-size: 80%;
+}
+
+    .melding::after {
+        content: "";
+        position: absolute;
+        left: 0px;
+        top: 50%;
+        width: 0px;
+        height: 0px;
+        border: 0.625em solid transparent;
+        border-right-color: #819c7a;
+        border-left: 0;
+        border-top: 0;
+        margin-top: -0.4em;
+        margin-left: -0.62em;
+    }
+
+.TabToKolonner {
+    display: grid;
+    grid-template-columns: auto auto;
+    grid-gap: 0.7em;
+}
+
+.dialog-container {
+    z-index: 9;
+    background: rgba(0, 0, 0, 0.658);
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    pointer-events: none;
+    will-change: opacity;
+    -webkit-transition: opacity 0.333s cubic-bezier(0, 0, 0.21, 1);
+    transition: opacity 0.333s cubic-bezier(0, 0, 0.21, 1);
+}
+
+.dialog-container--visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.dialogVindu {
+    background: #FFF;
+    border-radius: 2px;
+    box-shadow: 0 0 14px rgba(0, 0, 0, 0.24), 0 14px 28px rgba(0, 0, 0, 0.48);
+    min-width: 280px;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    -webkit-transform: translate(-50%, -50%) translateY(30px);
+    transform: translate(-50%, -50%) translateY(30px);
+    -webkit-transition: -webkit-transform 0.333s cubic-bezier(0, 0, 0.21, 1) 0.05s;
+    transition: -webkit-transform 0.333s cubic-bezier(0, 0, 0.21, 1) 0.05s;
+    transition: transform 0.333s cubic-bezier(0, 0, 0.21, 1) 0.05s;
+    transition: transform 0.333s cubic-bezier(0, 0, 0.21, 1) 0.05s, -webkit-transform 0.333s cubic-bezier(0, 0, 0.21, 1) 0.05s;
+}
+
+    .dialogVindu > div {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+.dialogTittel {
+    padding-top: 10px;
+    font-size: 1.25em;
+}
+
+.dialogBody {
+    padding-top: 10px;
+    padding-bottom: 14px;
+}
+
+    .dialogBody select {
+        width: 100%;
+        font-size: 2em;
+    }
+
+.dialogFooter {
+    padding: 8px !important;
+    float: right;
+}
+
+#DivHovedmeny {
+    grid-column: 1 / -1;
+    grid-row: 1 / -1;
+    z-index: 2;
+    background-color: white;
+    display: grid;
+    grid-template-columns: 2fr 3fr 2fr;
+    grid-template-rows: 2fr 1fr 1fr 1fr;
+}
+
+    #DivHovedmeny button {
+        font-size: 10vmin;
+        margin: 5px;
+    }
+
+    #DivHovedmeny.Skjul {
+        display: none;
+    }
