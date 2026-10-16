@@ -223,27 +223,35 @@ div.scroll {
     width: 100%;
     display: flex;
     flex-direction: column;
+    gap: 6px;
 }
 
     .BordBytte .bytte {
-        border: 1px solid #6f6a6a;
+        min-width: 0;
+        border: 1px solid var(--line, #6f6a6a);
         border-radius: 9px;
-        margin: 3px;
+        margin: 0;
+        padding: 8px;
         display: grid;
-        grid-template-columns: 4em;
-        grid-template-rows: 2em 2em;
+        grid-template-columns: 3.5em minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        gap: 4px 8px;
+        background: var(--surface, #fff);
+        color: var(--ink, #111);
     }
 
     .BordBytte .passivbytte {
-        background-color: #9f9a9a;
+        background: var(--surface-soft, #eee);
     }
 
     .BordBytte .aktivbytte {
-        background-color: #7f7a7a;
+        background: var(--accent-soft, #dceeff);
     }
 
     .BordBytte .bytte .bytteFigur img {
-        height: 4em;
+        width: 3em;
+        height: 3em;
+        object-fit: contain;
     }
 
     .BordBytte .bytte .bytteFigur {
@@ -260,11 +268,30 @@ div.scroll {
     .BordBytte .bytte .bytteKort {
         grid-column: 2 / 3;
         grid-row: 2 / 3;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        min-width: 0;
     }
+
+        .BordBytte .bytte .bytteKort > span {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
 
         .BordBytte .bytte .bytteKort img {
             height: 2em;
         }
+
+    .BordBytte .trade-status {
+        display: block;
+        flex-basis: 100%;
+        color: var(--muted, #555);
+        font-size: 0.9em;
+    }
 
 .AskKort img {
     height: 8em;

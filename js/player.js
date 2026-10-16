@@ -44,7 +44,7 @@ class Game {
         var database = firebase.database();
     }
     save() {
-        throw ("MÃ¥ implementeres");
+        throw ("Må implementeres");
     }
     getPlayer(name) {
         var result = null;
@@ -54,7 +54,7 @@ class Game {
         return result;
     }
     prepareRound() {
-        throw ("MÃ¥ implementeres");
+        throw ("Må implementeres");
     }
     startGame() {
         switch (this.status) {
@@ -124,7 +124,7 @@ class Game {
         return true;
     }
     nextTurnIndex(currentTurnPlayer) {
-        throw ("MÃ¥ kodes!");
+        throw ("Må kodes!");
     }
     shouldSkipTurn(turn) {
         return false;
@@ -197,7 +197,7 @@ class Game {
                 return { player: incomingPlayer };
                 break;
             default:
-                return { text: 'Ingen nye spillere nÃ¥r spillet pÃ¥gÃ¥r.' };
+                return { text: 'Ingen nye spillere når spillet pågår.' };
                 break;
         }
     }
@@ -220,13 +220,13 @@ class Game {
                 return player;
                 break;
             default:
-                throw ('Kan ikke gi opp nÃ¥.');
+                throw ('Kan ikke gi opp nå.');
                 break;
         }
     }
     resetForRound() {
         // Reset a finished game so another round can be set up.
-        if (this.status == "S") { throw ("Kan ikke gÃ¥ til oppsett fÃ¸r spillet er ferdig.") }
+        if (this.status == "S") { throw ("Kan ikke gå til oppsett før spillet er ferdig.") }
         this.players.forEach(player => {
             player.placement = 0;
             player.cards = [];

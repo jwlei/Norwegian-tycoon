@@ -1,38 +1,46 @@
 ﻿<!DOCTYPE html>
-<html lang="nb">
+<html lang="nb" data-theme="dark">
 
 <head>
     <meta charset='utf-8' />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#142c21" />
+    <meta name="theme-color" content="#1e1e1e" />
     <base href="/norwegian-tycoon/" />
     <title>Boms og President — Norwegian Tycoon</title>
-    <link rel="stylesheet" href="css/felles.css">
-    <link rel="stylesheet" href="css/boms.css">
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/game.css">
     <link rel="stylesheet" href="css/mobile.css">
     <link rel="stylesheet" href="css/theme.css">
 </head>
 
 <body>
     <div id="DivHele" class="SePaaModus">
+        <button type="button" id="BnGameMenuToggle" class="game-menu-toggle"
+            aria-label="Åpne spillmeny" aria-controls="DivFKnapper" aria-expanded="false" title="Åpne spillmeny">
+            <span class="game-menu-toggle__icon" aria-hidden="true"></span>
+        </button>
         <div id="DivHovedmeny" role="group" aria-label="Hovedmeny">
             <div class="game-logo"><img src="icons/logo.svg" alt="Boms og President" /></div>
             <button type="button" id="BnHNySpill" title="Lag nytt spill" style="grid-row: 2 / 3; grid-column: 2 / -2;">Lag nytt spill</button>
             <button type="button" id="BnHKobleSpill" title="Koble til spill" style="grid-row: 3 / 4; grid-column: 2 / -2;">Koble til spill</button>
+            <button type="button" class="theme-toggle theme-toggle--menu" aria-label="Mørk modus. Bytt til lys modus" aria-pressed="true">
+                <span class="theme-toggle__switch" aria-hidden="true"><span></span></span>
+                <span class="theme-toggle__label">Mørk</span>
+            </button>
             <div style="grid-row: 4 / 5; grid-column: 1 / -1;">&nbsp;</div>
         </div>
-        <div id="DivFKnapper" style="text-align: center; vertical-align: middle;">
-            <button type="button" id="BnFInviterSpill" title="Inviter andre" aria-label="Inviter andre spillere" style="float: left;"><img src="icons/invite.svg" alt=""/></button>
-            <button type="button" id="BnPNySpiller" title="Bli en spiller" aria-label="Bli en spiller" style="float: left;"><img src="icons/player.svg" alt=""/></button>
-            <button type="button" id="BnPNySpiller_Off" title="Bli en spiller (ikke tillatt nå)" aria-label="Bli en spiller (ikke tillatt nå)" style="float: left;"><img src="icons/player-off.svg" alt=""/></button>
-            <button type="button" id="BnFNyAutoSpiller" title="Legg til datamotstander" aria-label="Legg til datamotstander" style="float: left;"><img src="icons/bot.svg" alt=""/></button>
-            <button type="button" id="BnFNyAutoSpiller_Off" title="Legg til datamotstander (ikke tillatt nå)" aria-label="Legg til datamotstander (ikke tillatt nå)" style="float: left;"><img src="icons/bot-off.svg" alt=""/></button>
-            <button type="button" id="BnFStartSpill" title="Start spill" aria-label="Start spill" style="float: left;"><img src="icons/start.svg" alt=""/></button>
-            <button type="button" id="BnFStartSpill_Off" title="Start spill (ikke tillatt nå)" aria-label="Start spill (ikke tillatt nå)" style="float: left;"><img src="icons/start-off.svg" alt=""/></button>
-            <button type="button" id="BnFHovedmeny" title="Avslutt spill og gå til hovedmeny" aria-label="Avslutt spill og gå til hovedmeny" style="float: right;"><img src="icons/home.svg" alt=""/></button>
-            <button type="button" id="BnFRegler" title="Regler" aria-label="Regler" style="float: right;"><img src="icons/rules.svg" alt=""/></button>
-            <button type="button" id="BnFResultater" title="Resultater for alle rundene" aria-label="Resultater for alle rundene" style="float: right;"><img src="icons/results.svg" alt=""/></button>
-            <div>
+        <div id="DivFKnapper" role="group" aria-label="Spillmeny" style="text-align: center; vertical-align: middle;">
+            <button type="button" id="BnFInviterSpill" title="Inviter andre" aria-label="Del invitasjon" style="float: left;">Del invitasjon</button>
+            <button type="button" id="BnPNySpiller" title="Bli en spiller" aria-label="Bli med som spiller" style="float: left;">Bli med som spiller</button>
+            <button type="button" id="BnPNySpiller_Off" title="Bli en spiller (ikke tillatt nå)" aria-label="Spiller på denne enheten" style="float: left;">Spiller på denne enheten</button>
+            <button type="button" id="BnFNyAutoSpiller" title="Legg til datamotstander" aria-label="Legg til datamotstander" style="float: left;">Legg til datamotstander</button>
+            <button type="button" id="BnFNyAutoSpiller_Off" title="Legg til datamotstander (ikke tillatt nå)" aria-label="Datamotstander utilgjengelig" style="float: left;">Datamotstander utilgjengelig</button>
+            <button type="button" id="BnFStartSpill" title="Start spill" aria-label="Start spill" style="float: left;">Start spill</button>
+            <button type="button" id="BnFStartSpill_Off" title="Start spill (ikke tillatt nå)" aria-label="Start spill utilgjengelig" style="float: left;">Start spill utilgjengelig</button>
+            <button type="button" id="BnFHovedmeny" title="Avslutt spill og gå til hovedmeny" aria-label="Hovedmeny" style="float: right;">Hovedmeny</button>
+            <button type="button" id="BnFRegler" title="Regler" aria-label="Vis regler" style="float: right;">Vis regler</button>
+            <button type="button" id="BnFResultater" title="Resultater for alle rundene" aria-label="Resultater" style="float: right;">Resultater</button>
+            <div id="DivSpillMeta">
                 <span id="SpanSpillId"></span><br/>
                 <span id="SpanSpillStat"></span>
             </div>
@@ -45,15 +53,21 @@
 
         </div>
         <div id="DivPKnapper" style="text-align: center; vertical-align: middle;">
-            <button type="button" id="BnPPass" title="Pass" aria-label="Pass" style="float: left;"><img src="icons/pass.svg" alt=""/></button>
-            <button type="button" id="BnPPass_Off" title="Pass (ikke tillatt nå)" aria-label="Pass (ikke tillatt nå)" style="float: left;"><img src="icons/pass-off.svg" alt=""/></button>
+            <button type="button" id="BnPPass" title="Pass" aria-label="Pass" style="float: left;">Pass på turen</button>
+            <button type="button" id="BnPPass_Off" title="Pass (ikke tillatt nå)" aria-label="Pass (ikke tillatt nå)" style="float: left;">Pass utilgjengelig</button>
             <span id="SpanSpillerNick"></span>
-            <button type="button" id="BnPGiOpp" title="Gi opp" aria-label="Gi opp" style="float: right;"><img src="icons/give-up.svg" alt=""/></button>
+            <button type="button" id="BnPGiOpp" title="Gi opp" aria-label="Gi opp" style="float: right;">Gi opp</button>
+            <span id="SpanHoppover"></span>
             <br/>
             <span id="SpanSpillerInfo"></span>
         </div>
         <div id="DivKort">
 
+        </div>
+        <div id="cardSelectionActions" class="card-selection-actions" hidden>
+            <span id="selectedCardCount" aria-live="polite"></span>
+            <button type="button" id="BnPPlaySelected" disabled>Legg ut</button>
+            <button type="button" id="BnPCancelSelection">Avbryt</button>
         </div>
 
     </div>
@@ -61,29 +75,29 @@
     <div id="DivBord_Bordforklaring" style="display: none;">
         <div><b>Velkommen til <img src="icons/logo.svg" alt="Boms og President" style="height: 2em;"></b></div>
         <div id="Bordforklaring1" class="tips">
-            <div>Inviter venner til spillet ditt er lett:</div>
-            <div>- Enten trykk på <img src="icons/invite.svg" alt="">, kopier linken til dette spillet og send den til vennene dine.</div>
-            <div>- Eller la vennene dine velge "koble til spill" fra hovedmenyen og be dem skrive inn Spill-ID til dette spillet, som er tallet du ser øverst på skjermen.</div>
+            <div>Det er enkelt å invitere venner til spillet:</div>
+            <div>- Trykk på «Del invitasjon», og del invitasjonen eller kopier lenken.</div>
+            <div>- Du kan også sende spillnummeret som står øverst på skjermen.</div>
             <div>Når vennene dine er inne, vil alle se det samme og dere kan spille sammen.</div>
             <button type="button" onclick="document.getElementById('Bordforklaring1').style.display='none'; document.getElementById('Bordforklaring2').style.display='block';">Neste tips</button>
         </div>
         <div id="Bordforklaring2" class="tips" style="display: none;">
-            <div>Vil du spille på denne enheten, trykk på <img src="icons/player.svg" alt="">. Velg da ditt spillernavn.</div>
+            <div>Vil du spille på denne enheten, trykk på «Bli med som spiller» og velg spillernavn.</div>
             <div>Hvis du ikke spiller på denne enheten, kan den ligge på bordet og vise kortene dere legger ut.</div>
             <button type="button" onclick="document.getElementById('Bordforklaring2').style.display='none'; document.getElementById('Bordforklaring3').style.display='block';">Neste tips</button>
         </div>
         <div id="Bordforklaring3" class="tips" style="display: none;">
-            <div>Ønsker du flere spillere, kan du legge til én eller flere robot-spillere. Det gjør du ved å trykke på <img src="icons/bot.svg" alt="">.</div>
+            <div>Du kan legge til én eller flere datamotstandere med «Legg til datamotstander».</div>
             <button type="button" onclick="document.getElementById('Bordforklaring3').style.display='none'; document.getElementById('Bordforklaring4').style.display='block';">Neste tips</button>
         </div>
         <div id="Bordforklaring4" class="tips" style="display: none;">
-            <div>Når det er to eller flere spillere kan dere starte å spille Vri åtter. Da kommer <img src="icons/start.svg" alt=""> til syne.</div>
+            <div>Når det er to eller flere spillere, kan dere starte med «Start spill».</div>
             <button type="button" onclick="document.getElementById('Bordforklaring4').style.display='none';">Lukk tips</button>
         </div>
     </div>
     <div id="DivKort_Kortforklaring" style="display: none;">
         <div id="Kortforklaring1" class="tips">
-            <div>Her kommer kortene dine når spillet starter. For å legge på kort, trykker du på kortet.</div>
+            <div>Velg et kort og trykk på flere kort med samme verdi for å blande dem inn. Trykk «Legg ut» når valget er klart.</div>
             <button type="button" onclick="document.getElementById('Kortforklaring1').style.display='none';">Lukk tips</button>
         </div>
     </div>
@@ -91,14 +105,14 @@
         <div class="dialogVindu">
             <div class="dialogTittel">Bli med på spill</div>
             <div class="dialogBody">
-                <div><label for="dialogKobleSpillId">Skriv inn spill-nummeret til spillet du vil delta i:</label></div>
+                <div><label for="dialogKobleSpillId">Skriv inn spillnummeret, eller åpne invitasjonslenken du har fått:</label></div>
                 <div><input class="autofocus" type="number" id="dialogKobleSpillId" maxlength="6" oninput="this.value=this.value.replace(/[^0-9]/g, ''); document.getElementById( 'dialogKobleSpillError').innerHTML='';" min="1" max="999999" step="1" required
                     /></div>
                 <div id="dialogKobleSpillError" style="color: red;"></div>
             </div>
             <div class="dialogFooter">
-                <button type="button" aria-label="Avbryt" onclick="showDialog('KobleSpill',false);"><img src='icons/back.svg' alt=''></button>
-                <button type="submit" id="dialogKobleSpillOk" aria-label="Delta"><img src='icons/done.svg' alt=''></button>
+                <button type="button" onclick="showDialog('KobleSpill',false);">Avbryt</button>
+                <button type="submit" id="dialogKobleSpillOk">Delta</button>
             </div>
             <script>
                 document.getElementById('dialogKobleSpillId').addEventListener('keypress', function(e) {
@@ -119,8 +133,8 @@
                 <div id="dialogSporOmNickError" style="color: red;"></div>
             </div>
             <div class="dialogFooter">
-                <button type="button" aria-label="Avbryt" onclick="showDialog('SporOmNick',false);"><img src='icons/back.svg' alt=''></button>
-                <button type="submit" id="dialogSporOmNickOk" aria-label="Bli spiller"><img src='icons/done.svg' alt=''></button>
+                <button type="button" onclick="showDialog('SporOmNick',false);">Avbryt</button>
+                <button type="submit" id="dialogSporOmNickOk">Bli spiller</button>
             </div>
             <script>
                 document.getElementById('dialogSporOmNickTxt').addEventListener('keypress', function(e) {
@@ -135,11 +149,56 @@
     <div id="dialogVisLink" class="dialog-container">
         <script>
             function showInviteLink(gameId, inviteUrl) {
-                document.getElementById("dialogVisLinkLblLink").innerHTML = gameId;
+                document.getElementById("dialogVisLinkLblLink").textContent = gameId;
                 document.getElementById("dialogVisLinklblUrl").value = inviteUrl;
+                document.getElementById("dialogVisLinkStatus").textContent = "";
                 document.getElementById("dialogVisLinkbnSMS").style.visibility =
                     (!(navigator.userAgent.match(/Android/i) || navigator.userAgent.match(/iPhone/i)) ? "hidden" : "");
                 showDialog("VisLink", true);
+                document.getElementById("dialogVisLinkbnShare").focus();
+            }
+
+            async function copyInviteLink() {
+                var inviteUrl = document.getElementById("dialogVisLinklblUrl").value;
+                var status = document.getElementById("dialogVisLinkStatus");
+                try {
+                    if (navigator.clipboard && window.isSecureContext) {
+                        await navigator.clipboard.writeText(inviteUrl);
+                    } else {
+                        var input = document.getElementById("dialogVisLinklblUrl");
+                        input.focus();
+                        input.select();
+                        input.setSelectionRange(0, input.value.length);
+                        if (!document.execCommand("copy")) {
+                            throw new Error("Kopiering støttes ikke av nettleseren.");
+                        }
+                    }
+
+                    status.textContent = "Lenken er kopiert.";
+                } catch (error) {
+                    status.textContent = "Kunne ikke kopiere automatisk. Marker og kopier lenken manuelt.";
+                    document.getElementById("dialogVisLinklblUrl").focus();
+                    document.getElementById("dialogVisLinklblUrl").select();
+                }
+            }
+
+            async function shareInviteLink() {
+                if (!navigator.share) {
+                    await copyInviteLink();
+                    return;
+                }
+                try {
+                    await navigator.share({
+                        title: "Boms og President",
+                        text: "Bli med i spillet mitt:",
+                        url: document.getElementById("dialogVisLinklblUrl").value
+                    });
+                    document.getElementById("dialogVisLinkStatus").textContent = "Invitasjonen er delt.";
+                } catch (error) {
+                    if (error.name !== "AbortError") {
+                        document.getElementById("dialogVisLinkStatus").textContent = "Kunne ikke dele invitasjonen. Prøv «Kopier lenke».";
+                    }
+                }
             }
 
             function sendInviteSms() {
@@ -155,18 +214,22 @@
                     throw (navigator.userAgent);
                 }
             }
+
         </script>
         <div class="dialogVindu">
-            <div class="dialogTittel">Inviter andre spillere</div>
-            <div class="dialogBody">
-                <div>Be dine venner starte Boms & President, og koble til spill nummer <span id="dialogVisLinkLblLink" style='font-weight: bold;'></span>.</div>
-                <div>Under er link til dine venner. Ved å bruke denne linken, kommer de rett inn i dette spillet. Kopier den og send til dine venner:</div>
-                <div><label for="dialogVisLinklblUrl">Invitasjonslenke</label><input type="url" id="dialogVisLinklblUrl" readonly /></div>
-                <button type="button" onclick="var copyText = document.getElementById('dialogVisLinklblUrl'); copyText.select(); copyText.setSelectionRange(0, 99999); document.execCommand('copy');">Kopier link</button>
-                <button type="button" id="dialogVisLinkbnSMS" onclick="sendInviteSms();">Send på SMS</button>
+            <div class="dialog-title-row">
+                <div class="dialogTittel">Inviter andre spillere</div>
+                <button type="button" class="dialog-close" onclick="showDialog('VisLink',false);">Lukk</button>
             </div>
-            <div class="dialogFooter">
-                <button type="submit" aria-label="Ok" onclick="showDialog('VisLink',false);"><img src='icons/done.svg' alt=''></button>
+            <div class="dialogBody">
+                <div>Del invitasjonslenken, så åpnes dette rommet direkte. Spillnummer: <strong id="dialogVisLinkLblLink"></strong></div>
+                <div><label for="dialogVisLinklblUrl">Invitasjonslenke</label><input type="url" id="dialogVisLinklblUrl" readonly /></div>
+                <div class="invite-actions">
+                    <button type="button" id="dialogVisLinkbnShare" onclick="shareInviteLink();">Del invitasjon</button>
+                    <button type="button" id="dialogVisLinkbnCopy" onclick="copyInviteLink();">Kopier lenke</button>
+                </div>
+                <div id="dialogVisLinkStatus" class="invite-status" role="status" aria-live="polite"></div>
+                <button type="button" id="dialogVisLinkbnSMS" onclick="sendInviteSms();">Send på SMS</button>
             </div>
         </div>
     </div>
@@ -207,8 +270,8 @@
     <div id="dialogKanIkkeLeggeKort" class="dialog-container">
         <div class="dialogVindu">
             <div class="dialogTittel">Du kan ikke legge på det kortet nå.</div>
-            <div class="dialogBody">Du må legge på like mange kort, og med samme verdi eller høyere.</div>
-            <div class="dialogFooter"><button type="button" aria-label="Ok" onclick="showDialog('KanIkkeLeggeKort', false);"><img src='icons/done.svg' alt=''></button></div>
+            <div class="dialogBody">Du må legge på like mange kort med samme verdi eller høyere. Fire like kort kan bare slås med fire høyere like kort; kløver 3 kan ikke slå fire like.</div>
+            <div class="dialogFooter"><button type="button" onclick="showDialog('KanIkkeLeggeKort', false);">Lukk</button></div>
         </div>
     </div>
 
@@ -216,10 +279,16 @@
         <div class="dialogVindu">
             <div class="dialogTittel">Regler</div>
             <div class="dialogBody TabToKolonner">
-                <div>-</div>
-                <div>Regler...</div>
+                <div>Legg på kort</div>
+                <div>Legg på like mange kort som forrige spiller, med samme verdi eller høyere.</div>
+                <div>Kløver 3</div>
+                <div>Kløver 3 kan spilles alene og rydder vanligvis bunken.</div>
+                <div>Fire like</div>
+                <div>Fire like kort kan bare slås med fire høyere like kort. Kløver 3 kan ikke slå fire like.</div>
+                <div>Pass</div>
+                <div>Når alle andre spillere passer, ryddes bunken.</div>
             </div>
-            <div class="dialogFooter"><button class="autofocus" type="submit" aria-label="Lukk" onclick="showDialog('Regler', false);"><img src='icons/done.svg' alt=''></button></div>
+            <div class="dialogFooter"><button class="autofocus" type="button" onclick="showDialog('Regler', false);">Lukk regler</button></div>
         </div>
     </div>
 
@@ -280,7 +349,7 @@
                     <div id="dialogResultaterPoeng" class="TabToKolonner"></div>
                 </div>
             </div>
-            <div class="dialogFooter"><button class="autofocus" type="submit" aria-label="Lukk" onclick="showDialog('Resultater', false);"><img src='icons/done.svg' alt=''></button></div>
+            <div class="dialogFooter"><button class="autofocus" type="button" onclick="showDialog('Resultater', false);">Lukk resultater</button></div>
         </div>
     </div>
 
@@ -290,7 +359,7 @@
             <div class="dialogBody">
                 <p>Kortstokk: http://acbl.mybigcommerce.com/52-playing-cards/</p>
             </div>
-            <div class="dialogFooter"><button type="button" aria-label="Ok" onclick="showDialog('Credits', false);"><img src='icons/done.svg' alt=''></button></div>
+            <div class="dialogFooter"><button type="button" onclick="showDialog('Credits', false);">Lukk</button></div>
         </div>
     </div>
 

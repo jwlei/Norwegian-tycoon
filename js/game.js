@@ -1,3 +1,92 @@
+var selectedCardKeys = new Set();
+var selectedCardStrength = null;
+var selectedCardOwner = null;
+var activeExchangeId = null;
+
+function getExchangeId(exchange) {
+    return exchange.id || `${exchange.tradeId || "exchange"}:${exchange.from}:${exchange.to}`;
+}
+
+function hasSneakyConsent(exchange) {
+    return exchange.kind == "playerTrade" &&
+        Array.isArray(exchange.sneakyVotes) &&
+        exchange.sneakyVotes.length >= 2;
+}
+
+function isCardAllowedForExchange(exchange, card) {
+    return exchange.kind != "playerTrade" ||
+        hasSneakyConsent(exchange) ||
+        (card.strengthRank >= 7 && card.strengthRank <= 11);
+}
+
+function exchangeCardKey(card) {
+    return `${card.suit}:${card.rank}`;
+}
+
+function getAvailableExchangeCards(game, playerIndex, excludedExchange = null) {
+    var excludedId = excludedExchange ? getExchangeId(excludedExchange) : null;
+    var reservedCards = new Set();
+    game.piles
+        .filter(exchange =>
+            exchange.from == playerIndex &&
+            getExchangeId(exchange) != excludedId &&
+            (exchange.mode == "Velg" || exchange.mode == "Best")
+        )
+        .forEach(exchange => {
+            (exchange.cards || []).forEach(card => reservedCards.add(exchangeCardKey(card)));
+        });
+    return game.players[playerIndex].cards.filter(card => !reservedCards.has(exchangeCardKey(card)));
+}
+
+function hasLegalTradeCard(game, playerIndex, excludedExchange = null) {
+    return getAvailableExchangeCards(game, playerIndex, excludedExchange)
+        .some(card => card.strengthRank >= 7 && card.strengthRank <= 11);
+}
+
+function hasFourOfKindOnTop(game) {
+    var count = 0;
+    var rank = null;
+    for (var index = game.piles.length - 1; index >= 0; index--) {
+        var pile = game.piles[index];
+        if (rank == null) {
+            rank = pile.strengthRank;
+        }
+        if (pile.strengthRank != rank) {
+            break;
+        }
+        count += pile.length;
+    }
+    return count >= 4;
+}
+
+function clearCardSelection() {
+    selectedCardKeys.clear();
+    selectedCardStrength = null;
+}
+
+function updateCardTilt(cardElement, event) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        return;
+    }
+    var bounds = cardElement.getBoundingClientRect();
+    if (bounds.width == 0 || bounds.height == 0) {
+        return;
+    }
+    var x = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+    var y = Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height));
+    cardElement.style.setProperty("--pointer-x", `${Math.round(x * 100)}%`);
+    cardElement.style.setProperty("--pointer-y", `${Math.round(y * 100)}%`);
+    cardElement.style.setProperty("--tilt-x", `${((0.5 - y) * 8).toFixed(1)}deg`);
+    cardElement.style.setProperty("--tilt-y", `${((x - 0.5) * 8).toFixed(1)}deg`);
+    cardElement.classList.add("is-tilting");
+}
+
+function resetCardTilt(cardElement) {
+    cardElement.classList.remove("is-tilting");
+    cardElement.style.setProperty("--tilt-x", "0deg");
+    cardElement.style.setProperty("--tilt-y", "0deg");
+}
+
 class GameLayout {
     static el(title) {
         return document.getElementById(title);
@@ -37,11 +126,21 @@ class GameLayout {
         return e;
     }
     static updateSharedView(game, player) {
+        var appShell = document.getElementById("DivHele");
+        setClass(appShell, "SpillAktivt", (game != null));
         var mainMenu = document.getElementById("DivHovedmeny");
         var gameControls = document.querySelectorAll("#DivFKnapper, #DivSpillere, #DivBord, #DivPKnapper, #DivKort");
         var showMenu = (game == null);
+        if (showMenu) {
+            appShell.classList.remove("GameMenuOpen");
+            var menuToggle = document.getElementById("BnGameMenuToggle");
+            menuToggle.setAttribute("aria-expanded", "false");
+            menuToggle.setAttribute("aria-label", "Åpne spillmeny");
+            menuToggle.title = "Åpne spillmeny";
+        }
         mainMenu.setAttribute("aria-hidden", String(!showMenu));
         gameControls.forEach(element => { element.inert = showMenu; });
+        this.setVisible("DivSpillMeta", (player == null));
         if (game == null) {
             setClass(mainMenu, "Skjul", false);
             this.updateMainMenu();
@@ -92,84 +191,65 @@ class GameLayout {
         playerList.innerHTML = "";
         game.players.forEach(player => {
             var playerElement = document.createElement("div");
+            playerElement.className = "player-summary";
             var nameElement = document.createElement("span");
-            nameElement.innerHTML = player.name;
+            nameElement.className = "player-summary__name";
+            nameElement.textContent = player.name;
             playerElement.appendChild(nameElement);
+            var detailsElement = document.createElement("span");
+            detailsElement.className = "player-summary__details";
+            if (player.placement == 0 && (game.status == "S" || game.status == "G")) {
+                detailsElement.textContent = `${player.cards.length} kort`;
+            } else if (player.placement > 0) {
+                detailsElement.textContent = game.placementTitle(player.placement).title;
+            } else {
+                detailsElement.textContent = "Venter";
+            }
+            playerElement.appendChild(detailsElement);
+            if (player.turn == 1 && (game.status == "S" || game.status == "G")) {
+                var turnElement = document.createElement("span");
+                turnElement.className = "player-summary__turn";
+                turnElement.textContent = "Tur";
+                turnElement.setAttribute("aria-label", "Denne spilleren har tur");
+                playerElement.appendChild(turnElement);
+            }
             if (game.status != "S" && game.status != "G") {
-                // Hide the remove-player button while a game is running.
                 var removeButton = document.createElement("button");
-                removeButton.innerHTML = "Fjern";
+                removeButton.type = "button";
+                removeButton.textContent = "Fjern";
+                removeButton.setAttribute("aria-label", `Fjern ${player.name}`);
                 removeButton.onclick = function () {
                     game.leavePlayer(player);
                 }
                 playerElement.appendChild(removeButton);
             }
             if (player.placement == 0) {
-                // Waiting room or active game.
-                if (player.lastPlay) {
-                    if (player.lastPlay == "Pass") {
-                        var passImage = document.createElement("img");
-                        passImage.src = "icons/pass.svg";
-                        passImage.alt = "Passet";
-                        playerElement.appendChild(passImage);
-                    } else {
-                        var i = 0;
-                        while (player.lastPlay[i]) {
-                            playerElement.appendChild(GameLayout.createCardImage(player.lastPlay[i], null));
-                            i++;
-                        }
-                    }
-                } else if (player.turn == 1) {
-                    var placeholder = document.createElement("span");
-                    placeholder.id = "SpanHoppover"
-                    playerElement.appendChild(placeholder);
-                    scheduleIdleHelp(game);
-                }
-                playerElement.className =
-                    ((player.turn == 1) ? " MinTur" : "") +
-                    ((player.cards.length == 1) ? " EttKort" : "");
-                var cardBacks = document.createElement("div");
-                cardBacks.className = "SpillerKortBakgrunner";
-                for (let cardIndex = player.cards.length; cardIndex > 0; cardIndex--) {
-                    if (cardIndex <= player.antTrukket) {
-                        cardBacks.appendChild(GameLayout.createCardImage(PresidentCard.createBack(1), null));
-                    } else {
-                        cardBacks.appendChild(GameLayout.createCardImage(PresidentCard.createBack(), null));
-                    }
-                }
-                player.cards.forEach(k => { });
-                playerElement.appendChild(cardBacks);
+                playerElement.classList.toggle("MinTur", player.turn == 1);
+                playerElement.classList.toggle("EttKort", player.cards.length == 1);
             } else {
-                // Player has finished.
-                playerElement.className = "Ferdig";
-                var placementElement = document.createElement("div");
-                placementElement.className = "SpillerKortPlassering";
-                var title = game.placementTitle(player.placement);
-                placementElement.innerHTML = `<img src='icons/${title.img}' alt='${title.title}' />` + `&nbsp;${title.title}`;
-                playerElement.appendChild(placementElement);
+                playerElement.classList.add("Ferdig");
             }
-            player.messages.forEach(m => {
-                var messageElement = document.createElement("span");
-                messageElement.className = "melding";
-                messageElement.innerHTML = m;
-                playerElement.appendChild(messageElement);
-                playerElement.appendChild(document.createElement("br"));
-            });
             playerList.appendChild(playerElement);
         });
+        if (game.status == "S" && game.players.some(player => player.turn == 1 && player.placement == 0 && !player.lastPlay)) {
+            scheduleIdleHelp(game);
+        } else if (idleHelpTimer != null) {
+            clearTimeout(idleHelpTimer);
+            idleHelpTimer = null;
+        }
     }
     static drawIdleHelp(choices, callbacks) {
-        choices.push("Avbryt (ikke gjÃ¸r noe)");
+        choices.push("Avbryt (ikke gjør noe)");
         callbacks.push(function () { });
         var element = document.getElementById("SpanHoppover");
         if (element == null) { return; };
         setClass(element, "DropdownButton", true);
-        var b = document.createElement("img");
-        b.src = 'icons/sleep.svg';
-        b.alt = 'Hjelp spiller som har sovnet';
+        var b = document.createElement("button");
+        b.type = "button";
+        b.textContent = "Hjelp inaktiv spiller";
         b.onclick = function () {
             showChoiceDialog(
-                "Spilleren har ikke gjort noe pÃ¥ en stund. Vil du overstyre spilleren?",
+                "Spilleren har ikke gjort noe på en stund. Vil du overstyre spilleren?",
                 choices,
                 callbacks
             )
@@ -214,12 +294,100 @@ class GameLayout {
                     element.innerHTML += `<div class="bytteTittel">${exchange.text}</div>`;
                     var cardContainer = document.createElement("div");
                     cardContainer.className = "bytteKort";
+                    var buttonSpan = document.createElement("span");
+                    if (exchange.mode == "Tilbud") {
+                        var voters = exchange.sneakyVotes || [];
+                        var participantIndex = (player == null) ? -1 : game.players.indexOf(player);
+                        var isParticipant = participantIndex == exchange.from || participantIndex == exchange.to;
+                        var canInitiate = participantIndex == exchange.from;
+                        var status = document.createElement("span");
+                        status.className = "trade-status";
+                        status.textContent = `Sneaky bytte: ${voters.length}/2 samtykker. Vanlig bytte bruker kort 7–J.`;
+                        cardContainer.appendChild(status);
+                        if (isParticipant) {
+                            var sneakyButton = document.createElement("button");
+                            sneakyButton.type = "button";
+                            sneakyButton.textContent = voters.includes(participantIndex)
+                                ? "Trekk sneaky-samtykke"
+                                : "Sneaky bytte";
+                            sneakyButton.setAttribute("aria-pressed", String(voters.includes(participantIndex)));
+                            sneakyButton.onclick = function () {
+                                game.toggleSneakyTrade(exchange, participantIndex);
+                            };
+                            buttonSpan.appendChild(sneakyButton);
+                        }
+                        if (canInitiate) {
+                            var startButton = document.createElement("button");
+                            startButton.type = "button";
+                            startButton.textContent = "Start tvunget bytte";
+                            startButton.disabled = !hasLegalTradeCard(game, exchange.from, exchange) ||
+                                !hasLegalTradeCard(game, exchange.to, exchange);
+                            startButton.title = startButton.disabled
+                                ? "Begge spillerne trenger minst ett ledig kort fra 7 til J."
+                                : "";
+                            startButton.onclick = function () {
+                                game.startOptionalTrade(exchange);
+                            };
+                            buttonSpan.appendChild(startButton);
+                            var skipButton = document.createElement("button");
+                            skipButton.type = "button";
+                            skipButton.textContent = "Ingen bytte";
+                            skipButton.onclick = function () {
+                                game.skipOptionalTrade(exchange, participantIndex);
+                            };
+                            buttonSpan.appendChild(skipButton);
+                        }
+                        cardContainer.appendChild(buttonSpan);
+                    } else {
                     var cardSpan = document.createElement("span");
                     exchange.cards.forEach(cards => {
                         var cardElement = GameLayout.createCardImage(((canSeeCards) ? new Card(cards.suit, cards.rank) : Card.createBack()), null);
                         cardSpan.appendChild(cardElement);
                     });
-                    var buttonSpan = document.createElement("span");
+                    var outgoingExchanges = game.piles.filter(candidate =>
+                        candidate.mode == "Velg" && game.players[candidate.from] == player
+                    );
+                    if (game.players[exchange.from] == player && exchange.mode == "Velg" && outgoingExchanges.length > 1) {
+                        var chooseButton = document.createElement("button");
+                        chooseButton.type = "button";
+                        chooseButton.textContent = activeExchangeId == getExchangeId(exchange)
+                            ? "Valgt for kortvalg"
+                            : "Velg denne bytten";
+                        chooseButton.setAttribute("aria-pressed", String(activeExchangeId == getExchangeId(exchange)));
+                        chooseButton.onclick = function () {
+                            activeExchangeId = getExchangeId(exchange);
+                            GameLayout.updateTable(game, player);
+                            GameLayout.updateHand(game, player);
+                        };
+                        buttonSpan.appendChild(chooseButton);
+                    }
+                    if (exchange.kind == "playerTrade" && player != null &&
+                        (game.players[exchange.from] == player || game.players[exchange.to] == player)) {
+                        var voters = exchange.sneakyVotes || [];
+                        var participantIndex = game.players.indexOf(player);
+                        var tradeStatus = document.createElement("span");
+                        tradeStatus.className = "trade-status";
+                        tradeStatus.textContent = hasSneakyConsent(exchange)
+                            ? "Sneaky bytte: alle kort kan brukes."
+                            : `Vanlig bytte: kort 7–J. Sneaky-samtykke ${voters.length}/2.`;
+                        buttonSpan.appendChild(tradeStatus);
+                        var sneakyButton = document.createElement("button");
+                        sneakyButton.type = "button";
+                        sneakyButton.textContent = voters.includes(participantIndex)
+                            ? "Trekk sneaky-samtykke"
+                            : "Sneaky bytte";
+                        sneakyButton.setAttribute("aria-pressed", String(voters.includes(participantIndex)));
+                        var hasSelectedTradeCard = game.piles.some(candidate =>
+                            candidate.tradeId == exchange.tradeId &&
+                            candidate.cards && candidate.cards.length > 0
+                        );
+                        sneakyButton.disabled = exchange.sneakyLocked === true ||
+                            (hasSelectedTradeCard && voters.includes(participantIndex));
+                        sneakyButton.onclick = function () {
+                            game.toggleSneakyTrade(exchange, participantIndex);
+                        };
+                        buttonSpan.appendChild(sneakyButton);
+                    }
                     if (game.players[exchange.from] == player && exchange.count == exchange.cards.length && (exchange.mode == "Velg" || exchange.mode == "Best")) {
                         var buttonElement = document.createElement("button");
                         buttonElement.innerHTML = `Gi til ${game.players[exchange.to].name}`;
@@ -255,8 +423,9 @@ class GameLayout {
                         default:
                             break;
                     }
-                    element.appendChild(cardContainer);
-                    table.appendChild(element);
+                        }
+                        element.appendChild(cardContainer);
+                        table.appendChild(element);
                 })
                 break;
             case "S":
@@ -294,11 +463,13 @@ class GameLayout {
     }
     static updatePlayerButtons(game, player) {
         if (game == null) {
+            this.el("SpanHoppover").innerHTML = "";
             this.setVisible("BnPNySpiller", false);
             this.setVisible("BnPPass", false);
             this.setVisible("BnPGiOpp", false);
             return;
         }
+        this.el("SpanHoppover").innerHTML = "";
         if (player == null) {
             this.el("SpanSpillerNick").innerHTML = "";
             this.el("SpanSpillerInfo").innerHTML = "";
@@ -312,9 +483,9 @@ class GameLayout {
                     case "S":
                         var o = game.topPile();
                         if (o == null) {
-                            this.el("SpanSpillerInfo").innerHTML = `Du skal starte Ã¥ legge ut.`;
+                            this.el("SpanSpillerInfo").innerHTML = `Du skal starte å legge ut.`;
                         } else {
-                            this.el("SpanSpillerInfo").innerHTML = `Spilleren fÃ¸r deg la ${o.describe()}.`;
+                            this.el("SpanSpillerInfo").innerHTML = `Spilleren før deg la ${o.describe()}.`;
                         }
                         break;
                     default:
@@ -342,9 +513,67 @@ class GameLayout {
     }
     static updateHand(game, player) {
         var element = document.getElementById("DivKort");
+        var selectionPanel = document.getElementById("cardSelectionActions");
+        var selectionCount = document.getElementById("selectedCardCount");
+        var playSelectedButton = document.getElementById("BnPPlaySelected");
+        var cancelSelectionButton = document.getElementById("BnPCancelSelection");
         element.innerHTML = "";
-        if (player == null) {
+        if (selectionPanel) {
+            selectionPanel.hidden = true;
+        }
+        if (player == null || game == null) {
+            clearCardSelection();
+            selectedCardOwner = null;
+            activeExchangeId = null;
             return;
+        }
+        var ownerKey = `${game.id}:${player.name}`;
+        if (selectedCardOwner !== ownerKey) {
+            clearCardSelection();
+            selectedCardOwner = ownerKey;
+            activeExchangeId = null;
+        }
+        var selectableExchanges = (game.status == "G")
+            ? game.piles.filter(exchange =>
+                exchange.mode == "Velg" && game.players[exchange.from] == player
+            )
+            : [];
+        if (!selectableExchanges.some(exchange => getExchangeId(exchange) == activeExchangeId)) {
+            activeExchangeId = null;
+        }
+        if (selectableExchanges.length == 1) {
+            activeExchangeId = getExchangeId(selectableExchanges[0]);
+        }
+        var activeExchange = selectableExchanges.find(exchange =>
+            getExchangeId(exchange) == activeExchangeId
+        ) || null;
+        var isPlayingTurn = (game.status == "S" && player.turn == 1 && player.placement == 0);
+        var playableStrengths = new Set();
+        if (isPlayingTurn) {
+            player.cards.forEach(card => {
+                if (!playableStrengths.has(card.strengthRank)) {
+                    var info = {};
+                    if (game.canPlayRank(player, card.strengthRank, info)) {
+                        playableStrengths.add(card.strengthRank);
+                    }
+                }
+            });
+        } else {
+            clearCardSelection();
+        }
+        if (selectedCardStrength != null && !playableStrengths.has(selectedCardStrength)) {
+            clearCardSelection();
+        }
+        if (selectedCardKeys.size > 0) {
+            var currentCardKeys = new Set(player.cards.map(card => `${card.suit}:${card.rank}`));
+            selectedCardKeys.forEach(cardKey => {
+                if (!currentCardKeys.has(cardKey)) {
+                    selectedCardKeys.delete(cardKey);
+                }
+            });
+            if (selectedCardKeys.size == 0) {
+                selectedCardStrength = null;
+            }
         }
         if (player.placement == 0) {
             if (player.cards.length == 0) {
@@ -357,89 +586,218 @@ class GameLayout {
                 var cardIndex = -1;
                 player.cards.forEach(k => {
                     cardIndex++;
-                    var elemKort = document.createElement('span');
-                    elemKort.style.transform = `translateX(${-2 * Math.round(100 * ((cardIndex / (player.cards.length - 1)) - 0.5)) / 10}px) rotate(${Math.round(100 * ((cardIndex / (player.cards.length - 1)) - 0.5)) / 10}deg)`;
+                    var elemKort = document.createElement("button");
+                    elemKort.type = "button";
+                    elemKort.disabled = true;
+                    var fanPosition = (player.cards.length > 1)
+                        ? Math.round(100 * ((cardIndex / (player.cards.length - 1)) - 0.5)) / 10
+                        : 0;
+                    var cardKey = `${k.suit}:${k.rank}`;
+                    elemKort.className = "game-card";
+                    elemKort.dataset.cardKey = cardKey;
+                    elemKort.style.setProperty("--card-offset", "0px");
+                    elemKort.style.setProperty("--card-rotation", `${fanPosition}deg`);
                     elemKort.innerHTML = GameLayout.cardImageHtml(k, null);
+                    var isSelected = selectedCardKeys.has(cardKey);
+                    var isPlayable = isPlayingTurn && playableStrengths.has(k.strengthRank);
+                    if (isSelected) {
+                        elemKort.classList.add("is-selected");
+                    }
+                    if (activeExchange && activeExchange.cards.some(card =>
+                        card.suit == k.suit && card.rank == k.rank
+                    )) {
+                        elemKort.classList.add("is-exchange-selected");
+                    }
+                    if (isPlayable) {
+                        elemKort.classList.add("is-playable");
+                    } else if (isPlayingTurn) {
+                        elemKort.classList.add("is-unplayable");
+                    }
+                    if (selectedCardStrength != null && !isSelected) {
+                        if (k.strengthRank == selectedCardStrength && isPlayable) {
+                            elemKort.classList.add("is-mixable");
+                        } else {
+                            elemKort.classList.add("is-dimmed");
+                        }
+                    }
                     switch (game.status) {
                         case "G":
-                            game.piles.filter(gave => (gave.mode == "Velg" && game.players[gave.from] == player)).forEach(gave => {
+                            if (activeExchange) {
+                                var isSelectedForExchange = activeExchange.cards.some(card =>
+                                    card.suit == k.suit && card.rank == k.rank
+                                );
+                                var availableCards = getAvailableExchangeCards(
+                                    game,
+                                    game.players.indexOf(player),
+                                    activeExchange
+                                );
+                                var canSelectForExchange = availableCards.some(card =>
+                                    card.suit == k.suit && card.rank == k.rank
+                                ) &&
+                                    isCardAllowedForExchange(activeExchange, k) &&
+                                    activeExchange.cards.length < activeExchange.count;
+                                elemKort.disabled = !isSelectedForExchange && !canSelectForExchange;
+                                if (!elemKort.disabled) {
+                                elemKort.tabIndex = 0;
+                                elemKort.setAttribute(
+                                    "aria-label",
+                                    `${k.getName()}${isSelectedForExchange ? ", valgt for bytte" : ", velg for bytte"}`
+                                );
                                 elemKort.onclick = function () {
-                                    if (!gave.cards) { gave.cards = []; };
-                                    var i = gave.cards.findIndex(cards => (cards.suit == k.suit && cards.rank == k.rank))
+                                    var i = activeExchange.cards.findIndex(cards =>
+                                        cards.suit == k.suit && cards.rank == k.rank
+                                    );
                                     if (i >= 0) {
-                                        gave.cards.splice(i, 1);
-                                        game.save();
+                                        activeExchange.cards.splice(i, 1);
                                     } else {
-                                        gave.cards.push(k);
-                                        game.save();
+                                        var stillAvailable = getAvailableExchangeCards(
+                                            game,
+                                            game.players.indexOf(player),
+                                            activeExchange
+                                        ).some(card => card.suit == k.suit && card.rank == k.rank);
+                                        if (!stillAvailable ||
+                                            activeExchange.cards.length >= activeExchange.count ||
+                                            !isCardAllowedForExchange(activeExchange, k)) {
+                                            return;
+                                        }
+                                        activeExchange.cards.push(k);
                                     };
+                                    game.save();
+                                    GameLayout.updateTable(game, player);
+                                    GameLayout.updateHand(game, player);
+                                };
                                 }
-                            });
+                            }
                             break;
                         case "S":
-                            elemKort.onclick = function () {
-                                if (player.turn == 1) {
-                                    if (game.piles.length == 0) {
-                                        var dialogTexts = [];
-                                        var dialogCallbacks = [];
-                                        var info = {};
-                                        if (game.canPlayRank(player, k.strengthRank, info)) {
-                                            for (let i = 1; i <= info.pile.length; i++) {
-                                                var pile = new CardPile(player.name);
-                                                for (let n = 0; n < i; n++) { pile.push(info.pile[n]) };
-                                                var htmlText = "<div class='AskKort'>";
-                                                pile.forEach(cards => {
-                                                    htmlText += GameLayout.cardImageHtml(cards, null);
-                                                })
-                                                htmlText += '</div>';
-                                                dialogTexts.push(htmlText);
-                                                dialogCallbacks.push(function () {
-                                                    game.playCards(player, pile);
-                                                });
+                            if (player.turn == 1) {
+                                elemKort.disabled = false;
+                                elemKort.tabIndex = 0;
+                                elemKort.setAttribute(
+                                    "aria-label",
+                                    `${k.getName()}${isPlayable ? ", kan spilles" : ", kan ikke spilles nå"}`
+                                );
+                                elemKort.setAttribute("aria-pressed", String(isSelected));
+                                elemKort.onclick = function () {
+                                    if (!playableStrengths.has(k.strengthRank)) {
+                                        showDialog("KanIkkeLeggeKort", true);
+                                        return;
+                                    }
+                                    if (selectedCardStrength != null && selectedCardStrength != k.strengthRank) {
+                                        clearCardSelection();
+                                    }
+                                    if (selectedCardKeys.has(cardKey)) {
+                                        selectedCardKeys.delete(cardKey);
+                                        if (selectedCardKeys.size == 0) {
+                                            selectedCardStrength = null;
+                                        }
+                                    } else {
+                                        var topPile = game.topPile();
+                                        var maxCards = (topPile == null)
+                                            ? player.cards.filter(card => card.strengthRank == k.strengthRank).length
+                                            : ((k.strengthRank == PresidentCard.clubThreePower())
+                                                ? 1
+                                                : (hasFourOfKindOnTop(game) ? 4 : topPile.length));
+                                        if (selectedCardKeys.size >= maxCards) {
+                                            var lastSelectedKey = Array.from(selectedCardKeys).pop();
+                                            if (lastSelectedKey) {
+                                                selectedCardKeys.delete(lastSelectedKey);
                                             }
                                         }
-                                        dialogTexts.push("Velg annet kort");
-                                        dialogCallbacks.push(function () { });
-                                        showChoiceDialog("Vil du legge:", dialogTexts, dialogCallbacks);
-                                    } else {
-                                        var info = {};
-                                        if (game.canPlayRank(player, k.strengthRank, info)) {
-                                            var htmlText = "<div class='AskKort'>";
-                                            info.pile.forEach(cards => {
-                                                htmlText += GameLayout.cardImageHtml(cards, null);
-                                            })
-                                            htmlText += '</div>';
-                                            var dialogTexts = [
-                                                htmlText,
-                                                "Velg annet kort"
-                                            ];
-                                            var dialogCallbacks = [function () {
-                                                game.playCards(player, info.pile);
-                                            },
-                                            function () { }
-                                            ];
-                                            showChoiceDialog("Vil du legge:", dialogTexts, dialogCallbacks);
-                                        } else {
-                                            showDialog("KanIkkeLeggeKort", true);
-                                        }
+                                        selectedCardStrength = k.strengthRank;
+                                        selectedCardKeys.add(cardKey);
                                     }
-                                }
+                                    GameLayout.updateHand(game, player);
+                                    var focusedCard = Array.from(element.querySelectorAll(".game-card"))
+                                        .find(card => card.dataset.cardKey == cardKey);
+                                    if (focusedCard) {
+                                        focusedCard.focus({ preventScroll: true });
+                                    }
+                                };
                             }
                             break;
                         default:
                             break;
                     }
+                    if (!elemKort.disabled) {
+                        elemKort.onkeydown = function (event) {
+                            if ((event.key == "Enter" || event.key == " ") && !event.repeat) {
+                                event.preventDefault();
+                                elemKort.click();
+                            } else if (event.key == "ArrowLeft" || event.key == "ArrowRight") {
+                                event.preventDefault();
+                                var cards = Array.from(element.querySelectorAll(".game-card:not(:disabled)"));
+                                var currentIndex = cards.indexOf(elemKort);
+                                var direction = (event.key == "ArrowRight") ? 1 : -1;
+                                var nextCard = cards[currentIndex + direction];
+                                if (nextCard) {
+                                    nextCard.focus();
+                                }
+                            }
+                        };
+                        elemKort.onpointerdown = function (event) {
+                            elemKort.classList.add("is-pressed");
+                            updateCardTilt(elemKort, event);
+                        };
+                        elemKort.onpointermove = function (event) {
+                            updateCardTilt(elemKort, event);
+                        };
+                        elemKort.onpointerup = function (event) {
+                            elemKort.classList.remove("is-pressed");
+                            if (event.pointerType == "touch") {
+                                resetCardTilt(elemKort);
+                            }
+                        };
+                        elemKort.onpointercancel = function () {
+                            elemKort.classList.remove("is-pressed");
+                            resetCardTilt(elemKort);
+                        };
+                        elemKort.onpointerleave = function () {
+                            elemKort.classList.remove("is-pressed");
+                            resetCardTilt(elemKort);
+                        };
+                    }
                     element.appendChild(elemKort)
                 });
+                if (isPlayingTurn && selectionPanel && selectionCount && playSelectedButton && cancelSelectionButton) {
+                    var selectedCards = player.cards.filter(card => selectedCardKeys.has(`${card.suit}:${card.rank}`));
+                    if (selectedCards.length > 0) {
+                        var topPile = game.topPile();
+                        var requiredCount = (topPile == null)
+                            ? null
+                            : ((selectedCardStrength == PresidentCard.clubThreePower()) ? 1 : topPile.length);
+                        selectionPanel.hidden = false;
+                        selectionCount.textContent = (requiredCount == null)
+                            ? `${selectedCards.length} kort valgt`
+                            : `${selectedCards.length} av ${requiredCount} kort valgt`;
+                        selectionCount.setAttribute("aria-label", selectionCount.textContent);
+                        playSelectedButton.disabled = selectedCards.length == 0 ||
+                            (requiredCount != null && selectedCards.length != requiredCount);
+                        playSelectedButton.onclick = function () {
+                            var pile = new CardPile(player.name, ...selectedCards);
+                            if (!game.canPlayPile(player, pile)) {
+                                showDialog("KanIkkeLeggeKort", true);
+                                return;
+                            }
+                            clearCardSelection();
+                            game.playCards(player, pile);
+                        };
+                        cancelSelectionButton.onclick = function () {
+                            clearCardSelection();
+                            GameLayout.updateHand(game, player);
+                        };
+                    }
+                }
             }
         } else {
+            clearCardSelection();
             setClass(element, "KortKort", true);
             setClass(element, "KortForklaring", false);
             var s = `<img src='icons/${game.placementTitle(player.placement).img}' alt='Ferdig' height='90%' />`;
             if (game.status == "S") {
-                s += `<span>Du ble <b>${game.placementTitle(player.placement).title}</b>. Venter pÃ¥ at de andre skal spille ferdig.</span>`;
+                s += `<span>Du ble <b>${game.placementTitle(player.placement).title}</b>. Venter på at de andre skal spille ferdig.</span>`;
             } else {
-                s += `<span>Spillet er ferdig. Du ble <b>${game.placementTitle(player.placement).title}</b> (av ${game.players.length} spillere). For Ã¥ spille en runde til, trykk pÃ¥ <img src="icons/start.svg" style="height: 1em; vertical-align: text-bottom;" alt="startknappen" />.</span>`;
+                s += `<span>Spillet er ferdig. Du ble <b>${game.placementTitle(player.placement).title}</b> (av ${game.players.length} spillere). For å spille en runde til, trykk på «Start spill».</span>`;
             }
             element.innerHTML = s;
         }
@@ -449,7 +807,7 @@ class GameLayout {
 class PresidentCard extends Card {
     static clubThreePower() { return 16; }
     static strengthName(strengthRank) {
-        return ["", "", "", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "2", "KlÃ¸ver 3"][strengthRank];
+        return ["", "", "", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "2", "Kløver 3"][strengthRank];
     }
     constructor(suit, rank) {
         super(suit, rank);
@@ -521,7 +879,7 @@ class CardPile extends Array {
         if (this.length > 0) {
             this.strengthRank = this[0].strengthRank;
             this.forEach(k => {
-                if (k.strengthRank != this.strengthRank) { throw ("Kan ikke legge pÃ¥ forskjellige kort.") }
+                if (k.strengthRank != this.strengthRank) { throw ("Kan ikke legge på forskjellige kort.") }
             });
         } else {
             this.strengthRank = null;
@@ -540,7 +898,7 @@ class CardPile extends Array {
     }
     push(item) {
         if (this.strengthRank != null) {
-            if (item.strengthRank != this.strengthRank) { throw ("Kan ikke legge pÃ¥ forskjellige kort.") }
+            if (item.strengthRank != this.strengthRank) { throw ("Kan ikke legge på forskjellige kort.") }
         } else {
             this.strengthRank = item.strengthRank;
         }
@@ -562,7 +920,7 @@ class CardPile extends Array {
     }
     describe() {
         if (this.length == 0) { return "ingen kort" };
-        if (this[0].isClubThree()) { return "klÃ¸ver 3" };
+        if (this[0].isClubThree()) { return "kløver 3" };
         return ["", "en", "to", "tre", "fire", "fem", "seks", "syv"][this.length] + " " + ((this.length > 1) ? Card.rankInfo(this[0].rank).pluralName : Card.rankInfo(this[0].rank).singularName);
     }
     canBePlayedOn(topPile) {
@@ -658,25 +1016,41 @@ class PresidentGame extends Game {
         if (this.status != "G") {
             return PresidentCard.serializePiles(this.piles);
         }
-        return this.piles.map(exchange => ({
-            "tekst": exchange.text,
-            "fra": exchange.from,
-            "til": exchange.to,
-            "antall": exchange.count,
-            "modus": exchange.mode,
-            "kort": PresidentCard.serializeDeck(exchange.cards || [])
-        }));
+        return this.piles.map(exchange => {
+            var record = {
+                "tekst": exchange.text,
+                "fra": exchange.from,
+                "til": exchange.to,
+                "antall": exchange.count,
+                "modus": exchange.mode,
+                "kort": PresidentCard.serializeDeck(exchange.cards || [])
+            };
+            ["id", "kind", "tradeId", "sneakyVotes", "sneakyLocked"].forEach(key => {
+                if (exchange[key] != null) {
+                    record[key] = exchange[key];
+                }
+            });
+            return record;
+        });
     }
     static deserializeExchanges(records) {
         if (records == null) { return []; }
-        return records.map(record => ({
-            text: record["tekst"],
-            from: record["fra"],
-            to: record["til"],
-            count: record["antall"],
-            mode: record["modus"],
-            cards: PresidentCard.deserializeDeck(record["kort"])
-        }));
+        return records.map(record => {
+            var exchange = {
+                text: record["tekst"],
+                from: record["fra"],
+                to: record["til"],
+                count: record["antall"],
+                mode: record["modus"],
+                cards: PresidentCard.deserializeDeck(record["kort"]),
+                kind: record.kind || null,
+                tradeId: record.tradeId || null,
+                sneakyVotes: record.sneakyVotes || [],
+                sneakyLocked: record.sneakyLocked === true
+            };
+            exchange.id = record.id || `exchange:${exchange.from}:${exchange.to}`;
+            return exchange;
+        });
     }
     deckCount() {
         return 1;
@@ -696,6 +1070,9 @@ class PresidentGame extends Game {
                     return ({ title: `Arbeider${((this.players.length > 5) ? " " + (placement - 2) : "")}`, img: "worker.svg" });
             }
         } else {
+            if (this.players.length == 3 && placement == 2) {
+                return ({ title: "Nøytral", img: "worker.svg" });
+            }
             switch (placement) {
                 case 1:
                     return ({ title: "President", img: "president.svg" });
@@ -750,8 +1127,8 @@ class PresidentGame extends Game {
             if (this.players.length >= 5) {
                 this.players[0].messages.push("Skal gi to kort til bomsen.");
                 this.players[1].messages.push("Skal gi ett kort til visebomsen.");
-                this.players[this.players.length - 2].messages.push("Gir sitt dÃ¥rligste kort til visepresidenten.");
-                this.players[this.players.length - 1].messages.push("Gir sine to dÃ¥rligste kort til presidenten.");
+                this.players[this.players.length - 2].messages.push("Gir sitt dårligste kort til visepresidenten.");
+                this.players[this.players.length - 1].messages.push("Gir sine to dårligste kort til presidenten.");
                 this.piles = [{
                     text: "Presidenten skal gi bomsen to kort:",
                     from: 0,
@@ -791,7 +1168,37 @@ class PresidentGame extends Game {
                     count: 1,
                     mode: "Best"
                 }];
+                if (this.players.length == 3) {
+                    this.piles.push({
+                        id: `offer:${this.round}:0:1`,
+                        tradeId: `trade:${this.round}:0:1`,
+                        kind: "playerTrade",
+                        text: "Presidenten kan starte et tvunget bytte med Nøytral:",
+                        from: 0,
+                        to: 1,
+                        count: 1,
+                        mode: "Tilbud",
+                        cards: [],
+                        sneakyVotes: []
+                    }, {
+                        id: `offer:${this.round}:1:2`,
+                        tradeId: `trade:${this.round}:1:2`,
+                        kind: "playerTrade",
+                        text: "Nøytral kan starte et tvunget bytte med Boms:",
+                        from: 1,
+                        to: 2,
+                        count: 1,
+                        mode: "Tilbud",
+                        cards: [],
+                        sneakyVotes: []
+                    });
+                }
             }
+            this.piles.forEach(exchange => {
+                if (!exchange.id) {
+                    exchange.id = `exchange:${exchange.from}:${exchange.to}`;
+                }
+            });
             this.piles.filter(exchange => (exchange.mode == "Best")).forEach(exchange => {
                 exchange.cards = [];
                 var cards = this.players[exchange.from].cards.filter(k => (!k.isClubThree())); // The club three must not be exchanged.
@@ -810,40 +1217,156 @@ class PresidentGame extends Game {
             });
         }
     }
-    giveExchangeCards(exchange) {
-        if (this.status != "G") { throw ("Spillet er ikke i bytte-modus."); };
-        if (exchange.mode != 'Velg' && exchange.mode != 'Best') { throw (`Kan ikke gi kort nÃ¥r modus er ${exchange.mode} (mÃ¥ vÃ¦re Velg eller Best).`); };
-        if (exchange.cards.length != exchange.count) { throw ("Feil antall kort som byttes."); };
-        exchange.cards.forEach(k => {
-            this.players[exchange.from].cards.splice(
-                this.players[exchange.from].cards.findIndex(k_ut => (k_ut.suit == k.suit && k_ut.rank == k.rank)),
-                1
-            );
+    startOptionalTrade(offer, sneaky = false) {
+        if (this.status != "G") { throw ("Spillet er ikke i bytte-modus."); }
+        var offerId = getExchangeId(offer);
+        var currentOffer = this.piles.find(exchange =>
+            getExchangeId(exchange) == offerId && exchange.mode == "Tilbud"
+        );
+        if (!currentOffer || currentOffer.kind != "playerTrade") {
+            throw ("Dette byttet er ikke lenger tilgjengelig.");
+        }
+        var isAuthorizedPair =
+            (currentOffer.from == 0 && currentOffer.to == 1) ||
+            (currentOffer.from == 1 && currentOffer.to == 2);
+        if (this.players.length != 3 || !isAuthorizedPair) {
+            throw ("Denne bytteregelen gjelder bare President, Nøytral og Boms i et tre-spillers spill.");
+        }
+        if (sneaky) {
+            if (!hasSneakyConsent(currentOffer)) {
+                throw ("Begge spillerne må samtykke til sneaky bytte.");
+            }
+        } else if (!hasLegalTradeCard(this, currentOffer.from, currentOffer) ||
+            !hasLegalTradeCard(this, currentOffer.to, currentOffer)) {
+            throw ("Begge spillerne må ha et ledig kort fra 7 til J.");
+        }
+        this.piles.splice(this.piles.indexOf(currentOffer), 1);
+        var tradeId = currentOffer.tradeId || `trade:${this.round}:${currentOffer.from}:${currentOffer.to}`;
+        var votes = (currentOffer.sneakyVotes || []).slice();
+        var createExchange = (from, to) => ({
+            id: `${tradeId}:${from}:${to}`,
+            tradeId: tradeId,
+            kind: "playerTrade",
+            text: `${this.players[from].name} gir ett kort til ${this.players[to].name}:`,
+            from: from,
+            to: to,
+            count: 1,
+            mode: "Velg",
+            cards: [],
+            sneakyVotes: votes.slice(),
+            sneakyLocked: false
         });
-        exchange.mode = "Gitt";
-        if (this.piles.filter(b => (b.mode != "Gitt")).length == 0) {
-            // All players have submitted their cards.
+        this.piles.push(
+            createExchange(currentOffer.from, currentOffer.to),
+            createExchange(currentOffer.to, currentOffer.from)
+        );
+        this.players[currentOffer.from].turn = 1;
+        this.players[currentOffer.to].turn = 1;
+        this.save();
+    }
+    skipOptionalTrade(offer, playerIndex) {
+        if (this.status != "G") { throw ("Spillet er ikke i bytte-modus."); }
+        var currentOffer = this.piles.find(exchange =>
+            getExchangeId(exchange) == getExchangeId(offer) && exchange.mode == "Tilbud"
+        );
+        if (!currentOffer || currentOffer.kind != "playerTrade") {
+            throw ("Dette byttet er ikke lenger tilgjengelig.");
+        }
+        if (currentOffer.from != playerIndex) {
+            throw ("Bare spilleren som kan starte byttet, kan velge Ingen bytte.");
+        }
+        this.piles.splice(this.piles.indexOf(currentOffer), 1);
+        this.advanceExchangeStage();
+        this.save();
+    }
+    toggleSneakyTrade(exchange, playerIndex) {
+        if (this.status != "G") { throw ("Spillet er ikke i bytte-modus."); }
+        var current = this.piles.find(candidate =>
+            getExchangeId(candidate) == getExchangeId(exchange)
+        );
+        if (!current || current.kind != "playerTrade" ||
+            (current.mode != "Tilbud" && current.mode != "Velg")) {
+            throw ("Sneaky-samtykke kan ikke endres nå.");
+        }
+        if (playerIndex != current.from && playerIndex != current.to) {
+            throw ("Bare deltakerne i byttet kan gi sneaky-samtykke.");
+        }
+        var relatedExchanges = this.piles.filter(candidate =>
+            candidate.tradeId != null && candidate.tradeId == current.tradeId
+        );
+        var votes = (current.sneakyVotes || []).slice();
+        var voteIndex = votes.indexOf(playerIndex);
+        if (voteIndex >= 0) {
+            if (relatedExchanges.some(candidate => candidate.cards && candidate.cards.length > 0)) {
+                throw ("Sneaky-samtykke kan ikke trekkes tilbake etter at kort er valgt.");
+            }
+            votes.splice(voteIndex, 1);
+        } else {
+            votes.push(playerIndex);
+        }
+        relatedExchanges.forEach(candidate => {
+            candidate.sneakyVotes = votes.slice();
+        });
+        if (current.mode == "Tilbud" && hasSneakyConsent(current)) {
+            this.startOptionalTrade(current, true);
+        } else {
+            this.save();
+        }
+    }
+    advanceExchangeStage() {
+        if (this.piles.length == 0) {
+            this.status = "S";
+            this.setTurn(0);
+        } else if (this.piles.every(exchange => exchange.mode == "Gitt")) {
             this.piles.forEach(exchange => {
                 exchange.mode = "Kan se";
             });
             this.setTurn(-1);
         }
+    }
+    giveExchangeCards(exchange) {
+        if (this.status != "G") { throw ("Spillet er ikke i bytte-modus."); };
+        if (exchange.mode != 'Velg' && exchange.mode != 'Best') { throw (`Kan ikke gi kort når modus er ${exchange.mode} (må være Velg eller Best).`); };
+        if (exchange.cards.length != exchange.count) { throw ("Feil antall kort som byttes."); };
+        var availableCards = getAvailableExchangeCards(this, exchange.from, exchange);
+        var usedCards = new Set();
+        exchange.cards.forEach(k => {
+            var key = exchangeCardKey(k);
+            if (usedCards.has(key) ||
+                !availableCards.some(card => exchangeCardKey(card) == key) ||
+                !isCardAllowedForExchange(exchange, k)) {
+                throw ("Kortene er ikke gyldige for dette byttet.");
+            }
+            usedCards.add(key);
+        });
+        if (exchange.kind == "playerTrade") {
+            var relatedExchanges = this.piles.filter(candidate =>
+                candidate.tradeId == exchange.tradeId
+            );
+            relatedExchanges.forEach(candidate => {
+                candidate.sneakyLocked = true;
+            });
+        }
+        exchange.cards.forEach(k => {
+            var cardIndex = this.players[exchange.from].cards.findIndex(card =>
+                card.suit == k.suit && card.rank == k.rank
+            );
+            this.players[exchange.from].cards.splice(cardIndex, 1);
+        });
+        exchange.mode = "Gitt";
+        this.advanceExchangeStage();
         this.save();
     }
     receiveExchangeCards(exchange) {
         if (this.status != "G") { throw ("Spillet er ikke i bytte-modus."); };
-        if (exchange.mode != 'Kan se') { throw (`Kan ikke gi kort nÃ¥r modus er ${exchange.mode} (mÃ¥ vÃ¦re Kan se).`); };
+        if (exchange.mode != 'Kan se') { throw (`Kan ikke gi kort når modus er ${exchange.mode} (må være Kan se).`); };
         if (exchange.cards.length != exchange.count) { throw ("Feil antall kort som byttes."); };
         exchange.cards.forEach(k => {
             this.players[exchange.to].cards.push(new PresidentCard(k.suit, k.rank));
         });
         this.players[exchange.to].cards.sortCards();
         this.piles.splice(this.piles.findIndex(b => (b == exchange)), 1);
-        if (this.piles.length == 0) {
-            // All exchanges are complete.
-            this.status = "S";
-            this.setTurn(0);
-        }
+        this.advanceExchangeStage();
         this.save();
     }
     topPile() {
@@ -878,12 +1401,20 @@ class PresidentGame extends Game {
             return true;
         };
         var topPile = this.topPile();
+        var fourOfKindOnTop = hasFourOfKindOnTop(this);
+        if (fourOfKindOnTop && strengthRank == PresidentCard.clubThreePower()) {
+            resultInfo.svar = false;
+            resultInfo.text = "Fire like kort kan bare slås med fire høyere like kort.";
+            return false;
+        }
         if (strengthRank < topPile.strengthRank) {
             resultInfo.svar = false;
-            resultInfo.text = `MÃ¥ legge pÃ¥ ${topPile.strengthRank} eller hÃ¸yere.`;
+            resultInfo.text = `Må legge på ${topPile.strengthRank} eller høyere.`;
             return false;
         };
-        var cardCount = ((strengthRank == PresidentCard.clubThreePower()) ? 1 : cardCount = topPile.length);
+        var cardCount = fourOfKindOnTop
+            ? 4
+            : ((strengthRank == PresidentCard.clubThreePower()) ? 1 : topPile.length);
         var pile = new CardPile(player.name);
         var n = 0;
         player.cards.forEach(k => {
@@ -898,7 +1429,7 @@ class PresidentGame extends Game {
         if (pile.length < cardCount) {
             player.cards.forEach(k => { k._Merket = false; });
             resultInfo.svar = false;
-            resultInfo.text = `Du mÃ¥ ha ${cardCount} like kort.`;
+            resultInfo.text = `Du må ha ${cardCount} like kort.`;
             return false;
         };
         resultInfo.svar = true
@@ -907,32 +1438,28 @@ class PresidentGame extends Game {
     }
 
     canPlayPile(player, pile) {
+        var topPile = this.topPile();
+        var fourOfKindOnTop = hasFourOfKindOnTop(this);
+        var canBeatCurrentPile = fourOfKindOnTop
+            ? pile != null &&
+                pile.length == 4 &&
+                pile.every(card => card.strengthRank == pile[0].strengthRank) &&
+                pile.strengthRank != PresidentCard.clubThreePower() &&
+                pile.strengthRank >= topPile.strengthRank
+            : pile != null && pile.canBePlayedOn(topPile);
         return player != null &&
             pile != null &&
             this.status == "S" &&
             player.turn == 1 &&
             player.name == pile.name &&
-            pile.canBePlayedOn(this.topPile()) &&
+            canBeatCurrentPile &&
             player.cards.filter(k => (pile.includes(k))).length == pile.length;
     }
     pileCleared(info = {}) {
         var topPile = this.topPile();
         if (topPile == null) { return false; }
         if (topPile[0].isClubThree()) {
-            info.text = "KlÃ¸ver 3";
-            return true;
-        }
-        var rank = topPile.strengthRank;
-        var count = 0;
-        var pile;
-        var i = this.piles.length;
-        do {
-            i--;
-            pile = this.piles[i];
-            count += pile.length;
-        } while (i > 0 && count < 4 && pile.strengthRank == rank);
-        if (count >= 4 && pile.strengthRank == rank) {
-            info.text = `Fire ${Card.rankInfo(pile[0].rank).pluralName}`;
+            info.text = "Kløver 3";
             return true;
         }
         if (this.players.filter(player => (player.lastPlay != "Pass" && player.placement == 0)).length <= 1) {
@@ -942,7 +1469,7 @@ class PresidentGame extends Game {
         return false;
     }
     playCards(player, pile) {
-        if (!this.canPlayPile(player, pile)) { throw ("Kan ikke legge dette nÃ¥!"); };
+        if (!this.canPlayPile(player, pile)) { throw ("Kan ikke legge dette nå!"); };
         if (this.piles.length == 0) {
             this.players.filter(s => (s.placement > 0 && s.messages.length > 0)).forEach(s => {
                 s.messages = [];
@@ -979,7 +1506,7 @@ class PresidentGame extends Game {
         if (this.pileCleared(info)) {
             var previousPlayer = this.players[currentTurnPlayer];
             if (previousPlayer.lastPlay) {
-                previousPlayer.messages.push(`${((previousPlayer.lastPlay.describe) ? "La pÃ¥ " + previousPlayer.lastPlay.describe() : previousPlayer.lastPlay)}, bunken gÃ¥r ut. (${info.text})`);
+                previousPlayer.messages.push(`${((previousPlayer.lastPlay.describe) ? "La på " + previousPlayer.lastPlay.describe() : previousPlayer.lastPlay)}, bunken går ut. (${info.text})`);
             } else {
                 previousPlayer.messages.push(`Bunken gikk ut og ferdig. (${info.text})`);
             }
@@ -1020,6 +1547,68 @@ class PresidentGame extends Game {
     function () {
         var currentGame = null;
         var currentPlayerName = null;
+        var appShell = document.getElementById("DivHele");
+        var gameMenuToggle = document.getElementById("BnGameMenuToggle");
+        var gameMenu = document.getElementById("DivFKnapper");
+
+        function setGameMenuOpen(isOpen, returnFocus = false) {
+            appShell.classList.toggle("GameMenuOpen", isOpen);
+            gameMenuToggle.setAttribute("aria-expanded", String(isOpen));
+            var label = isOpen ? "Lukk spillmeny" : "Åpne spillmeny";
+            gameMenuToggle.setAttribute("aria-label", label);
+            gameMenuToggle.title = label;
+            if (!isOpen && returnFocus && appShell.classList.contains("SpillAktivt")) {
+                gameMenuToggle.focus();
+            }
+        }
+
+        gameMenuToggle.addEventListener("click", function () {
+            setGameMenuOpen(!appShell.classList.contains("GameMenuOpen"));
+        });
+
+        gameMenu.addEventListener("click", function (event) {
+            var action = event.target.closest ? event.target.closest("button") : null;
+            if (!action) { return; }
+            var dialogIsOpen = document.querySelector(".dialog-container--visible") != null;
+            setGameMenuOpen(false, !dialogIsOpen);
+        });
+
+        document.addEventListener("pointerdown", function (event) {
+            if (!appShell.classList.contains("GameMenuOpen") ||
+                gameMenu.contains(event.target) || gameMenuToggle.contains(event.target)) {
+                return;
+            }
+            setGameMenuOpen(false);
+        });
+
+        document.addEventListener("keydown", function (event) {
+            if (event.key != "Escape" || !appShell.classList.contains("GameMenuOpen")) {
+                return;
+            }
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            setGameMenuOpen(false, true);
+        });
+
+        document.addEventListener("keydown", function (event) {
+            if (event.key != "Escape" || selectedCardKeys.size == 0 ||
+                document.querySelector(".dialog-container--visible")) {
+                return;
+            }
+            var focusedCardKey = document.activeElement.dataset
+                ? document.activeElement.dataset.cardKey
+                : null;
+            clearCardSelection();
+            var currentPlayer = (currentGame == null) ? null : currentGame.getPlayer(currentPlayerName);
+            if (currentPlayer) {
+                GameLayout.updateHand(currentGame, currentPlayer);
+                var focusedCard = Array.from(document.querySelectorAll("#DivKort .game-card"))
+                    .find(card => card.dataset.cardKey == focusedCardKey);
+                if (focusedCard) {
+                    focusedCard.focus();
+                }
+            }
+        });
 
         document.getElementById('BnHNySpill').addEventListener('click', function () {
             if (navigator.userAgent.match(/Android|iPhone/i)) {
@@ -1089,9 +1678,9 @@ class PresidentGame extends Game {
         }
 
         document.getElementById('BnFInviterSpill').addEventListener('click', function () {
-            if (currentGame == null) { throw ('MÃ¥ lage spill fÃ¸r du inviterer.') }
-            s = `${document.baseURI}?spillid=${currentGame.id}`;
-            showInviteLink(currentGame.id, s);
+            if (currentGame == null) { throw ('Må lage spill før du inviterer.') }
+            const inviteUrl = `${document.baseURI}?spillid=${currentGame.id}`;
+            showInviteLink(currentGame.id, inviteUrl);
         });
 
         document.getElementById('BnFStartSpill').addEventListener('click', function () {
@@ -1121,7 +1710,7 @@ class PresidentGame extends Game {
                 } else {
                     showChoiceDialog(
                         "Vil du avslutte spillet?", [
-                        "Ja, gÃ¥ til hovedmenyen",
+                        "Ja, gå til hovedmenyen",
                         "Nei, fortsett spillet"
                     ], [
                         function () {
@@ -1142,7 +1731,7 @@ class PresidentGame extends Game {
         });
 
         document.getElementById('BnPNySpiller').addEventListener('click', function () {
-            if (currentPlayerName != null) { throw ('Skal ikke lage ny spiller nÃ¥r man allerede har en spiller.') }
+            if (currentPlayerName != null) { throw ('Skal ikke lage ny spiller når man allerede har en spiller.') }
             showDialog("SporOmNick", true);
         });
 
@@ -1164,7 +1753,7 @@ class PresidentGame extends Game {
         document.getElementById('BnPGiOpp').addEventListener('click', function () {
             if (currentGame.status == "S") {
                 showChoiceDialog(
-                    "Er du sikker pÃ¥ at du vil gi opp?", [
+                    "Er du sikker på at du vil gi opp?", [
                     "Ja, jeg vil avslutte spillet",
                     "Nei, jeg fortsetter spillet"
                 ], [
@@ -1227,20 +1816,47 @@ class PresidentGame extends Game {
 
 function playBotTurn(game, player, entireRound = false) {
     if (game.status == "G") {
-        game.piles.filter(b => (b.mode == "Kan se" && game.players[b.to] == player)).forEach(exchange => {
+        game.piles.slice().filter(exchange =>
+            exchange.mode == "Kan se" && game.players[exchange.to] == player
+        ).forEach(exchange => {
             game.receiveExchangeCards(exchange);
         });
-        game.piles.filter(b => (b.mode == "Velg" && game.players[b.from] == player)).forEach(exchange => {
-            // Find the lowest-ranked cards.
-            for (var i = 1; i <= exchange.count; i++) {
-                exchange.cards.push(player.cards[i - 1]);
-            }
-            // Give those cards to the receiving player.
-            game.giveExchangeCards(exchange);
-        });
-        game.piles.filter(b => (b.mode == "Best" && game.players[b.from] == player)).forEach(exchange => {
-            game.giveExchangeCards(exchange);
-        });
+        if (game.status == "G") {
+            game.piles.slice().filter(exchange =>
+                exchange.mode == "Tilbud" && game.players[exchange.from] == player
+            ).forEach(exchange => {
+                game.skipOptionalTrade(exchange, game.players.indexOf(player));
+            });
+        }
+        if (game.status == "G") {
+            game.piles.slice().filter(exchange =>
+                exchange.mode == "Velg" && game.players[exchange.from] == player
+            ).forEach(exchange => {
+                var availableCards = getAvailableExchangeCards(
+                    game,
+                    game.players.indexOf(player),
+                    exchange
+                );
+                if (exchange.kind == "playerTrade") {
+                    availableCards = availableCards.filter(card =>
+                        isCardAllowedForExchange(exchange, card)
+                    );
+                }
+                availableCards.sort((a, b) => a.strengthRank - b.strengthRank || a.suit - b.suit);
+                if (availableCards.length < exchange.count) {
+                    throw ("Datamaskinen har ikke nok gyldige kort til byttet.");
+                }
+                exchange.cards = availableCards.slice(0, exchange.count);
+                game.giveExchangeCards(exchange);
+            });
+        }
+        if (game.status == "G") {
+            game.piles.slice().filter(exchange =>
+                exchange.mode == "Best" && game.players[exchange.from] == player
+            ).forEach(exchange => {
+                game.giveExchangeCards(exchange);
+            });
+        }
     }
     if (game.status == "S" && player.turn == 1 && player.placement == 0) {
         var pile = null;
@@ -1257,7 +1873,8 @@ function playBotTurn(game, player, entireRound = false) {
             player.cards.filter(cards => (game.canPlayRank(player, cards.strengthRank))).forEach(cards => {
                 if (pile == null || cards.strengthRank < pile.strengthRank) {
                     pile = new CardPile(player.name, cards);
-                } else if (cards.strengthRank == pile.strengthRank && (pile.length < game.topPile().length)) {
+                } else if (cards.strengthRank == pile.strengthRank &&
+                    (pile.length < (hasFourOfKindOnTop(game) ? 4 : game.topPile().length))) {
                     pile.push(cards);
                 }
             })
@@ -1279,7 +1896,7 @@ function scheduleIdleHelp(game) {
     idleHelpTimer = setTimeout(function () {
         var skippedPlayer = game.players[game.turn]; // Capture the player index before concurrent actions can change the turn.
         GameLayout.drawIdleHelp([
-            "GjÃ¸r det beste",
+            "Gjør det beste",
             "Hopp over",
             "Si pass",
             "Avslutt spiller"
