@@ -317,6 +317,7 @@ select:focus-visible {
 }
 
 #DivKort.KortKort {
+    --hand-card-height: clamp(88px, 21dvh, 156px);
     gap: 0;
     overflow-x: auto;
     overflow-y: hidden;
@@ -325,7 +326,7 @@ select:focus-visible {
 }
 
 #DivKort.KortKort > .game-card:not(:last-child) {
-    margin-right: calc(clamp(88px, 21dvh, 156px) * -0.143);
+    margin-right: calc(var(--hand-card-height) * -0.2);
 }
 
 #DivKort.KortKort > .game-card {
@@ -424,6 +425,19 @@ select:focus-visible {
 .game-card.is-selected {
     z-index: 3;
     transform: perspective(900px) translateY(-18px) scale(1.06) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+}
+
+@keyframes hand-card-rise {
+    from {
+        transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(0) rotate(var(--card-rotation, 0deg));
+    }
+    to {
+        transform: perspective(900px) translateY(-18px) scale(1.06) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+    }
+}
+
+.game-card.is-rising {
+    animation: hand-card-rise 300ms cubic-bezier(.2,.8,.25,1) both;
 }
 
 .game-card.is-selected img,
@@ -902,6 +916,10 @@ select:focus-visible {
 }
 
 @media (max-width: 760px) and (orientation: portrait) {
+    #DivKort.KortKort {
+        --hand-card-height: clamp(82px, 17dvh, 128px);
+    }
+
     #DivHele.SpillAktivt #DivKort.KortKort > .game-card > img,
     #DivHele.SpillAktivt.KunKortModus > #DivKort > .game-card > img {
         height: clamp(82px, 17dvh, 128px);
@@ -942,6 +960,10 @@ select:focus-visible {
 }
 
 @media (max-width: 760px) and (orientation: landscape) {
+    #DivKort.KortKort {
+        --hand-card-height: clamp(72px, 23dvh, 116px);
+    }
+
     #DivHele.SpillAktivt #DivKort.KortKort > .game-card > img,
     #DivHele.SpillAktivt.KunKortModus > #DivKort > .game-card > img {
         height: clamp(72px, 23dvh, 116px);
@@ -983,7 +1005,7 @@ select:focus-visible {
 
 @media (orientation: landscape) and (max-height: 500px) {
     #DivHele.SpillAktivt {
-        grid-template-rows: 44px auto minmax(0, 2fr) auto minmax(56px, 0.45fr);
+        grid-template-rows: 40px auto minmax(58px, 1fr) auto minmax(52px, 0.45fr);
     }
 
     #DivBord.BordKortstokk {
@@ -999,6 +1021,10 @@ select:focus-visible {
     #DivHele.SpillAktivt #DivKort.KortKort > .game-card > img,
     #DivHele.SpillAktivt.KunKortModus > #DivKort > .game-card > img {
         height: clamp(54px, 18vh, 76px);
+    }
+
+    #DivKort.KortKort {
+        --hand-card-height: clamp(54px, 18vh, 76px);
     }
 
     #DivHele.SpillAktivt > #DivPKnapper {
@@ -1054,9 +1080,9 @@ select:focus-visible {
     }
 
     #DivHele.SpillAktivt > #DivPKnapper .card-selection-actions > span {
-        flex: 1 1 100%;
+        flex: 1 1 auto;
         font-size: 0.75rem;
-        text-align: center;
+        text-align: left;
     }
 
     #DivHele.SpillAktivt > #DivPKnapper .card-selection-actions > button {
@@ -1074,6 +1100,36 @@ select:focus-visible {
         right: 0;
         bottom: 2px;
         left: 0;
+    }
+
+    #DivHele.SpillAktivt > #DivSpillere {
+        gap: 2px;
+        padding: 2px 4px;
+    }
+
+    #DivHele.SpillAktivt > #DivSpillere > .player-summary--self {
+        min-height: 30px;
+        padding: 2px 6px;
+    }
+
+    #DivHele.SpillAktivt #DivSpillere .opponent-list {
+        gap: 2px;
+    }
+
+    #DivHele.SpillAktivt #DivSpillere .opponent-list > .player-summary {
+        min-height: 28px;
+        padding: 2px 4px;
+        font-size: 0.66rem;
+        line-height: 1.1;
+    }
+
+    #DivHele.SpillAktivt #DivSpillere .opponent-list .player-summary__details {
+        font-size: 0.62rem;
+    }
+
+    #DivHele.SpillAktivt #DivSpillere .opponent-list .player-summary__turn {
+        padding: 2px 5px;
+        font-size: 0.6rem;
     }
 }
 
@@ -1104,7 +1160,7 @@ select:focus-visible {
 
 #DivHele.SpillAktivt.Lobby {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 56px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(80px, 30dvh);
 }
 
 #DivHele.SpillAktivt.Lobby > #DivSpillere {
@@ -1125,6 +1181,152 @@ select:focus-visible {
 #DivHele.SpillAktivt.Lobby > #DivPKnapper,
 #DivHele.SpillAktivt.Lobby > #DivKort {
     display: none;
+}
+
+#DivHele.SpillAktivt.Lobby > .game-menu-toggle {
+    display: none;
+}
+
+#DivHele.SpillAktivt.Lobby > #DivFKnapper {
+    position: relative;
+    z-index: 1;
+    top: auto;
+    left: auto;
+    grid-column: 1 / -1;
+    grid-row: 1 / 2;
+    display: flex;
+    width: 100%;
+    max-height: 100%;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    padding: 16px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    text-align: center;
+}
+
+#DivHele.SpillAktivt.Lobby > #DivFKnapper > button {
+    width: min(100%, 360px);
+    margin: 0;
+    justify-content: center;
+    text-align: center;
+}
+
+#DivHele.SpillAktivt.Lobby > #DivFKnapper #DivSpillMeta {
+    order: -1;
+    width: min(100%, 360px);
+    flex: 0 0 auto;
+    margin: 0 auto 12px;
+    font-size: clamp(1rem, 3vmin, 1.35rem);
+    font-weight: 700;
+    overflow-wrap: anywhere;
+    text-align: center;
+}
+
+#DivHele.SpillAktivt.Lobby #BnFStartSpill {
+    background: #17803d;
+    border-color: #39a95f;
+    color: #fff;
+}
+
+#DivHele.SpillAktivt.Lobby #BnFStartSpill:hover {
+    background: #1c9948;
+}
+
+#DivHele.SpillAktivt #DivSpillere {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+#DivHele.SpillAktivt #DivSpillere > .player-summary--self {
+    flex: 0 0 auto;
+    width: min(100%, 360px);
+    align-self: center;
+    text-align: center;
+}
+
+#DivHele.SpillAktivt #DivSpillere .opponent-list {
+    display: grid;
+    width: min(100%, 900px);
+    flex: 0 0 auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto;
+    gap: 5px;
+    margin: 0 auto;
+}
+
+#DivHele.SpillAktivt #DivSpillere .opponent-list:empty {
+    display: none;
+}
+
+#DivHele.SpillAktivt #DivSpillere .opponent-list > .player-summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    min-width: 0;
+    min-height: 36px;
+    margin: 0;
+    padding: 4px;
+    gap: 2px 4px;
+    font-size: 0.72rem;
+}
+
+#DivHele.SpillAktivt #DivSpillere .opponent-list .player-summary__name {
+    grid-column: 1 / 2;
+    grid-row: 1 / 2;
+}
+
+#DivHele.SpillAktivt #DivSpillere .opponent-list .player-summary__details {
+    grid-column: 1 / -1;
+    grid-row: 2 / 3;
+    text-align: left;
+}
+
+#DivHele.SpillAktivt #DivSpillere .opponent-list .player-summary__turn {
+    grid-column: 2 / 3;
+    grid-row: 1 / 2;
+    justify-self: end;
+}
+
+#DivHele.SpillAktivt #DivSpillere .opponent-seat-0 { grid-column: 2; grid-row: 1; }
+#DivHele.SpillAktivt #DivSpillere .opponent-seat-1 { grid-column: 1; grid-row: 1; }
+#DivHele.SpillAktivt #DivSpillere .opponent-seat-2 { grid-column: 1; grid-row: 2; }
+#DivHele.SpillAktivt #DivSpillere .opponent-seat-3 { grid-column: 2; grid-row: 2; }
+#DivHele.SpillAktivt #DivSpillere .opponent-seat-4 { grid-column: 1; grid-row: 3; }
+
+#DivHele.SpillAktivt #DivSpillere .is-current-turn {
+    border-color: #35c46a;
+    background: rgb(31 145 68 / 30%);
+    box-shadow: inset 4px 0 #35c46a, 0 0 14px rgb(53 196 106 / 22%);
+}
+
+#DivHele.SpillAktivt #DivSpillere .player-summary__turn {
+    background: #17803d;
+}
+
+#DivHele.SpillAktivt #DivSpillere .player-summary--self .player-summary__name {
+    text-align: center;
+}
+
+#DivHele.SpillAktivt.Lobby > #DivSpillere {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-content: flex-start;
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+    #DivHele.SpillAktivt.Lobby > #DivFKnapper {
+        justify-content: flex-start;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {

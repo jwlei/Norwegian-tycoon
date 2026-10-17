@@ -2,6 +2,7 @@ var selectedCardKeys = new Set();
 var selectedCardStrength = null;
 var selectedCardOwner = null;
 var activeExchangeId = null;
+var autoSelectedTurnKey = null;
 
 function getExchangeId(exchange) {
     return exchange.id || `${exchange.tradeId || "exchange"}:${exchange.from}:${exchange.to}`;
@@ -141,7 +142,7 @@ class GameLayout {
         }
         mainMenu.setAttribute("aria-hidden", String(!showMenu));
         gameControls.forEach(element => { element.inert = showMenu; });
-        this.setVisible("DivSpillMeta", (player == null));
+        this.setVisible("DivSpillMeta", (player == null || game == null || game.status == "O"));
         if (game == null) {
             setClass(mainMenu, "Skjul", false);
             this.updateMainMenu();
@@ -179,6 +180,7 @@ class GameLayout {
                 this.setVisible("BnFStartSpill", game.players.length >= 2);
                 this.setVisible("BnFRegler", true);
                 this.setVisible("BnFHovedmeny", true);
+                this.setVisible("BnFResultater", false);
                 break;
             case "S":
             case "G":
@@ -187,6 +189,7 @@ class GameLayout {
                 this.setVisible("BnFStartSpill", false);
                 this.setVisible("BnFRegler", true);
                 this.setVisible("BnFHovedmeny", false);
+                this.setVisible("BnFResultater", false);
                 break;
             case "F":
                 this.setVisible("BnFInviterSpill", true);
@@ -194,6 +197,7 @@ class GameLayout {
                 this.setVisible("BnFStartSpill", true);
                 this.setVisible("BnFRegler", true);
                 this.setVisible("BnFHovedmeny", true);
+                this.setVisible("BnFResultater", true);
                 break;
             default:
                 throw ('Ukjent spillstatus.');
@@ -203,10 +207,15 @@ class GameLayout {
     static updatePlayers(game, currentPlayer) {
         var playerList = document.getElementById("DivSpillere");
         playerList.innerHTML = "";
-        game.players.forEach(player => {
-            if (player === currentPlayer) { return; }
+        var createPlayerSummary = (player, isCurrentPlayer = false) => {
             var playerElement = document.createElement("div");
             playerElement.className = "player-summary";
+            if (isCurrentPlayer) {
+                playerElement.classList.add("player-summary--self");
+            }
+            if (player.turn == 1 && (game.status == "S" || game.status == "G")) {
+                playerElement.classList.add("is-current-turn");
+            }
             playerElement.dataset.playerName = player.name;
             var nameElement = document.createElement("span");
             nameElement.className = "player-summary__name";
@@ -225,11 +234,11 @@ class GameLayout {
             if (player.turn == 1 && (game.status == "S" || game.status == "G")) {
                 var turnElement = document.createElement("span");
                 turnElement.className = "player-summary__turn";
-                turnElement.textContent = "Tur";
-                turnElement.setAttribute("aria-label", "Denne spilleren har tur");
+                turnElement.textContent = isCurrentPlayer ? "Din tur" : "Tur";
+                turnElement.setAttribute("aria-label", isCurrentPlayer ? "Du har tur" : "Denne spilleren har tur");
                 playerElement.appendChild(turnElement);
             }
-            if (game.status != "S" && game.status != "G") {
+            if (!isCurrentPlayer && game.status != "S" && game.status != "G") {
                 var removeButton = document.createElement("button");
                 removeButton.type = "button";
                 removeButton.textContent = "Fjern";
@@ -245,8 +254,24 @@ class GameLayout {
             } else {
                 playerElement.classList.add("Ferdig");
             }
-            playerList.appendChild(playerElement);
+            return playerElement;
+        };
+        if (currentPlayer) {
+            playerList.appendChild(createPlayerSummary(currentPlayer, true));
+        }
+        var currentPlayerIndex = (currentPlayer == null) ? -1 : game.players.indexOf(currentPlayer);
+        var opponents = currentPlayerIndex < 0
+            ? game.players.slice()
+            : game.players.slice(currentPlayerIndex + 1).concat(game.players.slice(0, currentPlayerIndex));
+        var opponentList = document.createElement("div");
+        opponentList.className = "opponent-list";
+        opponents.forEach((player, index) => {
+            var playerElement = createPlayerSummary(player);
+            playerElement.classList.add(`opponent-seat-${index}`);
+            playerElement.dataset.clockwiseSeat = String(index);
+            opponentList.appendChild(playerElement);
         });
+        playerList.appendChild(opponentList);
         if (game.status == "S" && game.players.some(player => player.turn == 1 && player.placement == 0 && !player.lastPlay)) {
             scheduleIdleHelp(game);
         } else if (idleHelpTimer != null) {
@@ -298,16 +323,28 @@ class GameLayout {
             flight.alt = "";
             flight.setAttribute("aria-hidden", "true");
             flight.className = "card-flight";
-            flight.style.left = `${source.left}px`;
-            flight.style.top = `${source.top}px`;
-            flight.style.width = `${source.width}px`;
-            flight.style.height = `${source.height}px`;
+            var flightLeft = source.left + (source.width - targetBounds.width) / 2;
+            var flightTop = source.top + (source.height - targetBounds.height) / 2;
+            var flightX = targetBounds.left - flightLeft;
+            var flightY = targetBounds.top - flightTop;
+            flight.style.left = `${flightLeft}px`;
+            flight.style.top = `${flightTop}px`;
+            flight.style.width = `${targetBounds.width}px`;
+            flight.style.height = `${targetBounds.height}px`;
             document.body.appendChild(flight);
             target.style.opacity = "0";
             var animation = flight.animate([
-                { transform: "translate(0, 0) scale(1)", opacity: 1 },
                 {
-                    transform: `translate(${targetBounds.left - source.left}px, ${targetBounds.top - source.top}px) scale(${targetBounds.width / source.width}, ${targetBounds.height / source.height})`,
+                    transform: "translate(0, 0) rotate(-8deg)",
+                    opacity: 1
+                },
+                {
+                    transform: `translate(${flightX * 0.65}px, ${flightY * 0.65}px) rotate(7deg)`,
+                    opacity: 1,
+                    offset: 0.68
+                },
+                {
+                    transform: `translate(${flightX}px, ${flightY}px) rotate(0deg)`,
                     opacity: 0.72
                 }
             ], {
@@ -583,6 +620,7 @@ class GameLayout {
             this.setVisible("BnPNySpiller", false);
             this.setVisible("BnPPass", false);
             this.setVisible("BnPGiOpp", false);
+            this.setVisible("BnPByttNavn", false);
             return;
         }
         this.el("SpanHoppover").innerHTML = "";
@@ -626,9 +664,14 @@ class GameLayout {
         this.setVisible("BnPNySpiller", (player == null));
         this.setVisible("BnPPass", (player != null && game.canPass(player)));
         this.setVisible("BnPGiOpp", (player != null && !(game.status == "S" && player.placement != 0)));
+        this.setVisible("BnPByttNavn", (player != null));
     }
     static updateHand(game, player) {
         var element = document.getElementById("DivKort");
+        var previouslySelectedCardKeys = new Set(
+            Array.from(element.querySelectorAll(".game-card.is-selected"))
+                .map(card => card.dataset.cardKey)
+        );
         var selectionPanel = document.getElementById("cardSelectionActions");
         var selectionCount = document.getElementById("selectedCardCount");
         var playSelectedButton = document.getElementById("BnPPlaySelected");
@@ -641,6 +684,7 @@ class GameLayout {
             clearCardSelection();
             selectedCardOwner = null;
             activeExchangeId = null;
+            autoSelectedTurnKey = null;
             return;
         }
         var ownerKey = `${game.id}:${player.name}`;
@@ -648,6 +692,7 @@ class GameLayout {
             clearCardSelection();
             selectedCardOwner = ownerKey;
             activeExchangeId = null;
+            autoSelectedTurnKey = null;
         }
         var selectableExchanges = (game.status == "G")
             ? game.piles.filter(exchange =>
@@ -676,6 +721,7 @@ class GameLayout {
             });
         } else {
             clearCardSelection();
+            autoSelectedTurnKey = null;
         }
         if (selectedCardStrength != null && !playableStrengths.has(selectedCardStrength)) {
             clearCardSelection();
@@ -689,6 +735,28 @@ class GameLayout {
             });
             if (selectedCardKeys.size == 0) {
                 selectedCardStrength = null;
+            }
+        }
+        if (isPlayingTurn && selectedCardKeys.size == 0) {
+            var topPile = game.topPile();
+            var topPileKey = topPile
+                ? topPile.map(card => `${card.suit}:${card.rank}`).join(",")
+                : "empty";
+            var turnKey = `${game.id}:${game.round}:${game.turn}:${player.name}:${topPileKey}`;
+            if (autoSelectedTurnKey != turnKey) {
+                autoSelectedTurnKey = turnKey;
+                var lowestPlayableStrength = Array.from(playableStrengths)
+                    .sort((a, b) => a - b)[0];
+                if (lowestPlayableStrength != null) {
+                    var lowestPlay = {};
+                    if (game.canPlayRank(player, lowestPlayableStrength, lowestPlay) && lowestPlay.pile) {
+                        selectedCardStrength = lowestPlayableStrength;
+                        var automaticCards = lowestPlay.pile;
+                        automaticCards.forEach(card =>
+                            selectedCardKeys.add(`${card.suit}:${card.rank}`)
+                        );
+                    }
+                }
             }
         }
         if (player.placement == 0) {
@@ -718,6 +786,9 @@ class GameLayout {
                     var isPlayable = isPlayingTurn && playableStrengths.has(k.strengthRank);
                     if (isSelected) {
                         elemKort.classList.add("is-selected");
+                        if (!previouslySelectedCardKeys.has(cardKey)) {
+                            elemKort.classList.add("is-rising");
+                        }
                     }
                     if (activeExchange && activeExchange.cards.some(card =>
                         card.suit == k.suit && card.rank == k.rank
@@ -1680,9 +1751,14 @@ class PresidentGame extends Game {
         var gameMenuToggle = document.getElementById("BnGameMenuToggle");
         var gameMenu = document.getElementById("DivFKnapper");
 
-        function promptForPlayerName() {
-            document.getElementById("dialogSporOmNickTxt").value = "";
+        function promptForPlayerName(isRename = false) {
+            document.querySelector("#dialogSporOmNick .dialogTittel").textContent =
+                isRename ? "Bytt spillernavn" : "Hva vil du hete?";
+            document.getElementById("dialogSporOmNickTxt").value =
+                isRename && currentPlayerName != null ? currentPlayerName : "";
             document.getElementById("dialogSporOmNickError").innerHTML = "";
+            document.getElementById("dialogSporOmNickOk").textContent =
+                isRename ? "Lagre navn" : "Bli spiller";
             showDialog("SporOmNick", true);
         }
 
@@ -1885,17 +1961,59 @@ class PresidentGame extends Game {
             promptForPlayerName();
         });
 
+        document.getElementById('BnPByttNavn').addEventListener('click', function () {
+            if (currentPlayerName != null) {
+                promptForPlayerName(true);
+            }
+        });
+
         document.getElementById('dialogSporOmNickOk').addEventListener('click', function () {
-            var requestedName = document.getElementById('dialogSporOmNickTxt').value.replace("'", "").replace('"', '').replace("<", "").replace(">", "").trim(" ");
+            var requestedName = document.getElementById('dialogSporOmNickTxt').value.trim();
             if (requestedName != "") {
-                var key = getPlayerKey();
-                var newPlayerResult = currentGame.addPlayer(new PresidentPlayer(requestedName, key));
-                if (newPlayerResult.player) {
-                    currentPlayerName = newPlayerResult.player.name;
-                    GameLayout.updatePlayerView(currentGame, newPlayerResult.player);
+                if (currentGame == null) {
+                    document.getElementById('dialogSporOmNickError').textContent = "Spillet er ikke tilkoblet.";
+                    return;
+                }
+                if (currentPlayerName != null) {
+                    var playerToRename = currentGame.getPlayer(currentPlayerName);
+                    if (playerToRename == null) {
+                        document.getElementById('dialogSporOmNickError').textContent = "Spilleren finnes ikke lenger.";
+                        return;
+                    }
+                    var isNameTaken = currentGame.players.some(player =>
+                        player !== playerToRename && player.name.toLocaleLowerCase() == requestedName.toLocaleLowerCase()
+                    );
+                    if (isNameTaken) {
+                        document.getElementById('dialogSporOmNickError').textContent = "Navnet er allerede i bruk.";
+                        return;
+                    }
+                    var oldName = playerToRename.name;
+                    playerToRename.name = requestedName;
+                    currentGame.piles.forEach(pile => {
+                        if (pile instanceof CardPile && pile.name == oldName) {
+                            pile.name = requestedName;
+                        }
+                    });
+                    currentGame.players.forEach(player => {
+                        if (player.lastPlay instanceof CardPile && player.lastPlay.name == oldName) {
+                            player.lastPlay.name = requestedName;
+                        }
+                    });
+                    currentPlayerName = requestedName;
+                    currentGame.save();
+                    GameLayout.updateSharedView(currentGame, playerToRename);
+                    GameLayout.updatePlayerView(currentGame, playerToRename);
                     showDialog("SporOmNick", false);
                 } else {
-                    document.getElementById('dialogSporOmNickError').innerHTML = newPlayerResult.text;
+                    var key = getPlayerKey();
+                    var newPlayerResult = currentGame.addPlayer(new PresidentPlayer(requestedName, key));
+                    if (newPlayerResult.player) {
+                        currentPlayerName = newPlayerResult.player.name;
+                        GameLayout.updatePlayerView(currentGame, newPlayerResult.player);
+                        showDialog("SporOmNick", false);
+                    } else {
+                        document.getElementById('dialogSporOmNickError').textContent = newPlayerResult.text;
+                    }
                 }
             }
         });
