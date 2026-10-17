@@ -1249,9 +1249,16 @@ select:focus-visible {
 }
 
 #DivHele.SpillAktivt #DivSpillere > .player-summary--self {
+    display: flex;
+    flex-wrap: wrap;
     flex: 0 0 auto;
     width: min(100%, 360px);
     align-self: center;
+    justify-content: center;
+    text-align: center;
+}
+
+#DivHele.SpillAktivt #DivSpillere > .player-summary--self .player-summary__details {
     text-align: center;
 }
 
@@ -1270,31 +1277,31 @@ select:focus-visible {
 }
 
 #DivHele.SpillAktivt #DivSpillere .opponent-list > .player-summary {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto;
+    display: flex;
+    flex-direction: column;
     min-width: 0;
     min-height: 36px;
     margin: 0;
     padding: 4px;
-    gap: 2px 4px;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
     font-size: 0.72rem;
+    text-align: center;
 }
 
 #DivHele.SpillAktivt #DivSpillere .opponent-list .player-summary__name {
-    grid-column: 1 / 2;
-    grid-row: 1 / 2;
+    width: 100%;
+    text-align: center;
 }
 
 #DivHele.SpillAktivt #DivSpillere .opponent-list .player-summary__details {
-    grid-column: 1 / -1;
-    grid-row: 2 / 3;
-    text-align: left;
+    width: 100%;
+    text-align: center;
 }
 
 #DivHele.SpillAktivt #DivSpillere .opponent-list .player-summary__turn {
-    grid-column: 2 / 3;
-    grid-row: 1 / 2;
-    justify-self: end;
+    align-self: center;
 }
 
 #DivHele.SpillAktivt #DivSpillere .opponent-seat-0 { grid-column: 2; grid-row: 1; }
