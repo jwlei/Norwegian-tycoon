@@ -72,6 +72,7 @@ class Game {
                     player.turn = 0;
                 });
                 this.round = 1;
+                this.turnPause = null;
                 this.setTurn(0);
                 this.startTime = Date.now();
                 this.endTime = null;

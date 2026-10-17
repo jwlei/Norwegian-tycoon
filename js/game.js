@@ -3,6 +3,7 @@ var selectedCardStrength = null;
 var selectedCardOwner = null;
 var activeExchangeId = null;
 var autoSelectedTurnKey = null;
+var suppressNextCardClick = false;
 
 function getExchangeId(exchange) {
     return exchange.id || `${exchange.tradeId || "exchange"}:${exchange.from}:${exchange.to}`;
@@ -59,6 +60,16 @@ function hasFourOfKindOnTop(game) {
     }
     return count >= 4;
 }
+
+const BOT_NAMES = [
+    "Boten Anna", "Kort-Knut", "Bunke-Bjørn", "Stikk-Stine", "Ruter-Rune",
+    "Spar-Svein", "Hjerter-Hilde", "Kløver-Kåre", "Konge-Kjell", "Dronning-Dagny",
+    "Pass-Pål", "Mister Mismatch", "Shuffle-Sigurd", "Trippel-Turid", "Firelike-Frode",
+    "Par-Petter", "Bord-Bente", "Kortslutning-Kåre", "Nesten-Presidenten", "Korthai-Kim",
+    "Boms-Borghild", "Rask-Ragnar", "Luring-Lars", "Taktikk-Tove", "Plukk-Pia",
+    "Stopp-Siri", "Bunken-Bjarne", "Ess-Eirik", "Turbo-Tor", "Siste-Stikk-Sølvi"
+];
+const BOT_ACTION_DELAY_MS = 2500;
 
 function clearCardSelection() {
     selectedCardKeys.clear();
@@ -176,6 +187,7 @@ class GameLayout {
         switch (game.status) {
             case "O":
                 this.setVisible("BnFInviterSpill", true);
+                this.setVisible("BnFKobleSpill", true);
                 this.setVisible("BnFNyAutoSpiller", true);
                 this.setVisible("BnFStartSpill", game.players.length >= 2);
                 this.setVisible("BnFRegler", true);
@@ -185,6 +197,7 @@ class GameLayout {
             case "S":
             case "G":
                 this.setVisible("BnFInviterSpill", true);
+                this.setVisible("BnFKobleSpill", false);
                 this.setVisible("BnFNyAutoSpiller", false);
                 this.setVisible("BnFStartSpill", false);
                 this.setVisible("BnFRegler", true);
@@ -193,6 +206,7 @@ class GameLayout {
                 break;
             case "F":
                 this.setVisible("BnFInviterSpill", true);
+                this.setVisible("BnFKobleSpill", false);
                 this.setVisible("BnFNyAutoSpiller", true);
                 this.setVisible("BnFStartSpill", true);
                 this.setVisible("BnFRegler", true);
@@ -327,6 +341,7 @@ class GameLayout {
             var flightTop = source.top + (source.height - targetBounds.height) / 2;
             var flightX = targetBounds.left - flightLeft;
             var flightY = targetBounds.top - flightTop;
+            var targetRotation = parseFloat(target.style.getPropertyValue("--pile-rotation")) || 0;
             flight.style.left = `${flightLeft}px`;
             flight.style.top = `${flightTop}px`;
             flight.style.width = `${targetBounds.width}px`;
@@ -344,7 +359,7 @@ class GameLayout {
                     offset: 0.68
                 },
                 {
-                    transform: `translate(${flightX}px, ${flightY}px) rotate(0deg)`,
+                    transform: `translate(${flightX}px, ${flightY}px) rotate(${targetRotation}deg)`,
                     opacity: 0.72
                 }
             ], {
@@ -357,6 +372,42 @@ class GameLayout {
                 target.style.opacity = "";
                 flight.remove();
             };
+        });
+    }
+    static animateDiscardedCards(table) {
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { return; }
+        table.querySelectorAll(".table-play__card").forEach((card, index) => {
+            var bounds = card.getBoundingClientRect();
+            if (bounds.width == 0 || bounds.height == 0) { return; }
+            var rotation = parseFloat(card.style.getPropertyValue("--pile-rotation")) || 0;
+            var flight = card.cloneNode(false);
+            flight.className = "card-discard-flight";
+            flight.alt = "";
+            flight.setAttribute("aria-hidden", "true");
+            if (typeof flight.animate != "function") { return; }
+            flight.style.left = `${bounds.left}px`;
+            flight.style.top = `${bounds.top}px`;
+            flight.style.width = `${bounds.width}px`;
+            flight.style.height = `${bounds.height}px`;
+            document.body.appendChild(flight);
+            var horizontalOffset = ((index % 7) - 3) * 35;
+            var spin = (index % 2 == 0 ? -1 : 1) * (35 + (index % 5) * 12);
+            var animation = flight.animate([
+                {
+                    transform: `translate(0, 0) rotate(${rotation}deg)`,
+                    opacity: 1
+                },
+                {
+                    transform: `translate(${horizontalOffset}px, ${-Math.max(150, window.innerHeight * 0.4)}px) rotate(${rotation + spin}deg)`,
+                    opacity: 0
+                }
+            ], {
+                duration: 720,
+                delay: index * 12,
+                easing: "cubic-bezier(.45,0,.8,.4)",
+                fill: "forwards"
+            });
+            animation.onfinish = function () { flight.remove(); };
         });
     }
     static updateTable(game, player, existingPileSignatures = new Set(), playOrigins = null) {
@@ -535,6 +586,11 @@ class GameLayout {
                 })
                 break;
             case "S":
+                var turnPauseId = game.turnPause ? `${game.id}:${game.turnPause.id}` : null;
+                if (turnPauseId && table.dataset.turnPauseId != turnPauseId) {
+                    this.animateDiscardedCards(table);
+                    table.dataset.turnPauseId = turnPauseId;
+                }
                 table.className = "BordKortstokk";
                 table.innerHTML = "";
                 var tablePile = document.createElement("div");
@@ -559,9 +615,11 @@ class GameLayout {
                         image.className = "table-play__card";
                         image.dataset.cardKey = `${card.suit}:${card.rank}`;
                         image.setAttribute("aria-hidden", "true");
-                        image.style.left = `${cardIndex * fanStep}px`;
-                        image.style.top = `${playOffset}px`;
+                        var rotation = (((cardsOnTable * 7) % 9) - 4) * 1.2;
+                        image.style.left = `${5 + cardIndex * fanStep}px`;
+                        image.style.top = `${5 + playOffset}px`;
                         image.style.setProperty("--stack-index", String(cardsOnTable));
+                        image.style.setProperty("--pile-rotation", `${rotation}deg`);
                         playElement.appendChild(image);
                         cardsOnTable++;
                     });
@@ -578,10 +636,10 @@ class GameLayout {
                     pileCount.textContent = `${cardsOnTable} kort`;
                     var lastPlay = document.createElement("span");
                     lastPlay.className = "table-card-pile__last-play";
-                    lastPlay.textContent = latestPile.describe();
+                    lastPlay.textContent = `På bordet: ${latestPile.describe()}`;
                     tablePile.setAttribute(
                         "aria-label",
-                        `Bunken har ${cardsOnTable} kort. Sist lagt: ${latestPile.describe()}.`
+                        `Bunken har ${cardsOnTable} kort. På bordet: ${latestPile.describe()}.`
                     );
                     tablePile.appendChild(pileCount);
                     tablePile.appendChild(lastPlay);
@@ -625,10 +683,8 @@ class GameLayout {
         }
         this.el("SpanHoppover").innerHTML = "";
         if (player == null) {
-            this.el("SpanSpillerNick").innerHTML = "";
             this.el("SpanSpillerInfo").innerHTML = "";
         } else {
-            this.el("SpanSpillerNick").innerHTML = player.name;
             if (player.turn == 1) {
                 switch (game.status) {
                     case "G":
@@ -639,7 +695,7 @@ class GameLayout {
                         if (o == null) {
                             this.el("SpanSpillerInfo").innerHTML = `Du skal starte å legge ut.`;
                         } else {
-                            this.el("SpanSpillerInfo").innerHTML = `Spilleren før deg la ${o.describe()}.`;
+                            this.el("SpanSpillerInfo").innerHTML = `På bordet ligger: ${o.describe()}.`;
                         }
                         break;
                     default:
@@ -663,7 +719,7 @@ class GameLayout {
         };
         this.setVisible("BnPNySpiller", (player == null));
         this.setVisible("BnPPass", (player != null && game.canPass(player)));
-        this.setVisible("BnPGiOpp", (player != null && !(game.status == "S" && player.placement != 0)));
+        this.setVisible("BnPGiOpp", (player != null && game.status != "O" && game.status != "F" && !(game.status == "S" && player.placement != 0)));
         this.setVisible("BnPByttNavn", (player != null));
     }
     static updateHand(game, player) {
@@ -672,19 +728,14 @@ class GameLayout {
             Array.from(element.querySelectorAll(".game-card.is-selected"))
                 .map(card => card.dataset.cardKey)
         );
-        var selectionPanel = document.getElementById("cardSelectionActions");
         var selectionCount = document.getElementById("selectedCardCount");
-        var playSelectedButton = document.getElementById("BnPPlaySelected");
-        var cancelSelectionButton = document.getElementById("BnPCancelSelection");
         element.innerHTML = "";
-        if (selectionPanel) {
-            selectionPanel.hidden = true;
-        }
         if (player == null || game == null) {
             clearCardSelection();
             selectedCardOwner = null;
             activeExchangeId = null;
             autoSelectedTurnKey = null;
+            if (selectionCount) { selectionCount.textContent = ""; }
             return;
         }
         var ownerKey = `${game.id}:${player.name}`;
@@ -708,7 +759,7 @@ class GameLayout {
         var activeExchange = selectableExchanges.find(exchange =>
             getExchangeId(exchange) == activeExchangeId
         ) || null;
-        var isPlayingTurn = (game.status == "S" && player.turn == 1 && player.placement == 0);
+        var isPlayingTurn = (game.status == "S" && player.turn == 1 && player.placement == 0 && !game.isTurnPaused());
         var playableStrengths = new Set();
         if (isPlayingTurn) {
             player.cards.forEach(card => {
@@ -759,6 +810,62 @@ class GameLayout {
                 }
             }
         }
+        var playSelectedCards = function () {
+            var selectedCards = player.cards.filter(card =>
+                selectedCardKeys.has(`${card.suit}:${card.rank}`)
+            );
+            if (selectedCards.length == 0) { return false; }
+            var pile = new CardPile(player.name, ...selectedCards);
+            if (!game.canPlayPile(player, pile)) {
+                showDialog("KanIkkeLeggeKort", true);
+                return false;
+            }
+            clearCardSelection();
+            game.playCards(player, pile);
+            return true;
+        };
+        var selectCardsForSwipe = function (card) {
+            if (!playableStrengths.has(card.strengthRank)) { return false; }
+            var playInfo = {};
+            if (!game.canPlayRank(player, card.strengthRank, playInfo) || !playInfo.pile) {
+                return false;
+            }
+            var cardsToPlay = playInfo.pile.slice();
+            if (!cardsToPlay.includes(card)) {
+                cardsToPlay[cardsToPlay.length - 1] = card;
+            }
+            clearCardSelection();
+            selectedCardStrength = card.strengthRank;
+            cardsToPlay.forEach(selectedCard =>
+                selectedCardKeys.add(`${selectedCard.suit}:${selectedCard.rank}`)
+            );
+            return true;
+        };
+        var clearDragStyles = function () {
+            element.querySelectorAll(".game-card.is-dragging").forEach(draggedCard => {
+                draggedCard.classList.remove("is-dragging");
+                draggedCard.style.removeProperty("--drag-base-y");
+                draggedCard.style.removeProperty("--drag-scale");
+                draggedCard.style.removeProperty("--drag-offset-y");
+            });
+        };
+        if (selectionCount) {
+            var selectedCards = player.cards.filter(card =>
+                selectedCardKeys.has(`${card.suit}:${card.rank}`)
+            );
+            if (isPlayingTurn && selectedCards.length > 0) {
+                var topPile = game.topPile();
+                var requiredCount = (topPile == null)
+                    ? null
+                    : ((selectedCardStrength == PresidentCard.clubThreePower()) ? 1 : topPile.length);
+                selectionCount.textContent = (requiredCount == null)
+                    ? `${selectedCards.length} kort valgt. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.`
+                    : `${selectedCards.length} av ${requiredCount} kort valgt. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.`;
+                selectionCount.setAttribute("aria-label", selectionCount.textContent);
+            } else {
+                selectionCount.textContent = "";
+            }
+        }
         if (player.placement == 0) {
             if (player.cards.length == 0) {
                 setClass(element, "KortKort", false);
@@ -807,6 +914,7 @@ class GameLayout {
                             elemKort.classList.add("is-dimmed");
                         }
                     }
+                    var dragState = null;
                     switch (game.status) {
                         case "G":
                             if (activeExchange) {
@@ -857,15 +965,22 @@ class GameLayout {
                             }
                             break;
                         case "S":
-                            if (player.turn == 1) {
+                            if (isPlayingTurn) {
                                 elemKort.disabled = false;
                                 elemKort.tabIndex = 0;
                                 elemKort.setAttribute(
                                     "aria-label",
                                     `${k.getName()}${isPlayable ? ", kan spilles" : ", kan ikke spilles nå"}`
                                 );
+                                elemKort.title = isPlayable
+                                    ? "Dra eller flick kortet opp, eller trykk Enter for å legge det ut"
+                                    : "Dette kortet kan ikke spilles nå";
                                 elemKort.setAttribute("aria-pressed", String(isSelected));
                                 elemKort.onclick = function () {
+                                    if (suppressNextCardClick) {
+                                        suppressNextCardClick = false;
+                                        return;
+                                    }
                                     if (!playableStrengths.has(k.strengthRank)) {
                                         showDialog("KanIkkeLeggeKort", true);
                                         return;
@@ -914,6 +1029,9 @@ class GameLayout {
                                         focusedCard.focus({ preventScroll: true });
                                     }
                                 };
+                            } else if (player.turn == 1 && game.isTurnPaused()) {
+                                elemKort.title = "Vent litt før neste trekk";
+                                elemKort.setAttribute("aria-label", `${k.getName()}, vent før neste trekk`);
                             }
                             break;
                         default:
@@ -923,7 +1041,11 @@ class GameLayout {
                         elemKort.onkeydown = function (event) {
                             if ((event.key == "Enter" || event.key == " ") && !event.repeat) {
                                 event.preventDefault();
-                                elemKort.click();
+                                if (game.status == "S" && selectedCardKeys.has(cardKey)) {
+                                    playSelectedCards();
+                                } else {
+                                    elemKort.click();
+                                }
                             } else if (event.key == "ArrowLeft" || event.key == "ArrowRight") {
                                 event.preventDefault();
                                 var cards = Array.from(element.querySelectorAll(".game-card:not(:disabled)"));
@@ -938,56 +1060,103 @@ class GameLayout {
                         elemKort.onpointerdown = function (event) {
                             elemKort.classList.add("is-pressed");
                             updateCardTilt(elemKort, event);
+                            if (game.status == "S" && isPlayingTurn && event.isPrimary) {
+                                dragState = {
+                                    pointerId: event.pointerId,
+                                    startY: event.clientY,
+                                    startTime: Date.now(),
+                                    didMove: false,
+                                    canPlay: false
+                                };
+                                elemKort.style.setProperty(
+                                    "--drag-base-y",
+                                    selectedCardKeys.has(cardKey) ? "-18px" : "0px"
+                                );
+                                elemKort.style.setProperty(
+                                    "--drag-scale",
+                                    selectedCardKeys.has(cardKey) ? "1.06" : "1"
+                                );
+                                if (typeof elemKort.setPointerCapture == "function") {
+                                    elemKort.setPointerCapture(event.pointerId);
+                                }
+                            }
                         };
                         elemKort.onpointermove = function (event) {
                             updateCardTilt(elemKort, event);
+                            if (dragState && dragState.pointerId == event.pointerId) {
+                                var dragOffsetY = Math.min(0, event.clientY - dragState.startY);
+                                if (dragOffsetY < -4) {
+                                    if (!dragState.didMove) {
+                                        dragState.didMove = true;
+                                        dragState.canPlay = selectCardsForSwipe(k);
+                                    }
+                                    if (dragState.canPlay) {
+                                        var selectionOffset = `${Math.max(-180, dragOffsetY)}px`;
+                                        element.querySelectorAll(".game-card").forEach(draggedCard => {
+                                            if (!selectedCardKeys.has(draggedCard.dataset.cardKey)) { return; }
+                                            draggedCard.classList.add("is-selected", "is-dragging");
+                                            draggedCard.setAttribute("aria-pressed", "true");
+                                            draggedCard.style.setProperty("--drag-base-y", "-18px");
+                                            draggedCard.style.setProperty("--drag-scale", "1.06");
+                                            draggedCard.style.setProperty("--drag-offset-y", selectionOffset);
+                                        });
+                                    }
+                                }
+                            }
                         };
                         elemKort.onpointerup = function (event) {
+                            var activeDrag = dragState;
+                            dragState = null;
                             elemKort.classList.remove("is-pressed");
+                            var keepDragPosition = false;
+                            if (activeDrag && activeDrag.pointerId == event.pointerId) {
+                                var swipeDistance = activeDrag.startY - event.clientY;
+                                var swipeThreshold = Math.max(
+                                    48,
+                                    Math.min(72, elemKort.getBoundingClientRect().height * 0.35)
+                                );
+                                var swipeVelocity = swipeDistance / Math.max(1, Date.now() - activeDrag.startTime);
+                                var isFlick = swipeDistance >= 24 && swipeVelocity >= 0.55;
+                                if (activeDrag.didMove) {
+                                    suppressNextCardClick = true;
+                                    window.setTimeout(function () {
+                                        suppressNextCardClick = false;
+                                    }, 0);
+                                }
+                                if (swipeDistance >= swipeThreshold || isFlick) {
+                                    suppressNextCardClick = true;
+                                    window.setTimeout(function () {
+                                        suppressNextCardClick = false;
+                                    }, 0);
+                                    if ((activeDrag.didMove && activeDrag.canPlay) ||
+                                        (!activeDrag.didMove && selectCardsForSwipe(k))) {
+                                        keepDragPosition = playSelectedCards();
+                                    } else {
+                                        showDialog("KanIkkeLeggeKort", true);
+                                    }
+                                }
+                            }
+                            if (!keepDragPosition) {
+                                clearDragStyles();
+                            }
                             if (event.pointerType == "touch") {
                                 resetCardTilt(elemKort);
                             }
                         };
                         elemKort.onpointercancel = function () {
+                            dragState = null;
                             elemKort.classList.remove("is-pressed");
+                            clearDragStyles();
                             resetCardTilt(elemKort);
                         };
                         elemKort.onpointerleave = function () {
+                            if (dragState) { return; }
                             elemKort.classList.remove("is-pressed");
                             resetCardTilt(elemKort);
                         };
                     }
                     element.appendChild(elemKort)
                 });
-                if (isPlayingTurn && selectionPanel && selectionCount && playSelectedButton && cancelSelectionButton) {
-                    var selectedCards = player.cards.filter(card => selectedCardKeys.has(`${card.suit}:${card.rank}`));
-                    if (selectedCards.length > 0) {
-                        var topPile = game.topPile();
-                        var requiredCount = (topPile == null)
-                            ? null
-                            : ((selectedCardStrength == PresidentCard.clubThreePower()) ? 1 : topPile.length);
-                        selectionPanel.hidden = false;
-                        selectionCount.textContent = (requiredCount == null)
-                            ? `${selectedCards.length} kort valgt`
-                            : `${selectedCards.length} av ${requiredCount} kort valgt`;
-                        selectionCount.setAttribute("aria-label", selectionCount.textContent);
-                        playSelectedButton.disabled = selectedCards.length == 0 ||
-                            (requiredCount != null && selectedCards.length != requiredCount);
-                        playSelectedButton.onclick = function () {
-                            var pile = new CardPile(player.name, ...selectedCards);
-                            if (!game.canPlayPile(player, pile)) {
-                                showDialog("KanIkkeLeggeKort", true);
-                                return;
-                            }
-                            clearCardSelection();
-                            game.playCards(player, pile);
-                        };
-                        cancelSelectionButton.onclick = function () {
-                            clearCardSelection();
-                            GameLayout.updateHand(game, player);
-                        };
-                    }
-                }
             }
         } else {
             clearCardSelection();
@@ -1121,12 +1290,16 @@ class CardPile extends Array {
     describe() {
         if (this.length == 0) { return "ingen kort" };
         if (this[0].isClubThree()) { return "kløver 3" };
-        return ["", "en", "to", "tre", "fire", "fem", "seks", "syv"][this.length] + " " + ((this.length > 1) ? Card.rankInfo(this[0].rank).pluralName : Card.rankInfo(this[0].rank).singularName);
+        var rank = Card.rankInfo(this[0].rank);
+        if (this.length == 2) { return `Par i ${rank.name}`; }
+        if (this.length == 3) { return `Triss i ${rank.name}`; }
+        if (this.length == 4) { return `Fire like i ${rank.name}`; }
+        return ["", "en", "to", "tre", "fire", "fem", "seks", "syv"][this.length] + " " + ((this.length > 1) ? rank.pluralName : rank.singularName);
     }
     canBePlayedOn(topPile) {
         return (
             (topPile == null) || // First card in a new pile.
-            (this.length == topPile.length && this.strengthRank >= topPile.strengthRank) || // Standard rules.
+            (this.length == topPile.length && this.strengthRank > topPile.strengthRank) || // Standard rules.
             (this.length == 1 && this[0].isClubThree()) // Club three.
         )
     }
@@ -1183,6 +1356,7 @@ class PresidentGame extends Game {
     constructor(id = null) {
         super(id);
         this.debug = true;
+        this.turnPause = null;
         // Attach to the existing room without overwriting its data.
         if (id == null) {
             this.id = Math.floor(Math.random() * 999999 + 1).toString();
@@ -1209,6 +1383,7 @@ class PresidentGame extends Game {
             "spillere": PresidentPlayer.serializePlayers(this.players),
             "spillBunke": this.serializePiles(),
             "sinTur": this.turn,
+            "turnPause": this.turnPause,
             ts: new Date()
         });
     }
@@ -1289,9 +1464,20 @@ class PresidentGame extends Game {
         for (let i = this.deckCount(); i > 0; i--) {
             deck.addStandardCards(function (suit, rank) { return new PresidentCard(suit, rank) });
         }
-        // Remove cards that cannot be dealt evenly.
+        if (this.players.length == 3) {
+            var diamondThreeIndex = deck.findIndex(card => (card.suit == 4 && card.rank == 3));
+            if (diamondThreeIndex >= 0) {
+                deck.splice(diamondThreeIndex, 1);
+            }
+        }
+        // Keep heart three available for the opening turn while trimming the remainder.
         deck.sortCards();
-        deck.splice(0, deck.length % this.players.length);
+        var cardsToRemove = deck.length % this.players.length;
+        while (cardsToRemove > 0) {
+            var discardIndex = deck.findIndex(card => !(card.suit == 2 && card.rank == 3));
+            deck.splice(discardIndex, 1);
+            cardsToRemove--;
+        }
         // Shuffle and deal the cards.
         deck.shuffle();
         this.players.forEach(player => {
@@ -1415,6 +1601,12 @@ class PresidentGame extends Game {
             this.players.forEach(player => {
                 player.cards.sortCards();
             });
+            var heartThreePlayerIndex = this.players.findIndex(player =>
+                player.cards.some(card => (card.suit == 2 && card.rank == 3))
+            );
+            if (heartThreePlayerIndex >= 0) {
+                this.setTurn(heartThreePlayerIndex);
+            }
         }
     }
     startOptionalTrade(offer, sneaky = false) {
@@ -1573,8 +1765,16 @@ class PresidentGame extends Game {
         if (this.piles.length == 0) { return null; }
         return this.piles[this.piles.length - 1];
     }
+    isTurnPaused() {
+        return this.turnPause != null && Date.now() < this.turnPause.until;
+    }
     canPlayRank(player, strengthRank, resultInfo = {}) {
         // Check whether a player can play a rank, and mark the matching cards.
+        if (this.isTurnPaused()) {
+            resultInfo.svar = false;
+            resultInfo.text = "Vent til bunken er ryddet.";
+            return false;
+        }
         if (this.status != "S") {
             resultInfo.svar = false;
             resultInfo.text = "Spillet har ikke startet.";
@@ -1607,9 +1807,10 @@ class PresidentGame extends Game {
             resultInfo.text = "Fire like kort kan bare slås med fire høyere like kort.";
             return false;
         }
-        if (strengthRank < topPile.strengthRank) {
+        var isClubThree = strengthRank == PresidentCard.clubThreePower();
+        if (!isClubThree && strengthRank <= topPile.strengthRank) {
             resultInfo.svar = false;
-            resultInfo.text = `Må legge på ${topPile.strengthRank} eller høyere.`;
+            resultInfo.text = `Må legge på høyere enn ${topPile.strengthRank}.`;
             return false;
         };
         var cardCount = fourOfKindOnTop
@@ -1645,12 +1846,13 @@ class PresidentGame extends Game {
                 pile.length == 4 &&
                 pile.every(card => card.strengthRank == pile[0].strengthRank) &&
                 pile.strengthRank != PresidentCard.clubThreePower() &&
-                pile.strengthRank >= topPile.strengthRank
+                pile.strengthRank > topPile.strengthRank
             : pile != null && pile.canBePlayedOn(topPile);
         return player != null &&
             pile != null &&
             this.status == "S" &&
             player.turn == 1 &&
+            !this.isTurnPaused() &&
             player.name == pile.name &&
             canBeatCurrentPile &&
             player.cards.filter(k => (pile.includes(k))).length == pile.length;
@@ -1660,6 +1862,10 @@ class PresidentGame extends Game {
         if (topPile == null) { return false; }
         if (topPile[0].isClubThree()) {
             info.text = "Kløver 3";
+            return true;
+        }
+        if (hasFourOfKindOnTop(this)) {
+            info.text = "Fire like";
             return true;
         }
         if (this.players.filter(player => (player.lastPlay != "Pass" && player.placement == 0)).length <= 1) {
@@ -1695,9 +1901,11 @@ class PresidentGame extends Game {
     canPass(player) {
         return player != null &&
             this.status == "S" &&
-            player.turn == 1;
+            player.turn == 1 &&
+            !this.isTurnPaused();
     }
     passTurn(player) {
+        if (!this.canPass(player)) { throw ("Kan ikke passe nå."); }
         player.lastPlay = "Pass";
         this.advanceTurn();
     }
@@ -1721,6 +1929,7 @@ class PresidentGame extends Game {
                     nextPlayerName = pile.name;
                 }
             });
+            var nextPlayerIndex;
             if (nextPlayerName == null) {
                 // If no player from this round remains, search backward from the last pile.
                 nextPlayerName = this.topPile().name;
@@ -1729,11 +1938,21 @@ class PresidentGame extends Game {
                     savedIndex--;
                     if (savedIndex < 0) { savedIndex += this.players.length };
                 } while (this.players[savedIndex].placement > 0);
-                this.piles = [];
-                return savedIndex;
+                nextPlayerIndex = savedIndex;
+            } else {
+                nextPlayerIndex = this.players.findIndex(player => (player.name == nextPlayerName));
             }
             this.piles = [];
-            return this.players.findIndex(player => (player.name == nextPlayerName));
+            var now = Date.now();
+            var nextPlayer = this.players[nextPlayerIndex];
+            this.turnPause = {
+                id: `${now}-${Math.random().toString(36).slice(2)}`,
+                until: now + 2000,
+                message: (info.text == "Alle spillere sa pass")
+                    ? `Alle andre har passet. ${nextPlayer.name} får turen igjen.`
+                    : `Det går ut! ${nextPlayer.name} får turen igjen.`
+            };
+            return nextPlayerIndex;
         } else {
             return currentTurnPlayer + 1;
         }
@@ -1747,6 +1966,11 @@ class PresidentGame extends Game {
     function () {
         var currentGame = null;
         var currentPlayerName = null;
+        var currentGameSubscription = null;
+        var currentGameListener = null;
+        var turnPauseRefreshTimer = null;
+        var gameToastTimer = null;
+        var lastShownTurnPauseId = null;
         var appShell = document.getElementById("DivHele");
         var gameMenuToggle = document.getElementById("BnGameMenuToggle");
         var gameMenu = document.getElementById("DivFKnapper");
@@ -1770,6 +1994,100 @@ class PresidentGame extends Game {
                     promptForPlayerName();
                 }
             });
+        }
+
+        function disconnectGameListener() {
+            if (currentGameSubscription != null && currentGameListener != null) {
+                currentGameSubscription.off("value", currentGameListener);
+            }
+            currentGameSubscription = null;
+            currentGameListener = null;
+        }
+
+        function leaveCurrentGame() {
+            var game = currentGame;
+            disconnectGameListener();
+            if (turnPauseRefreshTimer != null) {
+                clearTimeout(turnPauseRefreshTimer);
+                turnPauseRefreshTimer = null;
+            }
+            if (gameToastTimer != null) {
+                clearTimeout(gameToastTimer);
+                gameToastTimer = null;
+            }
+            hideGameToast();
+            lastShownTurnPauseId = null;
+            if (game != null && currentPlayerName != null && game.status != "F") {
+                var player = game.getPlayer(currentPlayerName);
+                if (player != null) {
+                    game.leavePlayer(player);
+                }
+            }
+            currentGame = null;
+            currentPlayerName = null;
+            try {
+                closeFullscreen();
+            } catch (error) { }
+            GameLayout.updateSharedView(null, null);
+            GameLayout.updatePlayerView(null, null);
+        }
+
+        function showConnectGameDialog() {
+            try {
+                openFullscreen(document.getElementsByTagName("body")[0]);
+            } catch (error) { }
+            document.getElementById("dialogKobleSpillId").value = null;
+            document.getElementById("dialogKobleSpillError").innerHTML = "";
+            showDialog("KobleSpill", true);
+        }
+
+        function connectToAnotherGame() {
+            leaveCurrentGame();
+            showConnectGameDialog();
+        }
+
+        function hideGameToast() {
+            if (gameToastTimer != null) {
+                clearTimeout(gameToastTimer);
+                gameToastTimer = null;
+            }
+            var toast = document.getElementById("GameToast");
+            toast.classList.remove("is-visible");
+            toast.textContent = "";
+        }
+
+        function showGameToast(message) {
+            var toast = document.getElementById("GameToast");
+            toast.textContent = message;
+            toast.classList.add("is-visible");
+            if (gameToastTimer != null) {
+                clearTimeout(gameToastTimer);
+            }
+            gameToastTimer = setTimeout(hideGameToast, 2000);
+        }
+
+        function handleTurnPause(game) {
+            if (turnPauseRefreshTimer != null) {
+                clearTimeout(turnPauseRefreshTimer);
+                turnPauseRefreshTimer = null;
+            }
+            var pause = game.turnPause;
+            if (pause == null) { return; }
+            if (pause.id != lastShownTurnPauseId) {
+                lastShownTurnPauseId = pause.id;
+                if (pause.until > Date.now()) {
+                    showGameToast(pause.message);
+                }
+            }
+            var delay = pause.until - Date.now();
+            if (delay > 0) {
+                turnPauseRefreshTimer = setTimeout(function () {
+                    turnPauseRefreshTimer = null;
+                    if (currentGame != game || game.turnPause == null || game.turnPause.id != pause.id) { return; }
+                    GameLayout.updateSharedView(game, game.getPlayer(currentPlayerName));
+                    GameLayout.updatePlayerView(game, game.getPlayer(currentPlayerName));
+                }, delay + 20);
+            }
         }
 
         function setGameMenuOpen(isOpen, returnFocus = false) {
@@ -1843,13 +2161,10 @@ class PresidentGame extends Game {
         });
 
         document.getElementById('BnHKobleSpill').addEventListener('click', function () {
-            try {
-                openFullscreen(document.getElementsByTagName("body")[0]);
-            } catch (error) { }
-            document.getElementById("dialogKobleSpillId").value = null;
-            document.getElementById('dialogKobleSpillError').innerHTML = "";
-            showDialog("KobleSpill", true);
+            showConnectGameDialog();
         });
+
+        document.getElementById('BnFKobleSpill').addEventListener('click', connectToAnotherGame);
 
         document.getElementById('dialogKobleSpillOk').addEventListener('click', function () {
             var id = document.getElementById("dialogKobleSpillId").value;
@@ -1871,29 +2186,42 @@ class PresidentGame extends Game {
         });
 
         function connectGame(afterConnect = function () { }) {
-            currentGame.databaseRef.on('value', function (snapshot) {
+            disconnectGameListener();
+            if (turnPauseRefreshTimer != null) {
+                clearTimeout(turnPauseRefreshTimer);
+                turnPauseRefreshTimer = null;
+            }
+            lastShownTurnPauseId = null;
+            var connectingGame = currentGame;
+            currentGameSubscription = connectingGame.databaseRef;
+            currentGameListener = function (snapshot) {
+                if (currentGame != connectingGame) { return; }
                 var snapshotRecord = snapshot.val();
                 if (snapshotRecord != null) {
                     var storedPlayers = snapshotRecord["spillere"] || [];
                     var storedPiles = snapshotRecord["spillBunke"] || [];
-                    currentGame.status = snapshotRecord.status;
+                    connectingGame.status = snapshotRecord.status;
                     var storedRules = snapshotRecord["regler"] || {};
-                    currentGame.rules = { showCardsOnly: storedRules["VisKunKort"] };
-                    currentGame.round = snapshotRecord["runde"];
-                    currentGame.players = PresidentPlayer.deserializePlayers(storedPlayers);
-                    currentGame.piles = ((currentGame.status == "G") ? PresidentGame.deserializeExchanges(storedPiles) : PresidentCard.deserializePiles(storedPiles));
-                    currentGame.turn = snapshotRecord["sinTur"];
-                    currentGame.ts = snapshotRecord.ts;
-                    GameLayout.updateSharedView(currentGame, currentGame.getPlayer(currentPlayerName));
-                    GameLayout.updatePlayerView(currentGame, currentGame.getPlayer(currentPlayerName));
+                    connectingGame.rules = { showCardsOnly: storedRules["VisKunKort"] };
+                    connectingGame.round = snapshotRecord["runde"];
+                    connectingGame.players = PresidentPlayer.deserializePlayers(storedPlayers);
+                    connectingGame.piles = ((connectingGame.status == "G") ? PresidentGame.deserializeExchanges(storedPiles) : PresidentCard.deserializePiles(storedPiles));
+                    connectingGame.turn = snapshotRecord["sinTur"];
+                    connectingGame.turnPause = snapshotRecord["turnPause"] || null;
+                    connectingGame.ts = snapshotRecord.ts;
+                    GameLayout.updateSharedView(connectingGame, connectingGame.getPlayer(currentPlayerName));
+                    GameLayout.updatePlayerView(connectingGame, connectingGame.getPlayer(currentPlayerName));
+                    handleTurnPause(connectingGame);
                 } else {
+                    disconnectGameListener();
                     currentGame = null;
                     currentPlayerName = null;
                     GameLayout.updateSharedView(null, null);
                     GameLayout.updatePlayerView(null, null);
                 }
                 afterConnect();
-            });
+            };
+            currentGameSubscription.on('value', currentGameListener);
         }
 
         const inviteId = new URLSearchParams(window.location.search).get("spillid");
@@ -1911,7 +2239,7 @@ class PresidentGame extends Game {
 
         document.getElementById('BnFStartSpill').addEventListener('click', function () {
             currentGame.startGame();
-            setTimeout(runBotLoop, 1500);
+            setTimeout(runBotLoop, BOT_ACTION_DELAY_MS);
         });
 
         function runBotLoop() {
@@ -1922,33 +2250,20 @@ class PresidentGame extends Game {
             } else if (currentGame.status == "S" && currentGame.turn >= 0 && currentGame.players[currentGame.turn].playerKey == "PC") {
                 playBotTurn(currentGame, currentGame.players[currentGame.turn]);
             }
-            if (currentGame.status != "F") { setTimeout(runBotLoop, 1500); }
+            if (currentGame.status != "F") { setTimeout(runBotLoop, BOT_ACTION_DELAY_MS); }
         }
 
         document.getElementById('BnFHovedmeny').addEventListener('click', function () {
             if (currentGame != null) {
                 if (currentPlayerName == null || currentGame.status == "F") {
-                    currentGame = null;
-                    try {
-                        closeFullscreen();
-                    } catch (error) { }
-                    GameLayout.updateSharedView(null, null);
+                    leaveCurrentGame();
                 } else {
                     showChoiceDialog(
                         "Vil du avslutte spillet?", [
                         "Ja, gå til hovedmenyen",
                         "Nei, fortsett spillet"
                     ], [
-                        function () {
-                            currentGame.leavePlayer(currentGame.getPlayer(currentPlayerName));
-                            currentPlayerName = null;
-                            currentGame = null;
-                            try {
-                                closeFullscreen();
-                            } catch (error) { }
-                            GameLayout.updateSharedView(null, null);
-                            GameLayout.updatePlayerView(null, null);
-                        },
+                        leaveCurrentGame,
                         function () { }
                     ]
                     );
@@ -2040,13 +2355,11 @@ class PresidentGame extends Game {
 
         document.getElementById('BnFNyAutoSpiller').addEventListener('click', function () {
             const key = "PC";
-            var alternatives = ["PC A", "PC B", "PC C", "PC D", "PC E"];
-            currentGame.players.forEach(player => {
-                alternatives = alternatives.filter(name => (name != player.name));
-            });
-            if (alternatives.length > 0) {
-                currentGame.addPlayer(new PresidentPlayer(alternatives[0], key));
-            } else {
+            var usedNames = currentGame.players.map(player => player.name.toLocaleLowerCase());
+            var availableNames = BOT_NAMES.filter(name => !usedNames.includes(name.toLocaleLowerCase()));
+            if (availableNames.length > 0) {
+                var name = availableNames[Math.floor(Math.random() * availableNames.length)];
+                currentGame.addPlayer(new PresidentPlayer(name, key));
             }
         })
 
@@ -2083,6 +2396,7 @@ class PresidentGame extends Game {
 )();
 
 function playBotTurn(game, player, entireRound = false) {
+    if (game.status == "S" && game.isTurnPaused()) { return; }
     if (game.status == "G") {
         game.piles.slice().filter(exchange =>
             exchange.mode == "Kan se" && game.players[exchange.to] == player

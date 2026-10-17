@@ -31,16 +31,16 @@
         </div>
         <div id="DivFKnapper" role="group" aria-label="Spillmeny" style="text-align: center; vertical-align: middle;">
             <button type="button" id="BnFInviterSpill" title="Inviter andre" aria-label="Del invitasjon" style="float: left;">Del invitasjon</button>
-            <button type="button" id="BnPNySpiller" title="Bli en spiller" aria-label="Bli med som spiller" style="float: left;">Bli med som spiller</button>
-            <button type="button" id="BnPNySpiller_Off" title="Bli en spiller (ikke tillatt nå)" aria-label="Spiller på denne enheten" style="float: left;">Spiller på denne enheten</button>
-            <button type="button" id="BnFNyAutoSpiller" title="Legg til datamotstander" aria-label="Legg til datamotstander" style="float: left;">Legg til datamotstander</button>
-            <button type="button" id="BnFNyAutoSpiller_Off" title="Legg til datamotstander (ikke tillatt nå)" aria-label="Datamotstander utilgjengelig" style="float: left;">Datamotstander utilgjengelig</button>
+            <button type="button" id="BnFKobleSpill" title="Koble til et annet spill" aria-label="Koble til annet spill">Koble til annet spill</button>
+            <button type="button" id="BnPByttNavn" title="Bytt navn i spillet" aria-label="Bytt spillernavn" style="float: right;">Bytt navn</button>
+            <button type="button" id="BnFRegler" title="Regler" aria-label="Vis regler" style="float: right;">Vis regler</button>
+            <button type="button" id="BnFNyAutoSpiller" title="Legg til bot" aria-label="Legg til bot" style="float: left;">Legg til bot</button>
+            <button type="button" id="BnFNyAutoSpiller_Off" title="Legg til bot (ikke tillatt nå)" aria-label="Bot utilgjengelig" style="float: left;">Bot utilgjengelig</button>
             <button type="button" id="BnFStartSpill" title="Start spill" aria-label="Start spill" style="float: left;">Start spill</button>
             <button type="button" id="BnFStartSpill_Off" title="Start spill (ikke tillatt nå)" aria-label="Start spill utilgjengelig" style="float: left;">Start spill utilgjengelig</button>
+            <button type="button" id="BnPNySpiller" title="Bli en spiller" aria-label="Bli med som spiller" style="float: left;">Bli med som spiller</button>
             <button type="button" id="BnFHovedmeny" title="Avslutt spill og gå til hovedmeny" aria-label="Hovedmeny" style="float: right;">Hovedmeny</button>
-            <button type="button" id="BnPByttNavn" title="Bytt navn i spillet" aria-label="Bytt spillernavn" style="float: right;">Bytt navn</button>
             <button type="button" id="BnPGiOpp" title="Gi opp" aria-label="Gi opp" style="float: right;">Gi opp</button>
-            <button type="button" id="BnFRegler" title="Regler" aria-label="Vis regler" style="float: right;">Vis regler</button>
             <button type="button" id="BnFResultater" title="Resultater for alle rundene" aria-label="Resultater" style="float: right;">Resultater</button>
             <div id="DivSpillMeta">
                 <span id="SpanSpillId"></span><br/>
@@ -55,14 +55,9 @@
 
         </div>
         <div id="DivPKnapper" style="text-align: center; vertical-align: middle;">
-            <div id="cardSelectionActions" class="card-selection-actions" hidden>
-                <span id="selectedCardCount" aria-live="polite"></span>
-                <button type="button" id="BnPPlaySelected" disabled>Legg ut</button>
-                <button type="button" id="BnPCancelSelection">Avbryt</button>
-            </div>
+            <span id="selectedCardCount" class="visually-hidden" aria-live="polite" aria-atomic="true"></span>
             <button type="button" id="BnPPass" title="Pass" aria-label="Pass" style="float: left;">Pass</button>
             <button type="button" id="BnPPass_Off" title="Pass (ikke tillatt nå)" aria-label="Pass (ikke tillatt nå)" style="float: left;">Pass utilgjengelig</button>
-            <span id="SpanSpillerNick"></span>
             <span id="SpanHoppover"></span>
             <br/>
             <span id="SpanSpillerInfo"></span>
@@ -72,6 +67,7 @@
         </div>
 
     </div>
+    <div id="GameToast" class="game-toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <div id="DivBord_Bordforklaring" style="display: none;">
         <div><b>Velkommen til <img src="icons/logo.svg" alt="Boms og President" style="height: 2em;"></b></div>
@@ -88,7 +84,7 @@
             <button type="button" onclick="document.getElementById('Bordforklaring2').style.display='none'; document.getElementById('Bordforklaring3').style.display='block';">Neste tips</button>
         </div>
         <div id="Bordforklaring3" class="tips" style="display: none;">
-            <div>Du kan legge til én eller flere datamotstandere med «Legg til datamotstander».</div>
+            <div>Du kan legge til én eller flere boter med «Legg til bot».</div>
             <button type="button" onclick="document.getElementById('Bordforklaring3').style.display='none'; document.getElementById('Bordforklaring4').style.display='block';">Neste tips</button>
         </div>
         <div id="Bordforklaring4" class="tips" style="display: none;">
@@ -98,7 +94,7 @@
     </div>
     <div id="DivKort_Kortforklaring" style="display: none;">
         <div id="Kortforklaring1" class="tips">
-            <div>Velg et kort og trykk på flere kort med samme verdi for å blande dem inn. Trykk «Legg ut» når valget er klart.</div>
+            <div>Trykk på et kort for å velge det; like kort velges sammen. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.</div>
             <button type="button" onclick="document.getElementById('Kortforklaring1').style.display='none';">Lukk tips</button>
         </div>
     </div>
@@ -271,7 +267,7 @@
     <div id="dialogKanIkkeLeggeKort" class="dialog-container">
         <div class="dialogVindu">
             <div class="dialogTittel">Du kan ikke legge på det kortet nå.</div>
-            <div class="dialogBody">Du må legge på like mange kort med samme verdi eller høyere. Fire like kort kan bare slås med fire høyere like kort; kløver 3 kan ikke slå fire like.</div>
+            <div class="dialogBody">Du må legge på like mange kort med høyere verdi. Par slås bare av høyere par, og triss bare av høyere triss. Fire like kort rydder bunken straks.</div>
             <div class="dialogFooter"><button type="button" onclick="showDialog('KanIkkeLeggeKort', false);">Lukk</button></div>
         </div>
     </div>
@@ -280,14 +276,20 @@
         <div class="dialogVindu">
             <div class="dialogTittel">Regler</div>
             <div class="dialogBody TabToKolonner">
+                <div>Målet</div>
+                <div>Bli kvitt alle kortene først. Første spiller blir President, og siste blir Boms.</div>
                 <div>Legg på kort</div>
-                <div>Legg på like mange kort som forrige spiller, med samme verdi eller høyere.</div>
+                <div>Legg på like mange kort som forrige spiller, med høyere verdi. Par slås bare av høyere par, og triss bare av høyere triss.</div>
+                <div>Tre spillere</div>
+                <div>Ruter 3 tas ut av kortstokken.</div>
+                <div>Første runde</div>
+                <div>Når alle er nøytrale, begynner spilleren med Hjerter 3.</div>
                 <div>Kløver 3</div>
-                <div>Kløver 3 kan spilles alene og rydder vanligvis bunken.</div>
+                <div>Kan spilles alene på bunken og rydder den.</div>
                 <div>Fire like</div>
-                <div>Fire like kort kan bare slås med fire høyere like kort. Kløver 3 kan ikke slå fire like.</div>
+                <div>Rydder bunken straks; spilleren som la dem starter på nytt.</div>
                 <div>Pass</div>
-                <div>Når alle andre spillere passer, ryddes bunken.</div>
+                <div>Når alle andre passer, ryddes bunken og siste spiller som la kort starter igjen.</div>
             </div>
             <div class="dialogFooter"><button class="autofocus" type="button" onclick="showDialog('Regler', false);">Lukk regler</button></div>
         </div>

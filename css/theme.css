@@ -303,10 +303,6 @@ select:focus-visible {
     line-height: 1.3;
 }
 
-#DivPKnapper #SpanSpillerNick {
-    font-size: clamp(0.8rem, 3.5vmin, 1.3rem);
-}
-
 #DivKort > span {
     min-width: 0;
     overflow-wrap: anywhere;
@@ -368,6 +364,7 @@ select:focus-visible {
     z-index: 1;
     overflow: hidden;
     cursor: pointer;
+    touch-action: none;
     isolation: isolate;
     transform-style: preserve-3d;
     transform: perspective(900px) translateX(var(--card-offset, 0px)) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
@@ -377,6 +374,8 @@ select:focus-visible {
 .game-card img {
     border: 2px solid transparent;
     border-radius: 8px;
+    user-select: none;
+    -webkit-user-drag: none;
     transition: border-color 180ms ease, box-shadow 180ms ease;
 }
 
@@ -472,39 +471,29 @@ select:focus-visible {
     transform: perspective(900px) translateY(-16px) scale(1.04);
 }
 
-.card-selection-actions {
-    position: static;
+.game-card.is-dragging {
     z-index: 5;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    order: -1;
-    flex: 1 0 100%;
-    width: min(calc(100% - 24px), 440px);
-    margin: 0 auto 4px;
-    padding: 10px;
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: var(--surface);
-    color: var(--ink);
-    box-shadow: var(--shadow);
+    transition: none;
+    transform:
+        perspective(900px)
+        translateX(var(--card-offset, 0px))
+        translateY(calc(var(--drag-base-y, 0px) + var(--drag-offset-y, 0px)))
+        scale(var(--drag-scale, 1))
+        rotateX(var(--tilt-x, 0deg))
+        rotateY(var(--tilt-y, 0deg))
+        rotate(var(--card-rotation, 0deg));
 }
 
-.card-selection-actions[hidden] {
-    display: none;
-}
-
-.card-selection-actions > span {
-    flex: 1 1 auto;
-    font-size: 0.9rem;
-    font-weight: 650;
-}
-
-.card-selection-actions > button {
-    min-height: 44px;
-    padding: 8px 12px;
+.visually-hidden {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 .theme-toggle {
@@ -814,8 +803,8 @@ select:focus-visible {
     --table-card-width: calc(var(--table-card-height) * 2 / 3);
     position: relative;
     flex: 0 0 auto;
-    width: calc(var(--table-card-width) + var(--pile-fan-width) + var(--pile-depth));
-    height: calc(var(--table-card-height) + var(--pile-depth));
+    width: calc(var(--table-card-width) + var(--pile-fan-width) + var(--pile-depth) + 10px);
+    height: calc(var(--table-card-height) + var(--pile-depth) + 10px);
 }
 
 .table-play {
@@ -838,6 +827,8 @@ select:focus-visible {
     object-fit: fill;
     box-shadow: 0 3px 10px rgb(0 0 0 / 26%);
     transition: opacity 120ms ease;
+    transform: rotate(var(--pile-rotation, 0deg));
+    transform-origin: center;
 }
 
 .table-card-pile__count,
@@ -878,6 +869,46 @@ select:focus-visible {
     border-radius: 8px;
     object-fit: contain;
     filter: drop-shadow(0 4px 8px rgb(0 0 0 / 28%));
+}
+
+.card-discard-flight {
+    position: fixed;
+    z-index: 150;
+    pointer-events: none;
+    border: 1px solid rgb(0 0 0 / 35%);
+    border-radius: 8px;
+    object-fit: fill;
+    box-shadow: 0 3px 10px rgb(0 0 0 / 26%);
+}
+
+.game-toast {
+    position: fixed;
+    z-index: 200;
+    top: max(12px, env(safe-area-inset-top));
+    left: 50%;
+    width: min(420px, calc(100vw - 24px));
+    padding: 12px 18px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: clamp(0.9rem, 2.5vw, 1.05rem);
+    font-weight: 750;
+    line-height: 1.3;
+    text-align: center;
+    overflow-wrap: anywhere;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translate(-50%, -12px);
+    transition: opacity 180ms ease, transform 180ms ease, visibility 180ms ease;
+}
+
+.game-toast.is-visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, 0);
 }
 
 @media (min-width: 761px) and (orientation: landscape) {
@@ -1014,8 +1045,8 @@ select:focus-visible {
 
     .table-card-pile {
         --table-card-height: clamp(40px, 15vh, 64px);
-        width: calc(var(--table-card-width) + var(--pile-fan-width) + var(--pile-depth));
-        height: calc(var(--table-card-height) + var(--pile-depth));
+        width: calc(var(--table-card-width) + var(--pile-fan-width) + var(--pile-depth) + 10px);
+        height: calc(var(--table-card-height) + var(--pile-depth) + 10px);
     }
 
     #DivHele.SpillAktivt #DivKort.KortKort > .game-card > img,
@@ -1030,45 +1061,22 @@ select:focus-visible {
     #DivHele.SpillAktivt > #DivPKnapper {
         display: grid;
         grid-template-columns: auto minmax(0, 1fr) auto;
-        grid-template-rows: auto auto auto;
+        grid-template-rows: auto auto;
         gap: 2px;
         padding: 2px;
-    }
-
-    #DivHele.SpillAktivt > #DivPKnapper > #cardSelectionActions {
-        grid-column: 1 / -1;
-        grid-row: 1 / 2;
-        width: 100%;
-        margin: 0;
-        padding: 4px;
-        gap: 4px;
-        flex: none;
     }
 
     #DivHele.SpillAktivt > #DivPKnapper > #BnPPass,
     #DivHele.SpillAktivt > #DivPKnapper > #BnPPass_Off {
         grid-column: 1 / 2;
-        grid-row: 2 / 3;
-        min-height: 36px;
-        padding: 4px 8px;
-    }
-
-    #DivHele.SpillAktivt > #DivPKnapper > #SpanSpillerNick {
-        grid-column: 2 / 3;
-        grid-row: 2 / 3;
-        font-size: 0.78rem;
-    }
-
-    #DivHele.SpillAktivt > #DivPKnapper > #BnPGiOpp {
-        grid-column: 3 / 4;
-        grid-row: 2 / 3;
+        grid-row: 1 / 2;
         min-height: 36px;
         padding: 4px 8px;
     }
 
     #DivHele.SpillAktivt > #DivPKnapper > #SpanHoppover {
         grid-column: 1 / -1;
-        grid-row: 3 / 4;
+        grid-row: 2 / 3;
     }
 
     #DivHele.SpillAktivt > #DivPKnapper > #SpanSpillerInfo {
@@ -1077,18 +1085,6 @@ select:focus-visible {
 
     #DivHele.SpillAktivt > #DivPKnapper > br {
         display: none;
-    }
-
-    #DivHele.SpillAktivt > #DivPKnapper .card-selection-actions > span {
-        flex: 1 1 auto;
-        font-size: 0.75rem;
-        text-align: left;
-    }
-
-    #DivHele.SpillAktivt > #DivPKnapper .card-selection-actions > button {
-        min-height: 34px;
-        padding: 4px 8px;
-        font-size: 0.78rem;
     }
 
     .table-card-pile__count {
@@ -1143,19 +1139,6 @@ select:focus-visible {
         font-size: 0.72rem;
     }
 
-    .card-selection-actions {
-        gap: 6px;
-        padding: 8px;
-    }
-
-    .card-selection-actions > span {
-        flex-basis: 100%;
-        text-align: center;
-    }
-
-    .card-selection-actions > button {
-        flex: 1 1 0;
-    }
 }
 
 #DivHele.SpillAktivt.Lobby {
