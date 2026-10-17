@@ -1532,17 +1532,15 @@ select:focus-visible {
 #gameShell.game-active #playerList .opponent-seat-4 { grid-column: 1; grid-row: 3; }
 
 #gameShell.game-active #playerList .is-current-turn {
-    border-color: #e4b51a;
-    background: #f4cf43;
-    color: #342a08;
-    box-shadow: inset 4px 0 #e4b51a, 0 0 14px rgb(244 207 67 / 25%);
+    border-color: #35c46a;
+    background: rgb(31 145 68 / 30%);
+    box-shadow: inset 4px 0 #35c46a, 0 0 14px rgb(53 196 106 / 22%);
 }
 
 #gameShell.game-active #playerList .player-summary--passed {
-    border-color: #e4b51a;
-    background: #f4cf43;
-    color: #342a08;
-    box-shadow: inset 4px 0 #e4b51a, 0 0 14px rgb(244 207 67 / 25%);
+    border-color: #c5ad61;
+    background: rgb(197 173 97 / 22%);
+    box-shadow: inset 4px 0 #c5ad61, 0 0 14px rgb(197 173 97 / 14%);
 }
 
 #gameShell.game-active #playerList .player-summary__turn {
@@ -1550,7 +1548,7 @@ select:focus-visible {
 }
 
 #gameShell.game-active #playerList .player-summary--passed .player-summary__turn {
-    background: #f4cf43;
+    background: #d8c783;
     color: #342a08;
 }
 
@@ -1614,8 +1612,10 @@ select:focus-visible {
 }
 
 #gameShell.game-active:not(.Lobby) > #playerList .player-summary.player-summary--passed {
-    background: #f4cf43;
-    color: #342a08;
+    border-color: #c5ad61;
+    background: rgb(197 173 97 / 22%);
+    color: var(--ink);
+    box-shadow: inset 4px 0 #c5ad61, 0 0 14px rgb(197 173 97 / 14%);
 }
 
 #gameShell.game-active:not(.Lobby) > #playerActions {
