@@ -275,12 +275,22 @@ select:focus-visible {
 }
 
 .player-summary__turn {
+    display: inline-flex;
+    min-height: 1.65em;
+    align-items: center;
+    justify-content: center;
     padding: 3px 7px;
     border-radius: 999px;
     background: var(--accent);
     color: #fff;
     font-size: 0.72rem;
     font-weight: 750;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.player-summary__turn[aria-hidden="true"] {
+    visibility: hidden;
 }
 
 .player-summary > button {
