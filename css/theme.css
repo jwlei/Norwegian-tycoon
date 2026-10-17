@@ -1257,7 +1257,7 @@ select:focus-visible {
 
 #DivHele.SpillAktivt #DivSpillere .opponent-list {
     display: grid;
-    width: min(100%, 900px);
+    width: min(100%, 560px);
     flex: 0 0 auto;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: auto;
