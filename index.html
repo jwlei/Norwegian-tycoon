@@ -34,10 +34,17 @@
             <button type="button" id="BnFKobleSpill" title="Koble til et annet spill" aria-label="Koble til annet spill">Koble til annet spill</button>
             <button type="button" id="BnPByttNavn" title="Bytt navn i spillet" aria-label="Bytt spillernavn" style="float: right;">Bytt navn</button>
             <button type="button" id="BnFRegler" title="Regler" aria-label="Vis regler" style="float: right;">Vis regler</button>
-            <button type="button" id="BnFNyAutoSpiller" title="Legg til bot" aria-label="Legg til bot" style="float: left;">Legg til bot</button>
-            <button type="button" id="BnFNyAutoSpiller_Off" title="Legg til bot (ikke tillatt nå)" aria-label="Bot utilgjengelig" style="float: left;">Bot utilgjengelig</button>
-            <button type="button" id="startGameButton" title="Start spill" aria-label="Start spill" style="float: left;">Start spill</button>
-            <button type="button" id="startGameButton_Off" title="Start spill (ikke tillatt nå)" aria-label="Start spill utilgjengelig" style="float: left;">Start spill utilgjengelig</button>
+            <div class="lobby-primary-actions" role="group" aria-label="Spillhandlinger">
+                <div class="lobby-primary-action">
+                    <button type="button" id="BnFNyAutoSpiller" title="Legg til bot" aria-label="Legg til bot">Legg til bot</button>
+                    <button type="button" id="BnFNyAutoSpiller_Off" title="Legg til bot (ikke tillatt nå)" aria-label="Bot utilgjengelig">Bot utilgjengelig</button>
+                    <small id="waitingForPlayersHint" class="lobby-wait-hint" hidden>eller vent på spillere</small>
+                </div>
+                <div class="lobby-primary-action">
+                    <button type="button" id="startGameButton" title="Start spill" aria-label="Start spill">Start spill</button>
+                    <button type="button" id="startGameButton_Off" title="Start spill (ikke tillatt nå)" aria-label="Start spill utilgjengelig">Start spill utilgjengelig</button>
+                </div>
+            </div>
             <button type="button" id="BnPNySpiller" title="Bli en spiller" aria-label="Bli med som spiller" style="float: left;">Bli med som spiller</button>
             <button type="button" id="BnFHovedmeny" title="Avslutt spill og gå til hovedmeny" aria-label="Hovedmeny" style="float: right;">Hovedmeny</button>
             <button type="button" id="BnPGiOpp" title="Gi opp" aria-label="Gi opp" style="float: right;">Gi opp</button>

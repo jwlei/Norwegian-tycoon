@@ -171,6 +171,7 @@ select:focus-visible {
 }
 
 #gameMenu > button,
+#gameMenu .lobby-primary-action > button,
 #playerActions > button {
     float: none !important;
     width: auto;
@@ -193,6 +194,7 @@ select:focus-visible {
 }
 
 #gameMenu > button:hover,
+#gameMenu .lobby-primary-action > button:hover,
 #playerActions > button:hover {
     background: var(--line);
 }
@@ -205,7 +207,7 @@ select:focus-visible {
     box-shadow: 0 0 0 3px rgb(244 207 67 / 24%), 0 5px 16px rgb(244 207 67 / 35%);
 }
 
-#gameMenu > div {
+#gameMenu > #gameMetadata {
     font-size: 0.82rem;
     text-align: center;
 }
@@ -1354,10 +1356,50 @@ select:focus-visible {
 }
 
 #gameShell.game-active.Lobby > #gameMenu > button {
+    order: 1;
     width: min(100%, 360px);
     margin: 0;
     justify-content: center;
     text-align: center;
+}
+
+#gameShell.game-active.Lobby > #gameMenu > .lobby-primary-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    order: 0;
+    width: min(100%, 520px);
+    flex: 0 0 auto;
+    margin: 0 auto 12px;
+}
+
+#gameShell.game-active.Lobby .lobby-primary-action {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+}
+
+#gameShell.game-active.Lobby .lobby-primary-action > button {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+#gameShell.game-active.Lobby .lobby-wait-hint {
+    align-self: center;
+    color: var(--muted);
+    font-size: 0.78rem;
+    line-height: 1.2;
+}
+
+#gameShell.game-active.Lobby .lobby-wait-hint[hidden] {
+    display: none;
 }
 
 #gameShell.game-active.Lobby > #gameMenu #gameMetadata {
@@ -1379,6 +1421,24 @@ select:focus-visible {
 
 #gameShell.game-active.Lobby #startGameButton:hover {
     background: #1c9948;
+}
+
+#gameShell.game-active.Lobby #gameMenu.waiting-for-players #BnFNyAutoSpiller {
+    border-color: #39a95f;
+    background: #17803d;
+    color: #fff;
+    box-shadow: 0 0 0 3px rgb(23 128 61 / 24%), 0 5px 16px rgb(23 128 61 / 35%);
+}
+
+#gameShell.game-active.Lobby #gameMenu.waiting-for-players #BnFNyAutoSpiller:hover {
+    background: #1c9948;
+}
+
+@media (max-width: 360px) {
+    #gameShell.game-active.Lobby > #gameMenu > .lobby-primary-actions {
+        grid-template-columns: minmax(0, 1fr);
+        width: min(100%, 360px);
+    }
 }
 
 #gameShell.game-active #playerList {

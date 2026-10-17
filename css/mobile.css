@@ -57,6 +57,7 @@ button {
 }
 
 #gameMenu > button,
+#gameMenu .lobby-primary-action > button,
 #playerActions > button {
     display: inline-flex;
     width: auto;
@@ -149,7 +150,7 @@ select:focus-visible {
         margin: 1px;
     }
 
-    #gameMenu > div {
+    #gameMenu > #gameMetadata {
         flex: 1 0 100%;
         order: 1;
         font-size: 0.82rem;
@@ -205,6 +206,7 @@ select:focus-visible {
     }
 
     #gameMenu > button,
+    #gameMenu .lobby-primary-action > button,
     #playerActions > button {
         float: none !important;
         flex: 0 1 auto;
@@ -215,7 +217,7 @@ select:focus-visible {
         padding: 8px 10px;
     }
 
-    #gameMenu > div {
+    #gameMenu > #gameMetadata {
         flex: 1 0 100%;
         order: 1;
         font-size: 0.7rem;

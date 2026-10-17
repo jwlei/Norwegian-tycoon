@@ -280,6 +280,9 @@ class GameLayout {
     }
     static updateGameButtons(game) {
         this.el("gameIdDisplay").innerHTML = game.id;
+        var waitingForPlayers = game.status == "O" && game.players.length < 2;
+        this.el("gameMenu").classList.toggle("waiting-for-players", waitingForPlayers);
+        this.el("waitingForPlayersHint").hidden = !waitingForPlayers;
         switch (game.status) {
             case "O":
                 this.el("startGameButton").textContent = "Start spill";
