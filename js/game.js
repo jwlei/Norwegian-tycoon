@@ -128,6 +128,7 @@ class GameLayout {
     static updateSharedView(game, player) {
         var appShell = document.getElementById("DivHele");
         setClass(appShell, "SpillAktivt", (game != null));
+        setClass(appShell, "Lobby", (game != null && game.status == "O"));
         var mainMenu = document.getElementById("DivHovedmeny");
         var gameControls = document.querySelectorAll("#DivFKnapper, #DivSpillere, #DivBord, #DivPKnapper, #DivKort");
         var showMenu = (game == null);
@@ -813,14 +814,27 @@ class GameLayout {
                                             : ((k.strengthRank == PresidentCard.clubThreePower())
                                                 ? 1
                                                 : (hasFourOfKindOnTop(game) ? 4 : topPile.length));
-                                        if (selectedCardKeys.size >= maxCards) {
-                                            var lastSelectedKey = Array.from(selectedCardKeys).pop();
-                                            if (lastSelectedKey) {
-                                                selectedCardKeys.delete(lastSelectedKey);
-                                            }
-                                        }
                                         selectedCardStrength = k.strengthRank;
-                                        selectedCardKeys.add(cardKey);
+                                        if (selectedCardKeys.size == 0) {
+                                            var matchingCards = player.cards.filter(card =>
+                                                card.strengthRank == k.strengthRank
+                                            );
+                                            matchingCards
+                                                .filter(card => `${card.suit}:${card.rank}` == cardKey)
+                                                .concat(matchingCards.filter(card =>
+                                                    `${card.suit}:${card.rank}` != cardKey
+                                                ))
+                                                .slice(0, maxCards)
+                                                .forEach(card => selectedCardKeys.add(`${card.suit}:${card.rank}`));
+                                        } else {
+                                            if (selectedCardKeys.size >= maxCards) {
+                                                var lastSelectedKey = Array.from(selectedCardKeys).pop();
+                                                if (lastSelectedKey) {
+                                                    selectedCardKeys.delete(lastSelectedKey);
+                                                }
+                                            }
+                                            selectedCardKeys.add(cardKey);
+                                        }
                                     }
                                     GameLayout.updateHand(game, player);
                                     var focusedCard = Array.from(element.querySelectorAll(".game-card"))
@@ -1666,6 +1680,22 @@ class PresidentGame extends Game {
         var gameMenuToggle = document.getElementById("BnGameMenuToggle");
         var gameMenu = document.getElementById("DivFKnapper");
 
+        function promptForPlayerName() {
+            document.getElementById("dialogSporOmNickTxt").value = "";
+            document.getElementById("dialogSporOmNickError").innerHTML = "";
+            showDialog("SporOmNick", true);
+        }
+
+        function connectAndPromptForPlayerName() {
+            var shouldPrompt = true;
+            connectGame(function () {
+                if (shouldPrompt && currentGame != null) {
+                    shouldPrompt = false;
+                    promptForPlayerName();
+                }
+            });
+        }
+
         function setGameMenuOpen(isOpen, returnFocus = false) {
             appShell.classList.toggle("GameMenuOpen", isOpen);
             gameMenuToggle.setAttribute("aria-expanded", String(isOpen));
@@ -1733,7 +1763,7 @@ class PresidentGame extends Game {
             }
             currentGame = new PresidentGame();
             currentPlayerName = null;
-            connectGame();
+            connectAndPromptForPlayerName();
         });
 
         document.getElementById('BnHKobleSpill').addEventListener('click', function () {
@@ -1749,12 +1779,17 @@ class PresidentGame extends Game {
             var id = document.getElementById("dialogKobleSpillId").value;
             currentGame = new PresidentGame(id);
             currentPlayerName = null;
+            var shouldPromptForName = true;
             connectGame(function () {
                 if (currentGame == null) {
                     document.getElementById('dialogKobleSpillError').innerHTML = "Kunne ikke koble til. Er spill-nummeret riktig?";
                     document.getElementById('dialogKobleSpillId').focus();
                 } else {
                     showDialog("KobleSpill", false);
+                    if (shouldPromptForName) {
+                        shouldPromptForName = false;
+                        promptForPlayerName();
+                    }
                 }
             });
         });
@@ -1789,7 +1824,7 @@ class PresidentGame extends Game {
         if (inviteId && /^[1-9]\d{0,5}$/.test(inviteId)) {
             currentGame = new PresidentGame(inviteId);
             currentPlayerName = null;
-            connectGame();
+            connectAndPromptForPlayerName();
         }
 
         document.getElementById('BnFInviterSpill').addEventListener('click', function () {
@@ -1847,7 +1882,7 @@ class PresidentGame extends Game {
 
         document.getElementById('BnPNySpiller').addEventListener('click', function () {
             if (currentPlayerName != null) { throw ('Skal ikke lage ny spiller når man allerede har en spiller.') }
-            showDialog("SporOmNick", true);
+            promptForPlayerName();
         });
 
         document.getElementById('dialogSporOmNickOk').addEventListener('click', function () {

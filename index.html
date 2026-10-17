@@ -53,6 +53,11 @@
 
         </div>
         <div id="DivPKnapper" style="text-align: center; vertical-align: middle;">
+            <div id="cardSelectionActions" class="card-selection-actions" hidden>
+                <span id="selectedCardCount" aria-live="polite"></span>
+                <button type="button" id="BnPPlaySelected" disabled>Legg ut</button>
+                <button type="button" id="BnPCancelSelection">Avbryt</button>
+            </div>
             <button type="button" id="BnPPass" title="Pass" aria-label="Pass" style="float: left;">Pass på turen</button>
             <button type="button" id="BnPPass_Off" title="Pass (ikke tillatt nå)" aria-label="Pass (ikke tillatt nå)" style="float: left;">Pass utilgjengelig</button>
             <span id="SpanSpillerNick"></span>
@@ -63,11 +68,6 @@
         </div>
         <div id="DivKort">
 
-        </div>
-        <div id="cardSelectionActions" class="card-selection-actions" hidden>
-            <span id="selectedCardCount" aria-live="polite"></span>
-            <button type="button" id="BnPPlaySelected" disabled>Legg ut</button>
-            <button type="button" id="BnPCancelSelection">Avbryt</button>
         </div>
 
     </div>
