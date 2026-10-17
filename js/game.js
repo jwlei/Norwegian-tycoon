@@ -86,7 +86,8 @@ const BOT_NAMES = [
     "Boms-Borghild", "Rask-Ragnar", "Luring-Lars", "Taktikk-Tove", "Plukk-Pia",
     "Stopp-Siri", "Bunken-Bjarne", "Ess-Eirik", "Turbo-Tor", "Siste-Stikk-Sølvi"
 ];
-const BOT_ACTION_DELAY_MS = 2500;
+const TURN_ACTION_PAUSE_MS = 3000;
+const BOT_ACTION_DELAY_MS = TURN_ACTION_PAUSE_MS;
 
 function clearCardSelection() {
     selectedCardKeys.clear();
@@ -649,7 +650,7 @@ class GameLayout {
             case "S":
                 var turnPauseId = game.turnPause ? `${game.id}:${game.turnPause.id}` : null;
                 if (turnPauseId && table.dataset.turnPauseId != turnPauseId) {
-                    if (game.turnPause.kind != "pass") {
+                    if (game.turnPause.kind == "clear") {
                         this.animateDiscardedCards(table);
                     }
                     table.dataset.turnPauseId = turnPauseId;
@@ -2114,7 +2115,12 @@ class PresidentGame extends Game {
             info.text = "Hjerter 3 og Spar 3";
             return true;
         }
-        if (this.players.filter(player => (player.lastPlay != "Pass" && player.placement == 0)).length <= 1) {
+        var lastPlayer = this.getPlayer(topPile.name);
+        var playersWhoCouldRespond = this.players.filter(player =>
+            player.placement == 0 && player !== lastPlayer
+        );
+        if (playersWhoCouldRespond.length > 0 &&
+            playersWhoCouldRespond.every(player => player.lastPlay == "Pass")) {
             info.text = "Alle spillere sa pass";
             return true;
         }
@@ -2133,6 +2139,13 @@ class PresidentGame extends Game {
         });
         player.lastPlay = pile;
         this.piles.push(pile);
+        var now = Date.now();
+        this.turnPause = {
+            id: `${now}-${Math.random().toString(36).slice(2)}`,
+            kind: "play",
+            until: now + TURN_ACTION_PAUSE_MS,
+            message: `${player.name} legger ${pile.describe()}. Neste trekk om 3 sekunder.`
+        };
         if (player.cards.length == 0) {
             if (pile.strengthRank == PresidentCard.clubThreePower()) {
                 // Playing the club three as the final card is a loss.
@@ -2157,14 +2170,15 @@ class PresidentGame extends Game {
         this.turnPause = {
             id: `${now}-${Math.random().toString(36).slice(2)}`,
             kind: "pass",
-            until: now + 2000,
-            message: `${player.name} passer. Neste trekk om 2 sekunder.`
+            until: now + TURN_ACTION_PAUSE_MS,
+            message: `${player.name} passer. Neste trekk om 3 sekunder.`
         };
         this.advanceTurn();
     }
     nextTurnIndex(currentTurnPlayer) {
         var info = {};
         if (this.pileCleared(info)) {
+            var clearedPile = this.topPile();
             var previousPlayer = this.players[currentTurnPlayer];
             if (previousPlayer.lastPlay) {
                 previousPlayer.messages.push(`${((previousPlayer.lastPlay.describe) ? "La på " + previousPlayer.lastPlay.describe() : previousPlayer.lastPlay)}, bunken går ut. (${info.text})`);
@@ -2198,13 +2212,14 @@ class PresidentGame extends Game {
             this.piles = [];
             var now = Date.now();
             var nextPlayer = this.players[nextPlayerIndex];
+            var clearMessage = (info.text == "Alle spillere sa pass")
+                ? `${previousPlayer.name} passer. Alle andre har passet. Bunken går ut. ${nextPlayer.name} får turen igjen.`
+                : `${clearedPile.name} legger ${clearedPile.describe()}. ${info.text} – det går ut! ${nextPlayer.name} får turen igjen.`;
             this.turnPause = {
                 id: `${now}-${Math.random().toString(36).slice(2)}`,
                 kind: "clear",
-                until: now + 2000,
-                message: (info.text == "Alle spillere sa pass")
-                    ? `${previousPlayer.name} passer. Alle andre har passet. ${nextPlayer.name} får turen igjen.`
-                    : `Det går ut! ${nextPlayer.name} får turen igjen.`
+                until: now + TURN_ACTION_PAUSE_MS,
+                message: clearMessage
             };
             return nextPlayerIndex;
         } else {
@@ -2343,7 +2358,7 @@ class PresidentGame extends Game {
             if (gameToastTimer != null) {
                 clearTimeout(gameToastTimer);
             }
-            gameToastTimer = setTimeout(hideGameToast, 2000);
+            gameToastTimer = setTimeout(hideGameToast, TURN_ACTION_PAUSE_MS);
         }
 
         function handleTurnPause(game) {
@@ -2519,10 +2534,23 @@ class PresidentGame extends Game {
 
         document.getElementById('BnFStartSpill').addEventListener('click', function () {
             currentGame.startGame();
-            setTimeout(runBotLoop, BOT_ACTION_DELAY_MS);
+            scheduleBotLoop();
         });
 
+        function scheduleBotLoop() {
+            if (currentGame == null || currentGame.status == "F") { return; }
+            var delay = BOT_ACTION_DELAY_MS;
+            if (currentGame.turnPause != null) {
+                var pauseRemaining = currentGame.turnPause.until - Date.now();
+                if (pauseRemaining > 0) {
+                    delay = Math.min(delay, pauseRemaining);
+                }
+            }
+            setTimeout(runBotLoop, delay);
+        }
+
         function runBotLoop() {
+            if (currentGame == null) { return; }
             if (currentGame.status == "G") {
                 currentGame.players.filter(s => (s.playerKey == "PC")).forEach(player => {
                     playBotTurn(currentGame, player);
@@ -2530,7 +2558,7 @@ class PresidentGame extends Game {
             } else if (currentGame.status == "S" && currentGame.turn >= 0 && currentGame.players[currentGame.turn].playerKey == "PC") {
                 playBotTurn(currentGame, currentGame.players[currentGame.turn]);
             }
-            if (currentGame.status != "F") { setTimeout(runBotLoop, BOT_ACTION_DELAY_MS); }
+            scheduleBotLoop();
         }
 
         document.getElementById('BnFHovedmeny').addEventListener('click', function () {
