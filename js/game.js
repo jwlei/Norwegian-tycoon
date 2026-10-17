@@ -6,7 +6,21 @@ var autoSelectedTurnKey = null;
 var autoSuggestedCardKeys = new Set();
 var autoSuggestPlayableCards = getCookie("AutoSuggestPlayableCards") != "false";
 var autoScrollEmptyTurnKey = null;
+var recentlyReceivedCards = { owner: null, keys: new Set(), timer: null };
 var suppressNextCardClick = false;
+
+function markReceivedCards(owner, cards) {
+    if (recentlyReceivedCards.timer != null) { clearTimeout(recentlyReceivedCards.timer); }
+    recentlyReceivedCards.owner = owner;
+    recentlyReceivedCards.keys = new Set(cards.map(card => `${card.suit}:${card.rank}`));
+    recentlyReceivedCards.cards = cards.map(card => ({ suit: card.suit, rank: card.rank }));
+    recentlyReceivedCards.timer = setTimeout(function () {
+        recentlyReceivedCards = { owner: null, keys: new Set(), cards: [], timer: null };
+        document.querySelectorAll(".game-card.is-received").forEach(element =>
+            element.classList.remove("is-received"));
+        document.querySelectorAll(".exchange-received").forEach(element => element.remove());
+    }, 8000);
+}
 var cardHandInertiaFrame = null;
 var invalidCardAttemptRound = null;
 var invalidCardAttemptCount = 0;
@@ -1154,6 +1168,18 @@ class GameLayout {
                             buttonSpan.appendChild(receiveButton);
                         }
                     }
+                    if (exchange.mode == "Kan se" && (isSender || isRecipient) && exchange.cards) {
+                        var previewCards = document.createElement("span");
+                        previewCards.className = "exchange-preview";
+                        exchange.cards.forEach(card => {
+                            var previewModel = new Card(card.suit, card.rank);
+                            var previewImage = GameLayout.createCardImage(previewModel, null);
+                            previewImage.className = "exchange-selection__card";
+                            previewImage.alt = previewModel.getName();
+                            previewCards.appendChild(previewImage);
+                        });
+                        cardContainer.appendChild(previewCards);
+                    }
                     if (exchangeStatus.childElementCount > 0) {
                         cardContainer.appendChild(exchangeStatus);
                     }
@@ -1212,6 +1238,23 @@ class GameLayout {
                     selectionPanel.append(selectionHeading, selectionContent);
                 }
                 table.appendChild(selectionPanel);
+                if (player != null && recentlyReceivedCards.owner == `${game.id}:${player.name}`) {
+                    var receivedPanel = document.createElement("div");
+                    receivedPanel.className = "exchange-selection exchange-received";
+                    var receivedHeading = document.createElement("strong");
+                    receivedHeading.textContent = "Du mottok";
+                    var receivedContent = document.createElement("div");
+                    receivedContent.className = "exchange-selection__cards";
+                    recentlyReceivedCards.cards.forEach(card => {
+                        var receivedModel = new Card(card.suit, card.rank);
+                        var receivedImage = GameLayout.createCardImage(receivedModel, null);
+                        receivedImage.className = "exchange-selection__card";
+                        receivedImage.alt = receivedModel.getName();
+                        receivedContent.appendChild(receivedImage);
+                    });
+                    receivedPanel.append(receivedHeading, receivedContent);
+                    table.appendChild(receivedPanel);
+                }
                 break;
             }
             case "S":
@@ -2016,6 +2059,10 @@ class GameLayout {
                         card.suit == k.suit && card.rank == k.rank
                     )) {
                         elemKort.classList.add("is-exchange-selected");
+                    }
+                    if (recentlyReceivedCards.owner == `${game.id}:${player.name}` &&
+                        recentlyReceivedCards.keys.has(cardKey)) {
+                        elemKort.classList.add("is-received");
                     }
                     if (isPlayable) {
                         elemKort.classList.add("is-playable");
@@ -3449,6 +3496,7 @@ class PresidentGame extends Game {
             this.players[exchange.to].cards.push(new PresidentCard(k.suit, k.rank));
         });
         this.players[exchange.to].cards.sortCards();
+        markReceivedCards(`${this.id}:${this.players[exchange.to].name}`, exchange.cards);
         this.piles.splice(this.piles.findIndex(b => (b == exchange)), 1);
         this.advanceExchangeStage();
         this.save();
