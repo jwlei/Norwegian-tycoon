@@ -720,7 +720,7 @@ select:focus-visible {
 }
 
 .game-card.is-selected {
-    z-index: 3;
+    z-index: 1;
     transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-18px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
 }
 
@@ -1326,7 +1326,6 @@ select:focus-visible {
     border-radius: 8px;
     object-fit: fill;
     box-shadow: 0 3px 10px rgb(0 0 0 / 26%);
-    transition: opacity 120ms ease;
     transform: rotate(var(--pile-rotation, 0deg));
     transform-origin: center;
 }
@@ -2147,5 +2146,62 @@ select:focus-visible {
 
     .game-card::after {
         display: none;
+    }
+}
+
+/* Finished player: the status message fills the whole hand area. */
+#playerHand.card-hand.hand-finished {
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    overflow: hidden;
+    padding: 8px 14px;
+    text-align: center;
+    cursor: default;
+}
+
+#playerHand.card-hand.hand-finished > span {
+    flex: 0 1 auto;
+    width: auto;
+    max-width: 100%;
+    font-size: 1.15rem;
+}
+
+#playerHand.card-hand.hand-finished > img {
+    flex: 0 0 auto;
+    width: auto;
+    height: clamp(36px, 40%, 72px);
+}
+
+/* Keep the hand centered while it fits; it scrolls from the left edge once it overflows. */
+#playerHand.card-hand {
+    justify-content: safe center;
+}
+
+/* Desktop: a compact, centered play area instead of a stretched full-window layout. */
+@media (min-width: 900px) and (min-height: 560px) and (orientation: landscape) and (pointer: fine) {
+    body {
+        font-size: 15px;
+    }
+
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) {
+        width: min(100%, 980px);
+        margin: 0 auto;
+        --shell-hand-card-height: clamp(96px, 17dvh, 132px);
+        grid-template-rows: 44px 56px minmax(0, 1fr) 48px calc(var(--shell-hand-card-height) + 34px);
+        box-shadow: 0 0 0 1px rgb(255 255 255 / 6%), 0 0 60px rgb(0 0 0 / 35%);
+    }
+
+    #gameShell.game-active #playerHand.card-hand > .game-card > img,
+    #gameShell.game-active.cards-only-mode > #playerHand > .game-card > img {
+        height: var(--shell-hand-card-height);
+    }
+
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInviterSpill,
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #autoSuggestionToggleButton,
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFRegler,
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnPGiOpp {
+        min-height: 34px;
+        font-size: 0.8rem;
     }
 }

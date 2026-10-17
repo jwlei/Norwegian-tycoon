@@ -648,8 +648,9 @@ class GameLayout {
             var flightY = targetBounds.top - flightTop;
             var targetRotation = parseFloat(target.style.getPropertyValue("--pile-rotation")) || 0;
             var sourceRotation = typeof source.rotation == "number" ? source.rotation : 0;
-            var startRotation = sourceRotation * 0.45 + (Math.random() - 0.5) * 18;
-            var middleRotation = startRotation + (Math.random() - 0.5) * 26;
+            var startRotation = sourceRotation * 0.45 + (Math.random() - 0.5) * 40;
+            var middleRotation = startRotation + (targetRotation - startRotation) * 0.35 +
+                (Math.random() - 0.5) * 50;
             flight.style.left = `${flightLeft}px`;
             flight.style.top = `${flightTop}px`;
             flight.style.width = `${targetBounds.width}px`;
@@ -669,7 +670,7 @@ class GameLayout {
                 },
                 {
                     transform: `translate(${flightX}px, ${flightY}px) rotate(${targetRotation}deg)`,
-                    opacity: 0.72
+                    opacity: 1
                 }
             ], {
                 duration: 520,
@@ -752,6 +753,27 @@ class GameLayout {
         });
         completeIfReady();
     }
+    // Deterministic, so every client draws the same pile; the player's seat biases the tilt.
+    static pileCardJitter(game, pile, card, stackIndex) {
+        var seed = 2166136261;
+        var text = `${game.round}:${pile.name}:${card.suit}:${card.rank}:${stackIndex}`;
+        for (var i = 0; i < text.length; i++) {
+            seed = Math.imul(seed ^ text.charCodeAt(i), 16777619) >>> 0;
+        }
+        var unit = function (shift) {
+            return (((seed >>> shift) & 255) / 255) - 0.5;
+        };
+        var seatCount = Math.max(1, game.players.length);
+        var seat = game.players.findIndex(player => player.name == pile.name);
+        var seatBias = (seat < 0 || seatCount < 2)
+            ? 0
+            : ((seat / (seatCount - 1)) - 0.5) * 24;
+        return {
+            angle: Math.round((seatBias + unit(0) * 36) * 10) / 10,
+            x: Math.round(unit(8) * 16),
+            y: Math.round(unit(16) * 12)
+        };
+    }
     static createTablePile(game, piles, existingPileSignatures, hiddenCardKeys = new Set()) {
         var tablePile = document.createElement("div");
         tablePile.className = "table-card-pile";
@@ -779,11 +801,11 @@ class GameLayout {
                 if (hiddenCardKeys.has(cardKey)) {
                     image.style.opacity = "0";
                 }
-                var rotation = (((cardsOnTable * 7) % 9) - 4) * 1.2;
-                image.style.left = `${5 + cardIndex * fanStep}px`;
-                image.style.top = `${5 + playOffset}px`;
+                var rotation = GameLayout.pileCardJitter(game, pile, card, cardsOnTable);
+                image.style.left = `${5 + cardIndex * fanStep + rotation.x}px`;
+                image.style.top = `${5 + playOffset + rotation.y}px`;
                 image.style.setProperty("--stack-index", String(cardsOnTable));
-                image.style.setProperty("--pile-rotation", `${rotation}deg`);
+                image.style.setProperty("--pile-rotation", `${rotation.angle}deg`);
                 playElement.appendChild(image);
                 cardsOnTable++;
             });
@@ -1420,7 +1442,28 @@ class GameLayout {
         setClass(document.getElementById("gameShell"), "spectator-mode", (player == null));
         setClass(document.getElementById("gameShell"), "cards-only-mode", (game != null && game.rules.showCardsOnly && player != null));
         this.updatePlayerButtons(game, player);
-        this.updateHand(game, player);
+        this.updateHand(game, player, null, true);
+    }
+    // Describes everything the hand rendering depends on during play, so an
+    // unchanged hand can be kept in the DOM across snapshots. Null means "always rebuild".
+    static handSignature(game, player) {
+        if (game == null || player == null || game.status != "S") { return null; }
+        var keyOf = card => `${card.suit}:${card.rank}`;
+        return [
+            game.id,
+            game.round,
+            game.turn,
+            player.name,
+            player.placement,
+            player.turn,
+            game.isTurnPaused() ? 1 : 0,
+            game.piles.map(pile => `${pile.strengthRank}/${pile.map(keyOf).join(",")}`).join("|"),
+            player.cards.map(keyOf).join(","),
+            Array.from(selectedCardKeys).join(","),
+            selectedCardStrength,
+            Array.from(autoSuggestedCardKeys).join(","),
+            autoSuggestPlayableCards ? 1 : 0
+        ].join(";");
     }
     static updatePlayerButtons(game, player) {
         if (game == null) {
@@ -1440,6 +1483,7 @@ class GameLayout {
             game.status == "S" &&
             player.placement == 0 &&
             player.turn == 1 &&
+            game.piles.length == 0 &&
             !pauseActive;
         if (player == null) {
             this.el("playerStatus").innerHTML = "";
@@ -1500,8 +1544,16 @@ class GameLayout {
                     (game.status == "F" && game.roundStartVote == null))
         );
     }
-    static updateHand(game, player, centerCardKey = null) {
+    static updateHand(game, player, centerCardKey = null, allowSkip = false) {
         var element = document.getElementById("playerHand");
+        if (allowSkip && centerCardKey == null && element._handSignature &&
+            element._handSignature == GameLayout.handSignature(game, player)) {
+            // Same hand: keep the DOM and only point the existing handlers at the fresh objects.
+            element._rebindHand(game, player);
+            return;
+        }
+        element._handSignature = null;
+        element._rebindHand = null;
         var previousScrollLeft = element.scrollLeft;
         var shouldCenterAutoSelection = false;
         var autoCenterTurnKey = null;
@@ -1548,6 +1600,7 @@ class GameLayout {
         var handScrollDrag = null;
         var selectExchangeCard = null;
         element.classList.remove("is-hand-dragging");
+        element.classList.remove("hand-finished");
         element.onclick = function (event) {
             if (suppressNextCardClick) {
                 suppressNextCardClick = false;
@@ -1591,9 +1644,8 @@ class GameLayout {
                 axis: null,
                 cardElement: cardElement,
                 card: card,
-                canSwipeToPlay: event.pointerType == "touch" &&
-                    game.status == "S" && isPlayingTurn,
-                canSwipeToExchange: event.pointerType == "touch" && game.status == "G",
+                canSwipeToPlay: game.status == "S" && isPlayingTurn,
+                canSwipeToExchange: game.status == "G",
                 didMove: false,
                 didPlayDrag: false,
                 canPlay: false
@@ -1971,8 +2023,19 @@ class GameLayout {
                         elemKort.classList.add("is-unplayable");
                     }
                     if (selectedCardStrength != null && !isSelected) {
+                        var mixTopPile = game.topPile();
+                        var mixLimit = (mixTopPile == null)
+                            ? Infinity
+                            : ((selectedCardStrength == PresidentCard.clubThreePower())
+                                ? 1
+                                : (hasFourOfKindOnTop(game) ? 4 : mixTopPile.length));
                         if (k.strengthRank == selectedCardStrength && isPlayable) {
-                            elemKort.classList.add("is-mixable");
+                            if (selectedCardKeys.size < mixLimit) {
+                                elemKort.classList.add("is-mixable");
+                            } else {
+                                elemKort.classList.remove("is-playable");
+                                elemKort.classList.add("is-unplayable");
+                            }
                         }
                     }
                     switch (game.status) {
@@ -2141,8 +2204,14 @@ class GameLayout {
                 s += `<span>Du ble <b>${game.placementTitle(player.placement).title}</b>.</span>`;
             }
             element.innerHTML = s;
+            element.classList.add("hand-finished");
         }
         element.scrollLeft = previousScrollLeft;
+        element._handSignature = GameLayout.handSignature(game, player);
+        element._rebindHand = function (newGame, newPlayer) {
+            game = newGame;
+            player = newPlayer;
+        };
         if (shouldCenterAutoSelection) {
             this.centerHandSelection(element, ownerKey, autoCenterCardKeys, autoCenterTurnKey);
         } else if (centerCardKey != null && selectedCardKeys.has(centerCardKey)) {
