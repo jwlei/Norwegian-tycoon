@@ -821,6 +821,17 @@ select:focus-visible {
     list-style: none;
 }
 
+.game-over__pile {
+    display: flex;
+    min-height: clamp(72px, 12vh, 108px);
+    align-items: center;
+    justify-content: center;
+}
+
+.game-over__pile .table-card-pile {
+    --table-card-height: clamp(48px, 10vh, 84px);
+}
+
 .game-over__standing {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
@@ -935,9 +946,11 @@ select:focus-visible {
     transform-origin: center;
 }
 
-.table-card-pile__last-play {
+.table-card-pile__count {
     position: absolute;
     z-index: 60;
+    top: -14px;
+    left: 50%;
     max-width: calc(100% - 8px);
     padding: 5px 9px;
     border: 1px solid var(--line);
@@ -946,18 +959,12 @@ select:focus-visible {
     color: var(--ink);
     font-size: 0.78rem;
     font-weight: 750;
+    white-space: nowrap;
     line-height: 1.2;
     text-align: center;
     overflow-wrap: anywhere;
     box-shadow: 0 3px 10px rgb(0 0 0 / 22%);
-}
-
-.table-card-pile__last-play {
-    right: 0;
-    bottom: -38px;
-    left: 0;
-    width: fit-content;
-    margin: auto;
+    transform: translateX(-50%);
 }
 
 .card-flight {
@@ -1185,12 +1192,6 @@ select:focus-visible {
         display: none;
     }
 
-    .table-card-pile__last-play {
-        right: 0;
-        bottom: 2px;
-        left: 0;
-    }
-
     #DivHele.SpillAktivt > #DivSpillere {
         gap: 2px;
         padding: 2px 4px;
@@ -1225,10 +1226,6 @@ select:focus-visible {
 @media (max-width: 420px) {
     .table-card-pile {
         --table-card-height: clamp(92px, 23vh, 148px);
-    }
-
-    .table-card-pile__last-play {
-        font-size: 0.72rem;
     }
 
 }

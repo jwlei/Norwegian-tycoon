@@ -78,6 +78,18 @@ function hasBothNaturalThreesOnTop(game) {
     return false;
 }
 
+function getRepeatedSinglePlay(piles) {
+    if (piles.length < 2 || piles[piles.length - 1].length != 1) { return null; }
+    var strengthRank = piles[piles.length - 1].strengthRank;
+    var count = 0;
+    for (var index = piles.length - 1; index >= 0; index--) {
+        var pile = piles[index];
+        if (pile.length != 1 || pile.strengthRank != strengthRank) { break; }
+        count++;
+    }
+    return count > 1 ? { count: count, strengthRank: strengthRank } : null;
+}
+
 const BOT_NAMES = [
     "Boten Anna", "Kort-Knut", "Bunke-Bjørn", "Stikk-Stine", "Ruter-Rune",
     "Spar-Svein", "Hjerter-Hilde", "Kløver-Kåre", "Konge-Kjell", "Dronning-Dagny",
@@ -220,17 +232,25 @@ class GameLayout {
             delete document.getElementById("DivBord").dataset.gameId;
             delete document.getElementById("DivBord").dataset.gameStatus;
             delete document.getElementById("DivBord").dataset.gameRound;
+            delete document.getElementById("DivBord").dataset.turnPauseId;
         } else {
             var table = document.getElementById("DivBord");
             var isContinuingRound = table.dataset.gameId == String(game.id) &&
                 table.dataset.gameStatus == "S" &&
                 table.dataset.gameRound == String(game.round) &&
                 game.status == "S";
+            var currentPauseId = game.turnPause ? `${game.id}:${game.turnPause.id}` : null;
+            var hasNewPlayedAction = game.turnPause != null &&
+                game.turnPause.playedPile != null &&
+                table.dataset.gameId == String(game.id) &&
+                table.dataset.turnPauseId != currentPauseId;
             var existingPileSignatures = new Set(
                 Array.from(document.querySelectorAll("#DivBord .table-play[data-play-signature]"))
                     .map(element => element.dataset.playSignature)
             );
-            var playOrigins = isContinuingRound ? this.capturePlayOrigins() : null;
+            var playOrigins = (isContinuingRound || hasNewPlayedAction)
+                ? this.capturePlayOrigins()
+                : null;
             setClass(mainMenu, "Skjul", true);
             this.updateGameButtons(game);
             this.updatePlayers(game, player);
@@ -391,16 +411,33 @@ class GameLayout {
         });
         return { cardOrigins: cardOrigins, playerOrigins: playerOrigins };
     }
-    static animatePlayedCards(playElement, pile, origins) {
-        if (!origins || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { return; }
-        var playerOrigin = origins.playerOrigins.get(pile.name);
+    static animatePlayedCards(playElement, pile, origins, onComplete = null) {
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            if (onComplete) { onComplete(); }
+            return;
+        }
+        var playerOrigin = origins ? origins.playerOrigins.get(pile.name) : null;
+        var pendingAnimations = 0;
+        var finishedAnimations = 0;
+        var completeAnimation = function () {
+            finishedAnimations++;
+            if (finishedAnimations == pendingAnimations && onComplete) { onComplete(); }
+        };
         pile.forEach(card => {
             var cardKey = `${card.suit}:${card.rank}`;
-            var source = origins.cardOrigins.get(cardKey) || playerOrigin;
+            var source = (origins && origins.cardOrigins.get(cardKey)) || playerOrigin;
             var target = playElement.querySelector(`[data-card-key="${cardKey}"]`);
-            if (!source || !target || typeof target.animate != "function") { return; }
+            if (!target || typeof target.animate != "function") { return; }
             var targetBounds = target.getBoundingClientRect();
-            if (source.width == 0 || source.height == 0 || targetBounds.width == 0 || targetBounds.height == 0) { return; }
+            if (targetBounds.width == 0 || targetBounds.height == 0) { return; }
+            if (!source || source.width == 0 || source.height == 0) {
+                source = {
+                    left: (window.innerWidth - targetBounds.width) / 2,
+                    top: window.innerHeight - targetBounds.height - 12,
+                    width: targetBounds.width,
+                    height: targetBounds.height
+                };
+            }
             var flight = document.createElement("img");
             flight.src = target.src;
             flight.alt = "";
@@ -417,6 +454,7 @@ class GameLayout {
             flight.style.height = `${targetBounds.height}px`;
             document.body.appendChild(flight);
             target.style.opacity = "0";
+            pendingAnimations++;
             var animation = flight.animate([
                 {
                     transform: "translate(0, 0) rotate(-8deg)",
@@ -440,8 +478,10 @@ class GameLayout {
             animation.onfinish = function () {
                 target.style.opacity = "";
                 flight.remove();
+                completeAnimation();
             };
         });
+        if (pendingAnimations == 0 && onComplete) { onComplete(); }
     }
     static animateDiscardedCards(table) {
         if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { return; }
@@ -479,11 +519,86 @@ class GameLayout {
             animation.onfinish = function () { flight.remove(); };
         });
     }
+    static createTablePile(game, piles, existingPileSignatures) {
+        var tablePile = document.createElement("div");
+        tablePile.className = "table-card-pile";
+        var cardsOnTable = 0;
+        var newlyPlayed = [];
+        var totalCardCount = piles.reduce((total, pile) => total + pile.length, 0);
+        var maxCardsPerPlay = piles.reduce((max, pile) => Math.max(max, pile.length), 0);
+        var fanStep = Math.max(24, Math.min(56, window.innerWidth * 0.05));
+        var compactStack = window.matchMedia("(orientation: landscape) and (max-height: 500px)").matches;
+        tablePile.style.setProperty("--pile-fan-width", `${Math.max(0, maxCardsPerPlay - 1) * fanStep}px`);
+        tablePile.style.setProperty("--pile-depth", `${Math.min(totalCardCount * 2.5, compactStack ? 18 : 44)}px`);
+        piles.forEach((pile, playIndex) => {
+            var signature = `${game.round}:${pile.name}:${pile.map(card => `${card.suit}:${card.rank}`).join(",")}`;
+            var playElement = document.createElement("div");
+            playElement.className = "table-play";
+            playElement.dataset.playSignature = signature;
+            playElement.style.setProperty("--play-index", String(playIndex));
+            var playOffset = Math.min(cardsOnTable * 2.5, compactStack ? 18 : 44);
+            pile.forEach((card, cardIndex) => {
+                var image = GameLayout.createCardImage(card, null);
+                image.className = "table-play__card";
+                image.dataset.cardKey = `${card.suit}:${card.rank}`;
+                image.setAttribute("aria-hidden", "true");
+                var rotation = (((cardsOnTable * 7) % 9) - 4) * 1.2;
+                image.style.left = `${5 + cardIndex * fanStep}px`;
+                image.style.top = `${5 + playOffset}px`;
+                image.style.setProperty("--stack-index", String(cardsOnTable));
+                image.style.setProperty("--pile-rotation", `${rotation}deg`);
+                playElement.appendChild(image);
+                cardsOnTable++;
+            });
+            tablePile.appendChild(playElement);
+            if (!existingPileSignatures.has(signature)) {
+                newlyPlayed.push({ element: playElement, pile: pile });
+            }
+        });
+        if (cardsOnTable > 0) {
+            var repeatedSingle = getRepeatedSinglePlay(piles);
+            tablePile.setAttribute("role", "group");
+            if (repeatedSingle != null) {
+                var countBadge = document.createElement("span");
+                countBadge.className = "table-card-pile__count";
+                countBadge.textContent =
+                    `${repeatedSingle.count} × ${PresidentCard.strengthName(repeatedSingle.strengthRank)}`;
+                tablePile.appendChild(countBadge);
+                tablePile.setAttribute(
+                    "aria-label",
+                    `På bordet ligger ${repeatedSingle.count} singlekort med verdien ${PresidentCard.strengthName(repeatedSingle.strengthRank)}.`
+                );
+            } else {
+                var latestPile = piles[piles.length - 1];
+                tablePile.setAttribute("aria-label", `På bordet ligger ${latestPile.describe()}.`);
+            }
+        }
+        return { element: tablePile, newlyPlayed: newlyPlayed };
+    }
     static updateTable(game, player, existingPileSignatures = new Set(), playOrigins = null) {
         var table = document.getElementById("DivBord");
+        var pauseId = game.turnPause ? `${game.id}:${game.turnPause.id}` : null;
+        var isNewPause = pauseId != null && table.dataset.turnPauseId != pauseId;
         table.dataset.gameId = String(game.id);
         table.dataset.gameStatus = game.status;
         table.dataset.gameRound = String(game.round);
+        if (pauseId != null) {
+            table.dataset.turnPauseId = pauseId;
+        } else {
+            delete table.dataset.turnPauseId;
+        }
+        var clearedPiles = game.turnPause &&
+            game.turnPause.kind == "clear" &&
+            game.turnPause.until > Date.now() &&
+            Array.isArray(game.turnPause.clearedPiles)
+            ? PresidentCard.deserializePiles(game.turnPause.clearedPiles)
+            : [];
+        var displayPiles = (game.status == "S" || game.status == "F")
+            ? (clearedPiles.length > 0 ? clearedPiles : game.piles)
+            : [];
+        var pileView = displayPiles.length > 0
+            ? this.createTablePile(game, displayPiles, existingPileSignatures)
+            : null;
         switch (game.status) {
             case "O":
                 if (game.players.length == 0) {
@@ -655,66 +770,37 @@ class GameLayout {
                 })
                 break;
             case "S":
-                var turnPauseId = game.turnPause ? `${game.id}:${game.turnPause.id}` : null;
-                if (turnPauseId && table.dataset.turnPauseId != turnPauseId) {
-                    if (game.turnPause.kind == "clear") {
-                        this.animateDiscardedCards(table);
-                    }
-                    table.dataset.turnPauseId = turnPauseId;
-                }
                 table.className = "BordKortstokk";
                 table.innerHTML = "";
-                var tablePile = document.createElement("div");
-                tablePile.className = "table-card-pile";
-                var cardsOnTable = 0;
-                var newlyPlayed = [];
-                var totalCardCount = game.piles.reduce((total, pile) => total + pile.length, 0);
-                var maxCardsPerPlay = game.piles.reduce((max, pile) => Math.max(max, pile.length), 0);
-                var fanStep = Math.max(24, Math.min(56, window.innerWidth * 0.05));
-                var compactStack = window.matchMedia("(orientation: landscape) and (max-height: 500px)").matches;
-                tablePile.style.setProperty("--pile-fan-width", `${Math.max(0, maxCardsPerPlay - 1) * fanStep}px`);
-                tablePile.style.setProperty("--pile-depth", `${Math.min(totalCardCount * 2.5, compactStack ? 18 : 44)}px`);
-                game.piles.forEach((pile, playIndex) => {
-                    var signature = `${game.round}:${pile.name}:${pile.map(card => `${card.suit}:${card.rank}`).join(",")}`;
-                    var playElement = document.createElement("div");
-                    playElement.className = "table-play";
-                    playElement.dataset.playSignature = signature;
-                    playElement.style.setProperty("--play-index", String(playIndex));
-                    var playOffset = Math.min(cardsOnTable * 2.5, compactStack ? 18 : 44);
-                    pile.forEach((card, cardIndex) => {
-                        var image = GameLayout.createCardImage(card, null);
-                        image.className = "table-play__card";
-                        image.dataset.cardKey = `${card.suit}:${card.rank}`;
-                        image.setAttribute("aria-hidden", "true");
-                        var rotation = (((cardsOnTable * 7) % 9) - 4) * 1.2;
-                        image.style.left = `${5 + cardIndex * fanStep}px`;
-                        image.style.top = `${5 + playOffset}px`;
-                        image.style.setProperty("--stack-index", String(cardsOnTable));
-                        image.style.setProperty("--pile-rotation", `${rotation}deg`);
-                        playElement.appendChild(image);
-                        cardsOnTable++;
-                    });
-                    tablePile.appendChild(playElement);
-                    if (!existingPileSignatures.has(signature)) {
-                        newlyPlayed.push({ element: playElement, pile: pile });
-                    }
-                });
-                if (cardsOnTable > 0) {
-                    var latestPile = game.piles[game.piles.length - 1];
-                    tablePile.setAttribute("role", "group");
-                    var lastPlay = document.createElement("span");
-                    lastPlay.className = "table-card-pile__last-play";
-                    lastPlay.textContent = latestPile.describe();
-                    tablePile.setAttribute(
-                        "aria-label",
-                        `På bordet ligger ${latestPile.describe()}.`
-                    );
-                    tablePile.appendChild(lastPlay);
-                    table.appendChild(tablePile);
-                    if (newlyPlayed.length > 0) {
-                        window.requestAnimationFrame(function () {
-                            newlyPlayed.forEach(play => {
-                                GameLayout.animatePlayedCards(play.element, play.pile, playOrigins);
+                if (pileView != null) {
+                    table.appendChild(pileView.element);
+                    var transitionPlay = game.turnPause &&
+                        game.turnPause.playedPile &&
+                        displayPiles.length > 0
+                        ? displayPiles[displayPiles.length - 1]
+                        : null;
+                    if (isNewPause && game.turnPause.kind == "clear") {
+                        window.requestAnimationFrame(() => {
+                            if (transitionPlay != null) {
+                                var transitionElement = pileView.newlyPlayed.find(play =>
+                                    play.pile == transitionPlay
+                                );
+                                if (transitionElement != null) {
+                                    this.animatePlayedCards(
+                                        transitionElement.element,
+                                        transitionElement.pile,
+                                        playOrigins,
+                                        () => this.animateDiscardedCards(table)
+                                    );
+                                    return;
+                                }
+                            }
+                            this.animateDiscardedCards(table);
+                        });
+                    } else if (playOrigins != null && pileView.newlyPlayed.length > 0) {
+                        window.requestAnimationFrame(() => {
+                            pileView.newlyPlayed.forEach(play => {
+                                this.animatePlayedCards(play.element, play.pile, playOrigins);
                             });
                         });
                     }
@@ -744,6 +830,42 @@ class GameLayout {
                     standings.appendChild(row);
                 });
                 gameOver.appendChild(standings);
+                if (pileView != null) {
+                    var gameOverPile = document.createElement("div");
+                    gameOverPile.className = "game-over__pile";
+                    gameOverPile.appendChild(pileView.element);
+                    gameOver.appendChild(gameOverPile);
+                    var transitionPlay = game.turnPause &&
+                        game.turnPause.playedPile &&
+                        displayPiles.length > 0
+                        ? displayPiles[displayPiles.length - 1]
+                        : null;
+                    if (isNewPause && game.turnPause.kind == "clear") {
+                        window.requestAnimationFrame(() => {
+                            if (transitionPlay != null) {
+                                var transitionElement = pileView.newlyPlayed.find(play =>
+                                    play.pile == transitionPlay
+                                );
+                                if (transitionElement != null) {
+                                    this.animatePlayedCards(
+                                        transitionElement.element,
+                                        transitionElement.pile,
+                                        playOrigins,
+                                        () => this.animateDiscardedCards(table)
+                                    );
+                                    return;
+                                }
+                            }
+                            this.animateDiscardedCards(table);
+                        });
+                    } else if (playOrigins != null && pileView.newlyPlayed.length > 0) {
+                        window.requestAnimationFrame(() => {
+                            pileView.newlyPlayed.forEach(play => {
+                                this.animatePlayedCards(play.element, play.pile, playOrigins);
+                            });
+                        });
+                    }
+                }
                 var newGameButton = document.createElement("button");
                 newGameButton.type = "button";
                 newGameButton.id = "BnGameOverNewGame";
@@ -2181,7 +2303,11 @@ class PresidentGame extends Game {
             id: `${now}-${Math.random().toString(36).slice(2)}`,
             kind: "play",
             until: now + TURN_ACTION_PAUSE_MS,
-            message: `${player.name} legger ${pile.describe()}.`
+            message: `${player.name} legger ${pile.describe()}.`,
+            playedPile: {
+                name: player.name,
+                cards: PresidentCard.serializeDeck(pile)
+            }
         };
         if (player.cards.length == 0) {
             if (pile.strengthRank == PresidentCard.clubThreePower()) {
@@ -2258,6 +2384,10 @@ class PresidentGame extends Game {
             } else {
                 nextPlayerIndex = this.players.findIndex(player => (player.name == nextPlayerName));
             }
+            var clearedPiles = PresidentCard.serializePiles(this.piles);
+            var playedPile = this.turnPause && this.turnPause.kind == "play"
+                ? this.turnPause.playedPile
+                : null;
             this.piles = [];
             var now = Date.now();
             var nextPlayer = this.players[nextPlayerIndex];
@@ -2268,7 +2398,9 @@ class PresidentGame extends Game {
                 id: `${now}-${Math.random().toString(36).slice(2)}`,
                 kind: "clear",
                 until: now + TURN_ACTION_PAUSE_MS,
-                message: clearMessage
+                message: clearMessage,
+                clearedPiles: clearedPiles,
+                playedPile: playedPile
             };
             return nextPlayerIndex;
         } else {
@@ -2349,6 +2481,18 @@ class PresidentGame extends Game {
             currentGame = new PresidentGame();
             currentPlayerName = null;
             connectAndPromptForPlayerName();
+        }
+
+        function startRoundInCurrentGame() {
+            if (currentGame == null || (currentGame.status != "O" && currentGame.status != "F")) { return; }
+            if (turnPauseRefreshTimer != null) {
+                clearTimeout(turnPauseRefreshTimer);
+                turnPauseRefreshTimer = null;
+            }
+            hideGameToast();
+            lastShownTurnPauseId = null;
+            currentGame.startGame();
+            scheduleBotLoop();
         }
 
         function disconnectGameListener() {
@@ -2511,8 +2655,7 @@ class PresidentGame extends Game {
                 ? event.target.closest("#BnGameOverNewGame")
                 : null;
             if (newGameButton == null) { return; }
-            leaveCurrentGame();
-            startNewGame();
+            startRoundInCurrentGame();
         });
 
         document.getElementById('BnHKobleSpill').addEventListener('click', function () {
@@ -2593,8 +2736,7 @@ class PresidentGame extends Game {
         });
 
         document.getElementById('BnFStartSpill').addEventListener('click', function () {
-            currentGame.startGame();
-            scheduleBotLoop();
+            startRoundInCurrentGame();
         });
 
         function scheduleBotLoop() {
