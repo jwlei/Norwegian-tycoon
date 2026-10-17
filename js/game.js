@@ -4,6 +4,7 @@ var selectedCardOwner = null;
 var activeExchangeId = null;
 var autoSelectedTurnKey = null;
 var suppressNextCardClick = false;
+var cardHandInertiaFrame = null;
 
 function getExchangeId(exchange) {
     return exchange.id || `${exchange.tradeId || "exchange"}:${exchange.from}:${exchange.to}`;
@@ -97,6 +98,46 @@ function resetCardTilt(cardElement) {
     cardElement.classList.remove("is-tilting");
     cardElement.style.setProperty("--tilt-x", "0deg");
     cardElement.style.setProperty("--tilt-y", "0deg");
+}
+
+function stopCardHandInertia() {
+    if (cardHandInertiaFrame != null) {
+        cancelAnimationFrame(cardHandInertiaFrame);
+        cardHandInertiaFrame = null;
+    }
+}
+
+function startCardHandInertia(element, velocity) {
+    stopCardHandInertia();
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+        Math.abs(velocity) < 0.04) {
+        return;
+    }
+    var previousFrameTime = null;
+    var continueInertia = function (frameTime) {
+        if (previousFrameTime == null) {
+            previousFrameTime = frameTime;
+            cardHandInertiaFrame = requestAnimationFrame(continueInertia);
+            return;
+        } else {
+            var elapsed = Math.min(frameTime - previousFrameTime, 32);
+            previousFrameTime = frameTime;
+            velocity *= Math.exp(-elapsed / 170);
+            var maxScrollLeft = element.scrollWidth - element.clientWidth;
+            element.scrollLeft = Math.max(0, Math.min(
+                maxScrollLeft,
+                element.scrollLeft + velocity * elapsed
+            ));
+            if (Math.abs(velocity) > 0.035 &&
+                element.scrollLeft > 0 &&
+                element.scrollLeft < maxScrollLeft) {
+                cardHandInertiaFrame = requestAnimationFrame(continueInertia);
+                return;
+            }
+        }
+        cardHandInertiaFrame = null;
+    };
+    cardHandInertiaFrame = requestAnimationFrame(continueInertia);
 }
 
 class GameLayout {
@@ -729,23 +770,31 @@ class GameLayout {
     static updateHand(game, player) {
         var element = document.getElementById("DivKort");
         var previousScrollLeft = element.scrollLeft;
+        var shouldCenterAutoSelection = false;
+        var autoCenterTurnKey = null;
+        var autoCenterCardKeys = [];
         var previouslySelectedCardKeys = new Set(
             Array.from(element.querySelectorAll(".game-card.is-selected"))
                 .map(card => card.dataset.cardKey)
         );
         var selectionCount = document.getElementById("selectedCardCount");
+        var passButton = document.getElementById("BnPPass");
         element.innerHTML = "";
         if (player == null || game == null) {
+            stopCardHandInertia();
             clearCardSelection();
             selectedCardOwner = null;
             activeExchangeId = null;
             autoSelectedTurnKey = null;
             if (selectionCount) { selectionCount.textContent = ""; }
+            passButton.classList.remove("pass-needs-action");
+            element.classList.remove("HasHandSelection");
             element.scrollLeft = 0;
             return;
         }
         var ownerKey = `${game.id}:${player.name}`;
         if (selectedCardOwner !== ownerKey) {
+            stopCardHandInertia();
             previousScrollLeft = 0;
             clearCardSelection();
             selectedCardOwner = ownerKey;
@@ -781,6 +830,10 @@ class GameLayout {
             clearCardSelection();
             autoSelectedTurnKey = null;
         }
+        passButton.classList.toggle(
+            "pass-needs-action",
+            isPlayingTurn && playableStrengths.size == 0
+        );
         if (selectedCardStrength != null && !playableStrengths.has(selectedCardStrength)) {
             clearCardSelection();
         }
@@ -813,10 +866,14 @@ class GameLayout {
                         automaticCards.forEach(card =>
                             selectedCardKeys.add(`${card.suit}:${card.rank}`)
                         );
+                        shouldCenterAutoSelection = automaticCards.length > 0;
+                        autoCenterTurnKey = turnKey;
+                        autoCenterCardKeys = automaticCards.map(card => `${card.suit}:${card.rank}`);
                     }
                 }
             }
         }
+        element.classList.toggle("HasHandSelection", isPlayingTurn && selectedCardKeys.size > 0);
         var playSelectedCards = function () {
             var selectedCards = player.cards.filter(card =>
                 selectedCardKeys.has(`${card.suit}:${card.rank}`)
@@ -903,6 +960,8 @@ class GameLayout {
                         if (!previouslySelectedCardKeys.has(cardKey)) {
                             elemKort.classList.add("is-rising");
                         }
+                    } else if (previouslySelectedCardKeys.has(cardKey)) {
+                        elemKort.classList.add("is-lowering");
                     }
                     if (activeExchange && activeExchange.cards.some(card =>
                         card.suit == k.suit && card.rank == k.rank
@@ -1068,12 +1127,16 @@ class GameLayout {
                             elemKort.classList.add("is-pressed");
                             updateCardTilt(elemKort, event);
                             if (event.isPrimary) {
+                                stopCardHandInertia();
                                 dragState = {
                                     pointerId: event.pointerId,
                                     startX: event.clientX,
+                                    lastX: event.clientX,
                                     startY: event.clientY,
                                     startScrollLeft: element.scrollLeft,
                                     startTime: Date.now(),
+                                    lastMoveTime: performance.now(),
+                                    scrollVelocity: 0,
                                     axis: null,
                                     didMove: false,
                                     didPlayDrag: false,
@@ -1090,7 +1153,8 @@ class GameLayout {
                                         selectedCardKeys.has(cardKey) ? "1.06" : "1"
                                     );
                                 }
-                                if (typeof elemKort.setPointerCapture == "function") {
+                                if (event.pointerType != "touch" &&
+                                    typeof elemKort.setPointerCapture == "function") {
                                     elemKort.setPointerCapture(event.pointerId);
                                 }
                             }
@@ -1109,13 +1173,29 @@ class GameLayout {
                                 }
                                 if (dragState.axis == "horizontal") {
                                     dragState.didMove = true;
-                                    element.scrollLeft = dragState.startScrollLeft - dragOffsetX;
+                                    if (event.pointerType != "touch") {
+                                        var moveTime = performance.now();
+                                        var elapsed = moveTime - dragState.lastMoveTime;
+                                        if (elapsed > 0) {
+                                            var velocity = -(event.clientX - dragState.lastX) / elapsed;
+                                            velocity = Math.max(-0.9, Math.min(0.9, velocity));
+                                            dragState.scrollVelocity =
+                                                dragState.scrollVelocity * 0.35 + velocity * 0.65;
+                                        }
+                                        dragState.lastX = event.clientX;
+                                        dragState.lastMoveTime = moveTime;
+                                        element.scrollLeft = dragState.startScrollLeft - dragOffsetX;
+                                    }
                                     resetCardTilt(elemKort);
                                     return;
                                 }
                                 if (dragState.axis == "vertical" &&
                                     dragState.canSwipeToPlay &&
                                     dragOffsetY < -4) {
+                                    if (event.pointerType == "touch" &&
+                                        typeof elemKort.setPointerCapture == "function") {
+                                        elemKort.setPointerCapture(event.pointerId);
+                                    }
                                     if (!dragState.didPlayDrag) {
                                         dragState.didPlayDrag = true;
                                         dragState.canPlay = selectCardsForSwipe(k);
@@ -1168,6 +1248,13 @@ class GameLayout {
                                         showDialog("KanIkkeLeggeKort", true);
                                     }
                                 }
+                                if (activeDrag.axis == "horizontal" && event.pointerType != "touch") {
+                                    var releaseDelay = performance.now() - activeDrag.lastMoveTime;
+                                    startCardHandInertia(
+                                        element,
+                                        activeDrag.scrollVelocity * Math.exp(-releaseDelay / 90)
+                                    );
+                                }
                             }
                             if (!keepDragPosition) {
                                 clearDragStyles();
@@ -1204,6 +1291,35 @@ class GameLayout {
             element.innerHTML = s;
         }
         element.scrollLeft = previousScrollLeft;
+        if (shouldCenterAutoSelection) {
+            stopCardHandInertia();
+            window.requestAnimationFrame(function () {
+                window.requestAnimationFrame(function () {
+                    if (selectedCardOwner != ownerKey ||
+                        autoSelectedTurnKey != autoCenterTurnKey ||
+                        selectedCardKeys.size != autoCenterCardKeys.length ||
+                        !autoCenterCardKeys.every(cardKey => selectedCardKeys.has(cardKey))) {
+                        return;
+                    }
+                    var autoSelectedCards = Array.from(element.querySelectorAll(".game-card.is-selected"));
+                    if (autoSelectedCards.length == 0) { return; }
+                    var selectedBounds = autoSelectedCards.map(card => card.getBoundingClientRect());
+                    var selectedLeft = Math.min(...selectedBounds.map(bounds => bounds.left));
+                    var selectedRight = Math.max(...selectedBounds.map(bounds => bounds.right));
+                    var handBounds = element.getBoundingClientRect();
+                    var targetScrollLeft = element.scrollLeft +
+                        (selectedLeft + selectedRight) / 2 -
+                        (handBounds.left + handBounds.width / 2);
+                    var maxScrollLeft = element.scrollWidth - element.clientWidth;
+                    element.scrollTo({
+                        left: Math.max(0, Math.min(maxScrollLeft, targetScrollLeft)),
+                        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+                            ? "auto"
+                            : "smooth"
+                    });
+                });
+            });
+        }
     }
 }
 

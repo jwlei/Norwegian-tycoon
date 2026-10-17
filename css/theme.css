@@ -193,6 +193,14 @@ select:focus-visible {
     background: var(--line);
 }
 
+#DivPKnapper > #BnPPass.pass-needs-action,
+#DivPKnapper > #BnPPass.pass-needs-action:hover {
+    border-color: #e4b51a;
+    background: #f4cf43;
+    color: #342a08;
+    box-shadow: 0 0 0 3px rgb(244 207 67 / 24%), 0 5px 16px rgb(244 207 67 / 35%);
+}
+
 #DivFKnapper > div {
     font-size: 0.82rem;
     text-align: center;
@@ -328,7 +336,16 @@ select:focus-visible {
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
     padding: 10px 14px 6px;
+    touch-action: pan-x;
+}
+
+#DivKort.KortKort.HasHandSelection::before,
+#DivKort.KortKort.HasHandSelection::after {
+    flex: 0 0 50%;
+    content: "";
+    pointer-events: none;
 }
 
 #DivKort.KortKort > .game-card:not(:last-child) {
@@ -374,7 +391,7 @@ select:focus-visible {
     z-index: 1;
     overflow: hidden;
     cursor: pointer;
-    touch-action: none;
+    touch-action: pan-x;
     isolation: isolate;
     transform-style: preserve-3d;
     transform: perspective(900px) translateX(var(--card-offset, 0px)) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
@@ -447,6 +464,19 @@ select:focus-visible {
 
 .game-card.is-rising {
     animation: hand-card-rise 300ms cubic-bezier(.2,.8,.25,1) both;
+}
+
+@keyframes hand-card-lower {
+    from {
+        transform: perspective(900px) translateY(-18px) scale(1.06) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+    }
+    to {
+        transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(0) rotate(var(--card-rotation, 0deg));
+    }
+}
+
+.game-card.is-lowering {
+    animation: hand-card-lower 240ms cubic-bezier(.2,.8,.25,1) backwards;
 }
 
 .game-card.is-selected img,
