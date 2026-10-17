@@ -145,11 +145,24 @@ class GameLayout {
             setClass(mainMenu, "Skjul", false);
             this.updateMainMenu();
             document.getElementById("DivBord").innerHTML = "";
+            delete document.getElementById("DivBord").dataset.gameId;
+            delete document.getElementById("DivBord").dataset.gameStatus;
+            delete document.getElementById("DivBord").dataset.gameRound;
         } else {
+            var table = document.getElementById("DivBord");
+            var isContinuingRound = table.dataset.gameId == String(game.id) &&
+                table.dataset.gameStatus == "S" &&
+                table.dataset.gameRound == String(game.round) &&
+                game.status == "S";
+            var existingPileSignatures = new Set(
+                Array.from(document.querySelectorAll("#DivBord .table-play[data-play-signature]"))
+                    .map(element => element.dataset.playSignature)
+            );
+            var playOrigins = isContinuingRound ? this.capturePlayOrigins() : null;
             setClass(mainMenu, "Skjul", true);
             this.updateGameButtons(game);
             this.updatePlayers(game, player);
-            this.updateTable(game, player);
+            this.updateTable(game, player, existingPileSignatures, playOrigins);
         }
     }
     static updateMainMenu() {
@@ -190,8 +203,10 @@ class GameLayout {
         var playerList = document.getElementById("DivSpillere");
         playerList.innerHTML = "";
         game.players.forEach(player => {
+            if (player === currentPlayer) { return; }
             var playerElement = document.createElement("div");
             playerElement.className = "player-summary";
+            playerElement.dataset.playerName = player.name;
             var nameElement = document.createElement("span");
             nameElement.className = "player-summary__name";
             nameElement.textContent = player.name;
@@ -256,8 +271,61 @@ class GameLayout {
         };
         element.appendChild(b);
     }
-    static updateTable(game, player) {
+    static capturePlayOrigins() {
+        var cardOrigins = new Map();
+        document.querySelectorAll("#DivKort .game-card[data-card-key] img").forEach(image => {
+            cardOrigins.set(image.closest(".game-card").dataset.cardKey, image.getBoundingClientRect());
+        });
+        var playerOrigins = new Map();
+        document.querySelectorAll("#DivSpillere [data-player-name]").forEach(element => {
+            playerOrigins.set(element.dataset.playerName, element.getBoundingClientRect());
+        });
+        return { cardOrigins: cardOrigins, playerOrigins: playerOrigins };
+    }
+    static animatePlayedCards(playElement, pile, origins) {
+        if (!origins || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { return; }
+        var playerOrigin = origins.playerOrigins.get(pile.name);
+        pile.forEach(card => {
+            var cardKey = `${card.suit}:${card.rank}`;
+            var source = origins.cardOrigins.get(cardKey) || playerOrigin;
+            var target = playElement.querySelector(`[data-card-key="${cardKey}"]`);
+            if (!source || !target || typeof target.animate != "function") { return; }
+            var targetBounds = target.getBoundingClientRect();
+            if (source.width == 0 || source.height == 0 || targetBounds.width == 0 || targetBounds.height == 0) { return; }
+            var flight = document.createElement("img");
+            flight.src = target.src;
+            flight.alt = "";
+            flight.setAttribute("aria-hidden", "true");
+            flight.className = "card-flight";
+            flight.style.left = `${source.left}px`;
+            flight.style.top = `${source.top}px`;
+            flight.style.width = `${source.width}px`;
+            flight.style.height = `${source.height}px`;
+            document.body.appendChild(flight);
+            target.style.opacity = "0";
+            var animation = flight.animate([
+                { transform: "translate(0, 0) scale(1)", opacity: 1 },
+                {
+                    transform: `translate(${targetBounds.left - source.left}px, ${targetBounds.top - source.top}px) scale(${targetBounds.width / source.width}, ${targetBounds.height / source.height})`,
+                    opacity: 0.72
+                }
+            ], {
+                duration: 520,
+                delay: pile.indexOf(card) * 55,
+                easing: "cubic-bezier(.22,.8,.25,1)",
+                fill: "forwards"
+            });
+            animation.onfinish = function () {
+                target.style.opacity = "";
+                flight.remove();
+            };
+        });
+    }
+    static updateTable(game, player, existingPileSignatures = new Set(), playOrigins = null) {
         var table = document.getElementById("DivBord");
+        table.dataset.gameId = String(game.id);
+        table.dataset.gameStatus = game.status;
+        table.dataset.gameRound = String(game.round);
         switch (game.status) {
             case "O":
                 if (game.players.length == 0) {
@@ -431,16 +499,63 @@ class GameLayout {
             case "S":
                 table.className = "BordKortstokk";
                 table.innerHTML = "";
-                const seed = "H" + game.id + game.ts + game.round;
-                var seedRandom = new Math.seedrandom(seed);
-                var element = null;
-                game.piles.forEach(pile => {
-                    pile.forEach(k => {
-                        element = GameLayout.createCardImage(k, null);
-                        element.style = `transform: translateX(${Math.round(seedRandom() * 50 - 25)}px) translateY(${Math.round(seedRandom() * 80 - 40)}px) rotate(${Math.round(seedRandom() * 30 - 15)}deg);`;
-                        table.appendChild(element);
-                    })
+                var tablePile = document.createElement("div");
+                tablePile.className = "table-card-pile";
+                var cardsOnTable = 0;
+                var newlyPlayed = [];
+                var totalCardCount = game.piles.reduce((total, pile) => total + pile.length, 0);
+                var maxCardsPerPlay = game.piles.reduce((max, pile) => Math.max(max, pile.length), 0);
+                var fanStep = Math.max(24, Math.min(56, window.innerWidth * 0.05));
+                var compactStack = window.matchMedia("(orientation: landscape) and (max-height: 500px)").matches;
+                tablePile.style.setProperty("--pile-fan-width", `${Math.max(0, maxCardsPerPlay - 1) * fanStep}px`);
+                tablePile.style.setProperty("--pile-depth", `${Math.min(totalCardCount * 2.5, compactStack ? 18 : 44)}px`);
+                game.piles.forEach((pile, playIndex) => {
+                    var signature = `${game.round}:${pile.name}:${pile.map(card => `${card.suit}:${card.rank}`).join(",")}`;
+                    var playElement = document.createElement("div");
+                    playElement.className = "table-play";
+                    playElement.dataset.playSignature = signature;
+                    playElement.style.setProperty("--play-index", String(playIndex));
+                    var playOffset = Math.min(cardsOnTable * 2.5, compactStack ? 18 : 44);
+                    pile.forEach((card, cardIndex) => {
+                        var image = GameLayout.createCardImage(card, null);
+                        image.className = "table-play__card";
+                        image.dataset.cardKey = `${card.suit}:${card.rank}`;
+                        image.setAttribute("aria-hidden", "true");
+                        image.style.left = `${cardIndex * fanStep}px`;
+                        image.style.top = `${playOffset}px`;
+                        image.style.setProperty("--stack-index", String(cardsOnTable));
+                        playElement.appendChild(image);
+                        cardsOnTable++;
+                    });
+                    tablePile.appendChild(playElement);
+                    if (!existingPileSignatures.has(signature)) {
+                        newlyPlayed.push({ element: playElement, pile: pile });
+                    }
                 });
+                if (cardsOnTable > 0) {
+                    var latestPile = game.piles[game.piles.length - 1];
+                    tablePile.setAttribute("role", "group");
+                    var pileCount = document.createElement("span");
+                    pileCount.className = "table-card-pile__count";
+                    pileCount.textContent = `${cardsOnTable} kort`;
+                    var lastPlay = document.createElement("span");
+                    lastPlay.className = "table-card-pile__last-play";
+                    lastPlay.textContent = latestPile.describe();
+                    tablePile.setAttribute(
+                        "aria-label",
+                        `Bunken har ${cardsOnTable} kort. Sist lagt: ${latestPile.describe()}.`
+                    );
+                    tablePile.appendChild(pileCount);
+                    tablePile.appendChild(lastPlay);
+                    table.appendChild(tablePile);
+                    if (newlyPlayed.length > 0) {
+                        window.requestAnimationFrame(function () {
+                            newlyPlayed.forEach(play => {
+                                GameLayout.animatePlayedCards(play.element, play.pile, playOrigins);
+                            });
+                        });
+                    }
+                }
                 break;
             case "F":
                 table.className = "BordForklaring";

@@ -269,7 +269,9 @@ select:focus-visible {
 
 .player-summary__details {
     color: var(--muted);
-    white-space: nowrap;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: right;
 }
 
 .player-summary__turn {
@@ -285,6 +287,29 @@ select:focus-visible {
     min-height: 34px !important;
     padding: 5px 8px !important;
     font-size: 0.78rem;
+}
+
+#DivSpillere > .player-summary,
+#DivPKnapper > span,
+#DivBord .tips,
+#DivBord .bytteTittel,
+#DivBord .trade-status {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+#DivPKnapper > span {
+    max-width: 100%;
+    line-height: 1.3;
+}
+
+#DivPKnapper #SpanSpillerNick {
+    font-size: clamp(0.8rem, 3.5vmin, 1.3rem);
+}
+
+#DivKort > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 #DivKort {
@@ -762,6 +787,85 @@ select:focus-visible {
     padding: 9px 14px;
 }
 
+#DivBord.BordKortstokk {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 36px 8px 44px;
+}
+
+.table-card-pile {
+    --table-card-height: clamp(96px, 25vh, 190px);
+    --table-card-width: calc(var(--table-card-height) * 2 / 3);
+    position: relative;
+    flex: 0 0 auto;
+    width: calc(var(--table-card-width) + var(--pile-fan-width) + var(--pile-depth));
+    height: calc(var(--table-card-height) + var(--pile-depth));
+}
+
+.table-play {
+    position: absolute;
+    inset: 0;
+    z-index: var(--play-index);
+}
+
+.BordKortstokk .table-play__card {
+    position: absolute;
+    top: var(--card-stack-offset, 0);
+    left: var(--card-fan-offset, 0);
+    z-index: var(--stack-index);
+    display: block;
+    width: var(--table-card-width);
+    height: var(--table-card-height);
+    max-width: none;
+    border: 1px solid rgb(0 0 0 / 35%);
+    border-radius: 8px;
+    object-fit: fill;
+    box-shadow: 0 3px 10px rgb(0 0 0 / 26%);
+    transition: opacity 120ms ease;
+}
+
+.table-card-pile__count,
+.table-card-pile__last-play {
+    position: absolute;
+    z-index: 60;
+    max-width: calc(100% - 8px);
+    padding: 5px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 0.78rem;
+    font-weight: 750;
+    line-height: 1.2;
+    text-align: center;
+    overflow-wrap: anywhere;
+    box-shadow: 0 3px 10px rgb(0 0 0 / 22%);
+}
+
+.table-card-pile__count {
+    top: -12px;
+    right: 0;
+}
+
+.table-card-pile__last-play {
+    right: 0;
+    bottom: -38px;
+    left: 0;
+    width: fit-content;
+    margin: auto;
+}
+
+.card-flight {
+    position: fixed;
+    z-index: 100;
+    pointer-events: none;
+    border-radius: 8px;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 8px rgb(0 0 0 / 28%));
+}
+
 @media (min-width: 761px) and (orientation: landscape) {
     #DivHele.SpillAktivt {
         grid-template-columns: minmax(0, 1fr);
@@ -877,7 +981,43 @@ select:focus-visible {
     }
 }
 
+@media (orientation: landscape) and (max-height: 500px) {
+    #DivHele.SpillAktivt {
+        grid-template-rows: 48px auto minmax(0, 2fr) auto minmax(72px, 0.65fr);
+    }
+
+    #DivBord.BordKortstokk {
+        padding: 8px 4px;
+    }
+
+    .table-card-pile {
+        --table-card-height: clamp(44px, 16vh, 74px);
+        width: calc(var(--table-card-width) + var(--pile-fan-width) + var(--pile-depth));
+        height: calc(var(--table-card-height) + var(--pile-depth));
+    }
+
+    .table-card-pile__count {
+        top: 2px;
+        right: 2px;
+    }
+
+    .table-card-pile__last-play {
+        right: 0;
+        bottom: 2px;
+        left: 0;
+    }
+}
+
 @media (max-width: 420px) {
+    .table-card-pile {
+        --table-card-height: clamp(92px, 23vh, 148px);
+    }
+
+    .table-card-pile__count,
+    .table-card-pile__last-play {
+        font-size: 0.72rem;
+    }
+
     .card-selection-actions {
         gap: 6px;
         padding: 8px;
