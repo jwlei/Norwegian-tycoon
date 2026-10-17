@@ -500,7 +500,11 @@ select:focus-visible {
 }
 
 .game-card.is-unplayable {
-    opacity: 0.55;
+    opacity: 1;
+}
+
+#playerHand.card-hand.is-my-turn > .game-card.is-unplayable > img {
+    filter: brightness(0.52) saturate(0.78);
 }
 
 .game-card:focus-visible {
@@ -1032,12 +1036,37 @@ select:focus-visible {
     line-height: 1.3;
     text-align: center;
     overflow-wrap: anywhere;
+    overflow: hidden;
     box-shadow: var(--shadow);
     opacity: 0;
     visibility: hidden;
-    pointer-events: none;
     transform: translate(-50%, calc(-50% - 12px));
     transition: opacity 180ms ease, transform 180ms ease, visibility 180ms ease;
+    pointer-events: auto;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.game-toast::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 4px;
+    background: var(--toast-progress-gradient, linear-gradient(90deg, #17803d, #39a95f, #f4cf43));
+    content: "";
+    transform: scaleX(1);
+    transform-origin: left center;
+}
+
+.game-toast.is-visible::after {
+    animation: game-toast-progress var(--toast-duration, 3000ms) linear forwards;
+}
+
+@keyframes game-toast-progress {
+    to {
+        transform: scaleX(0);
+    }
 }
 
 .game-toast.is-visible {
@@ -1244,21 +1273,44 @@ select:focus-visible {
 
 #gameShell.game-active.Lobby {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(80px, 30dvh) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(80px, 30dvh);
 }
 
 #gameShell.game-active.Lobby > #playerList {
     grid-column: 1 / -1;
-    grid-row: 1 / 2;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-content: flex-start;
-    overflow-x: hidden;
-    overflow-y: auto;
+    grid-row: 2 / 3;
+    display: grid;
+    width: min(100%, 760px);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 1fr);
+    align-content: stretch;
+    justify-self: center;
+    gap: 8px;
+    padding: 8px;
+    overflow: auto;
 }
 
-#gameShell.game-active.Lobby > #playerList > .player-summary {
-    flex: 0 1 min(100%, 300px);
+#gameShell.game-active.Lobby > #playerList > .opponent-list {
+    display: contents;
+}
+
+#gameShell.game-active.Lobby > #playerList .player-summary {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    width: auto;
+    height: 100%;
+    margin: 0;
+    padding: 6px;
+    flex: initial;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+    grid-column: auto;
+    grid-row: auto;
+    overflow: hidden;
 }
 
 #gameShell.game-active.Lobby > #gameTable,
@@ -1301,7 +1353,7 @@ select:focus-visible {
     top: auto;
     left: auto;
     grid-column: 1 / -1;
-    grid-row: 2 / 3;
+    grid-row: 1 / 2;
     display: flex;
     width: 100%;
     max-height: 100%;
@@ -1310,6 +1362,7 @@ select:focus-visible {
     flex-direction: column;
     flex-wrap: nowrap;
     padding: 16px;
+    gap: 8px;
     overflow-x: hidden;
     overflow-y: auto;
     border: 0;
@@ -1329,12 +1382,12 @@ select:focus-visible {
 
 #gameShell.game-active.Lobby > #gameMenu > .lobby-primary-actions {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
     order: 2;
-    width: min(100%, 520px);
+    width: min(100%, 360px);
     flex: 0 0 auto;
-    margin: auto auto 0;
+    margin: 36px auto 0;
     padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -1479,15 +1532,17 @@ select:focus-visible {
 #gameShell.game-active #playerList .opponent-seat-4 { grid-column: 1; grid-row: 3; }
 
 #gameShell.game-active #playerList .is-current-turn {
-    border-color: #35c46a;
-    background: rgb(31 145 68 / 30%);
-    box-shadow: inset 4px 0 #35c46a, 0 0 14px rgb(53 196 106 / 22%);
+    border-color: #e4b51a;
+    background: #f4cf43;
+    color: #342a08;
+    box-shadow: inset 4px 0 #e4b51a, 0 0 14px rgb(244 207 67 / 25%);
 }
 
 #gameShell.game-active #playerList .player-summary--passed {
     border-color: #e4b51a;
-    background: rgb(244 207 67 / 24%);
-    box-shadow: inset 4px 0 #e4b51a, 0 0 14px rgb(244 207 67 / 16%);
+    background: #f4cf43;
+    color: #342a08;
+    box-shadow: inset 4px 0 #e4b51a, 0 0 14px rgb(244 207 67 / 25%);
 }
 
 #gameShell.game-active #playerList .player-summary__turn {
@@ -1559,16 +1614,23 @@ select:focus-visible {
 }
 
 #gameShell.game-active:not(.Lobby) > #playerList .player-summary.player-summary--passed {
-    background: var(--player-color, #f4cf43);
+    background: #f4cf43;
+    color: #342a08;
 }
 
 #gameShell.game-active:not(.Lobby) > #playerActions {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: center;
     gap: 6px;
     overflow: hidden;
+}
+
+#gameShell.game-active:not(.Lobby) > #playerActions > button,
+#gameShell.game-active:not(.Lobby) > #playerActions > #exchangePrompt {
+    flex: 0 1 auto;
+    text-align: center;
 }
 
 #gameShell.game-active:not(.Lobby) > #playerActions > br {
@@ -1577,7 +1639,9 @@ select:focus-visible {
 
 #gameShell.game-active:not(.Lobby) > #playerActions > #playerStatus {
     min-width: 0;
+    flex: 0 1 auto;
     overflow: hidden;
+    text-align: center;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
