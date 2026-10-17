@@ -283,10 +283,21 @@ select:focus-visible {
 }
 
 .player-summary__details {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
     color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
     text-align: right;
+}
+
+.player-summary__rank-icon {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    object-fit: contain;
 }
 
 .player-summary__turn {
@@ -326,6 +337,158 @@ select:focus-visible {
 #playerActions > span {
     max-width: 100%;
     line-height: 1.3;
+}
+
+#gameTable.exchange-panel {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: clamp(8px, 1.5vw, 16px);
+    overflow: auto;
+}
+
+.exchange-panel__heading {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 2px 4px;
+}
+
+.exchange-panel__progress {
+    color: var(--muted);
+    font-size: 0.82rem;
+    text-align: right;
+}
+
+.exchange-panel .exchange {
+    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 4px 10px;
+    margin: 0;
+    padding: 8px 10px;
+    border-color: var(--line);
+    background: var(--surface);
+    transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.exchange-panel .exchange--active {
+    border-color: var(--accent);
+    background: var(--surface-soft);
+}
+
+.exchange-panel .exchange--waiting {
+    border-color: #35c46a;
+    background: rgb(31 145 68 / 24%);
+    box-shadow: inset 4px 0 #35c46a, 0 0 14px rgb(53 196 106 / 14%);
+}
+
+.exchange-panel .exchange-player {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.exchange-panel .exchange-player img {
+    width: 38px;
+    height: 38px;
+    object-fit: contain;
+}
+
+.exchange-panel .exchange--neutral .exchange-player {
+    display: none;
+}
+
+.exchange-panel .exchange--neutral .exchange-title,
+.exchange-panel .exchange--neutral .exchange-cards {
+    grid-column: 1 / -1;
+}
+
+.exchange-panel .exchange-title {
+    align-self: center;
+    font-size: clamp(0.84rem, 2.2vw, 1rem);
+    line-height: 1.3;
+}
+
+.exchange-panel .exchange-cards {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.exchange-panel .exchange-status {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px 10px;
+    color: var(--muted);
+    font-size: 0.78rem;
+}
+
+.exchange-panel .exchange-cards button {
+    min-height: 36px;
+    padding: 6px 10px;
+}
+
+.exchange-selection {
+    position: sticky;
+    z-index: 2;
+    bottom: 0;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: auto;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: 0 -6px 18px rgb(0 0 0 / 16%);
+}
+
+.exchange-selection__cards {
+    display: flex;
+    min-height: 42px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.exchange-selection__card {
+    height: clamp(54px, 8vh, 76px);
+    width: auto;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    box-shadow: 0 3px 8px rgb(0 0 0 / 20%);
+    animation: exchange-card-arrive 220ms cubic-bezier(.2,.8,.25,1) both;
+}
+
+@keyframes exchange-card-arrive {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.92);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.exchange-selection__empty {
+    color: var(--muted);
+    font-size: 0.84rem;
+}
+
+.exchange-selection__confirm {
+    align-self: flex-end;
+    min-height: 40px;
 }
 
 #playerHand > span {
@@ -815,6 +978,33 @@ select:focus-visible {
     text-align: center;
 }
 
+.game-over--personal {
+    align-items: center;
+    justify-content: center;
+}
+
+.game-over__personal-result {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-size: clamp(1.4rem, 5vmin, 2.4rem);
+    font-weight: 800;
+    line-height: 1.15;
+}
+
+.game-over__position-icon {
+    width: clamp(40px, 8vmin, 64px);
+    height: clamp(40px, 8vmin, 64px);
+    object-fit: contain;
+}
+
+.player-placement-result-icon {
+    width: clamp(40px, 8vmin, 64px);
+    height: clamp(40px, 8vmin, 64px);
+    object-fit: contain;
+}
+
 .game-over h2 {
     margin: 0;
 }
@@ -826,17 +1016,6 @@ select:focus-visible {
     margin: 0;
     padding: 0;
     list-style: none;
-}
-
-.game-over__pile {
-    display: flex;
-    min-height: clamp(72px, 12vh, 108px);
-    align-items: center;
-    justify-content: center;
-}
-
-.game-over__pile .table-card-pile {
-    --table-card-height: clamp(48px, 10vh, 84px);
 }
 
 .game-over__standing {
@@ -867,6 +1046,38 @@ select:focus-visible {
     align-self: center;
     width: min(100%, 300px);
     padding: 12px 22px;
+}
+
+.round-start-vote {
+    display: flex;
+    width: min(100%, 520px);
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin: 0 auto;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+}
+
+.round-start-vote__summary,
+.round-start-vote__hint {
+    color: var(--muted);
+    font-size: 0.88rem;
+    text-align: center;
+}
+
+.round-start-vote__choices {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+
+.round-start-vote__choices button[aria-pressed="true"] {
+    border-color: #35c46a;
+    background: rgb(31 145 68 / 30%);
 }
 
 .invite-actions {
@@ -1086,6 +1297,53 @@ select:focus-visible {
     white-space: nowrap;
 }
 
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > .game-menu-toggle {
+    display: none;
+}
+
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu {
+    position: relative;
+    z-index: 2;
+    top: auto;
+    left: auto;
+    grid-column: 1 / -1;
+    grid-row: 1 / 2;
+    display: flex;
+    width: 100%;
+    max-height: 100%;
+    align-items: center;
+    justify-content: center;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 3px 8px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > :not(#BnFInviterSpill):not(#BnFRegler):not(#BnPGiOpp) {
+    display: none !important;
+}
+
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInviterSpill,
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFRegler,
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnPGiOpp {
+    display: inline-flex;
+    min-width: 0;
+    min-height: 38px;
+    margin: 0;
+    padding: 6px clamp(7px, 1.6vw, 14px);
+    flex: 0 1 auto;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(0.7rem, 2vw, 0.9rem);
+    text-align: center;
+    white-space: nowrap;
+}
+
 @media (min-width: 761px) and (orientation: landscape) {
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);
@@ -1187,6 +1445,14 @@ select:focus-visible {
     #gameShell.game-active {
         --shell-hand-card-height: clamp(54px, 18vh, 76px);
         grid-template-rows: 40px 36px minmax(58px, 1fr) 44px calc(var(--shell-hand-card-height) + 24px);
+    }
+
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInviterSpill,
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFRegler,
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnPGiOpp {
+        min-height: 32px;
+        padding-top: 4px;
+        padding-bottom: 4px;
     }
 
     #gameTable.table-deck {

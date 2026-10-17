@@ -48,6 +48,9 @@ class Game {
     save() {
         throw ("Må implementeres");
     }
+    shouldShufflePlayersOnStart() {
+        return true;
+    }
     getPlayer(name) {
         var result = null;
         this.players.filter(player => (player.name == name)).forEach(player => {
@@ -62,16 +65,19 @@ class Game {
         switch (this.status) {
             case "O":
             case "F":
-                // Shuffle the player order.
-                for (var i = this.players.length - 1; i > 0; i--) {
-                    var n = Math.floor(Math.random() * (i + 1));
-                    var previousValue = this.players[i];
-                    this.players[i] = this.players[n];
-                    this.players[n] = previousValue;
+                if (this.shouldShufflePlayersOnStart()) {
+                    for (var i = this.players.length - 1; i > 0; i--) {
+                        var n = Math.floor(Math.random() * (i + 1));
+                        var previousValue = this.players[i];
+                        this.players[i] = this.players[n];
+                        this.players[n] = previousValue;
+                    }
                 }
+                this.shufflePlayerOrder = false;
                 this.players.forEach(player => {
                     player.resetRound(null);
                     player.turn = 0;
+                    player.gaveUp = false;
                 });
                 this.round = 1;
                 this.turnPause = null;
@@ -142,16 +148,21 @@ class Game {
         currentTurnPlayer.turn = 0;
         var remainingPlayers = this.players.filter(player => { return player.placement == 0; });
         if (remainingPlayers.length <= 1) {
-            this.finishPlayer(remainingPlayers[0], false);
+            var finalPlayer = remainingPlayers[0];
+            var allOthersGaveUp = finalPlayer != null &&
+                this.players.filter(player => player !== finalPlayer)
+                    .every(player => player.gaveUp === true);
+            if (finalPlayer != null) {
+                this.finishPlayer(finalPlayer, allOthersGaveUp);
+            }
             this.endTime = Date.now();
             this.setTurn(-1);
-            this.players = this.players.sort((a, b) => { return a.placement - b.placement; })
             if (!this.results) { this.results = []; };
-            var result = [];
-            this.players.forEach(player => {
-                result.push(player.name)
-            });
-            this.results.push(result);
+            this.results.push(
+                this.players.slice()
+                    .sort((a, b) => a.placement - b.placement)
+                    .map(player => player.name)
+            );
             this.status = "F";
             var game = this;
             setTimeout(function () {
@@ -217,6 +228,9 @@ class Game {
                 return null;
                 break;
             case 'S':
+                if (player.placement == 0) {
+                    player.gaveUp = true;
+                }
                 this.finishPlayer(player, false);
                 if (player.turn == 1) {
                     this.advanceTurn();
