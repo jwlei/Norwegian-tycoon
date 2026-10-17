@@ -1244,12 +1244,12 @@ select:focus-visible {
 
 #gameShell.game-active.Lobby {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(80px, 30dvh);
+    grid-template-rows: minmax(80px, 30dvh) minmax(0, 1fr);
 }
 
 #gameShell.game-active.Lobby > #playerList {
     grid-column: 1 / -1;
-    grid-row: 2 / 3;
+    grid-row: 1 / 2;
     flex-direction: row;
     flex-wrap: wrap;
     align-content: flex-start;
@@ -1301,12 +1301,12 @@ select:focus-visible {
     top: auto;
     left: auto;
     grid-column: 1 / -1;
-    grid-row: 1 / 2;
+    grid-row: 2 / 3;
     display: flex;
     width: 100%;
     max-height: 100%;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     flex-direction: column;
     flex-wrap: nowrap;
     padding: 16px;
@@ -1331,10 +1331,11 @@ select:focus-visible {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
-    order: 0;
+    order: 2;
     width: min(100%, 520px);
     flex: 0 0 auto;
-    margin: 0 auto 12px;
+    margin: auto auto 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 #gameShell.game-active.Lobby .lobby-primary-action {

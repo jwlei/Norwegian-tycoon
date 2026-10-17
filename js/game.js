@@ -1106,7 +1106,8 @@ class GameLayout {
                 axis: null,
                 cardElement: cardElement,
                 card: card,
-                canSwipeToPlay: game.status == "S" && isPlayingTurn,
+                canSwipeToPlay: event.pointerType == "touch" &&
+                    game.status == "S" && isPlayingTurn,
                 didMove: false,
                 didPlayDrag: false,
                 canPlay: false
@@ -1474,7 +1475,7 @@ class GameLayout {
                                     `${k.getName()}${isPlayable ? ", kan spilles" : ", kan ikke spilles nå"}`
                                 );
                                 elemKort.title = isPlayable
-                                    ? "Sveip sidelengs for å bla. Dra eller flick kortet opp, eller trykk Enter for å legge det ut"
+                                    ? "Klikk for å velge. Trykk Enter eller mellomrom for å legge ut; på mobil kan du flicke kortet opp."
                                     : "Dette kortet kan ikke spilles nå";
                                 elemKort.setAttribute("aria-pressed", String(isSelected));
                                 elemKort.onclick = function () {
@@ -3083,7 +3084,10 @@ function playBotTurn(game, player, entireRound = false) {
                 pile.push(cards);
             })
         } else {
-            player.cards.filter(cards => (game.canPlayRank(player, cards.strengthRank))).forEach(cards => {
+            player.cards.filter(cards =>
+                game.canPlayRank(player, cards.strengthRank) &&
+                !(cards.isClubThree() && player.cards.length == 1) // Never finish on the club three.
+            ).forEach(cards => {
                 if (pile == null || cards.strengthRank < pile.strengthRank) {
                     pile = new CardPile(player.name, cards);
                 } else if (cards.strengthRank == pile.strengthRank &&
