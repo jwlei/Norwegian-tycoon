@@ -1,3 +1,5 @@
+const MAX_PLAYERS = 4;
+
 class Player {
     constructor(name, playerKey) {
         this.name = name;
@@ -188,6 +190,10 @@ class Game {
                 return { player: existingPlayer };
             }
             return { text: 'Nick er allerede i bruk av annen spiller.' };
+        }
+        if ((this.status == "O" || this.status == "F") &&
+            this.players.length >= MAX_PLAYERS) {
+            return { text: `Spillet har plass til maks ${MAX_PLAYERS} spillere.` };
         }
         switch (this.status) {
             case "F":

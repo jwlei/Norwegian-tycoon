@@ -285,7 +285,7 @@ class GameLayout {
                 this.el("startGameButton").textContent = "Start spill";
                 this.setVisible("BnFInviterSpill", true);
                 this.setVisible("BnFKobleSpill", true);
-                this.setVisible("BnFNyAutoSpiller", true);
+                this.setVisible("BnFNyAutoSpiller", game.players.length < MAX_PLAYERS);
                 this.setVisible("startGameButton", game.players.length >= 2);
                 this.setVisible("BnFRegler", true);
                 this.setVisible("BnFHovedmeny", true);
@@ -305,7 +305,7 @@ class GameLayout {
                 this.el("startGameButton").textContent = "Start ny runde";
                 this.setVisible("BnFInviterSpill", true);
                 this.setVisible("BnFKobleSpill", false);
-                this.setVisible("BnFNyAutoSpiller", true);
+                this.setVisible("BnFNyAutoSpiller", game.players.length < MAX_PLAYERS);
                 this.setVisible("startGameButton", true);
                 this.setVisible("BnFRegler", true);
                 this.setVisible("BnFHovedmeny", true);
@@ -951,7 +951,7 @@ class GameLayout {
                 }
             }
         };
-        this.setVisible("BnPNySpiller", (player == null));
+        this.setVisible("BnPNySpiller", (player == null && game.players.length < MAX_PLAYERS));
         var isPassTurn = player != null &&
             game.status == "S" &&
             player.placement == 0 &&
@@ -2881,7 +2881,10 @@ class PresidentGame extends Game {
             var availableNames = BOT_NAMES.filter(name => !usedNames.includes(name.toLocaleLowerCase()));
             if (availableNames.length > 0) {
                 var name = availableNames[Math.floor(Math.random() * availableNames.length)];
-                currentGame.addPlayer(new PresidentPlayer(name, key));
+                var result = currentGame.addPlayer(new PresidentPlayer(name, key));
+                if (!result.player) {
+                    showGameToast(result.text, currentGame);
+                }
             }
         })
 
