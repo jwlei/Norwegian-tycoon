@@ -799,6 +799,58 @@ select:focus-visible {
     background: var(--surface-soft);
 }
 
+.game-over {
+    display: flex;
+    width: min(100%, 620px);
+    flex-direction: column;
+    gap: 14px;
+    margin: auto;
+    text-align: center;
+}
+
+.game-over h2 {
+    margin: 0;
+}
+
+.game-over__standings {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.game-over__standing {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    gap: 12px;
+    align-items: center;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.game-over__rank {
+    color: var(--muted);
+    font-weight: 700;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.game-over__name {
+    font-weight: 750;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+
+.game-over__new-game {
+    align-self: center;
+    width: min(100%, 300px);
+    padding: 12px 22px;
+}
+
 .invite-actions {
     display: flex;
     flex-wrap: wrap;
@@ -1206,6 +1258,30 @@ select:focus-visible {
     display: none;
 }
 
+#DivHele.SpillAktivt.GameFinished {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(40px, 60px) minmax(0, 1fr) auto;
+}
+
+#DivHele.SpillAktivt.GameFinished > #DivSpillere,
+#DivHele.SpillAktivt.GameFinished > #DivKort {
+    display: none;
+}
+
+#DivHele.SpillAktivt.GameFinished > #DivBord {
+    grid-column: 1 / -1;
+    grid-row: 2 / 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(12px, 3vw, 32px);
+}
+
+#DivHele.SpillAktivt.GameFinished > #DivPKnapper {
+    grid-column: 1 / -1;
+    grid-row: 3 / 4;
+}
+
 #DivHele.SpillAktivt.Lobby > .game-menu-toggle {
     display: none;
 }
@@ -1339,8 +1415,19 @@ select:focus-visible {
     box-shadow: inset 4px 0 #35c46a, 0 0 14px rgb(53 196 106 / 22%);
 }
 
+#DivHele.SpillAktivt #DivSpillere .player-summary--passed {
+    border-color: #e4b51a;
+    background: rgb(244 207 67 / 24%);
+    box-shadow: inset 4px 0 #e4b51a, 0 0 14px rgb(244 207 67 / 16%);
+}
+
 #DivHele.SpillAktivt #DivSpillere .player-summary__turn {
     background: #17803d;
+}
+
+#DivHele.SpillAktivt #DivSpillere .player-summary--passed .player-summary__turn {
+    background: #f4cf43;
+    color: #342a08;
 }
 
 #DivHele.SpillAktivt #DivSpillere .player-summary--self .player-summary__name {

@@ -199,6 +199,7 @@ class GameLayout {
         var appShell = document.getElementById("DivHele");
         setClass(appShell, "SpillAktivt", (game != null));
         setClass(appShell, "Lobby", (game != null && game.status == "O"));
+        setClass(appShell, "GameFinished", (game != null && game.status == "F"));
         var mainMenu = document.getElementById("DivHovedmeny");
         var gameControls = document.querySelectorAll("#DivFKnapper, #DivSpillere, #DivBord, #DivPKnapper, #DivKort");
         var showMenu = (game == null);
@@ -244,6 +245,7 @@ class GameLayout {
         this.el("SpanSpillId").innerHTML = game.id;
         switch (game.status) {
             case "O":
+                this.el("BnFStartSpill").textContent = "Start spill";
                 this.setVisible("BnFInviterSpill", true);
                 this.setVisible("BnFKobleSpill", true);
                 this.setVisible("BnFNyAutoSpiller", true);
@@ -263,6 +265,7 @@ class GameLayout {
                 this.setVisible("BnFResultater", false);
                 break;
             case "F":
+                this.el("BnFStartSpill").textContent = "Start ny runde";
                 this.setVisible("BnFInviterSpill", true);
                 this.setVisible("BnFKobleSpill", false);
                 this.setVisible("BnFNyAutoSpiller", true);
@@ -309,6 +312,10 @@ class GameLayout {
                 if (player.turn == 1) {
                     turnElement.textContent = isCurrentPlayer ? "Din tur" : "Tur";
                     turnElement.setAttribute("aria-label", isCurrentPlayer ? "Du har tur" : "Denne spilleren har tur");
+                } else if (game.status == "S" && player.lastPlay == "Pass") {
+                    playerElement.classList.add("player-summary--passed");
+                    turnElement.textContent = "Passet";
+                    turnElement.setAttribute("aria-label", `${player.name} har passet`);
                 } else {
                     turnElement.setAttribute("aria-hidden", "true");
                 }
@@ -716,10 +723,34 @@ class GameLayout {
             case "F":
                 table.className = "BordForklaring";
                 table.innerHTML = "";
-                var element = document.createElement("div");
-                element.className = "tips";
-                element.innerHTML = `<div><img src="icons/president.svg" alt='President' /><b>${game.players[0].name}</b> ble President.</div>`;
-                table.appendChild(element);
+                var gameOver = document.createElement("section");
+                gameOver.className = "game-over";
+                var heading = document.createElement("h2");
+                heading.textContent = "Spillet er over";
+                gameOver.appendChild(heading);
+                var standings = document.createElement("ol");
+                standings.className = "game-over__standings";
+                game.players.slice().sort((a, b) => a.placement - b.placement).forEach(player => {
+                    var row = document.createElement("li");
+                    row.className = "game-over__standing";
+                    var rank = document.createElement("span");
+                    rank.className = "game-over__rank";
+                    rank.textContent = game.placementTitle(player.placement).title;
+                    var name = document.createElement("span");
+                    name.className = "game-over__name";
+                    name.textContent = player.name;
+                    row.appendChild(rank);
+                    row.appendChild(name);
+                    standings.appendChild(row);
+                });
+                gameOver.appendChild(standings);
+                var newGameButton = document.createElement("button");
+                newGameButton.type = "button";
+                newGameButton.id = "BnGameOverNewGame";
+                newGameButton.className = "game-over__new-game";
+                newGameButton.textContent = "Nytt spill";
+                gameOver.appendChild(newGameButton);
+                table.appendChild(gameOver);
                 break;
             default:
                 throw ("Ukent status.");
@@ -737,6 +768,7 @@ class GameLayout {
             this.el("SpanHoppover").innerHTML = "";
             this.setVisible("BnPNySpiller", false);
             this.setVisible("BnPPass", false);
+            this.setVisible("BnPPass_Off", false);
             this.setVisible("BnPGiOpp", false);
             this.setVisible("BnPByttNavn", false);
             return;
@@ -778,7 +810,12 @@ class GameLayout {
             }
         };
         this.setVisible("BnPNySpiller", (player == null));
-        this.setVisible("BnPPass", (player != null && game.canPass(player)));
+        var canPass = player != null && game.canPass(player);
+        this.setVisible("BnPPass", canPass);
+        this.setVisible(
+            "BnPPass_Off",
+            game.status == "S" && player != null && player.turn == 1 && !canPass
+        );
         this.setVisible("BnPGiOpp", (player != null && game.status != "O" && game.status != "F" && !(game.status == "S" && player.placement != 0)));
         this.setVisible("BnPByttNavn", (player != null));
     }
@@ -2144,7 +2181,7 @@ class PresidentGame extends Game {
             id: `${now}-${Math.random().toString(36).slice(2)}`,
             kind: "play",
             until: now + TURN_ACTION_PAUSE_MS,
-            message: `${player.name} legger ${pile.describe()}. Neste trekk om 3 sekunder.`
+            message: `${player.name} legger ${pile.describe()}.`
         };
         if (player.cards.length == 0) {
             if (pile.strengthRank == PresidentCard.clubThreePower()) {
@@ -2171,7 +2208,7 @@ class PresidentGame extends Game {
             id: `${now}-${Math.random().toString(36).slice(2)}`,
             kind: "pass",
             until: now + TURN_ACTION_PAUSE_MS,
-            message: `${player.name} passer. Neste trekk om 3 sekunder.`
+            message: `${player.name} passer.`
         };
         this.advanceTurn();
     }
@@ -2289,6 +2326,17 @@ class PresidentGame extends Game {
                     promptForPlayerName();
                 }
             });
+        }
+
+        function startNewGame() {
+            if (navigator.userAgent.match(/Android|iPhone/i)) {
+                try {
+                    openFullscreen(document.getElementsByTagName("body")[0]);
+                } catch (error) { }
+            }
+            currentGame = new PresidentGame();
+            currentPlayerName = null;
+            connectAndPromptForPlayerName();
         }
 
         function disconnectGameListener() {
@@ -2444,15 +2492,15 @@ class PresidentGame extends Game {
             }
         });
 
-        document.getElementById('BnHNySpill').addEventListener('click', function () {
-            if (navigator.userAgent.match(/Android|iPhone/i)) {
-                try {
-                    openFullscreen(document.getElementsByTagName("body")[0]);
-                } catch (error) { }
-            }
-            currentGame = new PresidentGame();
-            currentPlayerName = null;
-            connectAndPromptForPlayerName();
+        document.getElementById('BnHNySpill').addEventListener('click', startNewGame);
+
+        document.getElementById("DivBord").addEventListener("click", function (event) {
+            var newGameButton = event.target.closest
+                ? event.target.closest("#BnGameOverNewGame")
+                : null;
+            if (newGameButton == null) { return; }
+            leaveCurrentGame();
+            startNewGame();
         });
 
         document.getElementById('BnHKobleSpill').addEventListener('click', function () {

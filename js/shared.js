@@ -111,13 +111,13 @@ function openFullscreen(element) {
 }
 
 function closeFullscreen() {
-    if (document.exitFullscreen) {
+    if (document.fullscreenElement && document.exitFullscreen) {
         document.exitFullscreen();
-    } else if (document.mozCancelFullScreen) { /* Firefox */
+    } else if (document.mozFullScreenElement && document.mozCancelFullScreen) { /* Firefox */
         document.mozCancelFullScreen();
-    } else if (document.webkitExitFullscreen) { /* Chrome, Safari and Opera */
+    } else if (document.webkitFullscreenElement && document.webkitExitFullscreen) { /* Chrome, Safari and Opera */
         document.webkitExitFullscreen();
-    } else if (document.msExitFullscreen) { /* IE/Edge */
+    } else if (document.msFullscreenElement && document.msExitFullscreen) { /* IE/Edge */
         document.msExitFullscreen();
     }
 }
