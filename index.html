@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#1e1e1e" />
     <base href="/norwegian-tycoon/" />
-    <title>Boms og President — Norwegian Tycoon</title>
+    <title>Norwegian Tycoon — Boms og President</title>
     <link rel="stylesheet" href="css/common.css">
     <link rel="stylesheet" href="css/game.css">
     <link rel="stylesheet" href="css/mobile.css">
@@ -14,12 +14,12 @@
 </head>
 
 <body>
-    <div id="DivHele" class="SePaaModus">
+    <div id="gameShell" class="spectator-mode">
         <button type="button" id="BnGameMenuToggle" class="game-menu-toggle"
-            aria-label="Åpne spillmeny" aria-controls="DivFKnapper" aria-expanded="false" title="Åpne spillmeny">
+            aria-label="Åpne spillmeny" aria-controls="gameMenu" aria-expanded="false" title="Åpne spillmeny">
             <span class="game-menu-toggle__icon" aria-hidden="true"></span>
         </button>
-        <div id="DivHovedmeny" role="group" aria-label="Hovedmeny">
+        <div id="mainMenu" role="group" aria-label="Hovedmeny">
             <div class="game-logo"><img src="icons/logo.svg" alt="Boms og President" /></div>
             <button type="button" id="BnHNySpill" title="Lag nytt spill" style="grid-row: 2 / 3; grid-column: 2 / -2;">Lag nytt spill</button>
             <button type="button" id="BnHKobleSpill" title="Koble til spill" style="grid-row: 3 / 4; grid-column: 2 / -2;">Koble til spill</button>
@@ -29,41 +29,41 @@
             </button>
             <div style="grid-row: 4 / 5; grid-column: 1 / -1;">&nbsp;</div>
         </div>
-        <div id="DivFKnapper" role="group" aria-label="Spillmeny" style="text-align: center; vertical-align: middle;">
+        <div id="gameMenu" role="group" aria-label="Spillmeny" style="text-align: center; vertical-align: middle;">
             <button type="button" id="BnFInviterSpill" title="Inviter andre" aria-label="Del invitasjon" style="float: left;">Del invitasjon</button>
             <button type="button" id="BnFKobleSpill" title="Koble til et annet spill" aria-label="Koble til annet spill">Koble til annet spill</button>
             <button type="button" id="BnPByttNavn" title="Bytt navn i spillet" aria-label="Bytt spillernavn" style="float: right;">Bytt navn</button>
             <button type="button" id="BnFRegler" title="Regler" aria-label="Vis regler" style="float: right;">Vis regler</button>
             <button type="button" id="BnFNyAutoSpiller" title="Legg til bot" aria-label="Legg til bot" style="float: left;">Legg til bot</button>
             <button type="button" id="BnFNyAutoSpiller_Off" title="Legg til bot (ikke tillatt nå)" aria-label="Bot utilgjengelig" style="float: left;">Bot utilgjengelig</button>
-            <button type="button" id="BnFStartSpill" title="Start spill" aria-label="Start spill" style="float: left;">Start spill</button>
-            <button type="button" id="BnFStartSpill_Off" title="Start spill (ikke tillatt nå)" aria-label="Start spill utilgjengelig" style="float: left;">Start spill utilgjengelig</button>
+            <button type="button" id="startGameButton" title="Start spill" aria-label="Start spill" style="float: left;">Start spill</button>
+            <button type="button" id="startGameButton_Off" title="Start spill (ikke tillatt nå)" aria-label="Start spill utilgjengelig" style="float: left;">Start spill utilgjengelig</button>
             <button type="button" id="BnPNySpiller" title="Bli en spiller" aria-label="Bli med som spiller" style="float: left;">Bli med som spiller</button>
             <button type="button" id="BnFHovedmeny" title="Avslutt spill og gå til hovedmeny" aria-label="Hovedmeny" style="float: right;">Hovedmeny</button>
             <button type="button" id="BnPGiOpp" title="Gi opp" aria-label="Gi opp" style="float: right;">Gi opp</button>
             <button type="button" id="BnFResultater" title="Resultater for alle rundene" aria-label="Resultater" style="float: right;">Resultater</button>
-            <div id="DivSpillMeta">
-                <span id="SpanSpillId"></span><br/>
+            <div id="gameMetadata">
+                <span id="gameIdDisplay"></span><br/>
                 <span id="SpanSpillStat"></span>
             </div>
         </div>
 
-        <div id="DivSpillere" class="scroll">
+        <div id="playerList" class="scroll">
 
         </div>
-        <div id="DivBord">
+        <div id="gameTable">
 
         </div>
-        <div id="DivPKnapper" style="text-align: center; vertical-align: middle;">
+        <div id="playerActions" style="text-align: center; vertical-align: middle;">
             <div id="GameToast" class="game-toast" role="status" aria-live="polite" aria-atomic="true"></div>
             <span id="selectedCardCount" class="visually-hidden" aria-live="polite" aria-atomic="true"></span>
-            <button type="button" id="BnPPass" title="Pass" aria-label="Pass" style="float: left;">Pass</button>
-            <button type="button" id="BnPPass_Off" title="Pass (ikke tillatt nå)" aria-label="Pass (ikke tillatt nå)" style="float: left;">Pass utilgjengelig</button>
-            <span id="SpanHoppover"></span>
+            <button type="button" id="passButton" title="Pass" aria-label="Pass" style="float: left;">Pass</button>
+            <button type="button" id="passButton_Off" title="Pass (ikke tillatt nå)" aria-label="Pass (ikke tillatt nå)" style="float: left;">Pass utilgjengelig</button>
+            <span id="exchangePrompt"></span>
             <br/>
-            <span id="SpanSpillerInfo"></span>
+            <span id="playerStatus"></span>
         </div>
-        <div id="DivKort">
+        <div id="playerHand">
 
         </div>
 
@@ -98,15 +98,15 @@
         </div>
     </div>
     <div id="dialogKobleSpill" class="dialog-container">
-        <div class="dialogVindu">
-            <div class="dialogTittel">Bli med på spill</div>
+        <div class="dialog-window">
+            <div class="dialog-title">Bli med på spill</div>
             <div class="dialogBody">
                 <div><label for="dialogKobleSpillId">Skriv inn spillnummeret, eller åpne invitasjonslenken du har fått:</label></div>
-                <div><input class="autofocus" type="number" id="dialogKobleSpillId" maxlength="6" oninput="this.value=this.value.replace(/[^0-9]/g, ''); document.getElementById( 'dialogKobleSpillError').innerHTML='';" min="1" max="999999" step="1" required
+                <div><input class="autofocus" type="number" id="dialogKobleSpillId" maxlength="6" oninput="this.value=this.value.replace(/[^0-9]/g, ''); document.getElementById( 'joinGameError').innerHTML='';" min="1" max="999999" step="1" required
                     /></div>
-                <div id="dialogKobleSpillError" style="color: red;"></div>
+                <div id="joinGameError" style="color: red;"></div>
             </div>
-            <div class="dialogFooter">
+            <div class="dialog-footer">
                 <button type="button" onclick="showDialog('KobleSpill',false);">Avbryt</button>
                 <button type="submit" id="dialogKobleSpillOk">Delta</button>
             </div>
@@ -121,14 +121,14 @@
     </div>
 
     <div id="dialogSporOmNick" class="dialog-container">
-        <div class="dialogVindu">
-            <div class="dialogTittel">Hva vil du hete?</div>
+        <div class="dialog-window">
+            <div class="dialog-title">Hva vil du hete?</div>
             <div class="dialogBody">
                 <div><label for="dialogSporOmNickTxt">Skriv inn navnet ditt i spillet:</label></div>
-                <div><input class="autofocus" type="text" id="dialogSporOmNickTxt" maxlength="30" oninput="this.value=this.value.replace(/[^0-9A-ZÆØÅa-zæøå /-]/g, ''); document.getElementById( 'dialogSporOmNickError').innerHTML='';" required /></div>
-                <div id="dialogSporOmNickError" style="color: red;"></div>
+                <div><input class="autofocus" type="text" id="dialogSporOmNickTxt" maxlength="30" oninput="this.value=this.value.replace(/[^0-9A-ZÆØÅa-zæøå /-]/g, ''); document.getElementById( 'playerNameError').innerHTML='';" required /></div>
+                <div id="playerNameError" style="color: red;"></div>
             </div>
-            <div class="dialogFooter">
+            <div class="dialog-footer">
                 <button type="button" onclick="showDialog('SporOmNick',false);">Avbryt</button>
                 <button type="submit" id="dialogSporOmNickOk">Bli spiller</button>
             </div>
@@ -148,7 +148,7 @@
                 document.getElementById("dialogVisLinkLblLink").textContent = gameId;
                 document.getElementById("dialogVisLinklblUrl").value = inviteUrl;
                 document.getElementById("dialogVisLinkStatus").textContent = "";
-                document.getElementById("dialogVisLinkbnSMS").style.visibility =
+                document.getElementById("inviteSmsButton").style.visibility =
                     (!(navigator.userAgent.match(/Android/i) || navigator.userAgent.match(/iPhone/i)) ? "hidden" : "");
                 showDialog("VisLink", true);
                 document.getElementById("dialogVisLinkbnShare").focus();
@@ -212,9 +212,9 @@
             }
 
         </script>
-        <div class="dialogVindu">
+        <div class="dialog-window">
             <div class="dialog-title-row">
-                <div class="dialogTittel">Inviter andre spillere</div>
+                <div class="dialog-title">Inviter andre spillere</div>
                 <button type="button" class="dialog-close" onclick="showDialog('VisLink',false);">Lukk</button>
             </div>
             <div class="dialogBody">
@@ -225,7 +225,7 @@
                     <button type="button" id="dialogVisLinkbnCopy" onclick="copyInviteLink();">Kopier lenke</button>
                 </div>
                 <div id="dialogVisLinkStatus" class="invite-status" role="status" aria-live="polite"></div>
-                <button type="button" id="dialogVisLinkbnSMS" onclick="sendInviteSms();">Send på SMS</button>
+                <button type="button" id="inviteSmsButton" onclick="sendInviteSms();">Send på SMS</button>
             </div>
         </div>
     </div>
@@ -248,33 +248,33 @@
                 showDialog("Ask", true);
             };
         </script>
-        <div class="dialogVindu">
-            <div class="dialogTittel" id="DialogAskTittel"></div>
+        <div class="dialog-window">
+            <div class="dialog-title" id="DialogAskTittel"></div>
             <div class="dialogBody" id="DialogAskBody"></div>
-            <div class="dialogFooter" id="DialogAskFooter"></div>
+            <div class="dialog-footer" id="DialogAskFooter"></div>
         </div>
     </div>
 
     <div id="dialogLeggPaaKort" class="dialog-container">
-        <div class="dialogVindu">
-            <div class="dialogTittel">Legg på kort</div>
+        <div class="dialog-window">
+            <div class="dialog-title">Legg på kort</div>
             <div id="DialogLeggPaaKort" class="dialogBody"></div>
-            <div class="dialogFooter"><button type="button" onclick="showDialog('LeggPaaKort', false);">Velg noe annet å legge på</button></div>
+            <div class="dialog-footer"><button type="button" onclick="showDialog('LeggPaaKort', false);">Velg noe annet å legge på</button></div>
         </div>
     </div>
 
     <div id="dialogKanIkkeLeggeKort" class="dialog-container">
-        <div class="dialogVindu">
-            <div class="dialogTittel">Du kan ikke legge på det kortet nå.</div>
+        <div class="dialog-window">
+            <div class="dialog-title">Du kan ikke legge på det kortet nå.</div>
             <div class="dialogBody">Legg på like mange kort med samme eller høyere verdi: singel på singel, par på par, tress på tress og fire like på fire like. Kløver 3 er jokeren og kan legges på alt. Fire like rydder bunken straks.</div>
-            <div class="dialogFooter"><button type="button" onclick="showDialog('KanIkkeLeggeKort', false);">Lukk</button></div>
+            <div class="dialog-footer"><button type="button" onclick="showDialog('KanIkkeLeggeKort', false);">Lukk</button></div>
         </div>
     </div>
 
     <div id="dialogRegler" class="dialog-container">
-        <div class="dialogVindu">
-            <div class="dialogTittel">Regler</div>
-            <div class="dialogBody TabToKolonner">
+        <div class="dialog-window">
+            <div class="dialog-title">Regler</div>
+            <div class="dialogBody two-column-grid">
                 <div>Målet</div>
                 <div>Bli kvitt alle kortene først. Første spiller blir President, og siste blir Boms.</div>
                 <div>Legg på kort</div>
@@ -290,7 +290,8 @@
                 <div>Pass</div>
                 <div>Når alle andre passer, ryddes bunken og siste spiller som la kort starter igjen. Hvis spilleren som la sist har gått ut, og de to gjenværende passer, får neste aktive spiller etter spilleren som gikk ut legge ut.</div>
             </div>
-            <div class="dialogFooter"><button class="autofocus" type="button" onclick="showDialog('Regler', false);">Lukk regler</button></div>
+            <div class="dialog-footer"><button class="autofocus" type="button" onclick="showDialog('Regler', false);">Lukk regler</button></div>
+            <p class="rules-credit">Creator: <a href="https://github.com/jwlei/jwlei.github.io" target="_blank" rel="noopener noreferrer">GitHub</a></p>
         </div>
     </div>
 
@@ -339,29 +340,19 @@
                 showDialog("Resultater", true);
             }
         </script>
-        <div class="dialogVindu">
-            <div class="dialogTittel">Resultater</div>
+        <div class="dialog-window">
+            <div class="dialog-title">Resultater</div>
             <div class="dialogBody">
                 <div>
                     <div style="font-weight: bold;">Antall seiere</div>
-                    <div id="dialogResultaterSeiere" class="TabToKolonner"></div>
+                    <div id="dialogResultaterSeiere" class="two-column-grid"></div>
                 </div>
                 <div>
                     <div style="font-weight: bold;">Poeng</div>
-                    <div id="dialogResultaterPoeng" class="TabToKolonner"></div>
+                    <div id="dialogResultaterPoeng" class="two-column-grid"></div>
                 </div>
             </div>
-            <div class="dialogFooter"><button class="autofocus" type="button" onclick="showDialog('Resultater', false);">Lukk resultater</button></div>
-        </div>
-    </div>
-
-    <div id="dialogCredits" class="dialog-container">
-        <div class="dialogVindu">
-            <div class="dialogTittel">Credits</div>
-            <div class="dialogBody">
-                <p>Kortstokk: http://acbl.mybigcommerce.com/52-playing-cards/</p>
-            </div>
-            <div class="dialogFooter"><button type="button" onclick="showDialog('Credits', false);">Lukk</button></div>
+            <div class="dialog-footer"><button class="autofocus" type="button" onclick="showDialog('Resultater', false);">Lukk resultater</button></div>
         </div>
     </div>
 

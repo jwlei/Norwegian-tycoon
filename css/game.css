@@ -1,4 +1,4 @@
-#DivHele {
+#gameShell {
     height: 100%;
     width: 100%;
     display: grid;
@@ -8,118 +8,100 @@
 }
 
 @media (orientation: landscape) {
-    #DivHele {
+    #gameShell {
         grid-template-columns: 200px 3fr 2fr;
         grid-template-rows: 12vmin 1fr 12vmin 1fr;
     }
 
-        #DivHele.SePaaModus {
+        #gameShell.spectator-mode {
             grid-template-rows: 12vmin 1fr 0px 0px;
         }
 
-        #DivHele.KunKortModus {
+        #gameShell.cards-only-mode {
             grid-template-rows: 12vmin 0px 12vmin 1fr;
         }
 
-    #DivReklameBred {
-        display: none;
-    }
-
-    #DivReklameKvadrat {
-        grid-column: 1 / 2;
-        grid-row: 1 / 3;
-    }
-
-    #DivFKnapper {
+    #gameMenu {
         grid-column: 2 / 4;
         grid-row: 1 / 2;
     }
 
-    #DivBord {
+    #gameTable {
         grid-column: 2 / 3;
         grid-row: 2 / 3;
     }
 
-    #DivSpillere {
+    #playerList {
         grid-column: 3 / 4;
         grid-row: 2 / 5;
     }
 
-    .KunKortModus > #DivSpillere {
+    .cards-only-mode > #playerList {
         grid-row: 2 / 3;
     }
 
-    #DivPKnapper {
+    #playerActions {
         grid-column: 1 / 3;
         grid-row: 3 / 4;
     }
 
-    #DivKort {
+    #playerHand {
         grid-column: 1 / 3;
         grid-row: 4 / 5;
     }
 
-    .KunKortModus > #DivPKnapper,
-    .KunKortModus > #DivKort {
+    .cards-only-mode > #playerActions,
+    .cards-only-mode > #playerHand {
         grid-column: 2 / 4;
     }
 }
 
 @media (orientation: portrait) {
-    #DivHele {
+    #gameShell {
         grid-template-columns: 2fr 1fr;
         grid-template-rows: 12vmin 1fr 94px 12vmin 1fr;
     }
 
-        #DivHele.SePaaModus {
+        #gameShell.spectator-mode {
             grid-template-rows: 12vmin 1fr 94px 0px 0px;
         }
 
-        #DivHele.KunKortModus {
+        #gameShell.cards-only-mode {
             grid-template-rows: 12vmin 0px 94px 12vmin 1fr;
         }
 
-    #DivReklameKvadrat {
-        display: none;
-    }
-
-    #DivReklameBred {
-        grid-column: 1 / -1;
-        grid-row: 3 / 4;
-    }
-
-    #DivFKnapper {
+    #gameMenu {
         grid-column: 1 / -1;
         grid-row: 1 / 2;
     }
 
-    #DivBord {
+    #gameTable {
         grid-column: 1 / 2;
         grid-row: 2 / 3;
     }
 
-    #DivSpillere {
+    #playerList {
         grid-column: 2 / 3;
         grid-row: 2 / 3;
     }
 
-    #DivPKnapper {
+    #playerActions {
         grid-column: 1 / -1;
         grid-row: 4 / 5;
     }
 
-    #DivKort {
+    #playerHand {
         grid-column: 1 / -1;
         grid-row: 5 / 6;
     }
 }
 
-#DivSpillere {
+#playerList {
     display: flex;
     flex-direction: column;
 }
 
-    #DivSpillere > div {
+    #playerList > div {
         border: 1px solid #6f6a6a;
         background-color: #9f9a9a;
         border-radius: 9px;
@@ -129,22 +111,22 @@
         max-height: 7em;
     }
 
-        #DivSpillere > div.MinTur {
+        #playerList > div.is-my-turn {
             background-color: #7f7a7a;
         }
 
-        #DivSpillere > div.Ferdig {
+        #playerList > div.is-finished {
             border-color: transparent;
             background-color: transparent;
             max-height: 3.3em;
         }
 
-        #DivSpillere > div > button {
+        #playerList > div > button {
             float: right;
         }
 
-        #DivSpillere > div > img {
-            /* Kortet som sist ble lagt på */
+        #playerList > div > img {
+            /* Most recently played card. */
             float: right;
             height: 3.5em;
         }
@@ -154,61 +136,49 @@ div.scroll {
     overflow-y: auto;
 }
 
-.Spillernavn {
-    font-weight: bold;
-}
-
-.SpillerKortBakgrunner > img {
-    height: 0.9em;
-}
-
-.SpillerKortPlassering > img {
-    height: 1.5em;
-}
-
-#SpanHoppover {
+#exchangePrompt {
     float: right;
 }
 
-    #SpanHoppover img {
+    #exchangePrompt img {
         height: 2em;
     }
 
-.BordKortstokk {
-    /* For å sette kortet i midten: */
+.table-deck {
+    /* Center the deck. */
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-    .BordKortstokk img {
+    .table-deck img {
         position: absolute;
         height: 25vh;
     }
 
-.BordForklaring .tips img {
+.table-explanation .tips img {
     height: 2em;
 }
 
-.SePaaModus .BordKortstokk img {
+.spectator-mode .table-deck img {
     height: 50vh;
 }
 
-.KunKortModus > #DivBord {
+.cards-only-mode > #gameTable {
     display: none;
 }
 
-.BordKortstokker {
+.table-decks {
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-    .BordKortstokker img {
+    .table-decks img {
         height: 25vh;
     }
 
-.SePaaModus .BordKortstokker img {
+.spectator-mode .table-decks img {
     height: 50vh;
 }
 
@@ -218,7 +188,7 @@ div.scroll {
     margin: 3px;
 }
 
-.BordBytte {
+.exchange-panel {
     height: 100%;
     width: 100%;
     display: flex;
@@ -226,7 +196,7 @@ div.scroll {
     gap: 6px;
 }
 
-    .BordBytte .bytte {
+    .exchange-panel .exchange {
         min-width: 0;
         border: 1px solid var(--line, #6f6a6a);
         border-radius: 9px;
@@ -240,32 +210,32 @@ div.scroll {
         color: var(--ink, #111);
     }
 
-    .BordBytte .passivbytte {
+    .exchange-panel .exchange--passive {
         background: var(--surface-soft, #eee);
     }
 
-    .BordBytte .aktivbytte {
+    .exchange-panel .exchange--active {
         background: var(--accent-soft, #dceeff);
     }
 
-    .BordBytte .bytte .bytteFigur img {
+    .exchange-panel .exchange .exchange-player img {
         width: 3em;
         height: 3em;
         object-fit: contain;
     }
 
-    .BordBytte .bytte .bytteFigur {
+    .exchange-panel .exchange .exchange-player {
         grid-column: 1 / 2;
         grid-row: 1 / 3;
     }
 
-    .BordBytte .bytte .bytteTittel {
+    .exchange-panel .exchange .exchange-title {
         grid-column: 2 / 3;
         grid-row: 1 / 2;
         font-weight: bold;
     }
 
-    .BordBytte .bytte .bytteKort {
+    .exchange-panel .exchange .exchange-cards {
         grid-column: 2 / 3;
         grid-row: 2 / 3;
         display: flex;
@@ -275,41 +245,30 @@ div.scroll {
         min-width: 0;
     }
 
-        .BordBytte .bytte .bytteKort > span {
+        .exchange-panel .exchange .exchange-cards > span {
             display: inline-flex;
             align-items: center;
             flex-wrap: wrap;
             gap: 8px;
         }
 
-        .BordBytte .bytte .bytteKort img {
+        .exchange-panel .exchange .exchange-cards img {
             height: 2em;
         }
 
-    .BordBytte .trade-status {
+    .exchange-panel .trade-status {
         display: block;
         flex-basis: 100%;
         color: var(--muted, #555);
         font-size: 0.9em;
     }
 
-.AskKort img {
-    height: 8em;
+#playerActions.is-my-turn,
+#playerHand.is-my-turn {
+    animation: my-turn-background 10s;
 }
 
-#DivReklameBred,
-#DivReklameKvadrat {
-    text-align: center;
-    background-color: #bfbaba;
-    vertical-align: middle;
-}
-
-#DivPKnapper.MinTur,
-#DivKort.MinTur {
-    animation: MinTurBakgrunn 10s;
-}
-
-@keyframes MinTurBakgrunn {
+@keyframes my-turn-background {
     0% {
         background-color: transparent;
     }
@@ -331,18 +290,18 @@ div.scroll {
     }
 }
 
-#SpanSpillId {
+#gameIdDisplay {
     font-weight: bold;
     font-size: 150%;
 }
 
-#DivKort.KortKort {
+#playerHand.card-hand {
     display: flex;
     align-items: stretch;
     overflow: hidden;
 }
 
-.KortForklaring > div {
+.hand-explanation > div {
     width: 67%;
 }
 
@@ -350,22 +309,13 @@ div.scroll {
     margin: 10px;
 }
 
-.tips img.itekst {
-    height: 1em;
-    vertical-align: text-bottom;
-}
-
-    .tips img.itekst:hover {
-        height: 3em;
-    }
-
-#DivKort.KortKort > span {
+#playerHand.card-hand > span {
     flex-basis: 100%;
     width: 10px;
     max-width: 20vw;
 }
 
-    #DivKort.KortKort > span > img {
+    #playerHand.card-hand > span > img {
         border: 1px solid transparent;
         margin: 2px;
         padding: 1px;
@@ -374,18 +324,18 @@ div.scroll {
         filter: contrast(.5);
     }
 
-.KunKortModus > #DivKort > span > img {
+.cards-only-mode > #playerHand > span > img {
     min-width: 2cm;
     width: 20vmin;
     max-width: 5cm;
 }
 
-#DivKort.KortKort.MinTur > span > img {
+#playerHand.card-hand.is-my-turn > span > img {
     -webkit-filter: none;
     filter: none;
 }
 
-#DivKort.KortKort > span > img:hover {
+#playerHand.card-hand > span > img:hover {
     border: 1px solid black;
 }
 
@@ -395,10 +345,10 @@ input {
 
     input:invalid {
         border: 2px dashed red;
-        animation: InvalidBakgrunn 0.3s;
+        animation: invalid-background 0.3s;
     }
 
-@keyframes InvalidBakgrunn {
+@keyframes invalid-background {
     0% {
         background-color: white;
     }
@@ -416,14 +366,14 @@ input {
     }
 }
 
-#DivFKnapper > button > img {
+#gameMenu > button > img {
     height: 6vmin;
 }
 
-#DivPKnapper > button > img {
+#playerActions > button > img {
     height: 6vmin;
 }
 
-.dialogFooter > button > img {
+.dialog-footer > button > img {
     height: 56px;
 }

@@ -1,10 +1,10 @@
 function showDialog(dialogName, isVisible) {
     var dialog = document.querySelector(`#dialog${dialogName}`);
-    var game = document.getElementById("DivHele");
+    var game = document.getElementById("gameShell");
     if (isVisible) {
         dialog.returnFocusElement = document.activeElement;
         game.inert = true;
-        var title = dialog.querySelector(".dialogTittel");
+        var title = dialog.querySelector(".dialog-title");
         if (title) {
             if (!title.id) { title.id = `dialog${dialogName}Title`; }
             dialog.setAttribute("aria-labelledby", title.id);
@@ -15,7 +15,7 @@ function showDialog(dialogName, isVisible) {
         dialog.classList.add('dialog-container--visible');
         var x = dialog.querySelector(".autofocus");
         if (!x) {
-            x = dialog.querySelector(".dialogVindu");
+            x = dialog.querySelector(".dialog-window");
             if (x) { x.setAttribute("tabindex", "-1"); }
         }
         if (x) { x.focus(); }
@@ -26,8 +26,8 @@ function showDialog(dialogName, isVisible) {
         if (dialog.returnFocusElement instanceof HTMLElement && dialog.returnFocusElement.isConnected) {
             const menuToggle = document.getElementById("BnGameMenuToggle");
             const menuIsClosed = !game.classList.contains("GameMenuOpen");
-            if (menuIsClosed && dialog.returnFocusElement.closest("#DivFKnapper")) {
-                if (menuToggle && game.classList.contains("SpillAktivt")) {
+            if (menuIsClosed && dialog.returnFocusElement.closest("#gameMenu")) {
+                if (menuToggle && game.classList.contains("game-active")) {
                     menuToggle.focus();
                 } else {
                     document.getElementById("BnHNySpill").focus();
@@ -61,7 +61,7 @@ document.addEventListener("keydown", event => {
         )).filter(element => element.getClientRects().length > 0);
         if (focusable.length == 0) {
             event.preventDefault();
-            dialog.querySelector(".dialogVindu").focus();
+            dialog.querySelector(".dialog-window").focus();
             return;
         }
         var first = focusable[0];

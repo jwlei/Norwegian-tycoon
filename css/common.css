@@ -36,32 +36,7 @@ button {
         padding: 1.5vmin 0.5vmin 0.5vmin 1.5vmin;
     }
 
-.melding {
-    display: inline-block;
-    position: relative;
-    background: #819c7a;
-    border-radius: .4em;
-    margin-left: 1em;
-    padding: .1em .3em .1em .3em;
-    font-size: 80%;
-}
-
-    .melding::after {
-        content: "";
-        position: absolute;
-        left: 0px;
-        top: 50%;
-        width: 0px;
-        height: 0px;
-        border: 0.625em solid transparent;
-        border-right-color: #819c7a;
-        border-left: 0;
-        border-top: 0;
-        margin-top: -0.4em;
-        margin-left: -0.62em;
-    }
-
-.TabToKolonner {
+.two-column-grid {
     display: grid;
     grid-template-columns: auto auto;
     grid-gap: 0.7em;
@@ -87,7 +62,7 @@ button {
     pointer-events: auto;
 }
 
-.dialogVindu {
+.dialog-window {
     background: #FFF;
     border-radius: 2px;
     box-shadow: 0 0 14px rgba(0, 0, 0, 0.24), 0 14px 28px rgba(0, 0, 0, 0.48);
@@ -103,12 +78,12 @@ button {
     transition: transform 0.333s cubic-bezier(0, 0, 0.21, 1) 0.05s, -webkit-transform 0.333s cubic-bezier(0, 0, 0.21, 1) 0.05s;
 }
 
-    .dialogVindu > div {
+    .dialog-window > div {
         padding-left: 14px;
         padding-right: 14px;
     }
 
-.dialogTittel {
+.dialog-title {
     padding-top: 10px;
     font-size: 1.25em;
 }
@@ -123,12 +98,12 @@ button {
         font-size: 2em;
     }
 
-.dialogFooter {
+.dialog-footer {
     padding: 8px !important;
     float: right;
 }
 
-#DivHovedmeny {
+#mainMenu {
     grid-column: 1 / -1;
     grid-row: 1 / -1;
     z-index: 2;
@@ -138,11 +113,11 @@ button {
     grid-template-rows: 2fr 1fr 1fr 1fr;
 }
 
-    #DivHovedmeny button {
+    #mainMenu button {
         font-size: 10vmin;
         margin: 5px;
     }
 
-    #DivHovedmeny.Skjul {
+    #mainMenu.is-hidden {
         display: none;
     }
