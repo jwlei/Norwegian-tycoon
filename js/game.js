@@ -2233,8 +2233,20 @@ class PresidentGame extends Game {
                     nextPlayerName = pile.name;
                 }
             });
+            var lastPilePlayer = this.getPlayer(clearedPile.name);
+            var remainingPlayers = this.players.filter(player => player.placement == 0);
+            var lastPilePlayerFinishedWithTwoRemaining =
+                info.text == "Alle spillere sa pass" &&
+                lastPilePlayer != null &&
+                lastPilePlayer.placement > 0 &&
+                remainingPlayers.length == 2;
             var nextPlayerIndex;
-            if (nextPlayerName == null) {
+            if (lastPilePlayerFinishedWithTwoRemaining) {
+                nextPlayerIndex = this.players.indexOf(lastPilePlayer);
+                do {
+                    nextPlayerIndex = (nextPlayerIndex + 1) % this.players.length;
+                } while (this.players[nextPlayerIndex].placement > 0);
+            } else if (nextPlayerName == null) {
                 // If no player from this round remains, search backward from the last pile.
                 nextPlayerName = this.topPile().name;
                 var savedIndex = this.players.findIndex(player => (player.name == nextPlayerName));
@@ -2250,7 +2262,7 @@ class PresidentGame extends Game {
             var now = Date.now();
             var nextPlayer = this.players[nextPlayerIndex];
             var clearMessage = (info.text == "Alle spillere sa pass")
-                ? `${previousPlayer.name} passer. Alle andre har passet. Bunken går ut. ${nextPlayer.name} får turen igjen.`
+                ? `${previousPlayer.name} passer. Alle andre har passet. Bunken går ut. ${nextPlayer.name} får legge ut.`
                 : `${clearedPile.name} legger ${clearedPile.describe()}. ${info.text} – det går ut! ${nextPlayer.name} får turen igjen.`;
             this.turnPause = {
                 id: `${now}-${Math.random().toString(36).slice(2)}`,
