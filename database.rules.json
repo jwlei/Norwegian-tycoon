@@ -1,8 +1,0 @@
-{
-  "rules": {
-    "boms_1": {
-      ".read": true,
-      ".write": true
-    }
-  }
-}
