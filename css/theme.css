@@ -103,8 +103,17 @@ button {
     padding: 12px 22px;
 }
 
-#mainMenu > div:last-child {
-    display: none;
+.app-version {
+    position: absolute;
+    bottom: calc(env(safe-area-inset-bottom) + 10px);
+    left: 50%;
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    opacity: 0.68;
+    transform: translateX(-50%);
+    pointer-events: none;
 }
 
 button:hover {
@@ -134,18 +143,90 @@ button:disabled {
     }
 }
 
-#mainMenu:not(.is-hidden) .game-logo,
-#mainMenu:not(.is-hidden) > button,
+#mainMenu:not(.is-hidden) .game-logo {
+    animation: splash-logo-enter 480ms cubic-bezier(.2,.8,.25,1) both;
+}
+
+#mainMenu:not(.is-hidden) > button {
+    animation: splash-action-enter 380ms cubic-bezier(.2,.8,.25,1) both;
+}
+
+#mainMenu:not(.is-hidden) > #BnHNySpill {
+    animation-delay: 80ms;
+}
+
+#mainMenu:not(.is-hidden) > #BnHKobleSpill {
+    animation-delay: 140ms;
+}
+
 #playerList > .player-summary,
-#gameTable > .exchange,
-#gameTable > img {
-    animation: settle-in 220ms ease-out both;
+#playerList .opponent-list > .player-summary {
+    animation: settle-in 280ms cubic-bezier(.2,.8,.25,1) both;
 }
 
 #playerList > .player-summary:nth-child(2) { animation-delay: 25ms; }
 #playerList > .player-summary:nth-child(3) { animation-delay: 50ms; }
 #playerList > .player-summary:nth-child(4) { animation-delay: 75ms; }
 #playerList > .player-summary:nth-child(5) { animation-delay: 100ms; }
+#playerList .opponent-list > .player-summary:nth-child(1) { animation-delay: 55ms; }
+#playerList .opponent-list > .player-summary:nth-child(2) { animation-delay: 95ms; }
+#playerList .opponent-list > .player-summary:nth-child(3) { animation-delay: 135ms; }
+#playerList .opponent-list > .player-summary:nth-child(4) { animation-delay: 175ms; }
+
+@keyframes splash-logo-enter {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.985);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes splash-action-enter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes lobby-menu-enter {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes lobby-grid-enter {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.99);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes game-surface-enter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
 
 button:focus-visible,
 input:focus-visible,
@@ -256,8 +337,8 @@ select:focus-visible {
 
 #playerList > div.is-finished {
     max-height: none;
-    border-color: transparent;
-    background: transparent;
+    border-color: var(--line);
+    background: var(--surface);
     color: var(--muted);
 }
 
@@ -271,8 +352,16 @@ select:focus-visible {
     grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 6px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--surface);
     font-size: 0.82rem;
     line-height: 1.2;
+}
+
+#playerList > div.player-summary.is-finished {
+    border-color: var(--line);
+    background: var(--surface);
 }
 
 .player-summary__name {
@@ -284,13 +373,14 @@ select:focus-visible {
 
 .player-summary__details {
     display: inline-flex;
+    width: 100%;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: center;
     gap: 4px;
     color: var(--muted);
     min-width: 0;
     overflow-wrap: anywhere;
-    text-align: right;
+    text-align: center;
 }
 
 .player-summary__rank-icon {
@@ -337,6 +427,14 @@ select:focus-visible {
 #playerActions > span {
     max-width: 100%;
     line-height: 1.3;
+}
+
+#playerActions > #playerStatus.player-status--turn-hint {
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 600;
+    opacity: 0.72;
+    text-align: center;
 }
 
 #gameTable.exchange-panel {
@@ -623,7 +721,7 @@ select:focus-visible {
 
 .game-card.is-selected {
     z-index: 3;
-    transform: perspective(900px) translateY(-18px) scale(1.06) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+    transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-18px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
 }
 
 @keyframes hand-card-rise {
@@ -631,7 +729,7 @@ select:focus-visible {
         transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(0) rotate(var(--card-rotation, 0deg));
     }
     to {
-        transform: perspective(900px) translateY(-18px) scale(1.06) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+        transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-18px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
     }
 }
 
@@ -641,7 +739,7 @@ select:focus-visible {
 
 @keyframes hand-card-lower {
     from {
-        transform: perspective(900px) translateY(-18px) scale(1.06) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+        transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-18px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
     }
     to {
         transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(0) rotate(var(--card-rotation, 0deg));
@@ -659,7 +757,7 @@ select:focus-visible {
 
 .game-card.is-exchange-selected {
     z-index: 3;
-    transform: perspective(900px) translateY(-14px) scale(1.04) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+    transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-14px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
 }
 
 .game-card.is-unplayable {
@@ -679,11 +777,10 @@ select:focus-visible {
 .game-card:active {
     padding: 0;
     background: transparent;
-    transform: perspective(900px) translateY(2px) scale(0.98);
 }
 
 .game-card.is-selected:active {
-    transform: perspective(900px) translateY(-16px) scale(1.04);
+    transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-18px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
 }
 
 .game-card.is-dragging {
@@ -871,6 +968,7 @@ select:focus-visible {
 }
 
 .dialog-container {
+    z-index: 1000;
     display: grid;
     place-items: center;
     padding: 16px;
@@ -972,41 +1070,23 @@ select:focus-visible {
 .game-over {
     display: flex;
     width: min(100%, 620px);
+    max-height: 100%;
     flex-direction: column;
-    gap: 14px;
+    gap: 10px;
     margin: auto;
+    overflow-y: auto;
     text-align: center;
 }
 
-.game-over--personal {
-    align-items: center;
-    justify-content: center;
-}
-
-.game-over__personal-result {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    font-size: clamp(1.4rem, 5vmin, 2.4rem);
-    font-weight: 800;
-    line-height: 1.15;
-}
-
-.game-over__position-icon {
-    width: clamp(40px, 8vmin, 64px);
-    height: clamp(40px, 8vmin, 64px);
-    object-fit: contain;
+.game-over h2 {
+    margin: 0;
+    font-size: clamp(1.05rem, 3.5vmin, 1.45rem);
 }
 
 .player-placement-result-icon {
     width: clamp(40px, 8vmin, 64px);
     height: clamp(40px, 8vmin, 64px);
     object-fit: contain;
-}
-
-.game-over h2 {
-    margin: 0;
 }
 
 .game-over__standings {
@@ -1029,23 +1109,69 @@ select:focus-visible {
     background: var(--surface);
 }
 
+.game-over__standing--self {
+    border-color: #35c46a;
+    background: rgb(31 145 68 / 20%);
+    box-shadow: inset 4px 0 #35c46a;
+}
+
+.game-over__standing--enter {
+    animation: game-over-row-enter 320ms cubic-bezier(.2,.8,.25,1) both;
+}
+
+@keyframes game-over-row-enter {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 .game-over__rank {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
     color: var(--muted);
     font-weight: 700;
     text-align: right;
     overflow-wrap: anywhere;
 }
 
+.game-over__rank-number {
+    color: var(--muted);
+    font-weight: 800;
+}
+
+.game-over__standing-icon {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+    object-fit: contain;
+}
+
 .game-over__name {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     font-weight: 750;
     text-align: left;
     overflow-wrap: anywhere;
 }
 
-.game-over__new-game {
-    align-self: center;
-    width: min(100%, 300px);
-    padding: 12px 22px;
+.game-over__you {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 750;
+    line-height: 1.2;
 }
 
 .round-start-vote {
@@ -1076,6 +1202,11 @@ select:focus-visible {
 }
 
 .round-start-vote__choices button[aria-pressed="true"] {
+    border-color: #35c46a;
+    background: rgb(31 145 68 / 30%);
+}
+
+.game-end-vote__choices button[aria-pressed="true"] {
     border-color: #35c46a;
     background: rgb(31 145 68 / 30%);
 }
@@ -1128,6 +1259,15 @@ select:focus-visible {
     color: var(--muted);
     font-size: 0.75rem;
     text-align: center;
+}
+
+#dialogRegler .dialog-footer {
+    justify-content: center;
+}
+
+#dialogRegler .dialog-footer > button {
+    width: min(100%, 240px);
+    flex: 0 1 auto;
 }
 
 #gameTable.table-deck {
@@ -1322,13 +1462,31 @@ select:focus-visible {
     border-radius: 0;
     background: transparent;
     box-shadow: none;
+    animation: game-surface-enter 360ms cubic-bezier(.2,.8,.25,1) both;
 }
 
-#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > :not(#BnFInviterSpill):not(#BnFRegler):not(#BnPGiOpp) {
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #playerList {
+    animation: game-surface-enter 380ms 35ms cubic-bezier(.2,.8,.25,1) both;
+}
+
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameTable {
+    animation: game-surface-enter 420ms 45ms cubic-bezier(.2,.8,.25,1) both;
+}
+
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #playerActions {
+    animation: game-surface-enter 360ms 75ms cubic-bezier(.2,.8,.25,1) both;
+}
+
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #playerHand {
+    animation: game-surface-enter 420ms 95ms cubic-bezier(.2,.8,.25,1) both;
+}
+
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > :not(#BnFInviterSpill):not(#autoSuggestionToggleButton):not(#BnFRegler):not(#BnPGiOpp) {
     display: none !important;
 }
 
 #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInviterSpill,
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #autoSuggestionToggleButton,
 #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFRegler,
 #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnPGiOpp {
     display: inline-flex;
@@ -1548,16 +1706,44 @@ select:focus-visible {
     display: grid;
     width: min(100%, 760px);
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: row;
     grid-auto-rows: minmax(0, 1fr);
     align-content: stretch;
     justify-self: center;
     gap: 8px;
     padding: 8px;
     overflow: auto;
+    animation: lobby-grid-enter 460ms 45ms cubic-bezier(.2,.8,.25,1) both;
+}
+
+#gameShell.game-active.Lobby > #playerList[data-player-count="1"] {
+    grid-template-columns: minmax(0, 360px);
+    grid-template-rows: minmax(0, 1fr);
+    justify-content: center;
+}
+
+#gameShell.game-active.Lobby > #playerList[data-player-count="2"] {
+    grid-template-rows: minmax(0, 1fr);
 }
 
 #gameShell.game-active.Lobby > #playerList > .opponent-list {
     display: contents;
+}
+
+#gameShell.game-active.Lobby > #playerList .opponent-seat-0,
+#gameShell.game-active.Lobby > #playerList .opponent-seat-1,
+#gameShell.game-active.Lobby > #playerList .opponent-seat-2,
+#gameShell.game-active.Lobby > #playerList .opponent-seat-3,
+#gameShell.game-active.Lobby > #playerList .opponent-seat-4 {
+    grid-column: auto;
+    grid-row: auto;
+}
+
+#gameShell.game-active.Lobby > #playerList .player-summary.lobby-grid-last-player {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: min(100%, 360px);
 }
 
 #gameShell.game-active.Lobby > #playerList .player-summary {
@@ -1577,6 +1763,24 @@ select:focus-visible {
     grid-column: auto;
     grid-row: auto;
     overflow: hidden;
+}
+
+#gameShell.game-active.Lobby > #playerList[data-player-count="1"] .player-summary {
+    justify-self: center;
+    width: min(100%, 360px);
+}
+
+#gameShell.game-active.Lobby > #playerList .player-summary__name {
+    max-width: 100%;
+    padding: 2px 8px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--player-color, #cfd4dc);
+    color: #17191d;
+    font-weight: 800;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 #gameShell.game-active.Lobby > #gameTable,
@@ -1636,6 +1840,7 @@ select:focus-visible {
     background: transparent;
     box-shadow: none;
     text-align: center;
+    animation: lobby-menu-enter 420ms cubic-bezier(.2,.8,.25,1) both;
 }
 
 #gameShell.game-active.Lobby > #gameMenu > button {
@@ -1644,6 +1849,10 @@ select:focus-visible {
     margin: 0;
     justify-content: center;
     text-align: center;
+}
+
+#gameShell.game-active.Lobby > #gameMenu > #BnFHovedmeny {
+    display: none;
 }
 
 #gameShell.game-active.Lobby > #gameMenu > .lobby-primary-actions {
@@ -1910,12 +2119,6 @@ select:focus-visible {
     text-align: center;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-#gameShell.game-active.Lobby > #playerList {
-    flex-direction: column;
-    flex-wrap: nowrap;
-    align-content: flex-start;
 }
 
 @media (orientation: landscape) and (max-height: 600px) {

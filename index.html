@@ -27,10 +27,11 @@
                 <span class="theme-toggle__switch" aria-hidden="true"><span></span></span>
                 <span class="theme-toggle__label">Mørk</span>
             </button>
-            <div style="grid-row: 4 / 5; grid-column: 1 / -1;">&nbsp;</div>
+            <small class="app-version" aria-label="Spillversjon 0.1.0">v0.1.0</small>
         </div>
         <div id="gameMenu" role="group" aria-label="Spillkontroller" style="text-align: center; vertical-align: middle;">
             <button type="button" id="BnFInviterSpill" title="Inviter andre" aria-label="Del invitasjon" style="float: left;">Del invitasjon</button>
+            <button type="button" id="autoSuggestionToggleButton" title="Automatisk kortforslag er på" aria-label="Slå av automatisk kortforslag" aria-pressed="true" style="display: none;">Auto-forslag: På</button>
             <button type="button" id="BnFKobleSpill" title="Koble til et annet spill" aria-label="Koble til annet spill">Koble til annet spill</button>
             <button type="button" id="BnPByttNavn" title="Bytt navn i spillet" aria-label="Bytt spillernavn" style="float: right;">Bytt navn</button>
             <button type="button" id="BnFRegler" title="Regler" aria-label="Vis regler" style="float: right;">Vis regler</button>
@@ -282,23 +283,21 @@
         <div class="dialog-window">
             <div class="dialog-title">Regler</div>
             <div class="dialogBody two-column-grid">
-                <div>Målet</div>
-                <div>Bli kvitt alle kortene først. Første spiller blir President, og siste blir Boms.</div>
-                <div>Legg på kort</div>
-                <div>Legg på like mange kort som ligger øverst, med samme eller høyere verdi: singel på singel, par på par, tress på tress og fire like på fire like. En vanlig singel kan ikke legges på et par eller tress.</div>
+                <div>Mål</div>
+                <div>Bli kvitt kortene først: første blir President, siste Boms.</div>
+                <div>Legg ut</div>
+                <div>Legg samme antall som øverst, med lik eller høyere verdi. Singel, par, tress og fire like må matche.</div>
+                <div>Start</div>
+                <div>Første runde starter spilleren med Hjerter 3. Etter bytte starter Boms.</div>
                 <div>Tre spillere</div>
-                <div>Ruter 3 tas ut av kortstokken. Kløver 3 er joker, så det er bare to vanlige treere. Når Hjerter 3 og Spar 3 ligger sammen øverst, ryddes bunken som ved fire like.</div>
-                <div>Første runde</div>
-                <div>Når alle er nøytrale, begynner spilleren med Hjerter 3.</div>
-                <div>Kløver 3</div>
-                <div>Kan legges på hvilken som helst bunke eller på tomt bord og rydder bordet. Kløver 3 kan ikke være siste kort; da taper spilleren.</div>
-                <div>Fire like</div>
-                <div>Når fire like ligger øverst, ryddes bunken straks. Spilleren som la dem får starte på nytt.</div>
+                <div>Ruter 3 tas ut. Hjerter 3 og Spar 3 sammen øverst rydder bunken.</div>
+                <div>Spesialkort</div>
+                <div>Kløver 3 kan legges på alt og rydder bunken, men taper hvis det er siste kort. Fire like rydder også; spilleren starter igjen.</div>
                 <div>Pass</div>
-                <div>Når alle andre passer, ryddes bunken og siste spiller som la kort starter igjen. Hvis spilleren som la sist har gått ut, og de to gjenværende passer, får neste aktive spiller etter spilleren som gikk ut legge ut.</div>
+                <div>Pass er bare mulig når bunken ikke er tom. Når alle andre passer, ryddes bunken; siste spiller starter igjen, eller neste aktive hvis hen er ferdig.</div>
             </div>
-            <div class="dialog-footer"><button class="autofocus" type="button" onclick="showDialog('Regler', false);">Lukk regler</button></div>
-            <p class="rules-credit">Creator: <a href="https://github.com/jwlei/jwlei.github.io" target="_blank" rel="noopener noreferrer">GitHub</a></p>
+            <p class="rules-credit">Laget av: <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">GitHub</a></p>
+            <div class="dialog-footer rules-dialog__footer"><button class="autofocus" type="button" onclick="showDialog('Regler', false);">Lukk regler</button></div>
         </div>
     </div>
 

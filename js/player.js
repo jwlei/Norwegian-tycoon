@@ -142,6 +142,31 @@ class Game {
     onTurnCycleComplete() {
         // Override this to run logic after a complete turn cycle.
     }
+    finishGame() {
+        if (this.status == "F") { return false; }
+        this.endTime = Date.now();
+        this.setTurn(-1);
+        if (!this.results) { this.results = []; }
+        this.results.push(
+            this.players.slice()
+                .sort((a, b) => a.placement - b.placement)
+                .map(player => player.name)
+        );
+        this.turnPause = null;
+        this.status = "F";
+        var game = this;
+        setTimeout(function () {
+            if (game.status == "F" || game.status == "O") {
+                var fixed = false;
+                game.players.filter(player => player.messages.length > 0).forEach(player => {
+                    player.messages = [];
+                    fixed = true;
+                });
+                if (fixed) { game.save(); }
+            }
+        }, 14000 + 2000 * Math.random());
+        return true;
+    }
     advanceTurn() {
         if (this.turn == -1 || this.status != "S" || this.turn == null) { throw ('Spillet er ikke i gang.') }
         var currentTurnPlayer = this.players[this.turn];
@@ -155,26 +180,46 @@ class Game {
             if (finalPlayer != null) {
                 this.finishPlayer(finalPlayer, allOthersGaveUp);
             }
-            this.endTime = Date.now();
-            this.setTurn(-1);
-            if (!this.results) { this.results = []; };
-            this.results.push(
-                this.players.slice()
-                    .sort((a, b) => a.placement - b.placement)
-                    .map(player => player.name)
-            );
-            this.status = "F";
-            var game = this;
-            setTimeout(function () {
-                if (game.status == "F" || game.status == "O") {
-                    var fixed = false;
-                    game.players.filter(s => (s.messages.length > 0)).forEach(player => {
-                        player.messages = [];
-                        fixed = true;
-                    });
-                    if (fixed) { game.save(); };
+            var finalPlayerMessage = finalPlayer == null
+                ? null
+                : (finalPlayer.placement == this.players.length
+                    ? `${finalPlayer.name} ble Boms!`
+                    : (finalPlayer.placement == 1 ? `${finalPlayer.name} ble President!` : null));
+            var placementMessage = this.turnPause && this.turnPause.placementMessage;
+            var endMessages = [];
+            if (placementMessage) { endMessages.push(placementMessage); }
+            if (finalPlayerMessage) { endMessages.push(finalPlayerMessage); }
+            if (endMessages.length > 0) {
+                var pause = this.turnPause;
+                var isCurrentPlayPause = pause != null &&
+                    pause.kind == "play" &&
+                    pause.playedPile != null &&
+                    pause.playedPile.name == currentTurnPlayer.name;
+                var isCurrentPassPause = pause != null &&
+                    pause.kind == "pass" &&
+                    currentTurnPlayer.lastPlay == "Pass";
+                var pauseMessage = endMessages.join(" ");
+                if (isCurrentPlayPause || isCurrentPassPause) {
+                    pause.message = pauseMessage;
+                    pause.pendingGameEnd = true;
+                    pause.until = Math.max(
+                        pause.until || 0,
+                        Date.now() + TURN_ACTION_PAUSE_MS
+                    );
+                } else {
+                    var now = Date.now();
+                    this.turnPause = {
+                        id: `${now}-${Math.random().toString(36).slice(2)}`,
+                        kind: "finish",
+                        until: now + TURN_ACTION_PAUSE_MS,
+                        message: pauseMessage,
+                        pendingGameEnd: true
+                    };
                 }
-            }, 14000 + 2000 * Math.random()); // Vary the delay so players do not clear messages simultaneously.
+                this.setTurn(-1);
+            } else {
+                this.finishGame();
+            }
         } else {
             var nextAttempt = 0;
             var nextTurnIndex = this.turn;
