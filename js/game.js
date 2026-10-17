@@ -633,7 +633,9 @@ class GameLayout {
             case "S":
                 var turnPauseId = game.turnPause ? `${game.id}:${game.turnPause.id}` : null;
                 if (turnPauseId && table.dataset.turnPauseId != turnPauseId) {
-                    this.animateDiscardedCards(table);
+                    if (game.turnPause.kind != "pass") {
+                        this.animateDiscardedCards(table);
+                    }
                     table.dataset.turnPauseId = turnPauseId;
                 }
                 table.className = "BordKortstokk";
@@ -676,17 +678,13 @@ class GameLayout {
                 if (cardsOnTable > 0) {
                     var latestPile = game.piles[game.piles.length - 1];
                     tablePile.setAttribute("role", "group");
-                    var pileCount = document.createElement("span");
-                    pileCount.className = "table-card-pile__count";
-                    pileCount.textContent = `${cardsOnTable} kort`;
                     var lastPlay = document.createElement("span");
                     lastPlay.className = "table-card-pile__last-play";
-                    lastPlay.textContent = `På bordet: ${latestPile.describe()}`;
+                    lastPlay.textContent = latestPile.describe();
                     tablePile.setAttribute(
                         "aria-label",
-                        `Bunken har ${cardsOnTable} kort. På bordet: ${latestPile.describe()}.`
+                        `På bordet ligger ${latestPile.describe()}.`
                     );
-                    tablePile.appendChild(pileCount);
                     tablePile.appendChild(lastPlay);
                     table.appendChild(tablePile);
                     if (newlyPlayed.length > 0) {
@@ -1527,14 +1525,14 @@ class CardPile extends Array {
         if (this[0].isClubThree()) { return "kløver 3" };
         var rank = Card.rankInfo(this[0].rank);
         if (this.length == 2) { return `Par i ${rank.name}`; }
-        if (this.length == 3) { return `Triss i ${rank.name}`; }
+        if (this.length == 3) { return `Tress i ${rank.name}`; }
         if (this.length == 4) { return `Fire like i ${rank.name}`; }
         return ["", "en", "to", "tre", "fire", "fem", "seks", "syv"][this.length] + " " + ((this.length > 1) ? rank.pluralName : rank.singularName);
     }
     canBePlayedOn(topPile) {
         return (
             (topPile == null) || // First card in a new pile.
-            (this.length == topPile.length && this.strengthRank > topPile.strengthRank) || // Standard rules.
+            (this.length == topPile.length && this.strengthRank >= topPile.strengthRank) || // Standard rules.
             (this.length == 1 && this[0].isClubThree()) // Club three.
         )
     }
@@ -2038,9 +2036,9 @@ class PresidentGame extends Game {
         var topPile = this.topPile();
         var fourOfKindOnTop = hasFourOfKindOnTop(this);
         var isClubThree = strengthRank == PresidentCard.clubThreePower();
-        if (!isClubThree && strengthRank <= topPile.strengthRank) {
+        if (!isClubThree && strengthRank < topPile.strengthRank) {
             resultInfo.svar = false;
-            resultInfo.text = `Må legge på høyere enn ${topPile.strengthRank}.`;
+            resultInfo.text = `Må legge på samme eller høyere enn ${topPile.strengthRank}.`;
             return false;
         };
         var cardCount = isClubThree ? 1 : (fourOfKindOnTop ? 4 : topPile.length);
@@ -2074,7 +2072,7 @@ class PresidentGame extends Game {
             ? pile != null &&
                 pile.length == 4 &&
                 pile.every(card => card.strengthRank == pile[0].strengthRank) &&
-                pile.strengthRank > topPile.strengthRank
+                pile.strengthRank >= topPile.strengthRank
             : pile != null && pile.canBePlayedOn(topPile));
         return player != null &&
             pile != null &&
@@ -2135,6 +2133,13 @@ class PresidentGame extends Game {
     passTurn(player) {
         if (!this.canPass(player)) { throw ("Kan ikke passe nå."); }
         player.lastPlay = "Pass";
+        var now = Date.now();
+        this.turnPause = {
+            id: `${now}-${Math.random().toString(36).slice(2)}`,
+            kind: "pass",
+            until: now + 2000,
+            message: `${player.name} passer. Neste trekk om 2 sekunder.`
+        };
         this.advanceTurn();
     }
     nextTurnIndex(currentTurnPlayer) {
@@ -2175,9 +2180,10 @@ class PresidentGame extends Game {
             var nextPlayer = this.players[nextPlayerIndex];
             this.turnPause = {
                 id: `${now}-${Math.random().toString(36).slice(2)}`,
+                kind: "clear",
                 until: now + 2000,
                 message: (info.text == "Alle spillere sa pass")
-                    ? `Alle andre har passet. ${nextPlayer.name} får turen igjen.`
+                    ? `${previousPlayer.name} passer. Alle andre har passet. ${nextPlayer.name} får turen igjen.`
                     : `Det går ut! ${nextPlayer.name} får turen igjen.`
             };
             return nextPlayerIndex;

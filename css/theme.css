@@ -166,6 +166,10 @@ select:focus-visible {
     gap: 6px;
 }
 
+#DivPKnapper {
+    position: relative;
+}
+
 #DivFKnapper > button,
 #DivPKnapper > button {
     float: none !important;
@@ -879,7 +883,6 @@ select:focus-visible {
     transform-origin: center;
 }
 
-.table-card-pile__count,
 .table-card-pile__last-play {
     position: absolute;
     z-index: 60;
@@ -895,11 +898,6 @@ select:focus-visible {
     text-align: center;
     overflow-wrap: anywhere;
     box-shadow: 0 3px 10px rgb(0 0 0 / 22%);
-}
-
-.table-card-pile__count {
-    top: -12px;
-    right: 0;
 }
 
 .table-card-pile__last-play {
@@ -930,9 +928,9 @@ select:focus-visible {
 }
 
 .game-toast {
-    position: fixed;
+    position: absolute;
     z-index: 200;
-    top: max(12px, env(safe-area-inset-top));
+    top: 50%;
     left: 50%;
     width: min(420px, calc(100vw - 24px));
     padding: 12px 18px;
@@ -949,14 +947,14 @@ select:focus-visible {
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-    transform: translate(-50%, -12px);
+    transform: translate(-50%, calc(-50% - 12px));
     transition: opacity 180ms ease, transform 180ms ease, visibility 180ms ease;
 }
 
 .game-toast.is-visible {
     opacity: 1;
     visibility: visible;
-    transform: translate(-50%, 0);
+    transform: translate(-50%, -50%);
 }
 
 @media (min-width: 761px) and (orientation: landscape) {
@@ -1135,11 +1133,6 @@ select:focus-visible {
         display: none;
     }
 
-    .table-card-pile__count {
-        top: 2px;
-        right: 2px;
-    }
-
     .table-card-pile__last-play {
         right: 0;
         bottom: 2px;
@@ -1182,7 +1175,6 @@ select:focus-visible {
         --table-card-height: clamp(92px, 23vh, 148px);
     }
 
-    .table-card-pile__count,
     .table-card-pile__last-play {
         font-size: 0.72rem;
     }

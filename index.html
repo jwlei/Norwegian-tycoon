@@ -55,6 +55,7 @@
 
         </div>
         <div id="DivPKnapper" style="text-align: center; vertical-align: middle;">
+            <div id="GameToast" class="game-toast" role="status" aria-live="polite" aria-atomic="true"></div>
             <span id="selectedCardCount" class="visually-hidden" aria-live="polite" aria-atomic="true"></span>
             <button type="button" id="BnPPass" title="Pass" aria-label="Pass" style="float: left;">Pass</button>
             <button type="button" id="BnPPass_Off" title="Pass (ikke tillatt nå)" aria-label="Pass (ikke tillatt nå)" style="float: left;">Pass utilgjengelig</button>
@@ -67,8 +68,6 @@
         </div>
 
     </div>
-    <div id="GameToast" class="game-toast" role="status" aria-live="polite" aria-atomic="true"></div>
-
     <div id="DivBord_Bordforklaring" style="display: none;">
         <div><b>Velkommen til <img src="icons/logo.svg" alt="Boms og President" style="height: 2em;"></b></div>
         <div id="Bordforklaring1" class="tips">
@@ -267,7 +266,7 @@
     <div id="dialogKanIkkeLeggeKort" class="dialog-container">
         <div class="dialogVindu">
             <div class="dialogTittel">Du kan ikke legge på det kortet nå.</div>
-            <div class="dialogBody">Legg på like mange kort med høyere verdi: singel på singel, par på par, triss på triss og fire like på fire like. Kløver 3 er jokeren og kan legges på alt. Fire like rydder bunken straks.</div>
+            <div class="dialogBody">Legg på like mange kort med samme eller høyere verdi: singel på singel, par på par, tress på tress og fire like på fire like. Kløver 3 er jokeren og kan legges på alt. Fire like rydder bunken straks.</div>
             <div class="dialogFooter"><button type="button" onclick="showDialog('KanIkkeLeggeKort', false);">Lukk</button></div>
         </div>
     </div>
@@ -279,7 +278,7 @@
                 <div>Målet</div>
                 <div>Bli kvitt alle kortene først. Første spiller blir President, og siste blir Boms.</div>
                 <div>Legg på kort</div>
-                <div>Legg på like mange kort som ligger øverst, med høyere verdi: singel på singel, par på par, triss på triss og fire like på fire like.</div>
+                <div>Legg på like mange kort som ligger øverst, med samme eller høyere verdi: singel på singel, par på par, tress på tress og fire like på fire like.</div>
                 <div>Tre spillere</div>
                 <div>Ruter 3 tas ut av kortstokken. Kløver 3 er joker, så det er bare to vanlige treere.</div>
                 <div>Første runde</div>
