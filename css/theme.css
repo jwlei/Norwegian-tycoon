@@ -338,13 +338,13 @@ select:focus-visible {
 }
 
 #playerHand.card-hand {
-    --hand-card-height: clamp(88px, 21dvh, 156px);
+    --hand-card-height: var(--shell-hand-card-height, clamp(88px, 21dvh, 156px));
     gap: 0;
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
-    padding: 10px 14px 6px;
+    padding: 22px 14px 6px;
     touch-action: none;
     cursor: grab;
     user-select: none;
@@ -356,15 +356,8 @@ select:focus-visible {
     cursor: grabbing;
 }
 
-#playerHand.card-hand.HasHandSelection::before,
-#playerHand.card-hand.HasHandSelection::after {
-    flex: 0 0 50%;
-    content: "";
-    pointer-events: none;
-}
-
 #playerHand.card-hand > .game-card:not(:last-child) {
-    margin-right: calc(var(--hand-card-height) * -0.2);
+    margin-right: calc(var(--hand-card-height) * -0.2667);
 }
 
 #playerHand.card-hand > .game-card {
@@ -408,6 +401,7 @@ select:focus-visible {
     overflow: hidden;
     cursor: pointer;
     touch-action: none;
+    -webkit-tap-highlight-color: transparent;
     isolation: isolate;
     transform-style: preserve-3d;
     transform: perspective(900px) translateX(var(--card-offset, 0px)) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
@@ -441,6 +435,7 @@ select:focus-visible {
 .game-card:disabled {
     cursor: default;
     opacity: 1;
+    pointer-events: none;
 }
 
 #playerHand.card-hand:not(.is-my-turn) > .game-card > img {
@@ -448,8 +443,7 @@ select:focus-visible {
 }
 
 .game-card.is-playable img {
-    border-color: var(--focus);
-    box-shadow: 0 0 0 2px var(--accent-soft), 0 6px 16px rgb(0 0 0 / 26%);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 26%);
 }
 
 .game-card.is-mixable {
@@ -497,8 +491,7 @@ select:focus-visible {
 
 .game-card.is-selected img,
 .game-card.is-exchange-selected img {
-    border-color: var(--focus);
-    box-shadow: 0 0 0 3px var(--accent-soft), 0 10px 24px rgb(0 0 0 / 35%);
+    box-shadow: 0 10px 24px rgb(0 0 0 / 35%);
 }
 
 .game-card.is-exchange-selected {
@@ -512,8 +505,8 @@ select:focus-visible {
 
 .game-card:focus-visible {
     z-index: 4;
-    outline: 3px solid var(--focus);
-    outline-offset: 3px;
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
 }
 
 .game-card:active {
@@ -1067,20 +1060,14 @@ select:focus-visible {
 @media (min-width: 761px) and (orientation: landscape) {
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: 60px auto minmax(0, 1fr) auto minmax(145px, 0.42fr);
+        --shell-hand-card-height: clamp(88px, 21dvh, 156px);
+        grid-template-rows: 60px 64px minmax(0, 1fr) 64px calc(var(--shell-hand-card-height) + 34px);
     }
 
     #gameShell.game-active > #playerList {
         grid-column: 1 / -1;
         grid-row: 2 / 3;
-        flex-direction: row;
-        overflow-x: auto;
-        overflow-y: hidden;
         padding: 5px 8px;
-    }
-
-    #gameShell.game-active > #playerList > .player-summary {
-        flex: 0 0 min(20vw, 220px);
     }
 
     #gameShell.game-active > #gameTable {
@@ -1100,31 +1087,21 @@ select:focus-visible {
 }
 
 @media (max-width: 760px) and (orientation: portrait) {
-    #playerHand.card-hand {
-        --hand-card-height: clamp(82px, 17dvh, 128px);
-    }
-
     #gameShell.game-active #playerHand.card-hand > .game-card > img,
     #gameShell.game-active.cards-only-mode > #playerHand > .game-card > img {
-        height: clamp(82px, 17dvh, 128px);
+        height: var(--hand-card-height);
     }
 
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: 56px auto minmax(0, 1fr) auto minmax(100px, 0.8fr);
+        --shell-hand-card-height: clamp(82px, 17dvh, 128px);
+        grid-template-rows: 56px 60px minmax(0, 1fr) 60px calc(var(--shell-hand-card-height) + 34px);
     }
 
     #gameShell.game-active > #playerList {
         grid-column: 1 / -1;
         grid-row: 2 / 3;
-        flex-direction: row;
-        overflow-x: auto;
-        overflow-y: hidden;
         padding: 4px 6px;
-    }
-
-    #gameShell.game-active > #playerList > .player-summary {
-        flex: 0 0 min(42vw, 180px);
     }
 
     #gameShell.game-active > #gameTable {
@@ -1144,31 +1121,21 @@ select:focus-visible {
 }
 
 @media (max-width: 760px) and (orientation: landscape) {
-    #playerHand.card-hand {
-        --hand-card-height: clamp(72px, 23dvh, 116px);
-    }
-
     #gameShell.game-active #playerHand.card-hand > .game-card > img,
     #gameShell.game-active.cards-only-mode > #playerHand > .game-card > img {
-        height: clamp(72px, 23dvh, 116px);
+        height: var(--hand-card-height);
     }
 
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: 56px auto minmax(0, 1fr) auto minmax(80px, 0.62fr);
+        --shell-hand-card-height: clamp(72px, 23dvh, 116px);
+        grid-template-rows: 56px 52px minmax(0, 1fr) 52px calc(var(--shell-hand-card-height) + 34px);
     }
 
     #gameShell.game-active > #playerList {
         grid-column: 1 / -1;
         grid-row: 2 / 3;
-        flex-direction: row;
-        overflow-x: auto;
-        overflow-y: hidden;
         padding: 3px 6px;
-    }
-
-    #gameShell.game-active > #playerList > .player-summary {
-        flex: 0 0 min(28vw, 180px);
     }
 
     #gameShell.game-active > #gameTable {
@@ -1189,7 +1156,8 @@ select:focus-visible {
 
 @media (orientation: landscape) and (max-height: 500px) {
     #gameShell.game-active {
-        grid-template-rows: 40px auto minmax(58px, 1fr) auto minmax(52px, 0.45fr);
+        --shell-hand-card-height: clamp(54px, 18vh, 76px);
+        grid-template-rows: 40px 36px minmax(58px, 1fr) 44px calc(var(--shell-hand-card-height) + 24px);
     }
 
     #gameTable.table-deck {
@@ -1204,11 +1172,7 @@ select:focus-visible {
 
     #gameShell.game-active #playerHand.card-hand > .game-card > img,
     #gameShell.game-active.cards-only-mode > #playerHand > .game-card > img {
-        height: clamp(54px, 18vh, 76px);
-    }
-
-    #playerHand.card-hand {
-        --hand-card-height: clamp(54px, 18vh, 76px);
+        height: var(--hand-card-height);
     }
 
     #gameShell.game-active > #playerActions {
@@ -1536,6 +1500,85 @@ select:focus-visible {
 
 #gameShell.game-active #playerList .player-summary--self .player-summary__name {
     text-align: center;
+}
+
+#gameShell.game-active:not(.Lobby) > #playerList {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 4px;
+    overflow: hidden;
+}
+
+#gameShell.game-active:not(.Lobby) > #playerList .opponent-list,
+#gameShell.game-active:not(.Lobby) > #playerList .opponent-list:empty {
+    display: contents;
+}
+
+#gameShell.game-active:not(.Lobby) > #playerList .player-summary,
+#gameShell.game-active:not(.Lobby) > #playerList .opponent-list > .player-summary {
+    width: auto;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    margin: 0;
+    padding: 2px 3px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    overflow: hidden;
+    font-size: 0.68rem;
+    line-height: 1.1;
+    grid-column: auto;
+    grid-row: auto;
+}
+
+#gameShell.game-active:not(.Lobby) > #playerList .player-summary__name {
+    max-width: 100%;
+    padding: 1px 6px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--player-color, #cfd4dc);
+    color: #17191d;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#gameShell.game-active:not(.Lobby) > #playerList .player-summary__details {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 0.6rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#gameShell.game-active:not(.Lobby) > #playerList .player-summary.player-summary--passed {
+    background: var(--player-color, #f4cf43);
+}
+
+#gameShell.game-active:not(.Lobby) > #playerActions {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    overflow: hidden;
+}
+
+#gameShell.game-active:not(.Lobby) > #playerActions > br {
+    display: none;
+}
+
+#gameShell.game-active:not(.Lobby) > #playerActions > #playerStatus {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 #gameShell.game-active.Lobby > #playerList {
