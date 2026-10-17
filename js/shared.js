@@ -98,30 +98,6 @@ function getCookie(cookieName) {
     return "";
 }
 
-function openFullscreen(element) {
-    if (element.requestFullscreen) {
-        element.requestFullscreen();
-    } else if (element.mozRequestFullScreen) { /* Firefox */
-        element.mozRequestFullScreen();
-    } else if (element.webkitRequestFullscreen) { /* Chrome, Safari & Opera */
-        element.webkitRequestFullscreen();
-    } else if (element.msRequestFullscreen) { /* IE/Edge */
-        element.msRequestFullscreen();
-    }
-}
-
-function closeFullscreen() {
-    if (document.fullscreenElement && document.exitFullscreen) {
-        document.exitFullscreen();
-    } else if (document.mozFullScreenElement && document.mozCancelFullScreen) { /* Firefox */
-        document.mozCancelFullScreen();
-    } else if (document.webkitFullscreenElement && document.webkitExitFullscreen) { /* Chrome, Safari and Opera */
-        document.webkitExitFullscreen();
-    } else if (document.msFullscreenElement && document.msExitFullscreen) { /* IE/Edge */
-        document.msExitFullscreen();
-    }
-}
-
 function hasClass(element, name) {
     return element.className.split(" ").filter(text => { return text == name; }).length > 0;
 }

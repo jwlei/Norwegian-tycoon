@@ -3251,11 +3251,6 @@ class PresidentGame extends Game {
         }
 
         function startNewGame() {
-            if (navigator.userAgent.match(/Android|iPhone/i)) {
-                try {
-                    openFullscreen(document.getElementsByTagName("body")[0]);
-                } catch (error) { }
-            }
             currentGame = new PresidentGame();
             currentPlayerName = null;
             connectAndPromptForPlayerName();
@@ -3334,17 +3329,11 @@ class PresidentGame extends Game {
             }
             currentGame = null;
             currentPlayerName = null;
-            try {
-                closeFullscreen();
-            } catch (error) { }
             GameLayout.updateSharedView(null, null);
             GameLayout.updatePlayerView(null, null);
         }
 
         function showConnectGameDialog() {
-            try {
-                openFullscreen(document.getElementsByTagName("body")[0]);
-            } catch (error) { }
             document.getElementById("dialogKobleSpillId").value = null;
             document.getElementById("joinGameError").innerHTML = "";
             showDialog("KobleSpill", true);
