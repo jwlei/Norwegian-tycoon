@@ -111,12 +111,9 @@ function assignPlayerColors(game) {
 }
 
 const BOT_NAMES = [
-    "Boten Anna", "Kort-Knut", "Bunke-Bjørn", "Stikk-Stine", "Ruter-Rune",
-    "Spar-Svein", "Hjerter-Hilde", "Kløver-Kåre", "Konge-Kjell", "Dronning-Dagny",
-    "Pass-Pål", "Mister Mismatch", "Shuffle-Sigurd", "Trippel-Turid", "Firelike-Frode",
-    "Par-Petter", "Bord-Bente", "Kortslutning-Kåre", "Nesten-Presidenten", "Korthai-Kim",
-    "Boms-Borghild", "Rask-Ragnar", "Luring-Lars", "Taktikk-Tove", "Plukk-Pia",
-    "Stopp-Siri", "Bunken-Bjarne", "Ess-Eirik", "Turbo-Tor", "Siste-Stikk-Sølvi"
+    "Knurt", "Boten Anna", "Turbo-Tore", "Haakon VIII", "Bomsen",
+    "Onkel Pass", "Severin Suveren", "H4cker-man", "Kurt-Josef", "Kjell-Bjarne",
+    "Steinar Storspiller", "Mathias (CEO)", "xXLegolasXx", "J21Oslo", "Guest_839201"
 ];
 const TURN_ACTION_PAUSE_MS = 3000;
 const BOT_ACTION_DELAY_MS = TURN_ACTION_PAUSE_MS;
