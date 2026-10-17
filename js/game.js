@@ -62,6 +62,22 @@ function hasFourOfKindOnTop(game) {
     return count >= 4;
 }
 
+function hasBothNaturalThreesOnTop(game) {
+    if (game.players.length != 3) { return false; }
+    var threesOnTop = new Set();
+    for (var index = game.piles.length - 1; index >= 0; index--) {
+        var pile = game.piles[index];
+        if (pile.strengthRank != 3) { break; }
+        pile.forEach(card => {
+            if (card.rank == 3 && (card.suit == 1 || card.suit == 2)) {
+                threesOnTop.add(card.suit);
+            }
+        });
+        if (threesOnTop.size == 2) { return true; }
+    }
+    return false;
+}
+
 const BOT_NAMES = [
     "Boten Anna", "Kort-Knut", "Bunke-Bjørn", "Stikk-Stine", "Ruter-Rune",
     "Spar-Svein", "Hjerter-Hilde", "Kløver-Kåre", "Konge-Kjell", "Dronning-Dagny",
@@ -2094,6 +2110,10 @@ class PresidentGame extends Game {
             info.text = "Fire like";
             return true;
         }
+        if (hasBothNaturalThreesOnTop(this)) {
+            info.text = "Hjerter 3 og Spar 3";
+            return true;
+        }
         if (this.players.filter(player => (player.lastPlay != "Pass" && player.placement == 0)).length <= 1) {
             info.text = "Alle spillere sa pass";
             return true;
@@ -2208,12 +2228,38 @@ class PresidentGame extends Game {
         var appShell = document.getElementById("DivHele");
         var gameMenuToggle = document.getElementById("BnGameMenuToggle");
         var gameMenu = document.getElementById("DivFKnapper");
+        var playerNameCookie = "norwegian_tycoon_player_name";
+
+        function readLastUsedPlayerName() {
+            var cookiePrefix = `${playerNameCookie}=`;
+            var cookie = document.cookie.split(";")
+                .map(value => value.trim())
+                .find(value => value.startsWith(cookiePrefix));
+            if (cookie == null) { return ""; }
+            try {
+                return decodeURIComponent(cookie.slice(cookiePrefix.length))
+                    .replace(/[^0-9A-ZÆØÅa-zæøå /-]/g, "")
+                    .trim()
+                    .slice(0, 30);
+            } catch (error) {
+                console.warn("Kunne ikke lese lagret spillernavn fra cookie.", error);
+                return "";
+            }
+        }
+
+        function saveLastUsedPlayerName(name) {
+            var secureAttribute = window.location.protocol == "https:" ? "; Secure" : "";
+            document.cookie =
+                `${playerNameCookie}=${encodeURIComponent(name)}; Max-Age=31536000; Path=/; SameSite=Lax${secureAttribute}`;
+        }
 
         function promptForPlayerName(isRename = false) {
             document.querySelector("#dialogSporOmNick .dialogTittel").textContent =
                 isRename ? "Bytt spillernavn" : "Hva vil du hete?";
             document.getElementById("dialogSporOmNickTxt").value =
-                isRename && currentPlayerName != null ? currentPlayerName : "";
+                isRename && currentPlayerName != null
+                    ? currentPlayerName
+                    : readLastUsedPlayerName();
             document.getElementById("dialogSporOmNickError").innerHTML = "";
             document.getElementById("dialogSporOmNickOk").textContent =
                 isRename ? "Lagre navn" : "Bli spiller";
@@ -2550,6 +2596,7 @@ class PresidentGame extends Game {
                     });
                     currentPlayerName = requestedName;
                     currentGame.save();
+                    saveLastUsedPlayerName(currentPlayerName);
                     GameLayout.updateSharedView(currentGame, playerToRename);
                     GameLayout.updatePlayerView(currentGame, playerToRename);
                     showDialog("SporOmNick", false);
@@ -2558,6 +2605,7 @@ class PresidentGame extends Game {
                     var newPlayerResult = currentGame.addPlayer(new PresidentPlayer(requestedName, key));
                     if (newPlayerResult.player) {
                         currentPlayerName = newPlayerResult.player.name;
+                        saveLastUsedPlayerName(currentPlayerName);
                         GameLayout.updatePlayerView(currentGame, newPlayerResult.player);
                         showDialog("SporOmNick", false);
                     } else {
