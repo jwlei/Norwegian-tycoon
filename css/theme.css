@@ -339,6 +339,14 @@ select:focus-visible {
     -webkit-overflow-scrolling: touch;
     padding: 10px 14px 6px;
     touch-action: pan-x;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+#DivKort.KortKort.is-hand-dragging,
+.game-card.is-pressed {
+    cursor: grabbing;
 }
 
 #DivKort.KortKort.HasHandSelection::before,
@@ -516,7 +524,7 @@ select:focus-visible {
     transition: none;
     transform:
         perspective(900px)
-        translateX(var(--card-offset, 0px))
+        translateX(calc(var(--card-offset, 0px) + var(--drag-offset-x, 0px)))
         translateY(calc(var(--drag-base-y, 0px) + var(--drag-offset-y, 0px)))
         scale(var(--drag-scale, 1))
         rotateX(var(--tilt-x, 0deg))

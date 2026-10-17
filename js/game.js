@@ -789,6 +789,12 @@ class GameLayout {
             if (selectionCount) { selectionCount.textContent = ""; }
             passButton.classList.remove("pass-needs-action");
             element.classList.remove("HasHandSelection");
+            element.classList.remove("is-hand-dragging");
+            element.onpointerdown = null;
+            element.onpointermove = null;
+            element.onpointerup = null;
+            element.onpointercancel = null;
+            element.onwheel = null;
             element.scrollLeft = 0;
             return;
         }
@@ -801,6 +807,82 @@ class GameLayout {
             activeExchangeId = null;
             autoSelectedTurnKey = null;
         }
+        var handScrollDrag = null;
+        element.classList.remove("is-hand-dragging");
+        element.onpointerdown = function (event) {
+            if (event.pointerType == "touch" ||
+                event.button != 0 ||
+                !event.isPrimary ||
+                (event.target instanceof Element && event.target.closest(".game-card"))) {
+                return;
+            }
+            stopCardHandInertia();
+            handScrollDrag = {
+                pointerId: event.pointerId,
+                startX: event.clientX,
+                startY: event.clientY,
+                lastX: event.clientX,
+                lastMoveTime: performance.now(),
+                startScrollLeft: element.scrollLeft,
+                scrollVelocity: 0,
+                axis: null
+            };
+            if (typeof element.setPointerCapture == "function") {
+                element.setPointerCapture(event.pointerId);
+            }
+        };
+        element.onpointermove = function (event) {
+            if (!handScrollDrag || handScrollDrag.pointerId != event.pointerId) { return; }
+            var dragOffsetX = event.clientX - handScrollDrag.startX;
+            var dragOffsetY = event.clientY - handScrollDrag.startY;
+            if (handScrollDrag.axis == null &&
+                Math.max(Math.abs(dragOffsetX), Math.abs(dragOffsetY)) >= 8) {
+                handScrollDrag.axis = Math.abs(dragOffsetX) > Math.abs(dragOffsetY)
+                    ? "horizontal"
+                    : "vertical";
+            }
+            if (handScrollDrag.axis != "horizontal") { return; }
+            event.preventDefault();
+            element.classList.add("is-hand-dragging");
+            var moveTime = performance.now();
+            var elapsed = moveTime - handScrollDrag.lastMoveTime;
+            if (elapsed > 0) {
+                var velocity = -(event.clientX - handScrollDrag.lastX) / elapsed;
+                velocity = Math.max(-0.9, Math.min(0.9, velocity));
+                handScrollDrag.scrollVelocity =
+                    handScrollDrag.scrollVelocity * 0.35 + velocity * 0.65;
+            }
+            handScrollDrag.lastX = event.clientX;
+            handScrollDrag.lastMoveTime = moveTime;
+            element.scrollLeft = handScrollDrag.startScrollLeft - dragOffsetX;
+        };
+        element.onpointerup = function (event) {
+            var activeDrag = handScrollDrag;
+            handScrollDrag = null;
+            element.classList.remove("is-hand-dragging");
+            if (activeDrag &&
+                activeDrag.pointerId == event.pointerId &&
+                activeDrag.axis == "horizontal") {
+                var releaseDelay = performance.now() - activeDrag.lastMoveTime;
+                startCardHandInertia(
+                    element,
+                    activeDrag.scrollVelocity * Math.exp(-releaseDelay / 90)
+                );
+            }
+        };
+        element.onpointercancel = function () {
+            handScrollDrag = null;
+            element.classList.remove("is-hand-dragging");
+        };
+        element.onwheel = function (event) {
+            if (element.scrollWidth <= element.clientWidth ||
+                Math.abs(event.deltaX) >= Math.abs(event.deltaY)) {
+                return;
+            }
+            event.preventDefault();
+            stopCardHandInertia();
+            element.scrollLeft += event.deltaY;
+        };
         var selectableExchanges = (game.status == "G")
             ? game.piles.filter(exchange =>
                 exchange.mode == "Velg" && game.players[exchange.from] == player
@@ -910,6 +992,7 @@ class GameLayout {
                 draggedCard.classList.remove("is-dragging");
                 draggedCard.style.removeProperty("--drag-base-y");
                 draggedCard.style.removeProperty("--drag-scale");
+                draggedCard.style.removeProperty("--drag-offset-x");
                 draggedCard.style.removeProperty("--drag-offset-y");
             });
         };
@@ -1152,6 +1235,7 @@ class GameLayout {
                                         "--drag-scale",
                                         selectedCardKeys.has(cardKey) ? "1.06" : "1"
                                     );
+                                    elemKort.style.setProperty("--drag-offset-x", "0px");
                                 }
                                 if (event.pointerType != "touch" &&
                                     typeof elemKort.setPointerCapture == "function") {
@@ -1209,6 +1293,7 @@ class GameLayout {
                                             draggedCard.setAttribute("aria-pressed", "true");
                                             draggedCard.style.setProperty("--drag-base-y", "-18px");
                                             draggedCard.style.setProperty("--drag-scale", "1.06");
+                                            draggedCard.style.setProperty("--drag-offset-x", `${dragOffsetX}px`);
                                             draggedCard.style.setProperty("--drag-offset-y", selectionOffset);
                                         });
                                     }
@@ -1952,20 +2037,13 @@ class PresidentGame extends Game {
         };
         var topPile = this.topPile();
         var fourOfKindOnTop = hasFourOfKindOnTop(this);
-        if (fourOfKindOnTop && strengthRank == PresidentCard.clubThreePower()) {
-            resultInfo.svar = false;
-            resultInfo.text = "Fire like kort kan bare slås med fire høyere like kort.";
-            return false;
-        }
         var isClubThree = strengthRank == PresidentCard.clubThreePower();
         if (!isClubThree && strengthRank <= topPile.strengthRank) {
             resultInfo.svar = false;
             resultInfo.text = `Må legge på høyere enn ${topPile.strengthRank}.`;
             return false;
         };
-        var cardCount = fourOfKindOnTop
-            ? 4
-            : ((strengthRank == PresidentCard.clubThreePower()) ? 1 : topPile.length);
+        var cardCount = isClubThree ? 1 : (fourOfKindOnTop ? 4 : topPile.length);
         var pile = new CardPile(player.name);
         var n = 0;
         player.cards.forEach(k => {
@@ -1991,13 +2069,13 @@ class PresidentGame extends Game {
     canPlayPile(player, pile) {
         var topPile = this.topPile();
         var fourOfKindOnTop = hasFourOfKindOnTop(this);
-        var canBeatCurrentPile = fourOfKindOnTop
+        var isClubThreePlay = pile != null && pile.length == 1 && pile[0].isClubThree();
+        var canBeatCurrentPile = isClubThreePlay || (fourOfKindOnTop
             ? pile != null &&
                 pile.length == 4 &&
                 pile.every(card => card.strengthRank == pile[0].strengthRank) &&
-                pile.strengthRank != PresidentCard.clubThreePower() &&
                 pile.strengthRank > topPile.strengthRank
-            : pile != null && pile.canBePlayedOn(topPile);
+            : pile != null && pile.canBePlayedOn(topPile));
         return player != null &&
             pile != null &&
             this.status == "S" &&
