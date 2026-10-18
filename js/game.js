@@ -165,7 +165,6 @@ function roundVotePlayerId(player) {
 function updateAutoSuggestionButton() {
     var button = document.getElementById("autoSuggestionToggleButton");
     if (button == null) { return; }
-    button.textContent = "Auto-forslag";
     button.setAttribute("aria-pressed", String(autoSuggestPlayableCards));
     button.setAttribute(
         "aria-label",
@@ -508,7 +507,8 @@ class GameLayout {
             var turnState = isTurn && isActiveStatus ? "turn" : (isPassed ? "passed" : "");
             if (playerElement.dataset.turnState !== undefined &&
                 playerElement.dataset.turnState !== turnState && turnState !== "" &&
-                document.getElementById("shuffleOverlay") == null) {
+                document.getElementById("shuffleOverlay") == null &&
+                document.querySelector(".player-summary--starter-flash") == null) {
                 playerElement.classList.remove("player-summary--pulse-turn", "player-summary--pulse-passed");
                 void playerElement.offsetWidth;
                 playerElement.classList.add(`player-summary--pulse-${turnState}`);
@@ -3938,12 +3938,12 @@ class PresidentGame extends Game {
 
         var SHUFFLE_DURATION_MS = 5000;
         var STARTER_FLASH_DURATION_MS = 2500;
-        var SHUFFLE_RIFFLE_MS = 1000;
-        var SHUFFLE_DEAL_END_MS = 4500;
+        var STARTER_FLASH_DURATION_MS = 1900;
         var lastShuffleStartedAt = null;
         var shuffleEndsAt = 0;
         var shuffleTicker = null;
         var starterFlashTimer = null;
+        var handDealTimer = null;
 
         function clearShuffleAnimation(keepFlash = false) {
             if (shuffleTicker != null) {
@@ -3953,7 +3953,8 @@ class PresidentGame extends Game {
             shuffleEndsAt = 0;
             var overlay = document.getElementById("shuffleOverlay");
             if (overlay != null) { overlay.remove(); }
-            document.querySelectorAll(".shuffle-flying-card").forEach(element => element.remove());
+            var hand = document.getElementById("playerHand");
+            if (hand != null) { hand.classList.remove("is-dealing-wait"); }
             if (!keepFlash) {
                 if (starterFlashTimer != null) {
                     clearTimeout(starterFlashTimer);
@@ -3990,46 +3991,29 @@ class PresidentGame extends Game {
             }, STARTER_FLASH_DURATION_MS + 100);
         }
 
-        function launchDealtCard(stack, game, dealIndex) {
-            var target = game.players[dealIndex % game.players.length];
-            var targetElement = target == null ? null : Array.from(
-                document.querySelectorAll("#playerList [data-player-name]")
-            ).find(element => element.dataset.playerName == target.name);
-            var from = stack.getBoundingClientRect();
-            var to = targetElement != null
-                ? targetElement.getBoundingClientRect()
-                : { left: from.left, top: window.innerHeight, width: from.width, height: 0 };
-            var flying = document.createElement("img");
-            flying.className = "shuffle-flying-card";
-            flying.src = "icons/back.svg";
-            flying.alt = "";
-            flying.setAttribute("aria-hidden", "true");
-            flying.style.left = `${from.left + from.width / 2 - 18}px`;
-            flying.style.top = `${from.top + from.height / 2 - 25}px`;
-            document.body.appendChild(flying);
-            var dx = to.left + to.width / 2 - (from.left + from.width / 2);
-            var dy = to.top + to.height / 2 - (from.top + from.height / 2);
-            var animation = flying.animate([
-                { transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1 },
-                { transform: `translate(${dx}px, ${dy}px) rotate(${dx > 0 ? 25 : -25}deg) scale(0.6)`, opacity: 0.9 }
-            ], { duration: 260, easing: "ease-in", fill: "forwards" });
-            animation.onfinish = () => flying.remove();
+        function dealCardsIntoHand() {
+            var hand = document.getElementById("playerHand");
+            if (hand == null) { return; }
+            hand.classList.remove("is-dealing-wait");
+            var cards = hand.querySelectorAll(".game-card");
+            cards.forEach((card, index) => card.style.setProperty("--deal-index", String(index)));
+            hand.classList.add("is-dealing-in");
+            if (handDealTimer != null) { clearTimeout(handDealTimer); }
+            handDealTimer = setTimeout(() => {
+                handDealTimer = null;
+                hand.classList.remove("is-dealing-in");
+            }, 600 + cards.length * 45);
         }
 
         function playShuffleAnimation(game) {
             clearShuffleAnimation();
             var startedAt = game.shuffleStartedAt;
-            var total = game.dealTotal || 0;
-            var starterStep = game.dealStarterStep;
-            var flashAt = starterStep == null || total == 0
-                ? 0
-                : SHUFFLE_RIFFLE_MS +
-                    ((starterStep + 1) / total) * (SHUFFLE_DEAL_END_MS - SHUFFLE_RIFFLE_MS);
+            var flashAtEnd = game.dealStarterStep != null;
             var overlay = document.createElement("div");
             overlay.id = "shuffleOverlay";
             overlay.className = "shuffle-overlay";
             overlay.setAttribute("role", "status");
-            overlay.setAttribute("aria-label", "Stokker og deler ut kortene");
+            overlay.setAttribute("aria-label", "Stokker kortene");
             var stack = document.createElement("div");
             stack.className = "shuffle-stack";
             for (var i = 0; i < 8; i++) {
@@ -4046,37 +4030,22 @@ class PresidentGame extends Game {
             label.textContent = "Stokker kortene …";
             overlay.append(stack, label);
             document.body.appendChild(overlay);
+            var hand = document.getElementById("playerHand");
+            if (hand != null) { hand.classList.add("is-dealing-wait"); }
             shuffleEndsAt = startedAt + SHUFFLE_DURATION_MS;
-            var dealt = 0;
-            var flashed = false;
-            var dealing = false;
-            var tick = function () {
-                var elapsed = Date.now() - startedAt;
-                if (elapsed >= SHUFFLE_DURATION_MS || currentGame != game) {
-                    clearShuffleAnimation(true);
+            // Boms starts the later rounds, so that flash can begin right away.
+            if (!flashAtEnd) { flashRoundStarter(); }
+            shuffleTicker = setInterval(function () {
+                if (currentGame != game) {
+                    clearShuffleAnimation();
                     return;
                 }
-                if (!dealing && elapsed >= SHUFFLE_RIFFLE_MS) {
-                    dealing = true;
-                    stack.classList.add("shuffle-stack--dealing");
-                    label.textContent = "Deler ut kortene …";
+                if (Date.now() - startedAt >= SHUFFLE_DURATION_MS) {
+                    clearShuffleAnimation(true);
+                    dealCardsIntoHand();
+                    if (flashAtEnd) { flashRoundStarter(); }
                 }
-                var progress = Math.min(1, Math.max(0,
-                    (elapsed - SHUFFLE_RIFFLE_MS) / (SHUFFLE_DEAL_END_MS - SHUFFLE_RIFFLE_MS)
-                ));
-                var target = Math.floor(progress * total);
-                if (target - dealt > 8) { dealt = target - 8; }
-                while (dealt < target) {
-                    launchDealtCard(stack, game, dealt);
-                    dealt++;
-                }
-                if (!flashed && elapsed >= flashAt) {
-                    flashed = true;
-                    flashRoundStarter();
-                }
-            };
-            shuffleTicker = setInterval(tick, 40);
-            tick();
+            }, 40);
         }
 
         function playShuffleIfNew(game) {

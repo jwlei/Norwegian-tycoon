@@ -1586,25 +1586,33 @@ select:focus-visible {
 }
 
 #autoSuggestionToggleButton {
-    gap: 6px;
+    flex-direction: column;
+    gap: 4px;
+    overflow: hidden;
+}
+
+#autoSuggestionToggleButton .auto-suggest-label {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-#autoSuggestionToggleButton::before {
+#autoSuggestionToggleButton::after {
     content: "";
     flex: 0 0 auto;
-    width: 8px;
-    height: 8px;
-    border: 2px solid currentColor;
-    border-radius: 50%;
-    box-sizing: border-box;
+    width: 20px;
+    height: 3px;
+    border-radius: 2px;
+    background: currentColor;
+    opacity: 0.45;
 }
 
-#autoSuggestionToggleButton[aria-pressed="true"]::before {
-    border-color: #35c46a;
+#autoSuggestionToggleButton[aria-pressed="true"]::after {
     background: #35c46a;
     box-shadow: 0 0 6px rgb(53 196 106 / 70%);
+    opacity: 1;
 }
 
 #autoSuggestionToggleButton[aria-pressed="false"] {
@@ -2212,20 +2220,6 @@ select:focus-visible {
     background: rgb(0 0 0 / 30%);
 }
 
-.shuffle-stack--dealing .shuffle-card {
-    animation: none;
-}
-
-.shuffle-flying-card {
-    position: fixed;
-    z-index: 410;
-    width: 36px;
-    height: 50px;
-    border-radius: 5px;
-    pointer-events: none;
-    box-shadow: 0 2px 6px rgb(0 0 0 / 40%);
-}
-
 .shuffle-stack {
     position: relative;
     width: clamp(70px, 16vmin, 110px);
@@ -2255,50 +2249,72 @@ select:focus-visible {
     75% { transform: translateX(clamp(30px, 8vmin, 60px)) rotate(8deg); }
 }
 
-#gameShell.game-active #playerList .player-summary--pulse-turn {
-    animation: turn-pulse 0.7s ease-out 1;
-}
-
-#gameShell.game-active #playerList .player-summary--pulse-passed {
-    animation: passed-pulse 0.7s ease-out 1;
-}
-
-@keyframes turn-pulse {
-    0% { background: rgb(53 196 106 / 75%); box-shadow: inset 4px 0 #7dffa8, 0 0 20px rgb(53 196 106 / 85%); }
-    100% { box-shadow: inset 4px 0 #35c46a, 0 0 14px rgb(53 196 106 / 22%); }
-}
-
-@keyframes passed-pulse {
-    0% { background: rgb(216 199 131 / 75%); box-shadow: inset 4px 0 #f0de9a, 0 0 20px rgb(216 199 131 / 80%); }
-    100% { box-shadow: inset 4px 0 #c5ad61, 0 0 14px rgb(197 173 97 / 14%); }
-}
-
+#gameShell.game-active #playerList .player-summary--pulse-turn,
+#gameShell.game-active #playerList .player-summary--pulse-passed,
 #gameShell.game-active #playerList .player-summary--starter-flash {
-    z-index: 450;
-    animation: starter-flash 0.5s ease-in-out 5;
+    position: relative;
 }
 
-@keyframes starter-flash {
-    0%, 100% {
-        border-color: #35c46a;
-        background: rgb(31 145 68 / 25%);
-        box-shadow: inset 4px 0 #35c46a;
-    }
-    50% {
-        border-color: #7dffa8;
-        background: rgb(53 196 106 / 80%);
-        box-shadow: inset 4px 0 #7dffa8, 0 0 22px rgb(53 196 106 / 90%);
-    }
+/* Flash with an overlay so the block's own entry animation is never replayed. */
+#gameShell.game-active #playerList .player-summary--pulse-turn::after,
+#gameShell.game-active #playerList .player-summary--pulse-passed::after,
+#gameShell.game-active #playerList .player-summary--starter-flash::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+}
+
+#gameShell.game-active #playerList .player-summary--pulse-turn::after {
+    background: rgb(53 196 106 / 22%);
+    animation: soft-flash 0.9s ease-in-out 1;
+}
+
+#gameShell.game-active #playerList .player-summary--pulse-passed::after {
+    background: rgb(216 199 131 / 22%);
+    animation: soft-flash 0.9s ease-in-out 1;
+}
+
+#gameShell.game-active #playerList .player-summary--starter-flash::after {
+    background: rgb(53 196 106 / 26%);
+    animation: soft-flash 0.63s ease-in-out 3;
+}
+
+@keyframes soft-flash {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .shuffle-card,
-    #gameShell.game-active #playerList .player-summary--starter-flash {
+    #gameShell.game-active #playerList .player-summary--starter-flash::after {
         animation: none;
     }
 
     .shuffle-card:nth-child(odd) { transform: rotate(-5deg); }
     .shuffle-card:nth-child(even) { transform: rotate(5deg); }
+}
+
+#playerHand.is-dealing-wait .game-card {
+    visibility: hidden;
+}
+
+#playerHand.is-dealing-in .game-card > img {
+    animation: hand-deal-in 520ms cubic-bezier(.2,.8,.25,1) backwards;
+    animation-delay: calc(var(--deal-index, 0) * 45ms);
+}
+
+@keyframes hand-deal-in {
+    from {
+        opacity: 0;
+        transform: translate(-48px, -34px) rotate(-8deg);
+    }
+    to {
+        opacity: 1;
+        transform: translate(0, 0) rotate(0deg);
+    }
 }
 
 #gameShell.game-active #playerList .player-summary--passed .player-summary__turn {
