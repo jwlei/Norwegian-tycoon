@@ -45,7 +45,7 @@
     <link rel="stylesheet" href="css/common.css">
     <link rel="stylesheet" href="css/game.css">
     <link rel="stylesheet" href="css/mobile.css">
-    <link rel="stylesheet" href="css/theme.css?v=0.3.17">
+    <link rel="stylesheet" href="css/theme.css?v=0.3.18">
 </head>
 
 <body>
@@ -57,6 +57,9 @@
         <button type="button" id="BnInnstillinger" class="settings-gear-button" title="Innstillinger" aria-label="Innstillinger" aria-haspopup="dialog">
             <svg class="settings-gear" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
         </button>
+        <button type="button" id="homeButton" title="Hovedmeny" aria-label="Hovedmeny" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 3 2 12h3v9h5v-6h4v6h5v-9h3L12 3Z"/></svg>
+        </button>
         <button type="button" id="BnGameMenuToggle" class="game-menu-toggle"
             aria-label="Åpne spillmeny" aria-controls="gameMenu" aria-expanded="false" title="Åpne spillmeny">
             <span class="game-menu-toggle__icon" aria-hidden="true"></span>
@@ -67,7 +70,7 @@
             <button type="button" id="BnHKobleSpill" title="Koble til spill med kode" style="grid-row: 3 / 4; grid-column: 2 / -2;">Koble til med kode</button>
             <div id="publicLobbyList" class="public-lobby-list" aria-live="polite"></div>
             <div id="publicLobbyError" class="public-lobby-error" role="alert"></div>
-            <small class="app-version"><span aria-label="Spillversjon 0.3.17">v0.3.17</span> · <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://jleiros.com" target="_blank" rel="noopener noreferrer">jleiros.com</a></small>
+            <small class="app-version"><span aria-label="Spillversjon 0.3.18">v0.3.18</span> · <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://jleiros.com" target="_blank" rel="noopener noreferrer">jleiros.com</a></small>
         </div>
         <div id="gameMenu" role="group" aria-label="Spillkontroller" style="text-align: center; vertical-align: middle;">
             <button type="button" id="BnFInviterSpill" title="Inviter andre" aria-label="Del invitasjon" style="float: left;">Del invitasjon</button>
@@ -146,6 +149,9 @@
         </div>
     </div>
     <div id="CopyToast" class="copy-toast" role="status" aria-live="polite"></div>
+    <div id="receivedCardsOverlay" class="received-cards-overlay" role="status" aria-live="polite" data-i18n-skip hidden>
+        <div id="receivedCardsContent" class="received-cards__content"></div>
+    </div>
     <div id="dialogInnstillinger" class="dialog-container">
         <div class="dialog-window">
             <div class="dialog-title">Innstillinger</div>
@@ -188,8 +194,7 @@
         <div class="dialog-window">
             <div class="dialog-title">Velg kortstil</div>
             <div class="dialogBody card-style-list">
-                <small id="secretStyleHeader" class="secret-style-header" data-i18n-skip hidden>Secret style unlocked</small>
-                <button type="button" class="card-style-option" data-card-style="botanical" aria-pressed="false" hidden><span class="card-style-option__cards"></span><strong>Grønn tåke</strong></button>
+                <button type="button" class="card-style-option" data-card-style="botanical" aria-pressed="false" hidden><small id="secretStyleHeader" class="secret-style-header" data-i18n-skip hidden>Secret style unlocked</small><span class="card-style-option__cards"></span><strong>Grønn tåke</strong></button>
                 <button type="button" class="card-style-option" data-card-style="normal" aria-pressed="true"><span class="card-style-option__cards"></span><strong>Vanlig</strong></button>
                 <button type="button" class="card-style-option" data-card-style="holo" aria-pressed="false"><span class="card-style-option__cards"></span><strong>Holo</strong></button>
                 <button type="button" class="card-style-option" data-card-style="gold" aria-pressed="false"><span class="card-style-option__cards"></span><strong>Gull</strong></button>
@@ -246,7 +251,7 @@
             <div class="dialogBody">
                 <div><label for="dialogSporOmNickTxt">Skriv inn navnet ditt i spillet:</label></div>
                 <div><input class="autofocus" type="text" id="dialogSporOmNickTxt" aria-describedby="playerNameHint" maxlength="60" oninput="this.value=this.value.replace(/[^0-9A-ZÆØÅa-zæøå \/\-\p{Extended_Pictographic}\u200d\ufe0f]/gu, ''); document.getElementById( 'playerNameError').innerHTML=''; this.classList.toggle('input-soft-error', this.value.trim() === '' || Array.from(this.value).length > 28);" /></div>
-                <div><small id="playerNameHint">1–28 tegn. Bruk bokstaver (A–Z, ÆØÅ), tall, mellomrom, bindestrek (-), skråstrek (/) og emojier. Andre tegn fjernes automatisk. Er navnet opptatt i lobbyen, legges -1, -2 osv. til automatisk.</small></div>
+                <div><small id="playerNameHint">1–28 tegn: bokstaver, tall, mellomrom, - / og emojier. Like navn får -1, -2 osv.</small></div>
                 <div id="playerNameError" style="color: red;"></div>
             </div>
             <div class="dialog-footer">
@@ -411,7 +416,7 @@
                 <div>Plass i lobbyen</div>
                 <div>Menneskespillere erstatter en bot hvis lobbyen er full. Boter erstatter aldri menneskespillere.</div>
                 <div>Avstemning</div>
-                <div>Etter spillet stemmer dere på lobby eller neste runde. Ved uavgjort stemmer dere på nytt.</div>
+                <div>Etter spillet stemmer dere på lobby eller neste runde. Ved uavgjort avgjør vertens stemme.</div>
                 <div>Spesialkort</div>
                 <div>Kløver 3 kan legges på alt og rydder bunken, men taper hvis det er siste kort. Fire like kan slås av høyere fire like; ellers ryddes bunken og spilleren starter igjen.</div>
                 <div>Pass</div>
@@ -516,11 +521,11 @@
     </script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js"></script>
-    <script src="js/cards.js?v=0.3.17"></script>
-    <script src="js/player.js?v=0.3.17"></script>
-    <script src="js/shared.js?v=0.3.17"></script>
-    <script src="js/game.js?v=0.3.17"></script>
-    <script src="js/i18n.js?v=0.3.17"></script>
+    <script src="js/cards.js?v=0.3.18"></script>
+    <script src="js/player.js?v=0.3.18"></script>
+    <script src="js/shared.js?v=0.3.18"></script>
+    <script src="js/game.js?v=0.3.18"></script>
+    <script src="js/i18n.js?v=0.3.18"></script>
 </body>
 
 </html>

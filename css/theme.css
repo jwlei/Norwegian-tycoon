@@ -943,6 +943,9 @@ select:focus-visible {
     display: none;
 }
 
+.card-style-option[data-card-style="botanical"] { flex-wrap: wrap; }
+.card-style-option .secret-style-header { flex-basis: 100%; text-align: left; }
+
 .card-style-option__cards {
     display: flex;
     gap: 6px;
@@ -1929,7 +1932,8 @@ select:focus-visible {
     padding-top: 60px;
 }
 
-#BnInnstillinger {
+#BnInnstillinger,
+#homeButton {
     position: fixed;
     z-index: 32;
     top: calc(env(safe-area-inset-top) + 8px);
@@ -1946,6 +1950,101 @@ select:focus-visible {
     border-radius: 12px;
     background: var(--surface);
     color: var(--ink);
+}
+
+#homeButton {
+    left: auto;
+    right: calc(env(safe-area-inset-right) + 8px);
+}
+
+#homeButton[hidden] { display: none; }
+#homeButton svg { width: 24px; height: 24px; }
+
+.player-summary__name,
+.game-over__name > span:first-child {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: none;
+}
+
+.vote-choice {
+    min-width: 0;
+    flex: 1 1 120px;
+    max-width: 100%;
+}
+
+.vote-choice .player-summary__name { width: 100%; text-align: center; }
+
+#gameShell.game-active > #playerActions > #exchangePrompt {
+    position: absolute;
+    z-index: 199;
+    top: 50%;
+    bottom: auto;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: max-content;
+    max-width: 90vw;
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
+}
+
+#exchangePrompt:empty { display: none; }
+
+.received-cards-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgb(0 0 0 / 65%);
+    pointer-events: auto;
+}
+
+.received-cards-overlay[hidden] { display: none; }
+
+.received-cards__content {
+    max-width: min(90vw, 500px);
+    padding: 24px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--surface);
+    color: var(--ink);
+    text-align: center;
+}
+
+.received-cards__pile {
+    display: flex;
+    justify-content: center;
+    padding: 16px 24px;
+}
+
+.received-cards__pile img {
+    width: clamp(72px, 20vw, 130px);
+    margin-left: -22px;
+    border-radius: 8px;
+    box-shadow: 0 5px 18px rgb(0 0 0 / 35%);
+    transform: rotate(var(--received-angle));
+    animation: received-card-enter 300ms ease-out both;
+    animation-delay: calc(var(--received-index) * 70ms);
+}
+
+.game-over__name > span:first-child { flex: 1 1 auto; }
+.game-over__you { flex: 0 0 auto; }
+
+@keyframes received-card-enter {
+    from { opacity: 0; transform: translateY(40px) rotate(var(--received-angle)); }
+    to { opacity: 1; transform: translateY(0) rotate(var(--received-angle)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .received-cards__pile img { animation: none; }
 }
 
 #BnInnstillinger:hover {

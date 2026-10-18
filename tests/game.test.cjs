@@ -80,7 +80,7 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
     const hideStart = source.indexOf("        function hideGameToast()");
     const hideEnd = source.indexOf("        function resetGameLog", hideStart);
     const showStart = source.indexOf("        function showGameToast(");
-    const showEnd = source.indexOf("        function refreshAfterTurnPause", showStart);
+    const showEnd = source.indexOf("        var receivedCardQueue", showStart);
     vm.runInContext(source.slice(hideStart, hideEnd) + source.slice(showStart, showEnd), context);
     vm.runInContext('showGameToast("Next", game)', context);
     assert.equal(clones, 0);
@@ -91,10 +91,100 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
     assert.equal(clones, 1);
 });
 
-function loadGame(cardStyle = null) {
+test("received-card overlays filter recipients, queue receipts and honor every game speed", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const start = source.indexOf("        var receivedCardQueue");
+    const end = source.indexOf("        function refreshAfterTurnPause", start);
+    const { PresidentCard } = loadGame();
+    for (const [speed, duration] of [["fast", 3000], ["normal", 5000], ["slow", 8000]]) {
+        const element = () => ({
+            hidden: true, children: [], style: { setProperty() {} },
+            append(...children) { this.children.push(...children); },
+            appendChild(child) { this.children.push(child); },
+            replaceChildren() { this.children = []; }
+        });
+        const overlay = element();
+        const content = element();
+        const timers = [];
+        let listener;
+        const game = { id: "room", players: [{ name: "Sender", displayColor: "#123456" }] };
+        const context = vm.createContext({
+            currentGame: game, currentPlayerName: "Recipient",
+            GAME_SPEED_MS: { fast: 3000, normal: 5000, slow: 8000 },
+            currentGameSpeed: () => speed,
+            localizedMessage: message => message,
+            GameLayout: { cardStyle: () => "neon", createCardImage: card => {
+                assert.ok(card.toImageDataUri("neon").startsWith("data:image/svg+xml"));
+                return element();
+            } },
+            appendColoredGameMessage: (target, text, players) => {
+                target.textContent = text;
+                assert.equal(players[0].displayColor, "#123456");
+            },
+            document: {
+                documentElement: { lang: "nb" },
+                getElementById: id => id === "receivedCardsOverlay" ? overlay : content,
+                createElement: element,
+                addEventListener: (type, callback) => { listener = callback; }
+            },
+            setTimeout: (callback, delay) => { timers.push({ callback, delay }); return timers.length; }
+        });
+        vm.runInContext(source.slice(start, end), context);
+        const receipt = {
+            game, recipient: "Recipient", sender: "Sender",
+            cards: [new PresidentCard(1, 5), new PresidentCard(2, 13)]
+        };
+        listener({ detail: { ...receipt, recipient: "Other" } });
+        listener({ detail: { ...receipt, game: { id: "other-room" } } });
+        assert.equal(overlay.hidden, true);
+        listener({ detail: receipt });
+        assert.equal(overlay.hidden, false);
+        assert.equal(content.children[0].children.length, 2);
+        assert.match(content.children[1].textContent, /Du fikk .* og .* fra Sender\./);
+        assert.equal(timers[0].delay, duration);
+        listener({ detail: { ...receipt, cards: receipt.cards.slice(0, 1) } });
+        assert.equal(timers.length, 1);
+        timers[0].callback();
+        assert.equal(content.children[0].children.length, 1);
+        assert.equal(timers[1].delay, duration);
+        timers[1].callback();
+        assert.equal(overlay.hidden, true);
+    }
+});
+
+test("receiving an exchange emits mixed-rank renderable cards before play starts", () => {
+    const events = [];
+    const { PresidentGame } = loadGame(null, {
+        document: { dispatchEvent: event => events.push(event) },
+        CustomEvent: class {
+            constructor(type, options) { this.type = type; this.detail = options.detail; }
+        }
+    });
+    const cards = [];
+    cards.sortCards = () => {};
+    const exchange = { from: 0, to: 1, mode: "Kan se", count: 2, cards: [
+        { suit: 1, rank: 5 }, { suit: 2, rank: 13 }
+    ] };
+    const game = Object.assign(Object.create(PresidentGame.prototype), {
+        id: "room", status: "G", players: [{ name: "Sender" }, { name: "Recipient", cards }],
+        piles: [exchange], advanceExchangeStage() { this.status = "S"; }, save() {}
+    });
+    game.receiveExchangeCards(exchange);
+    assert.equal(game.status, "S");
+    assert.equal(game.piles.length, 0);
+    assert.equal(cards.length, 2);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].type, "exchange-cards-received");
+    assert.equal(events[0].detail.recipient, "Recipient");
+    assert.equal(events[0].detail.sender, "Sender");
+    assert.deepEqual(Array.from(events[0].detail.cards, card => card.rank), [5, 13]);
+    assert.ok(events[0].detail.cards.every(card => card.toImageDataUri("normal")));
+});
+
+function loadGame(cardStyle = null, globals = {}) {
     const context = vm.createContext({
         console, getCookie: () => null, getPlayerKey: () => "human-key", setTimeout: () => 0,
-        localStorage: { getItem: () => cardStyle }
+        localStorage: { getItem: () => cardStyle }, ...globals
     });
     for (const file of ["cards.js", "player.js", "game.js"]) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
@@ -415,6 +505,31 @@ test("one human and bots can vote to return to lobby atomically", () => {
     assert.ok(game.players.every(player => player.cards.length === 0 && player.turn === 0));
 });
 
+test("a tied next-round vote uses the named host when browser keys match", () => {
+    const { game, players, stored } = finishedVotingGame(true);
+    game.hostName = players[1].name;
+    game.localPlayerName = players[1].name;
+    let started = false;
+    game.startGame = () => { started = true; };
+    game.submitGameEndVote(players[0], "lobby");
+    game.submitGameEndVote(players[1], "next_round");
+    game.resolveGameEndVote();
+    assert.equal(stored.gameEndVote.result, "next_round");
+    assert.equal(started, true);
+});
+
+test("an expired empty tie waits for the host and accepts a late vote", () => {
+    const { game, players, stored } = finishedVotingGame();
+    players[1].playerKey = "second-human";
+    game.gameEndVote.until = Date.now() - 1000;
+    game.resolveGameEndVote(true);
+    assert.equal(stored.gameEndVote.result, undefined);
+    assert.equal(stored.gameEndVote.id, "vote");
+    game.submitGameEndVote(players[0], "lobby");
+    game.resolveGameEndVote(true);
+    assert.equal(stored.status, "O");
+});
+
 test("two humans sharing a browser key each get a separate lobby vote", () => {
     const { game, players, stored } = finishedVotingGame(true);
     assert.equal(game.submitGameEndVote(players[0], "lobby"), true);
@@ -432,18 +547,12 @@ test("two humans need a majority before returning to the lobby", () => {
     assert.equal(stored.status, "O");
 });
 
-test("a tied result vote clears votes and requires a new vote", () => {
+test("the host's lobby vote decides a tied result vote", () => {
     const { game, players, stored } = finishedVotingGame(true);
-    const previousId = game.gameEndVote.id;
     game.submitGameEndVote(players[0], "lobby");
     game.submitGameEndVote(players[1], "next_round");
-    assert.equal(stored.status, "F");
-    assert.notEqual(stored.gameEndVote.id, previousId);
-    assert.equal(stored.gameEndVote.votes.length, 0);
-    assert.equal(stored.gameEndVote.revote, true);
-    game.submitGameEndVote(players[0], "lobby");
-    game.submitGameEndVote(players[1], "lobby");
     assert.equal(stored.status, "O");
+    assert.equal(stored.gameEndVote, null);
 });
 
 test("a non-host cannot resolve or claim the result vote", () => {
@@ -457,16 +566,17 @@ test("a non-host cannot resolve or claim the result vote", () => {
     assert.equal(stored.status, "O");
 });
 
-test("a tied neutral-round vote also requires a new vote", () => {
+test("the host's neutral vote decides a tied neutral-round vote", () => {
     const { game, players, stored } = finishedVotingGame(true);
     game.roundStartVote = stored.roundStartVote = {
         id: "neutral-vote", until: Date.now() + 10000, votes: []
     };
+    let started = false;
+    game.startGame = () => { started = true; };
     game.submitNeutralRoundVote(players[0], true);
     game.submitNeutralRoundVote(players[1], false);
-    assert.equal(stored.roundStartVote.revote, true);
-    assert.equal(stored.roundStartVote.votes.length, 0);
-    assert.equal(stored.status, "F");
+    assert.equal(stored.roundStartVote.result, "neutral");
+    assert.equal(started, true);
 });
 
 test("only the host can start, even if everyone is ready", () => {
