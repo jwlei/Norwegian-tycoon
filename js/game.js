@@ -4365,9 +4365,20 @@ class PresidentGame extends Game {
             log.scrollTop = log.scrollHeight;
         }
 
-        function showGameToast(message, game, duration = TURN_ACTION_PAUSE_MS, pauseId = null, endsTrick = false) {
+        function showGameToast(message, game, duration = GAME_SPEED_MS[currentGameSpeed()], pauseId = null, endsTrick = false) {
             ensureGameLog(game);
             var toast = document.getElementById("GameToast");
+            if (toast.classList.contains("is-visible") && toast.textContent != "") {
+                var leaving = toast.cloneNode(true);
+                leaving.removeAttribute("id");
+                leaving.classList.add("game-toast--leaving");
+                leaving.setAttribute("aria-hidden", "true");
+                leaving.style.setProperty("--toast-push", `${toast.offsetHeight + 10}px`);
+                toast.parentNode.insertBefore(leaving, toast);
+                leaving.getBoundingClientRect();
+                leaving.classList.add("is-leaving");
+                setTimeout(() => leaving.remove(), 1000);
+            }
             toast.classList.remove("is-visible");
             toast.getBoundingClientRect();
             toast.replaceChildren();
@@ -4497,11 +4508,8 @@ class PresidentGame extends Game {
             if (pause.id != lastShownTurnPauseId) {
                 lastShownTurnPauseId = pause.id;
                 if (delay > 0) {
-                    showGameToast(pause.message, game, delay, pause.id, pause.kind == "clear");
+                    showGameToast(pause.message, game, GAME_SPEED_MS[currentGameSpeed()], pause.id, pause.kind == "clear");
                 }
-            }
-            if (delay <= 0 && activeToastPauseId == pause.id) {
-                hideGameToast();
             }
             if (delay > 0) {
                 turnPauseRefreshTimer = setTimeout(function () {
