@@ -102,7 +102,7 @@
 
         </div>
         <div id="playerActions" style="text-align: center; vertical-align: middle;">
-            <div id="GameToast" class="game-toast" role="status" aria-live="polite" aria-atomic="true"></div>
+            <div id="GameToast" class="game-toast" role="status" aria-live="polite" aria-atomic="true" data-i18n-skip></div>
             <span id="selectedCardCount" class="visually-hidden" aria-live="polite" aria-atomic="true"></span>
             <button type="button" id="passButton" title="Pass" aria-label="Pass" style="float: left;">Pass</button>
             <button type="button" id="passButton_Off" title="Pass (ikke tillatt nå)" aria-label="Pass (ikke tillatt nå)" style="float: left;">Pass utilgjengelig</button>
@@ -158,6 +158,13 @@
                     <span class="setting-row__text"><strong>Auto-forslag</strong><small>Velger laveste lovlige kort for deg når det er din tur</small></span>
                     <span class="setting-row__switch" aria-hidden="true"><span></span></span>
                 </button>
+                <div class="setting-row setting-language" role="group" aria-label="Språk">
+                    <span class="setting-row__text"><strong>Språk</strong><small>Velg språk for spillet</small></span>
+                    <span class="language-options" data-i18n-skip>
+                        <button type="button" class="language-option" data-lang="no" lang="nb" aria-pressed="true">Norsk</button>
+                        <button type="button" class="language-option" data-lang="en" lang="en" aria-pressed="false">English</button>
+                    </span>
+                </div>
                 <div class="setting-row setting-speed" role="group" aria-label="Spillhastighet">
                     <span class="setting-row__text"><strong>Spillhastighet</strong><small>Hvor lenge meldinger vises</small></span>
                     <span class="speed-options">
@@ -388,7 +395,7 @@
                 <div class="dialog-title">Spillogg</div>
                 <button type="button" class="dialog-close" onclick="showDialog('Spillogg', false);">Lukk</button>
             </div>
-            <div id="gameLogEntries" class="game-log" role="log" aria-live="polite" aria-relevant="additions"></div>
+            <div id="gameLogEntries" class="game-log" role="log" aria-live="polite" aria-relevant="additions" data-i18n-skip></div>
         </div>
     </div>
 
@@ -481,6 +488,7 @@
     <script src="js/player.js"></script>
     <script src="js/shared.js"></script>
     <script src="js/game.js"></script>
+    <script src="js/i18n.js"></script>
 </body>
 
 </html>

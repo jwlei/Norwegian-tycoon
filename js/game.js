@@ -4258,7 +4258,7 @@ class PresidentGame extends Game {
             if (game != null) {
                 var emptyMessage = document.createElement("p");
                 emptyMessage.className = "game-log__empty";
-                emptyMessage.textContent = "Ingen hendelser ennå.";
+                emptyMessage.textContent = localizedMessage("Ingen hendelser ennå.");
                 log.appendChild(emptyMessage);
             }
         }
@@ -4307,6 +4307,10 @@ class PresidentGame extends Game {
             }
         }
 
+        function localizedMessage(message) {
+            return window.I18n ? window.I18n.msg(message) : message;
+        }
+
         function appendGameLogEntry(entry, animate = true) {
             var log = document.getElementById("gameLogEntries");
             var emptyMessage = log.querySelector(".game-log__empty");
@@ -4315,14 +4319,14 @@ class PresidentGame extends Game {
             if (entry.trick != null) {
                 item.className = "game-log__trick";
                 if (animate) { item.classList.add("game-log__entry--enter"); }
-                item.textContent = `Stikk ${entry.trick}`;
+                item.textContent = localizedMessage(`Stikk ${entry.trick}`);
                 log.appendChild(item);
                 log.scrollTop = log.scrollHeight;
                 return;
             }
             item.className = "game-log__entry";
             if (animate) { item.classList.add("game-log__entry--enter"); }
-            appendColoredGameMessage(item, entry.message, entry.players);
+            appendColoredGameMessage(item, localizedMessage(entry.message), entry.players);
             log.appendChild(item);
             log.scrollTop = log.scrollHeight;
         }
@@ -4335,7 +4339,7 @@ class PresidentGame extends Game {
             if (gameLogEntries.length == 0) {
                 var emptyMessage = document.createElement("p");
                 emptyMessage.className = "game-log__empty";
-                emptyMessage.textContent = "Ingen hendelser ennå.";
+                emptyMessage.textContent = localizedMessage("Ingen hendelser ennå.");
                 log.appendChild(emptyMessage);
             } else {
                 gameLogEntries.forEach(entry => appendGameLogEntry(entry, false));
@@ -4400,8 +4404,7 @@ class PresidentGame extends Game {
                     : "linear-gradient(90deg, #17803d, #39a95f, #f4cf43)"
             );
             activeToastPauseId = pauseId;
-            appendColoredGameMessage(toast, message, players);
-            toast.classList.add("is-visible");
+            appendColoredGameMessage(toast, localizedMessage(message), players);
             if (gameToastTimer != null) {
                 clearTimeout(gameToastTimer);
             }
@@ -5012,6 +5015,13 @@ class PresidentGame extends Game {
         }
 
         document.getElementById("BnInnstillinger").addEventListener("click", openSettings);
+
+        document.addEventListener("languagechange", function () {
+            if (currentGame != null &&
+                document.getElementById("dialogSpillogg").classList.contains("dialog-container--visible")) {
+                showGameLog();
+            }
+        });
 
         var copyToastTimer = null;
         function showCopyToast(text) {
