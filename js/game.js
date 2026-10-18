@@ -160,7 +160,7 @@ function resultIconForPlacement(game, placement) {
 }
 
 function roundVotePlayerId(player) {
-    return player.playerKey || player.name;
+    return JSON.stringify([player.playerKey || "", player.name]);
 }
 
 function updateAutoSuggestionButton() {
@@ -1434,6 +1434,23 @@ class GameLayout {
                             `${endVotes.size} av ${humanVoters.length} menneskespillere har stemt.`;
                     }
                     endVotePanel.append(endVoteHeading, endVoteSummary);
+                    var voteStatus = document.createElement("div");
+                    voteStatus.className = "round-start-vote__summary";
+                    humanVoters.forEach(voter => {
+                        var row = document.createElement("div");
+                        var name = document.createElement("span");
+                        name.className = "player-summary__name";
+                        name.textContent = voter.name;
+                        name.style.color = voter.displayColor;
+                        var choice = endVotes.get(roundVotePlayerId(voter));
+                        var label = document.createElement("span");
+                        label.textContent = choice == "lobby"
+                            ? "Stemt på lobby"
+                            : (choice == "next_round" ? "Stemt på neste runde" : "Har ikke stemt");
+                        row.append(name, document.createTextNode(": "), label);
+                        voteStatus.appendChild(row);
+                    });
+                    endVotePanel.appendChild(voteStatus);
                     if (game.gameEndVote.result == null && player != null &&
                         player.playerKey != "PC" && humanVoters.includes(player)) {
                         var endVoteChoices = document.createElement("div");
@@ -1441,14 +1458,14 @@ class GameLayout {
                         var playerVoteId = roundVotePlayerId(player);
                         var lobbyVote = document.createElement("button");
                         lobbyVote.type = "button";
-                        lobbyVote.textContent = "Gå til lobby";
+                        lobbyVote.textContent = "Stem på lobby";
                         lobbyVote.setAttribute("aria-pressed", String(endVotes.get(playerVoteId) == "lobby"));
                         lobbyVote.onclick = function () {
                             game.submitGameEndVote(player, "lobby");
                         };
                         var nextRoundVote = document.createElement("button");
                         nextRoundVote.type = "button";
-                        nextRoundVote.textContent = "Start neste runde";
+                        nextRoundVote.textContent = "Stem på neste runde";
                         nextRoundVote.setAttribute("aria-pressed", String(endVotes.get(playerVoteId) == "next_round"));
                         nextRoundVote.onclick = function () {
                             game.submitGameEndVote(player, "next_round");
@@ -1462,6 +1479,10 @@ class GameLayout {
                         endVoteHint.textContent =
                             "Flertall regnes av alle menneskespillere. Manglende stemmer teller ikke; uten flertall ved fristen går rommet til lobbyen.";
                         endVotePanel.appendChild(endVoteHint);
+                        var lobbyHint = document.createElement("span");
+                        lobbyHint.className = "round-start-vote__hint";
+                        lobbyHint.textContent = "Lobbyen er spillerrommet før start. Alle blir i rommet. Hovedmenyen er startsiden.";
+                        endVotePanel.appendChild(lobbyHint);
                     }
                     gameOver.appendChild(endVotePanel);
                 } else if (game.roundStartVote != null) {

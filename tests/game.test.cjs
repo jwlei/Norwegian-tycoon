@@ -35,8 +35,9 @@ function setupGame() {
     return { game, players, pile };
 }
 
-test("one human and bots can vote to return to lobby atomically", () => {
+function finishedVotingGame(sharedKey = false) {
     const { game, players } = setupGame();
+    if (sharedKey) { players[1].playerKey = players[0].playerKey; }
     players.forEach((player, i) => { player.placement = i + 1; });
     game.status = "F";
     game.gameEndVote = { id: "vote", until: Date.now() + 10000, votes: [] };
@@ -71,6 +72,11 @@ test("one human and bots can vote to return to lobby atomically", () => {
             };
         }
     };
+    return { game, players, stored, snapshots };
+}
+
+test("one human and bots can vote to return to lobby atomically", () => {
+    const { game, players, stored, snapshots } = finishedVotingGame();
     assert.equal(game.submitGameEndVote(players[0], "lobby"), true);
     assert.equal(stored.status, "O");
     assert.equal(stored.gameEndVote, null);
@@ -78,6 +84,32 @@ test("one human and bots can vote to return to lobby atomically", () => {
     assert.equal(snapshots.some(snapshot => snapshot.status === "F" && snapshot.vote == null), false);
     assert.equal(game.players.length, 3);
     assert.ok(game.players.every(player => player.cards.length === 0 && player.turn === 0));
+});
+
+test("two humans sharing a browser key each get a separate lobby vote", () => {
+    const { game, players, stored } = finishedVotingGame(true);
+    assert.equal(game.submitGameEndVote(players[0], "lobby"), true);
+    assert.equal(stored.status, "F");
+    assert.equal(game.submitGameEndVote(players[1], "lobby"), true);
+    assert.equal(stored.status, "O");
+});
+
+test("two humans need a majority before returning to the lobby", () => {
+    const { game, players, stored } = finishedVotingGame();
+    players[1].playerKey = "second-human";
+    assert.equal(game.submitGameEndVote(players[0], "lobby"), true);
+    assert.equal(stored.status, "F");
+    assert.equal(game.submitGameEndVote(players[1], "lobby"), true);
+    assert.equal(stored.status, "O");
+});
+
+test("one human with bots can still vote for the next round", () => {
+    const { game, players } = finishedVotingGame();
+    let started = false;
+    game.needsNeutralRoundVote = () => false;
+    game.startGame = () => { started = true; };
+    assert.equal(game.submitGameEndVote(players[0], "next_round"), true);
+    assert.equal(started, true);
 });
 
 test("higher four of a kind keeps the pile open and can be played", () => {
@@ -93,6 +125,27 @@ test("higher four of a kind keeps the pile open and can be played", () => {
     assert.equal(info.pile.length, 4);
     game.piles.push(response);
     assert.equal(game.pileCleared(), true);
+});
+
+test("opening four fives stays on the table in a two-human game after serialization", () => {
+    const { game, players, pile } = setupGame();
+    game.players = players.slice(0, 2);
+    players[1].playerKey = "second-human";
+    const opening = pile(players[0], 5);
+    players[0].cards = [...opening, ...pile(players[0], 4)];
+    players[1].cards = [...pile(players[1], 6), ...pile(players[1], 10), ...pile(players[1], 13)];
+    const { PresidentPlayer } = loadGame();
+    game.players = PresidentPlayer.deserializePlayers(
+        JSON.parse(JSON.stringify(game.players.map(player => player.toRecord())))
+    );
+    game.save = () => {};
+    game.setTurn(0);
+    const play = new opening.constructor(game.players[0].name, ...game.players[0].cards.slice(0, 4));
+    game.playCards(game.players[0], play);
+    assert.equal(game.turn, 1);
+    assert.equal(game.piles.length, 1);
+    assert.equal(game.turnPause.kind, "play");
+    assert.equal(game.piles[0].strengthRank, 5);
 });
 
 test("four accumulated equal cards can be beaten only by four higher cards", () => {
