@@ -113,7 +113,12 @@ button {
     letter-spacing: 0.14em;
     opacity: 0.68;
     transform: translateX(-50%);
-    pointer-events: none;
+    white-space: nowrap;
+}
+
+.app-version a {
+    color: inherit;
+    text-decoration: underline;
 }
 
 button:hover {
