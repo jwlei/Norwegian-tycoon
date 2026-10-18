@@ -192,6 +192,7 @@
         "Starter valgt neste steg …": "Starting the chosen next step …",
         "Klargjør avstemning …": "Preparing the vote …",
         "Vert": "Host",
+        "1–28 tegn. Bruk bokstaver (A–Z, ÆØÅ), tall, mellomrom, bindestrek (-), skråstrek (/) og emojier. Andre tegn fjernes automatisk. Navnet må være ledig.": "1–28 characters. Use letters (A–Z, ÆØÅ), numbers, spaces, hyphens (-), slashes (/) and emojis. Other characters are removed automatically. The name must be available.",
         "Bare verten kan legge til bots.": "Only the host can add bots.",
         "Kunne ikke legge til spilleren. Prøv igjen.": "Could not add the player. Please try again.",
         "Plass i lobbyen": "Lobby capacity",
