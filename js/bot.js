@@ -1,5 +1,20 @@
 class BotAI {
-    static skills = ["bad", "good", "pro"];
+    static skills = ["bad", "good", "pro", "god"];
+
+    static buckets = {
+        bad: ["Bomsen", "Onkel Pass", "Guest_839201", "Knurt", "Turbo-Tore", "Jompa", "RNGesus"],
+        good: ["Boten Anna", "Haakon VIII", "Kurt-Josef", "Kjell-Bjarne", "Mathias (CEO)",
+            "J21Oslo", "Fetter Anton", "Tante_Pose", "BobRoss", "IlIllIlIIl"],
+        pro: ["Severin Suveren", "H4cker-man", "Steinar Storspiller", "xXLegolasXx",
+            "DeepSeek", "GPT6", "Sjefen_Over_Alle_Sjefer"],
+        god: ["Mysil Bergsprekken", "ギフテッド"]
+    };
+
+    static skillForName(name) {
+        var normalized = (name || "").trim().toLocaleLowerCase();
+        return BotAI.skills.find(skill =>
+            BotAI.buckets[skill].some(candidate => candidate.toLocaleLowerCase() == normalized)) || "good";
+    }
 
     static skill(value) {
         if (value == null) { return "good"; }
@@ -14,13 +29,15 @@ class BotAI {
         var seat = game.players.indexOf(player);
         if (seat < 0) { throw new Error("Botspilleren finnes ikke i spillet."); }
         var clockwise = game.players.slice(seat + 1).concat(game.players.slice(0, seat));
-        // Opponent card identities must never cross this boundary.
+        var omniscient = player.playerKey == "PC" && BotAI.skill(player.botSkill) == "god";
+        // Only the explicitly cheating God level may read opponents' card identities.
         return {
             cards: player.cards.slice(),
             name: player.name,
             opponents: clockwise.filter(other => other.placement == 0)
                 .map(other => ({
-                    name: other.name, count: other.cards.length, passed: other.lastPlay === "Pass"
+                    name: other.name, count: other.cards.length, passed: other.lastPlay === "Pass",
+                    ...(omniscient ? { cards: other.cards.slice() } : {})
                 })),
             top: top == null ? null : {
                 rank: top.strengthRank,
@@ -294,6 +311,24 @@ class BotAI {
             return moves[Math.floor(random() * moves.length)];
         }
         if (view.top != null && view.top.own) { return null; }
+        if (skill == "god") {
+            if (view.opponents.some(other => !Array.isArray(other.cards) || other.cards.length != other.count)) {
+                throw new Error("Gud-nivået krever motspillernes faktiske kort.");
+            }
+            var hands = view.opponents.map(other => other.cards);
+            var candidates = moves.map(move => ({
+                move, score: BotAI.proScore(view, move, [hands]),
+                outcome: BotAI.rollout(view, move, hands)
+            }));
+            if (view.top != null) {
+                candidates.push({
+                    move: null, score: -BotAI.handCost(view.cards),
+                    outcome: BotAI.rollout(view, null, hands)
+                });
+            }
+            candidates.sort((a, b) => (b.outcome * 100 + b.score) - (a.outcome * 100 + a.score));
+            return candidates[0].move;
+        }
         var samples = skill == "pro" ? BotAI.samples(view, random) : null;
         var scored = moves.map(move => ({
             move,
@@ -333,7 +368,8 @@ class BotAI {
         var visit = (start, chosen) => {
             if (chosen.length == count) {
                 var score = BotAI.handCost(BotAI.remaining(cards, chosen)) +
-                    chosen.reduce((sum, card) => sum + card.strengthRank, 0) * (skill == "pro" ? 1.2 : 0.8);
+                    chosen.reduce((sum, card) => sum + card.strengthRank, 0) *
+                    (skill == "pro" || skill == "god" ? 1.2 : 0.8);
                 if (score < bestScore) {
                     best = chosen.slice();
                     bestScore = score;

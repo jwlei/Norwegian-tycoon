@@ -2667,7 +2667,7 @@ class PresidentPlayer extends Player {
         this.bomsStreak = 0;
         this.lastPlacement = 0;
         this.gaveUp = false;
-        this.botSkill = playerKey == "PC" ? "good" : null;
+        this.botSkill = playerKey == "PC" ? BotAI.skillForName(name) : null;
     }
     toRecord() {
         var result = super.toRecord();
@@ -2676,7 +2676,10 @@ class PresidentPlayer extends Player {
         result["presidentStreak"] = this.presidentStreak;
         result["bomsStreak"] = this.bomsStreak;
         result["lastPlacement"] = this.lastPlacement;
-        if (this.playerKey == "PC") { result.botSkill = BotAI.skill(this.botSkill); }
+        if (this.playerKey == "PC") {
+            result.botSkill = BotAI.skill(this.botSkill);
+            result.botSkillVersion = 1;
+        }
         if (this.gaveUp === true) {
             result["gaveUp"] = true;
         }
@@ -2702,7 +2705,9 @@ class PresidentPlayer extends Player {
             ? record["lastPlacement"]
             : 0;
         this.gaveUp = record["gaveUp"] === true;
-        this.botSkill = this.playerKey == "PC" ? BotAI.skill(record.botSkill) : null;
+        this.botSkill = this.playerKey == "PC"
+            ? (record.botSkillVersion === 1 ? BotAI.skill(record.botSkill) : BotAI.skillForName(this.name))
+            : null;
         this.leaveAfterExchange = record["leaveAfterExchange"] === true;
         return this;
     }

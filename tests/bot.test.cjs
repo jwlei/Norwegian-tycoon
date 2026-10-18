@@ -24,14 +24,16 @@ function loadBots() {
             ? source.split(/\r?\n\(\r?\n/)[0] + source.slice(source.indexOf("\nfunction playBotTurn("))
             : source, context);
     }
-    return vm.runInContext("({ BotAI, PresidentGame, PresidentPlayer, PresidentCard, CardDeck, CardPile, playBotTurn })", context);
+    return vm.runInContext("({ BotAI, PresidentGame, PresidentPlayer, PresidentCard, CardDeck, CardPile, playBotTurn, BOT_NAMES })", context);
 }
 
 const types = loadBots();
 const { BotAI, PresidentGame, PresidentPlayer, PresidentCard, CardDeck, CardPile, playBotTurn } = types;
 const card = (rank, suit = 1) => new PresidentCard(suit, rank);
 const view = (cards, top = null, opponents = [{ name: "Other", count: 8, passed: false }]) =>
-    ({ cards, top, opponents, tableCards: [], playedCards: [], playerCount: 3 });
+    ({ cards, top, opponents: opponents.map(other => ({
+        ...other, cards: Array.from({ length: other.count }, (_, index) => card(4 + index % 9, 2))
+    })), tableCards: [], playedCards: [], playerCount: 3 });
 
 function gameWithHands(hands, skills = hands.map(() => "good")) {
     const players = hands.map((cards, index) => {
@@ -119,10 +121,56 @@ test("observations never inspect opponents' hidden cards or chosen difficulty", 
         });
         Object.defineProperty(player, "botSkill", { get() { throw new Error("Read opponent skill"); } });
     });
-    for (const skill of BotAI.skills) {
+    for (const skill of ["bad", "good", "pro"]) {
         const observed = BotAI.observe(game, game.players[0]);
         assert.ok(BotAI.chooseMove(observed, skill, seededRandom(4)));
         assert.deepEqual(Object.keys(observed.opponents[0]).sort(), ["count", "name", "passed"]);
+    }
+});
+
+test("all 26 names belong to exactly one approved bucket and existing bots migrate", () => {
+    const names = Object.values(BotAI.buckets).flat();
+    assert.equal(names.length, 26);
+    assert.equal(new Set(names).size, 26);
+    assert.deepEqual([...names].sort(), Array.from(types.BOT_NAMES).sort());
+    assert.deepEqual(Object.values(BotAI.buckets).map(bucket => bucket.length), [7, 10, 7, 2]);
+    for (const [skill, bucket] of Object.entries(BotAI.buckets)) {
+        for (const name of bucket) {
+            assert.equal(new PresidentPlayer(name, "PC").botSkill, skill);
+            const legacy = new PresidentPlayer(name, "PC").toRecord();
+            legacy.botSkill = "good";
+            delete legacy.botSkillVersion;
+            assert.equal(new PresidentPlayer().fromRecord(legacy).botSkill, skill);
+            assert.equal(new PresidentPlayer(name.toUpperCase(), "PC").botSkill, skill);
+        }
+    }
+    const explicit = new PresidentPlayer("Mysil Bergsprekken", "PC");
+    explicit.botSkill = "bad";
+    assert.equal(new PresidentPlayer().fromRecord(explicit.toRecord()).botSkill, "bad");
+});
+
+test("only God sees actual opponent hands, with copies instead of mutable references", () => {
+    const game = gameWithHands([[card(4), card(5)], [card(1)], [card(8), card(9)]], ["god", "pro", "good"]);
+    const state = BotAI.observe(game, game.players[0]);
+    assert.equal(state.opponents[0].cards[0], game.players[1].cards[0]);
+    state.opponents[0].cards.pop();
+    assert.equal(game.players[1].cards.length, 1);
+    for (const skill of ["bad", "good", "pro"]) {
+        game.players[0].botSkill = skill;
+        assert.ok(BotAI.observe(game, game.players[0]).opponents.every(other => !("cards" in other)));
+    }
+    const publicView = BotAI.observe(game, game.players[0]);
+    assert.throws(() => BotAI.chooseMove(publicView, "god"), /faktiske kort/);
+});
+
+test("God uses exact cards to choose the cheapest safe lead against a one-card opponent", () => {
+    for (const [opponentRank, expectedRank] of [[8, 10], [13, 1], [2, 4]]) {
+        const game = gameWithHands([
+            [card(4), card(10), card(1)], [card(opponentRank, 2)]
+        ], ["god", "pro"]);
+        const state = BotAI.observe(game, game.players[0]);
+        const move = BotAI.chooseMove(state, "god", () => assert.fail("God must not sample unknown cards"));
+        assert.equal(move[0].rank, expectedRank);
     }
 });
 
@@ -320,12 +368,58 @@ function simulate(seed, skills) {
     return { players: game.players, turns, maxDecisionMs };
 }
 
-test("seeded games terminate legally with all three skills and two, three or four players", () => {
+test("seeded games terminate legally with all skills and two, three or four players", () => {
     for (let seed = 1; seed <= 8; seed++) {
         for (const skills of [["bad", "good"], ["pro", "bad"], ["pro", "good"],
-            ["bad", "good", "pro"], ["pro", "good", "bad", "pro"]]) {
+            ["bad", "good", "pro"], ["pro", "good", "bad", "pro"],
+            ["god", "pro"], ["god", "good", "pro"], ["god", "pro", "good", "bad"]]) {
             simulate(seed, skills);
         }
+    }
+});
+
+test("God beats Pro in paired heads-up games with identical deals and swapped seats", () => {
+    const placements = { god: 0, pro: 0 };
+    const wins = { god: 0, pro: 0 };
+    const rounds = 60;
+    let slowest = 0;
+    for (let seed = 201; seed < 201 + rounds; seed++) {
+        for (const skills of [["god", "pro"], ["pro", "god"]]) {
+            const result = simulate(seed, skills);
+            result.players.forEach(player => {
+                placements[player.botSkill] += player.placement;
+                if (player.placement == 1) { wins[player.botSkill]++; }
+            });
+            slowest = Math.max(slowest, result.maxDecisionMs);
+        }
+    }
+    console.log("God vs Pro paired heads-up:", { wins, games: rounds * 2,
+        averageGod: placements.god / (rounds * 2), averagePro: placements.pro / (rounds * 2),
+        slowestDecisionMs: slowest.toFixed(1) });
+    assert.ok(wins.god > wins.pro, "God must outperform Pro, not just have access to more data");
+});
+
+test("God outperforms the other levels in rotating three- and four-player tournaments", () => {
+    for (const lineup of [["god", "pro", "good"], ["god", "pro", "good", "bad"]]) {
+        const placements = Object.fromEntries(lineup.map(skill => [skill, 0]));
+        const wins = Object.fromEntries(lineup.map(skill => [skill, 0]));
+        const seeds = 16;
+        for (let seed = 401; seed < 401 + seeds; seed++) {
+            for (let rotation = 0; rotation < lineup.length; rotation++) {
+                const skills = lineup.slice(rotation).concat(lineup.slice(0, rotation));
+                const result = simulate(seed, skills);
+                result.players.forEach(player => {
+                    placements[player.botSkill] += player.placement;
+                    if (player.placement == 1) { wins[player.botSkill]++; }
+                });
+            }
+        }
+        const games = seeds * lineup.length;
+        const averages = Object.fromEntries(Object.entries(placements).map(([skill, total]) => [skill, total / games]));
+        console.log("God multiplayer tournament:", { players: lineup.length, games, wins, averages });
+        assert.ok(averages.god < averages.pro, "God must beat Pro on average");
+        assert.ok(averages.god < averages.good, "God must beat Good on average");
+        if (lineup.includes("bad")) { assert.ok(averages.god < averages.bad); }
     }
 });
 
