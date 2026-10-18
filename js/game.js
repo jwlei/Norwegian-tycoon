@@ -4940,10 +4940,16 @@ class PresidentGame extends Game {
             showInviteLink(currentGame.id, inviteUrl);
         });
 
-        document.getElementById("BnFInnstillinger").addEventListener("click", function () {
+        function openSettings() {
+            var inGame = currentGame != null;
+            document.getElementById("autoSuggestionToggleButton").hidden = !inGame;
+            document.getElementById("settingsGameId").hidden = !inGame;
             updateAutoSuggestionButton();
             showDialog("Innstillinger", true);
-        });
+        }
+
+        document.getElementById("BnFInnstillinger").addEventListener("click", openSettings);
+        document.getElementById("BnHInnstillinger").addEventListener("click", openSettings);
 
         document.getElementById("autoSuggestionToggleButton").addEventListener(
             "click",

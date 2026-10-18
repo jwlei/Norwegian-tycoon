@@ -1741,6 +1741,36 @@ select:focus-visible {
     justify-content: center;
 }
 
+#mainMenu > #BnHInnstillinger {
+    position: absolute;
+    z-index: 2;
+    top: calc(env(safe-area-inset-top) + 8px);
+    left: calc(env(safe-area-inset-left) + 8px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    margin: 0;
+    padding: 0;
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--ink);
+}
+
+#BnHInnstillinger .settings-gear {
+    width: 24px;
+    height: 24px;
+    transition: transform 300ms ease;
+}
+
+#BnHInnstillinger:hover .settings-gear {
+    transform: rotate(60deg);
+}
+
 #BnFInnstillinger .settings-gear {
     width: 1.5em;
     height: 1.5em;
