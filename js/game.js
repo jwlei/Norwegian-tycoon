@@ -149,7 +149,9 @@ function assignPlayerColors(game) {
 const BOT_NAMES = [
     "Knurt", "Boten Anna", "Turbo-Tore", "Haakon VIII", "Bomsen",
     "Onkel Pass", "Severin Suveren", "H4cker-man", "Kurt-Josef", "Kjell-Bjarne",
-    "Steinar Storspiller", "Mathias (CEO)", "xXLegolasXx", "J21Oslo", "Guest_839201"
+    "Steinar Storspiller", "Mathias (CEO)", "xXLegolasXx", "J21Oslo", "Guest_839201",
+    "Fetter Anton", "DeepSeek", "GPT6", "Jompa", "Sjefen_Over_Alle_Sjefer",
+    "Mysil Bergsprekken", "RNGesus"
 ];
 const TURN_ACTION_PAUSE_MS = 3000;
 const BOT_ACTION_DELAY_MS = TURN_ACTION_PAUSE_MS;
