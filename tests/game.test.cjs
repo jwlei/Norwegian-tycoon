@@ -198,6 +198,29 @@ function loadGame(cardStyle = null, globals = {}) {
     return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES })", context);
 }
 
+test("Messenger sharing uses the invitation URL and explains unsupported desktop sharing", async () => {
+    const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    const start = html.indexOf("            async function shareInviteMessenger()");
+    const end = html.indexOf("            function sendInviteSms()", start);
+    const status = {};
+    const inviteUrl = "https://playboms.eu/?spillid=123";
+    const context = vm.createContext({
+        navigator: { userAgent: "Android" }, window: { location: {} },
+        document: { getElementById: id => id == "dialogVisLinkStatus" ? status : { value: inviteUrl } }
+    });
+    vm.runInContext(html.slice(start, end), context);
+    await context.shareInviteMessenger();
+    assert.equal(context.window.location.href, "fb-messenger://share/?link=" + encodeURIComponent(inviteUrl));
+    context.navigator.userAgent = "Desktop";
+    await context.shareInviteMessenger();
+    assert.match(status.textContent, /støttes ikke/);
+    let shared;
+    context.navigator.share = async data => { shared = data; };
+    await context.shareInviteMessenger();
+    assert.equal(shared.url, inviteUrl);
+    assert.equal(status.textContent, "Invitasjonen er delt.");
+});
+
 test("new bot names are available and Japanese player names survive input and cookie sanitization", () => {
     const { BOT_NAMES, sanitizePlayerName } = loadGame();
     for (const name of ["Tante_Pose", "BobRoss", "IlIllIlIIl", "ギフテッド"]) {

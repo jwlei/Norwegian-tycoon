@@ -1534,11 +1534,13 @@ select:focus-visible {
 }
 
 .invite-actions {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     margin-top: 12px;
 }
+
+#inviteMessengerButton { grid-column: 1 / -1; }
 
 .invite-actions button,
 #inviteSmsButton {
@@ -2759,8 +2761,24 @@ select:focus-visible {
 }
 
 #gameShell.game-active.Lobby > #gameMenu #gameMetadata {
-    display: none !important;
+    display: flex !important;
+    position: fixed;
+    z-index: 31;
+    top: calc(env(safe-area-inset-top) + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    height: 44px;
+    width: max-content;
+    max-width: calc(100vw - 240px);
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
 }
+
+#gameShell.game-active.Lobby #gameMetadata > br,
+#gameShell.game-active.Lobby #SpanSpillStat { display: none; }
 
 #gameShell.game-active.Lobby #startGameButton {
     background: #17803d;

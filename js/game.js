@@ -4543,7 +4543,7 @@ class PresidentGame extends Game {
             for (var i = 0; i < 8; i++) {
                 var card = document.createElement("img");
                 card.className = "shuffle-card";
-                card.src = "icons/back.svg";
+                card.src = Card.createBack().toImageDataUri();
                 card.alt = "";
                 card.setAttribute("aria-hidden", "true");
                 card.style.setProperty("--shuffle-index", String(i));
