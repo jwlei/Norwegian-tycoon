@@ -865,9 +865,12 @@ select:focus-visible {
 }
 
 .card-style-current {
-    color: var(--muted);
-    font-size: 0.9rem;
-    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+.card-style-current .card-preview {
+    width: 32px;
+    border-radius: 5px;
 }
 
 .secret-style-header {
@@ -1783,6 +1786,26 @@ select:focus-visible {
     overflow-wrap: anywhere;
     box-shadow: 0 3px 10px rgb(0 0 0 / 22%);
     transform: translateY(-50%);
+}
+
+.club-three-glint {
+    --club-glint: #a2f6ac;
+    animation: club-three-glint 850ms ease-out;
+}
+
+.club-three-glint--loss {
+    --club-glint: #ec8b81;
+}
+
+@keyframes club-three-glint {
+    0%, 100% { filter: brightness(1) drop-shadow(0 0 0 transparent); }
+    30% { filter: brightness(1.35) drop-shadow(0 0 20px var(--club-glint)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .club-three-glint {
+        animation-duration: 600ms !important;
+    }
 }
 
 .card-flight {

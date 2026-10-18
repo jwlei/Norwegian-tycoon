@@ -233,6 +233,41 @@ test("lobby colors stay distinct and at least 60 degrees apart for humans and bo
     }
 });
 
+test("club three glints once per played pause, with a muted loss color and no movement", () => {
+    const { GameLayout, PresidentCard } = loadGame();
+    const classes = new Set();
+    const target = {
+        classList: {
+            add: value => classes.add(value),
+            toggle: (value, active) => active ? classes.add(value) : classes.delete(value)
+        }
+    };
+    let sender = { placement: 0 };
+    const game = { getPlayer: () => sender };
+    const table = {
+        dataset: { turnPauseId: "room:1" },
+        querySelector: selector => {
+            assert.equal(selector, '.table-play__card[data-card-key="3:3"]');
+            return target;
+        }
+    };
+    game.turnPause = { playedPile: { name: "Player", cards: PresidentCard.serializeDeck([new PresidentCard(2, 3)]) } };
+    GameLayout.flashClubThree(game, table, "room:1");
+    assert.equal(classes.size, 0);
+    game.turnPause.playedPile.cards = PresidentCard.serializeDeck([new PresidentCard(3, 3)]);
+    GameLayout.flashClubThree(game, table, "room:1");
+    assert.deepEqual([...classes], ["club-three-glint"]);
+    classes.clear();
+    GameLayout.flashClubThree(game, table, "room:1");
+    assert.equal(classes.size, 0);
+    table.dataset.turnPauseId = "room:2";
+    sender = { placement: 3 };
+    GameLayout.flashClubThree(game, table, "room:1");
+    assert.equal(classes.size, 0);
+    GameLayout.flashClubThree(game, table, "room:2");
+    assert.deepEqual([...classes], ["club-three-glint", "club-three-glint--loss"]);
+});
+
 test("rank icons show streaks only for consecutive presidents and boms", () => {
     const { PresidentGame, PresidentPlayer, resultIconForPlacement } = loadGame();
     const players = ["Winner", "Middle", "Last"].map(name => new PresidentPlayer(name, name));

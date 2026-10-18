@@ -858,6 +858,20 @@ class GameLayout {
         });
         if (pendingAnimations == 0 && onComplete) { onComplete(); }
     }
+    static flashClubThree(game, table, pauseId) {
+        var played = game.turnPause && game.turnPause.playedPile;
+        if (pauseId == null || table.dataset.clubThreeFlashId == pauseId ||
+            table.dataset.turnPauseId != pauseId || played == null ||
+            !Array.isArray(played.cards) || played.cards.length != 1) { return; }
+        var card = PresidentCard.deserializeDeck(played.cards)[0];
+        if (!card.isClubThree()) { return; }
+        var target = table.querySelector('.table-play__card[data-card-key="3:3"]');
+        if (target == null) { return; }
+        table.dataset.clubThreeFlashId = pauseId;
+        var sender = game.getPlayer(played.name);
+        target.classList.add("club-three-glint");
+        target.classList.toggle("club-three-glint--loss", sender != null && sender.placement > 0);
+    }
     static animateDiscardedCards(table, onComplete = null) {
         var pendingAnimations = 0;
         var completed = false;
@@ -1088,6 +1102,7 @@ class GameLayout {
                     card.style.opacity = "";
                 }
             });
+            this.flashClubThree(game, table, pauseId);
             table.dispatchEvent(new CustomEvent("played-cards-animation-complete", {
                 detail: { pauseId: pauseId }
             }));
@@ -1442,6 +1457,9 @@ class GameLayout {
                         ? `Du må slå:\n${describeRequiredPlay(game)}`
                         : `På bordet ligger:\n${describeRequiredPlay(game)}`;
                     table.appendChild(tableSummary);
+                }
+                if (isNewPause && !shouldAnimatePlayedPause && !isAnimatingPlayedPause) {
+                    this.flashClubThree(game, table, pauseId);
                 }
                 break;
             case "F":
@@ -5542,7 +5560,9 @@ class PresidentGame extends Game {
             var current = document.getElementById("cardStyleCurrent");
             var selected = document.querySelector(`.card-style-option[data-card-style="${style}"] strong`);
             if (current != null && selected != null) {
-                current.textContent = localizedMessage(selected.textContent);
+                current.replaceChildren(selected.parentElement.querySelector(".card-style-option__cards").cloneNode(true));
+                current.title = localizedMessage(selected.textContent);
+                current.setAttribute("aria-label", current.title);
             }
         }
         updateCardStyleButtons();
