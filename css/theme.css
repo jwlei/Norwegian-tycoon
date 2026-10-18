@@ -1652,8 +1652,12 @@ select:focus-visible {
     transform: translate(-50%, -50%);
 }
 
-.game-toast--leaving {
+.game-toast.game-toast--leaving {
+    position: fixed;
+    z-index: 1000;
+    margin: 0;
     pointer-events: none;
+    transform: none;
 }
 
 .game-toast--leaving::after {
@@ -1661,9 +1665,9 @@ select:focus-visible {
     transform: scaleX(0);
 }
 
-.game-toast--leaving.is-leaving {
+.game-toast.game-toast--leaving.is-leaving {
     opacity: 0;
-    transform: translate(-50%, calc(-50% - var(--toast-push, 60px)));
+    transform: translateY(calc(-1 * var(--toast-push, 60px)));
     transition: opacity 1s ease, transform 1s ease;
 }
 

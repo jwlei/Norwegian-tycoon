@@ -4348,12 +4348,16 @@ class PresidentGame extends Game {
             ensureGameLog(game);
             var toast = document.getElementById("GameToast");
             if (toast.classList.contains("is-visible") && toast.textContent != "") {
+                var rect = toast.getBoundingClientRect();
                 var leaving = toast.cloneNode(true);
                 leaving.removeAttribute("id");
                 leaving.classList.add("game-toast--leaving");
                 leaving.setAttribute("aria-hidden", "true");
-                leaving.style.setProperty("--toast-push", `${toast.offsetHeight + 10}px`);
-                toast.parentNode.insertBefore(leaving, toast);
+                leaving.style.left = `${rect.left}px`;
+                leaving.style.top = `${rect.top}px`;
+                leaving.style.width = `${rect.width}px`;
+                leaving.style.setProperty("--toast-push", `${rect.height + 10}px`);
+                document.body.appendChild(leaving);
                 leaving.getBoundingClientRect();
                 leaving.classList.add("is-leaving");
                 setTimeout(() => leaving.remove(), 1000);
