@@ -198,6 +198,57 @@ function loadGame(cardStyle = null, globals = {}) {
     return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors })", context);
 }
 
+test("the log resets for a new deal, not for cleared tricks or repeated snapshots", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    let clears = 0;
+    const context = vm.createContext({
+        gameLogGameId: null, gameLogEntries: [], gameLogTrickCount: 0, gameLogNeedsTrickHeader: true,
+        localizedMessage: text => text,
+        document: {
+            getElementById: () => ({ replaceChildren() { clears++; }, appendChild() {} }),
+            createElement: () => ({})
+        }
+    });
+    vm.runInContext(source.slice(source.indexOf("        function resetGameLog("),
+        source.indexOf("        function appendColoredGameMessage(")), context);
+    const game = { id: "same-room", shuffleStartedAt: 100, round: 1 };
+    context.ensureGameLog(game);
+    context.gameLogEntries.push({ message: "Old round" });
+    game.round = 2;
+    context.ensureGameLog(game);
+    assert.equal(context.gameLogEntries.length, 1);
+    assert.equal(clears, 1);
+    game.shuffleStartedAt = 200;
+    context.ensureGameLog(game);
+    assert.equal(context.gameLogEntries.length, 0);
+    assert.equal(context.gameLogTrickCount, 0);
+    assert.equal(context.gameLogNeedsTrickHeader, true);
+    assert.equal(clears, 2);
+    context.ensureGameLog(game);
+    assert.equal(clears, 2);
+});
+
+test("the starter toast names Boms during exchange, including the local player", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const messages = [];
+    const context = vm.createContext({
+        currentGame: { status: "G", roundStarterName: "Bjørn" }, currentPlayerName: "Bjørn",
+        starterFlashTimer: null, STARTER_FLASH_DURATION_MS: 1000,
+        showGameToast: text => messages.push(text),
+        document: { querySelectorAll: () => [] }, setTimeout: () => 1, clearTimeout() {}
+    });
+    vm.runInContext(source.slice(source.indexOf("        function flashRoundStarter()"),
+        source.indexOf("        function dealCardsIntoHand()")), context);
+    context.flashRoundStarter();
+    assert.equal(messages.pop(), "Bjørn er Boms og starter.");
+    context.currentPlayerName = "Guest";
+    context.flashRoundStarter();
+    assert.equal(messages.pop(), "Bjørn er Boms og starter.");
+    context.currentGame = { status: "S", turn: 0, players: [{ name: "Guest" }] };
+    context.flashRoundStarter();
+    assert.equal(messages.pop(), "Du begynner");
+});
+
 test("lobby colors stay distinct and at least 60 degrees apart for humans and bots", () => {
     const { assignPlayerColors } = loadGame();
     const checkColors = game => {

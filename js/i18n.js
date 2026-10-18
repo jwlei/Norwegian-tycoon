@@ -374,6 +374,7 @@
         ["La på {x}, bunken går ut. ({y})", "Played {x}; the pile is cleared. ({y})"],
         ["Bunken gikk ut og ferdig. ({x})", "The pile was cleared and finished. ({x})"],
         ["{name} begynner", "{name} starts"],
+        ["{name} er Boms og starter.", "{name} is Boms and starts."],
         ["{name} har passet", "{name} has passed"],
         ["Fjern {name}", "Remove {name}"],
         ["{n} bytter gjenstår", "{n} exchanges remaining"],

@@ -4513,7 +4513,9 @@ class PresidentGame extends Game {
                 starterName = game.roundStarterName;
             }
             if (starterName == null) { return; }
-            showGameToast(starterName == currentPlayerName ? "Du begynner" : `${starterName} begynner`, game);
+            showGameToast(game.status == "G"
+                ? `${starterName} er Boms og starter.`
+                : (starterName == currentPlayerName ? "Du begynner" : `${starterName} begynner`), game);
             document.querySelectorAll("#playerList [data-player-name]").forEach(element => {
                 element.classList.toggle(
                     "player-summary--starter-flash",
@@ -4733,7 +4735,7 @@ class PresidentGame extends Game {
         }
 
         function resetGameLog(game) {
-            gameLogGameId = game == null ? null : `${game.id}`;
+            gameLogGameId = game == null ? null : `${game.id}:${game.shuffleStartedAt || ""}`;
             gameLogEntries = [];
             gameLogTrickCount = 0;
             gameLogNeedsTrickHeader = true;
@@ -4749,7 +4751,7 @@ class PresidentGame extends Game {
         }
 
         function ensureGameLog(game) {
-            var logKey = game == null ? null : `${game.id}`;
+            var logKey = game == null ? null : `${game.id}:${game.shuffleStartedAt || ""}`;
             if (gameLogGameId !== logKey) {
                 resetGameLog(game);
             }
@@ -5469,9 +5471,9 @@ class PresidentGame extends Game {
                     var storedRules = snapshotRecord["regler"] || {};
                     connectingGame.rules = { showCardsOnly: storedRules["VisKunKort"] };
                     connectingGame.round = snapshotRecord["runde"];
+                    connectingGame.shuffleStartedAt = snapshotRecord["shuffleStartedAt"] || null;
                     ensureGameLog(connectingGame);
                     connectingGame.roundStarterName = snapshotRecord["roundStarterName"] || null;
-                    connectingGame.shuffleStartedAt = snapshotRecord["shuffleStartedAt"] || null;
                     connectingGame.playedCards = snapshotRecord["playedCards"] || [];
                     connectingGame.dealTotal = snapshotRecord["dealTotal"] || 0;
                     connectingGame.dealStarterStep = snapshotRecord["dealStarterStep"] ?? null;
