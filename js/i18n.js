@@ -8,7 +8,7 @@
         "Innstillinger": "Settings",
         "Åpne spillmeny": "Open game menu",
         "Hovedmeny": "Main menu",
-        "Boms og President": "Boms and President",
+        "Boms og President": "Norwegian Tycoon",
         "Lag nytt spill": "Create new game",
         "Koble til spill med kode": "Join a game with a code",
         "Koble til med kode": "Join with code",
@@ -71,6 +71,10 @@
         "Vanlig": "Normal",
         "Sakte": "Slow",
         "Språk": "Language",
+        "Korttype": "Card type",
+        "Bare for dine egne kort": "Only for your own cards",
+        "Holo": "Holo",
+        "Gull": "Gold",
         "Velg språk for spillet": "Choose the game language",
         "Lukk": "Close",
         "Offentlig": "Public",
@@ -520,7 +524,10 @@
             revertAll();
             document.title = titleOriginal;
         }
-        document.querySelectorAll(".language-option").forEach(function (button) {
+        document.querySelectorAll("img[data-logo]").forEach(function (logo) {
+            logo.setAttribute("src", language == "en" ? "icons/logo-en.svg" : "icons/logo.svg");
+        });
+        document.querySelectorAll(".language-option[data-lang]").forEach(function (button) {
             button.setAttribute("aria-pressed", String(button.dataset.lang == language));
         });
     }
@@ -533,7 +540,7 @@
         document.dispatchEvent(new CustomEvent("languagechange"));
     }
 
-    document.querySelectorAll(".language-option").forEach(function (button) {
+    document.querySelectorAll(".language-option[data-lang]").forEach(function (button) {
         button.addEventListener("click", function () { setLanguage(button.dataset.lang); });
     });
 

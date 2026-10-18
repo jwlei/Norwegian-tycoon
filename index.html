@@ -62,12 +62,12 @@
             <span class="game-menu-toggle__icon" aria-hidden="true"></span>
         </button>
         <div id="mainMenu" role="group" aria-label="Hovedmeny">
-            <div class="game-logo"><img src="icons/logo.svg" alt="Boms og President" /></div>
+            <div class="game-logo"><img src="icons/logo.svg" data-logo alt="Boms og President" /></div>
             <button type="button" id="BnHNySpill" title="Lag nytt spill" style="grid-row: 2 / 3; grid-column: 2 / -2;">Lag nytt spill</button>
             <button type="button" id="BnHKobleSpill" title="Koble til spill med kode" style="grid-row: 3 / 4; grid-column: 2 / -2;">Koble til med kode</button>
             <div id="publicLobbyList" class="public-lobby-list" aria-live="polite"></div>
             <div id="publicLobbyError" class="public-lobby-error" role="alert"></div>
-            <small class="app-version"><span aria-label="Spillversjon 0.2.1">v0.2.1</span> · <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://jleiros.com" target="_blank" rel="noopener noreferrer">jleiros.com</a></small>
+            <small class="app-version"><span aria-label="Spillversjon 0.3.0">v0.3.0</span> · <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://jleiros.com" target="_blank" rel="noopener noreferrer">jleiros.com</a></small>
         </div>
         <div id="gameMenu" role="group" aria-label="Spillkontroller" style="text-align: center; vertical-align: middle;">
             <button type="button" id="BnFInviterSpill" title="Inviter andre" aria-label="Del invitasjon" style="float: left;">Del invitasjon</button>
@@ -116,7 +116,7 @@
 
     </div>
     <div id="DivBord_Bordforklaring" style="display: none;">
-        <div><b>Velkommen til <img src="icons/logo.svg" alt="Boms og President" style="height: 2em;"></b></div>
+        <div><b>Velkommen til <img src="icons/logo.svg" data-logo alt="Boms og President" style="height: 2em;"></b></div>
         <div id="Bordforklaring1" class="tips">
             <div>Det er enkelt å invitere venner til spillet:</div>
             <div>- Trykk på «Del invitasjon», og del invitasjonen eller kopier lenken.</div>
@@ -163,6 +163,14 @@
                     <span class="language-options" data-i18n-skip>
                         <button type="button" class="language-option" data-lang="no" lang="nb" aria-pressed="true">Norsk</button>
                         <button type="button" class="language-option" data-lang="en" lang="en" aria-pressed="false">English</button>
+                    </span>
+                </div>
+                <div class="setting-row setting-language" role="group" aria-label="Korttype">
+                    <span class="setting-row__text"><strong>Korttype</strong><small>Bare for dine egne kort</small></span>
+                    <span class="language-options">
+                        <button type="button" class="language-option card-style-option" data-card-style="normal" aria-pressed="true">Vanlig</button>
+                        <button type="button" class="language-option card-style-option" data-card-style="holo" aria-pressed="false">Holo</button>
+                        <button type="button" class="language-option card-style-option" data-card-style="gold" aria-pressed="false">Gull</button>
                     </span>
                 </div>
                 <div class="setting-row setting-speed" role="group" aria-label="Spillhastighet">

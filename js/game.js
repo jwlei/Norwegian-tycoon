@@ -319,12 +319,17 @@ class GameLayout {
             elementOffset.style.display = ((element.style.display == "none") ? "inline" : "none");
         } catch (error) { }
     }
-    static cardImageHtml(K, width = null, rotering = null) {
-        return `<img src='${K.toImageDataUri()}' ${((width != null) ? "width='" + width + "'" : "")} alt='${K.getName()}' ${((rotering != null) ? "transform: translateX(" + rotering + "px) rotate(" + rotering + "deg);" : "")} />`;
+    static cardStyle() {
+        var stored = null;
+        try { stored = localStorage.getItem("cardStyle"); } catch (error) { }
+        return stored == "holo" || stored == "gold" ? stored : "normal";
     }
-    static createCardImage(K, width) {
+    static cardImageHtml(K, width = null, rotering = null, style = "normal") {
+        return `<img src='${K.toImageDataUri(style)}' ${((width != null) ? "width='" + width + "'" : "")} alt='${K.getName()}' ${((rotering != null) ? "transform: translateX(" + rotering + "px) rotate(" + rotering + "deg);" : "")} />`;
+    }
+    static createCardImage(K, width, style = "normal") {
         var e = document.createElement("img");
-        e.src = K.toImageDataUri();
+        e.src = K.toImageDataUri(style);
         if (width != null) { e.width = width };
         e.alt = K.getName();
         return e;
@@ -1217,7 +1222,7 @@ class GameLayout {
                         previewCards.className = "exchange-preview";
                         exchange.cards.forEach(card => {
                             var previewModel = new Card(card.suit, card.rank);
-                            var previewImage = GameLayout.createCardImage(previewModel, null);
+                            var previewImage = GameLayout.createCardImage(previewModel, null, GameLayout.cardStyle());
                             previewImage.className = "exchange-selection__card";
                             previewImage.alt = previewModel.getName();
                             previewCards.appendChild(previewImage);
@@ -1247,7 +1252,7 @@ class GameLayout {
                         : `Kort til ${selectedRecipient.name} (${selectedExchange.cards.length}/${selectedExchange.count})`;
                     selectedExchange.cards.forEach(card => {
                         var selectedCardModel = new Card(card.suit, card.rank);
-                        var selectedCard = GameLayout.createCardImage(selectedCardModel, null);
+                        var selectedCard = GameLayout.createCardImage(selectedCardModel, null, GameLayout.cardStyle());
                         selectedCard.className = "exchange-selection__card";
                         selectedCard.alt = selectedCardModel.getName();
                         selectionContent.appendChild(selectedCard);
@@ -1291,7 +1296,7 @@ class GameLayout {
                     receivedContent.className = "exchange-selection__cards";
                     recentlyReceivedCards.cards.forEach(card => {
                         var receivedModel = new Card(card.suit, card.rank);
-                        var receivedImage = GameLayout.createCardImage(receivedModel, null);
+                        var receivedImage = GameLayout.createCardImage(receivedModel, null, GameLayout.cardStyle());
                         receivedImage.className = "exchange-selection__card";
                         receivedImage.alt = receivedModel.getName();
                         receivedContent.appendChild(receivedImage);
@@ -2100,7 +2105,7 @@ class GameLayout {
                     elemKort.dataset.cardKey = cardKey;
                     elemKort.style.setProperty("--card-offset", "0px");
                     elemKort.style.setProperty("--card-rotation", `${fanPosition}deg`);
-                    elemKort.innerHTML = GameLayout.cardImageHtml(k, null);
+                    elemKort.innerHTML = GameLayout.cardImageHtml(k, null, null, GameLayout.cardStyle());
                     var isSelected = selectedCardKeys.has(cardKey);
                     var isPlayable = isPlayingTurn && playableStrengths.has(k.strengthRank);
                     if (isSelected) {
@@ -4997,15 +5002,33 @@ class PresidentGame extends Game {
                 button.setAttribute("aria-pressed", String(button.dataset.speed == speed));
             });
         }
-        document.querySelectorAll(".speed-option").forEach(button => {
-            button.addEventListener("click", function () {
-                try { localStorage.setItem("gameSpeed", button.dataset.speed); } catch (error) { }
+        function updateCardStyleButtons() {
+            var style = GameLayout.cardStyle();
+            document.documentElement.dataset.cardStyle = style;
+            document.querySelectorAll(".card-style-option").forEach(button => {
+                button.setAttribute("aria-pressed", String(button.dataset.cardStyle == style));
+            });
+        }
+        updateCardStyleButtons();
+
+        document.querySelectorAll(".speed-option")        .forEach(button => {
+                    button.addEventListener("click", function () {
+                        try { localStorage.setItem("gameSpeed", button.dataset.speed); } catch (error) { }
                 updateSpeedButtons();
+            });
+        });
+
+        document.querySelectorAll(".card-style-option").forEach(button => {
+            button.addEventListener("click", function () {
+                try { localStorage.setItem("cardStyle", button.dataset.cardStyle); } catch (error) { }
+                updateCardStyleButtons();
+                if (currentGame != null) { refreshAfterTurnPause(currentGame); }
             });
         });
 
         function openSettings() {
             var inGame = currentGame != null;
+            updateCardStyleButtons();
             document.getElementById("autoSuggestionToggleButton").hidden = !inGame;
             document.querySelector(".setting-speed").hidden = !inGame;
             document.getElementById("settingsGameId").hidden = !inGame;

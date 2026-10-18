@@ -95,10 +95,17 @@ class Card {
             <path d="M20 60h40" stroke="#d6b45a" stroke-width="1.5"/>
             <circle cx="40" cy="60" r="2.5" fill="#d6b45a"/>`;
     }
-    toImageDataUri() {
+    toImageDataUri(style = "normal") {
         const code = Card.suitInfo(this.suit).code;
         const rank = this.rank === 1 ? "A" : this.rank > 10 ? { 11: "J", 12: "Q", 13: "K" }[this.rank] : String(this.rank);
-        const color = (this.suit === 2 || this.suit === 4) ? "#ad3447" : "#193b35";
+        const isRed = (this.suit === 2 || this.suit === 4);
+        const theme = {
+            normal: { color: isRed ? "#ad3447" : "#193b35", paper: ["#fffdf6", "#f3ead8"], edge: "#cbbd9f", inner: "#d8cba9" },
+            holo: { color: isRed ? "#b02a52" : "#1f2f6b", paper: ["#f4f1ff", "#d9ecff"], edge: "#9aa6ff", inner: "#b9c2ff" },
+            gold: { color: isRed ? "#8f2a14" : "#3b2605", paper: ["#fff0a6", "#e0ae2f"], edge: "#8a5f0f", inner: "#b8841c" }
+        }[style] || null;
+        const palette = theme || { color: isRed ? "#ad3447" : "#193b35", paper: ["#fffdf6", "#f3ead8"], edge: "#cbbd9f", inner: "#d8cba9" };
+        const color = palette.color;
         const mark = (x, y, size, rotation = 0) => Card.suitMark(code, x, y, size, color, rotation);
         const corner = `<g font-family="Georgia,serif" font-size="12" font-weight="700" text-anchor="middle" fill="${color}"><text x="12" y="18">${rank}</text>${mark(12, 25, 7)}</g>`;
         const positions = {
@@ -125,14 +132,27 @@ class Card {
                 <path d="M40 35v50M15 60h50M22 42l36 36m0-36L22 78" stroke="#d6b45a" stroke-opacity=".18" stroke-width="1"/>
                 ${positions[this.rank].map(([x, y]) => mark(x, y, 13, y > 60 ? 180 : 0)).join("")}`;
         }
+        const foil = style === "holo"
+            ? `<defs><linearGradient id="foil" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#ff5fa2" stop-opacity=".32"/><stop offset=".25" stop-color="#ffd25f" stop-opacity=".28"/>
+                    <stop offset=".5" stop-color="#5fff9c" stop-opacity=".3"/><stop offset=".75" stop-color="#5fb8ff" stop-opacity=".32"/>
+                    <stop offset="1" stop-color="#b45fff" stop-opacity=".32"/></linearGradient></defs>
+                <rect x="1.5" y="1.5" width="77" height="117" rx="8" fill="url(#foil)"/>`
+            : style === "gold"
+                ? `<defs><linearGradient id="sheen" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset=".25" stop-color="#fff" stop-opacity="0"/><stop offset=".45" stop-color="#fff" stop-opacity=".45"/>
+                        <stop offset=".6" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
+                    <rect x="1.5" y="1.5" width="77" height="117" rx="8" fill="url(#sheen)"/>`
+                : "";
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 120">
-            <defs><linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fffdf6"/><stop offset="1" stop-color="#f3ead8"/></linearGradient></defs>
-            <rect x="1.5" y="1.5" width="77" height="117" rx="8" fill="url(#paper)" stroke="#cbbd9f" stroke-width="1.5"/>
-            <rect x="5" y="5" width="70" height="110" rx="5" fill="none" stroke="#d8cba9" stroke-width=".8"/>
-            <path d="M23 10h34M23 110h34" stroke="#d8cba9" stroke-width=".7"/>
+            <defs><linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${palette.paper[0]}"/><stop offset="1" stop-color="${palette.paper[1]}"/></linearGradient></defs>
+            <rect x="1.5" y="1.5" width="77" height="117" rx="8" fill="url(#paper)" stroke="${palette.edge}" stroke-width="1.5"/>
+            <rect x="5" y="5" width="70" height="110" rx="5" fill="none" stroke="${palette.inner}" stroke-width=".8"/>
+            <path d="M23 10h34M23 110h34" stroke="${palette.inner}" stroke-width=".7"/>
             ${corner}
             <g transform="rotate(180 40 60)">${corner}</g>
             ${illustration}
+            ${foil}
         </svg>`;
         return Card.imageSource(svg);
     }

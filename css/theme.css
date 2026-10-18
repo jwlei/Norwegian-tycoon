@@ -838,6 +838,35 @@ select:focus-visible {
     opacity: 1;
 }
 
+@keyframes holo-shimmer {
+    from { background-position: 0% 0%; }
+    to { background-position: 200% 200%; }
+}
+
+[data-card-style="holo"] #playerHand .game-card::before {
+    position: absolute;
+    inset: 2px;
+    z-index: 1;
+    border-radius: 8px;
+    background: linear-gradient(115deg, transparent 20%, rgb(255 90 170 / 32%) 32%, rgb(255 220 90 / 30%) 42%, rgb(90 255 170 / 30%) 52%, rgb(90 180 255 / 32%) 62%, rgb(190 90 255 / 30%) 72%, transparent 84%);
+    background-size: 220% 220%;
+    content: "";
+    mix-blend-mode: color-dodge;
+    opacity: 0.75;
+    pointer-events: none;
+    animation: holo-shimmer 4s linear infinite;
+}
+
+[data-card-style="gold"] #playerHand .game-card > img {
+    box-shadow: 0 0 10px rgb(240 190 60 / 45%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-card-style="holo"] #playerHand .game-card::before {
+        animation: none;
+    }
+}
+
 .game-card:disabled {
     cursor: default;
     opacity: 1;
