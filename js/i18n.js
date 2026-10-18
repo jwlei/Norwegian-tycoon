@@ -98,7 +98,7 @@
         "Legg på kort": "Add cards",
         "Velg noe annet å legge på": "Choose something else to play",
         "Du kan ikke legge på det kortet nå.": "You can't play that card now.",
-        "Legg på like mange kort med samme eller høyere verdi: singel på singel, par på par, tress på tress og fire like på fire like. Kløver 3 er jokeren og kan legges på alt. Fire like rydder bunken straks.": "Play the same number of cards with equal or higher value: single on single, pair on pair, triple on triple and four of a kind on four of a kind. The three of clubs is the joker and can be played on anything. Four of a kind clears the pile immediately.",
+        "Legg på like mange kort med samme eller høyere verdi: singel på singel, par på par, tress på tress og fire like på fire like. Kløver 3 er jokeren og kan legges på alt. Fire like kan slås av høyere fire like; ellers ryddes bunken.": "Play the same number of cards with equal or higher value: single on single, pair on pair, triple on triple and four of a kind on four of a kind. The three of clubs is the joker and can be played on anything. Four of a kind can be beaten by higher four of a kind; otherwise the pile clears.",
         "Mål": "Goal",
         "Bli kvitt kortene først: første blir President, siste Boms.": "Get rid of your cards first: the first becomes President, the last becomes Boms.",
         "Legg ut": "Playing",
@@ -108,7 +108,7 @@
         "Tre spillere": "Three players",
         "Ruter 3 tas ut. Hjerter 3 og Spar 3 sammen øverst rydder bunken.": "The three of diamonds is removed. The three of hearts and the three of spades together on top clear the pile.",
         "Spesialkort": "Special cards",
-        "Kløver 3 kan legges på alt og rydder bunken, men taper hvis det er siste kort. Fire like rydder også; spilleren starter igjen.": "The three of clubs can be played on anything and clears the pile, but loses if it is the last card. Four of a kind also clears; the player starts again.",
+        "Kløver 3 kan legges på alt og rydder bunken, men taper hvis det er siste kort. Fire like kan slås av høyere fire like; ellers ryddes bunken og spilleren starter igjen.": "The three of clubs can be played on anything and clears the pile, but loses if it is the last card. Four of a kind can be beaten by higher four of a kind; otherwise the pile clears and the player starts again.",
         "Pass er bare mulig når bunken ikke er tom. Når alle andre passer, ryddes bunken; siste spiller starter igjen, eller neste aktive hvis hen er ferdig.": "Passing is only possible when the pile is not empty. When everyone else passes, the pile is cleared; the last player starts again, or the next active player if they are finished.",
         "Lukk regler": "Close rules",
         "Spillogg": "Game log",
@@ -561,4 +561,3 @@
 
     applyLanguage();
 })();
-

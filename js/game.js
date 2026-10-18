@@ -2701,6 +2701,7 @@ class PresidentGame extends Game {
             "hostKey": this.hostKey,
             "isPublic": this.isPublic === true,
             "preservePlayerOrderOnStart": this.preservePlayerOrderOnStart,
+            ...(this.status == "O" ? { roundStartVote: null, gameEndVote: null } : {}),
             ts: new Date()
         }).catch(error => {
             console.error("Kunne ikke lagre spillet.", error);
@@ -2957,8 +2958,6 @@ class PresidentGame extends Game {
         this.roundStarterName = null;
         this.shufflePlayerOrder = false;
         this.preservePlayerOrderOnStart = true;
-        this.clearNeutralRoundVoteRecord();
-        this.clearGameEndVoteRecord();
         this.save();
     }
     resetPreservedLobbyPlacements() {
@@ -3710,8 +3709,21 @@ class PresidentGame extends Game {
             return true;
         }
         if (hasFourOfKindOnTop(this)) {
-            info.text = "Fire like";
-            return true;
+            var canBeBeaten = this.players.some(player => {
+                if (player.placement != 0 || player.name == topPile.name ||
+                    player.lastPlay == "Pass") { return false; }
+                var counts = new Map();
+                player.cards.forEach(card => {
+                    if (card.strengthRank > topPile.strengthRank) {
+                        counts.set(card.strengthRank, (counts.get(card.strengthRank) || 0) + 1);
+                    }
+                });
+                return Array.from(counts.values()).some(count => count >= 4);
+            });
+            if (!canBeBeaten) {
+                info.text = "Fire like";
+                return true;
+            }
         }
         if (hasBothNaturalThreesOnTop(this)) {
             info.text = "Hjerter 3 og Spar 3";
