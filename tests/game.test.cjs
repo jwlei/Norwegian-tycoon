@@ -5,7 +5,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 function toastClickContext(visible) {
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     class Element {
         closest() { return false; }
     }
@@ -43,7 +43,7 @@ test("a direct toast dismissal never clears cards or advances the game pause", (
 });
 
 test("a fast toast that has reached its deadline is not cloned behind the next toast", () => {
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     let visible = true;
     let clones = 0;
     const toast = {
@@ -92,7 +92,7 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
 });
 
 test("received-card overlays filter recipients, queue receipts and honor every game speed", () => {
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const start = source.indexOf("        var receivedCardQueue");
     const end = source.indexOf("        function refreshAfterTurnPause", start);
     const { PresidentCard } = loadGame();
@@ -191,11 +191,11 @@ function loadGame(cardStyle = null, globals = {}) {
         console, getCookie: () => null, getPlayerKey: () => "human-key", setTimeout: () => 0,
         localStorage: { getItem: () => cardStyle }, ...globals
     });
-    for (const file of ["cards.js", "player.js", "bot.js", "game.js"]) {
+    for (const file of ["cards.js", "player.js", "bot.js", "presence.js", "game.js", "layout.js", "engine.js"]) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
-        vm.runInContext(file === "game.js" ? source.split(/\r?\n\(\r?\n/)[0] : source, context);
+        vm.runInContext(source, context);
     }
-    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage })", context);
+    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, GamePresence, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage })", context);
 }
 
 test("a gift requires the same owner on the first and fourth consecutive singles", () => {
@@ -251,7 +251,7 @@ test("the gift toast survives the transition from the fourth single to a cleared
 });
 
 test("shuffle completion renders the exchange before announcing the starter", () => {
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const events = [];
     let tick;
     let now = 1000;
@@ -283,7 +283,7 @@ test("shuffle completion renders the exchange before announcing the starter", ()
 });
 
 test("the log resets for a new deal, not for cleared tricks or repeated snapshots", () => {
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     let clears = 0;
     const context = vm.createContext({
         gameLogGameId: null, gameLogEntries: [], gameLogTrickCount: 0, gameLogNeedsTrickHeader: true,
@@ -313,7 +313,7 @@ test("the log resets for a new deal, not for cleared tricks or repeated snapshot
 });
 
 test("the starter toast names Boms during exchange, including the local player", () => {
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const messages = [];
     const context = vm.createContext({
         currentGame: { status: "G", roundStarterName: "Bjørn" }, currentPlayerName: "Bjørn",
@@ -404,7 +404,7 @@ test("club three glints once per played pause, with a muted loss color and no mo
 });
 
 test("settings show the localized selected style name alongside its preview", () => {
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const { PresidentCard } = loadGame();
     const label = {};
     const preview = { replaceChildren(child) { this.child = child; } };
@@ -463,8 +463,8 @@ test("rank icons show streaks only for consecutive presidents and boms", () => {
     assert.equal(players[2].presidentStreak, 0);
 });
 
-test("result ranks and player names are fitted on render and observed for resizing", () => {
-    const targets = [".player-summary__name", ".game-over__rank", ".game-over__name > span:first-child"];
+test("result ranks are fitted while names keep readable ellipsis", () => {
+    const targets = [".game-over__rank"];
     const elements = targets.map(() => ({ style: {}, clientWidth: 120,
         get scrollWidth() { return 160 * (parseFloat(this.style.fontSize) || 16) / 16; }
     }));
@@ -488,13 +488,111 @@ test("result ranks and player names are fitted on render and observed for resizi
         assert.equal(element.style.fontSize, "12px");
     }
     assert.deepEqual(observed, elements);
-    elements[1].clientWidth = 100;
-    GameLayout.nameResizeObserver.callback([{ target: elements[1] }]);
-    assert.ok(elements[1].scrollWidth <= 100);
+    elements[0].clientWidth = 100;
+    GameLayout.nameResizeObserver.callback([{ target: elements[0] }]);
+    assert.ok(elements[0].scrollWidth <= 100);
+});
+
+test("names expand by click or keyboard for exactly three seconds without triggering gameplay", () => {
+    const elements = new Map();
+    const timers = [];
+    const makeElement = () => ({
+        textContent: "", style: {}, attrs: {},
+        setAttribute(key, value) { this.attrs[key] = value; },
+        remove() { elements.delete(this.id); },
+        getBoundingClientRect: () => ({ left: 300, bottom: 100 })
+    });
+    const { GameLayout } = loadGame(null, {
+        window: { innerWidth: 375, innerHeight: 800 },
+        document: {
+            getElementById: id => elements.get(id), createElement: makeElement,
+            body: { appendChild(element) { elements.set(element.id, element); } }
+        },
+        setTimeout(callback, duration) { timers.push({ callback, duration }); return timers.length; },
+        clearTimeout(id) { timers[id - 1].cleared = true; }
+    });
+    const name = makeElement();
+    name.textContent = "Sjefen_Over_Alle_Sjefer";
+    GameLayout.enableNameExpansion(name);
+    let stopped = 0;
+    name.onclick({ stopPropagation() { stopped++; } });
+    assert.equal(elements.get("expandedPlayerName").textContent, name.textContent);
+    assert.equal(name.attrs["aria-expanded"], "true");
+    assert.equal(timers[0].duration, 3000);
+    name.onkeydown({ key: "Enter", preventDefault() {}, stopPropagation() { stopped++; } });
+    assert.equal(timers[0].cleared, true);
+    assert.equal(timers[1].duration, 3000);
+    timers[1].callback();
+    assert.equal(elements.size, 0);
+    assert.equal(name.attrs["aria-expanded"], "false");
+    assert.equal(stopped, 2);
+});
+
+test("resumable games validate identity and room ID, persist the seat and clear on explicit leave", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const storage = new Map();
+    const button = {};
+    const context = vm.createContext({
+        console, currentGame: { id: "123" }, getPlayerKey: () => "owner",
+        document: { getElementById: () => button },
+        localStorage: {
+            getItem: key => storage.get(key) || null,
+            setItem: (key, value) => storage.set(key, value),
+            removeItem: key => storage.delete(key)
+        }
+    });
+    vm.runInContext(source.slice(source.indexOf('        var resumeStorageKey ='),
+        source.indexOf("        function refreshConnectionView()")), context);
+    context.updateResumeButton();
+    assert.equal(button.hidden, true);
+    context.rememberActiveGame({ name: "Owner", playerKey: "owner" });
+    assert.equal(button.hidden, false);
+    assert.equal(context.readResumableGame().name, "Owner");
+    storage.set("norwegian-tycoon-active-game", JSON.stringify({ id: "123", name: "Other", playerKey: "other" }));
+    assert.equal(context.readResumableGame(), null);
+    storage.set("norwegian-tycoon-active-game", JSON.stringify({ id: "../invalid", name: "Owner", playerKey: "owner" }));
+    assert.equal(context.readResumableGame(), null);
+    context.forgetActiveGame();
+    assert.equal(button.hidden, true);
+    assert.equal(storage.size, 0);
+});
+
+test("takeover bots run on the backup client after 120 seconds while host transfer still waits", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const { GamePresence } = loadGame();
+    const now = Date.now();
+    const owner = { name: "Owner", playerKey: "human-key", placement: 0 };
+    const host = { name: "Guest", playerKey: "guest", placement: 0 };
+    const game = {
+        status: "S", turn: 1, turnPause: null, hostKey: "guest", hostName: "Guest",
+        players: [owner, host], localPlayerName: "Owner", presence: {}, controllers: {}
+    };
+    const hostId = GamePresence.playerId(host);
+    game.controllers[hostId] = { since: now };
+    game.presence[hostId] = { tab: { online: false, changedAt: now - 119999 } };
+    game.presence[GamePresence.playerId(owner)] = { tab: { online: true, changedAt: now } };
+    let plays = 0;
+    let scheduled = 0;
+    const context = vm.createContext({
+        currentGame: game, GamePresence, connection: { now: () => now },
+        shuffleEndsAt: 0, BOT_ACTION_DELAY_MS: 1000,
+        playBotTurn: (room, player) => { assert.equal(room, game); assert.equal(player, host); plays++; },
+        setTimeout: () => { scheduled++; return scheduled; }
+    });
+    const start = source.indexOf("        var botLoopTimer = null;");
+    const end = source.indexOf("        document.getElementById('BnFHovedmeny')", start);
+    vm.runInContext(source.slice(start, end), context);
+    context.runBotLoop();
+    assert.equal(plays, 0);
+    game.presence[hostId].tab.changedAt = now - 120000;
+    context.runBotLoop();
+    assert.equal(plays, 1);
+    assert.equal(scheduled, 1);
+    assert.equal(game.hostKey, "guest");
 });
 
 test("expired result votes keep the vote count without tie hints or stale seconds", () => {
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const countdown = {};
     let resolutions = 0;
     const player = { name: "Guest", playerKey: "guest" };
@@ -505,6 +603,7 @@ test("expired result votes keep the vote count without tie hints or stale second
     };
     const context = vm.createContext({
         currentGame: game, gameEndVoteRefreshTimer: null,
+        GamePresence: loadGame().GamePresence,
         Date: { now: () => 200 }, isLobbyHost: () => false,
         roundVotePlayerId: player => player.playerKey,
         document: { getElementById: () => countdown },
@@ -518,7 +617,7 @@ test("expired result votes keep the vote count without tie hints or stale second
 });
 
 function publicLobbyContext() {
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const element = (tag = "div") => {
         const node = {
             tag, className: "", dataset: {}, children: [], hidden: false, textContent: "",
@@ -613,9 +712,9 @@ test("15-second lobby polling skips games, hidden pages and overlapping requests
 });
 
 test("invites generate gameid links and accept both new and legacy links", () => {
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const start = source.indexOf("        const inviteParams");
-    const end = source.indexOf("        var GAME_SPEED_MS", start);
+    const end = source.indexOf('        document.getElementById("resumeGameButton").addEventListener', start);
     for (const [search, expected] of [
         ["?gameid=123", "123"], ["?spillid=456", "456"],
         ["?gameid=123&spillid=456", "123"], ["?gameid=invalid", null], ["", null]
@@ -634,7 +733,9 @@ test("invites generate gameid links and accept both new and legacy links", () =>
                 getElementById: () => ({ addEventListener(type, callback) { click = callback; } })
             }
         });
-        vm.runInContext(source.slice(start, end), context);
+        const inviteListenerStart = source.indexOf("        document.getElementById('BnFInviterSpill').addEventListener", end);
+        const inviteListenerEnd = source.indexOf("        var GAME_SPEED_MS", inviteListenerStart);
+        vm.runInContext(source.slice(start, end) + source.slice(inviteListenerStart, inviteListenerEnd), context);
         assert.equal(joined, expected);
         context.currentGame = { id: "789" };
         click();
@@ -674,7 +775,7 @@ test("new bot names are available and Japanese player names survive input and co
         assert.equal(sanitizePlayerName(name), name);
     }
     assert.equal(sanitizePlayerName('Name_<>"&()'), "Name");
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const context = vm.createContext({
         document: { cookie: `other=value; norwegian_tycoon_player_name=${encodeURIComponent("ギフテッド")}` },
         playerNameCookie: "norwegian_tycoon_player_name", sanitizePlayerName, console
@@ -736,7 +837,7 @@ test("lobby capacity counts filled seats for every player count", () => {
 });
 
 test("waiting spectators register once, arm disconnect cleanup first and remove their own entry on leave", async () => {
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const start = source.indexOf("        var spectatorJoinPending");
     const end = source.indexOf("        async function tryJoinWaitingSpectator", start);
     const calls = [];
@@ -763,7 +864,7 @@ test("waiting spectators register once, arm disconnect cleanup first and remove 
 });
 
 test("a spectator who leaves during registration is never added after leaving", async () => {
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     let armDisconnect;
     let writes = 0;
     const ref = {
@@ -783,7 +884,7 @@ test("a spectator who leaves during registration is never added after leaving", 
 });
 
 test("spectator join notices sit above the board for exactly three seconds", () => {
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const toast = {
         style: {}, classList: { add() {}, remove() { toast.closed = true; } }
     };

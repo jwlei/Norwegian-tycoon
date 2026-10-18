@@ -1,0 +1,254 @@
+class GamePresence {
+    static actionMs = 120000;
+    static disconnectMs = 120000;
+    static hostMs = 240000;
+
+    static playerId(player) {
+        return Array.from(JSON.stringify([player.playerKey || player.spillerKey, player.name || player.nick]))
+            .map(character => character.codePointAt(0).toString(16)).join("-");
+    }
+
+    static disconnectedAt(presence, player) {
+        var sessions = Object.values((presence || {})[this.playerId(player)] || {});
+        if (sessions.length == 0 || sessions.some(session => session.online === true)) { return null; }
+        return Math.max(...sessions.map(session => Number(session.changedAt) || 0));
+    }
+
+    static isOnline(presence, player) {
+        return Object.values((presence || {})[this.playerId(player)] || {})
+            .some(session => session.online === true);
+    }
+
+    static isBot(game, player) {
+        return player.playerKey == "PC" || !!(game.controllers || {})[this.playerId(player)];
+    }
+
+    static canDrive(game, now = Date.now()) {
+        if (game.connectionOnline === false) { return false; }
+        var host = game.players.find(player => player.playerKey == game.hostKey &&
+            (!game.hostName || player.name == game.hostName));
+        var offlineAt = host ? this.disconnectedAt(game.presence, host) : null;
+        if (offlineAt == null) { return isLobbyHost(game); }
+        if (now < offlineAt + this.disconnectMs) { return false; }
+        // Keep bots running during the extra grace period before the host role transfers.
+        var driver = game.players.find(player => player.playerKey != "PC" &&
+            player.gaveUp !== true && this.isOnline(game.presence, player));
+        return driver != null && driver.playerKey == getPlayerKey() &&
+            driver.name == game.localPlayerName;
+    }
+
+    static actionToken(record, player, index) {
+        if (record.status == "S" && player.plassering == 0 && record.sinTur == index &&
+            record.turnPause == null) {
+            return JSON.stringify([record.shuffleStartedAt, record.runde, index, record.spillBunke || []]);
+        }
+        if (record.status == "G") {
+            var exchanges = (record.spillBunke || []).filter(exchange =>
+                (exchange.modus == "Tilbud" && (exchange.fra == index ||
+                    (exchange.til == index && (exchange.sneakyVotes || []).includes(exchange.fra)))) ||
+                ((exchange.modus == "Velg" || exchange.modus == "Best") && exchange.fra == index) ||
+                (exchange.modus == "Kan se" && exchange.til == index));
+            if (exchanges.length > 0) {
+                return JSON.stringify([record.shuffleStartedAt, exchanges.map(exchange =>
+                    [exchange.id, exchange.modus, (exchange.sneakyVotes || []).includes(index)])]);
+            }
+        }
+        return null;
+    }
+
+    static reconcile(record, now) {
+        if (record == null) { return; }
+        var players = record.spillere || [];
+        var controllers = Object.assign({}, record.controllers);
+        var deadlines = Object.assign({}, record.actionDeadlines);
+        var changed = false;
+        var notices = (record.connectionNotices || []).slice();
+        players.forEach((player, index) => {
+            if (player.spillerKey == "PC" || player.gaveUp === true) { return; }
+            var id = this.playerId(player);
+            var token = this.actionToken(record, player, index);
+            var deadline = deadlines[id];
+            if (token != null && !controllers[id] && (!deadline || deadline.token != token)) {
+                deadlines[id] = { token, until: Math.max(now, Number(record.shuffleStartedAt || 0) + SHUFFLE_DURATION_MS) + this.actionMs, extended: false };
+                deadline = deadlines[id];
+                changed = true;
+            } else if (token == null && deadline) {
+                delete deadlines[id];
+                changed = true;
+            }
+            var offlineAt = this.disconnectedAt(record.presence, player);
+            var offlineExpired = offlineAt != null && now >= offlineAt + this.disconnectMs;
+            var idleExpired = offlineAt == null && deadline && token != null && now >= deadline.until;
+            if ((record.status == "S" || record.status == "G") &&
+                player.plassering == 0 && !controllers[id] && (offlineExpired || idleExpired)) {
+                controllers[id] = { since: now, reason: offlineExpired ? "offline" : "idle" };
+                notices.push({
+                    id: `${id}:${now}`,
+                    message: offlineExpired
+                        ? `${player.nick} ble frakoblet. En bot overtar.`
+                        : `${player.nick} brukte opp tiden. En bot overtar.`
+                });
+                changed = true;
+            }
+        });
+        var host = players.find(player => player.spillerKey == record.hostKey &&
+            (!record.hostName || player.nick == record.hostName));
+        var hostOffline = host ? this.disconnectedAt(record.presence, host) : null;
+        if (!host || (hostOffline != null && now >= hostOffline + this.hostMs)) {
+            var successor = players.find(player => player.spillerKey != "PC" &&
+                player.gaveUp !== true && this.isOnline(record.presence, player));
+            if (successor && (successor.spillerKey != record.hostKey || successor.nick != record.hostName)) {
+                record = Object.assign({}, record, { hostKey: successor.spillerKey, hostName: successor.nick });
+                changed = true;
+            }
+        }
+        if (!changed) { return; }
+        return Object.assign({}, record, {
+            controllers, actionDeadlines: deadlines, connectionNotices: notices.slice(-12)
+        });
+    }
+
+    constructor({ game, playerName, refresh, notify, remember }) {
+        this.game = game;
+        this.playerName = playerName;
+        this.refresh = refresh;
+        this.notify = notify;
+        this.remember = remember;
+        this.seen = new Set();
+        this.offset = 0;
+        this.online = false;
+        this.pending = false;
+        this.stopped = false;
+        this.retryAt = 0;
+        this.connectedRef = firebase.database().ref(".info/connected");
+        this.offsetRef = firebase.database().ref(".info/serverTimeOffset");
+        this.onOffset = snapshot => { this.offset = Number(snapshot.val()) || 0; };
+        this.onConnected = snapshot => {
+            this.online = snapshot.val() === true;
+            this.game.connectionOnline = this.online;
+            if (!this.online) { this.registeredId = null; }
+            if (this.online) { this.register(); }
+            this.refresh();
+        };
+        this.offsetRef.on("value", this.onOffset);
+        this.connectedRef.on("value", this.onConnected);
+        this.ticker = setInterval(() => this.tick(), 1000);
+    }
+
+    now() { return Date.now() + this.offset; }
+
+    async register() {
+        if (!this.game.players) { return; }
+        var player = this.game.getPlayer(this.playerName());
+        if (!player || player.playerKey == "PC") { return; }
+        var id = GamePresence.playerId(player);
+        if (this.registeredId == id && this.session != null) { return; }
+        this.registeredId = id;
+        var previousSession = this.session;
+        var session = this.game.databaseRef.child(`presence/${id}`).push();
+        this.session = session;
+        try {
+            await session.onDisconnect().set({ online: false, changedAt: firebase.database.ServerValue.TIMESTAMP });
+            if (this.stopped || !this.online || this.session !== session) {
+                await session.onDisconnect().cancel();
+                return;
+            }
+            await session.set({ online: true, changedAt: firebase.database.ServerValue.TIMESTAMP });
+            if (previousSession) {
+                await previousSession.onDisconnect().cancel();
+                await previousSession.remove();
+            }
+            if (this.stopped || this.session !== session) { return; }
+            this.remember(player);
+        } catch (error) {
+            this.registeredId = null;
+            console.error("Kunne ikke registrere tilkoblingen.", error);
+            this.notify("Kunne ikke registrere tilkoblingen. Prøver igjen.");
+        }
+    }
+
+    receive(record) {
+        if (!this.record) {
+            (record.connectionNotices || []).forEach(notice => this.seen.add(notice.id));
+        }
+        this.record = record;
+        this.game.presence = record.presence || {};
+        this.game.controllers = record.controllers || {};
+        this.game.actionDeadlines = record.actionDeadlines || {};
+        (record.connectionNotices || []).forEach(notice => {
+            if (!this.seen.has(notice.id)) {
+                this.seen.add(notice.id);
+                this.notify(notice.message);
+            }
+        });
+        if (this.online) { this.register(); }
+        this.tick();
+    }
+
+    async tick() {
+        this.refresh();
+        if (!this.online || this.pending || !this.record || this.stopped || this.now() < this.retryAt) { return; }
+        this.register();
+        if (!GamePresence.reconcile(this.record, this.now())) { return; }
+        this.pending = true;
+        try {
+            await this.game.databaseRef.transaction(record => GamePresence.reconcile(record, this.now()), undefined, false);
+        } catch (error) {
+            this.retryAt = this.now() + 5000;
+            console.error("Kunne ikke oppdatere spillerstatus.", error);
+            this.notify("Kunne ikke oppdatere spillerstatus. Prøver igjen.");
+        } finally {
+            this.pending = false;
+        }
+    }
+
+    async changeControl(reclaim = false) {
+        var player = this.game.getPlayer(this.playerName());
+        if (!player || !this.online || this.pending) { return; }
+        var id = GamePresence.playerId(player);
+        this.pending = true;
+        try {
+            var result = await this.game.databaseRef.transaction(record => {
+                if (!record) { return; }
+                var owner = (record.spillere || []).find(candidate =>
+                    candidate.spillerKey == player.playerKey && candidate.nick == player.name);
+                if (!owner || owner.spillerKey != getPlayerKey()) { return; }
+                var deadline = (record.actionDeadlines || {})[id];
+                if (reclaim) {
+                    if (!(record.controllers || {})[id]) { return; }
+                    record.controllers = Object.assign({}, record.controllers);
+                    delete record.controllers[id];
+                    if (deadline) {
+                        record.actionDeadlines = Object.assign({}, record.actionDeadlines, {
+                            [id]: Object.assign({}, deadline, { until: this.now() + GamePresence.actionMs, extended: false })
+                        });
+                    }
+                } else {
+                    if (!deadline || deadline.extended || this.now() >= deadline.until ||
+                        (record.controllers || {})[id]) { return; }
+                    record.actionDeadlines = Object.assign({}, record.actionDeadlines, {
+                        [id]: Object.assign({}, deadline, { until: deadline.until + GamePresence.actionMs, extended: true })
+                    });
+                }
+                return record;
+            }, undefined, false);
+            if (!result.committed) { this.notify("Handlingen er ikke lenger tilgjengelig."); }
+        } catch (error) {
+            console.error("Kunne ikke oppdatere tidsfristen.", error);
+            this.notify("Kunne ikke oppdatere tidsfristen. Prøv igjen.");
+        } finally {
+            this.pending = false;
+        }
+    }
+
+    stop() {
+        this.stopped = true;
+        clearInterval(this.ticker);
+        this.connectedRef.off("value", this.onConnected);
+        this.offsetRef.off("value", this.onOffset);
+        if (this.session) {
+            this.session.onDisconnect().cancel().catch(error => console.error("Kunne ikke avslutte tilkoblingen.", error));
+            this.session.remove().catch(error => console.error("Kunne ikke fjerne tilkoblingen.", error));
+        }
+    }
+}

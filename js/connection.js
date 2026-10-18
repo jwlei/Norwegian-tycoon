@@ -1,0 +1,1801 @@
+(
+    function () {
+        var currentGame = null;
+        var currentPlayerName = null;
+        var currentGameSubscription = null;
+        var currentGameListener = null;
+        var connection = null;
+        var resumeStorageKey = "norwegian-tycoon-active-game";
+        function readResumableGame() {
+            try {
+                var saved = JSON.parse(localStorage.getItem(resumeStorageKey) || "null");
+                return saved && /^[1-9]\d{0,5}$/.test(saved.id) &&
+                    typeof saved.name == "string" && saved.playerKey == getPlayerKey() ? saved : null;
+            } catch (error) {
+                console.warn("Kunne ikke lese lagret spill.", error);
+                return null;
+            }
+        }
+        function updateResumeButton() {
+            document.getElementById("resumeGameButton").hidden = readResumableGame() == null;
+        }
+        function rememberActiveGame(player) {
+            try {
+                localStorage.setItem(resumeStorageKey, JSON.stringify({
+                    id: String(currentGame.id), name: player.name, playerKey: player.playerKey
+                }));
+            } catch (error) {
+                console.warn("Kunne ikke huske aktivt spill.", error);
+            }
+            updateResumeButton();
+        }
+        function forgetActiveGame() {
+            try { localStorage.removeItem(resumeStorageKey); }
+            catch (error) { console.warn("Kunne ikke fjerne lagret spill.", error); }
+            updateResumeButton();
+        }
+        function refreshConnectionView() {
+            if (!currentGame || !currentGame.players) { return; }
+            var player = currentGame.getPlayer(currentPlayerName);
+            var controlled = player && GamePresence.isBot(currentGame, player);
+            var online = currentGame.connectionOnline !== false;
+            if (connection && connection.online && currentGame.isPublic && isLobbyHost(currentGame)) {
+                if (!connection.listingHost) {
+                    connection.listingHost = true;
+                    currentGame.updatePublicListing();
+                }
+            } else if (connection) {
+                connection.listingHost = false;
+            }
+            GameLayout.updatePlayers(currentGame, player);
+            var deadline = player && (currentGame.actionDeadlines || {})[GamePresence.playerId(player)];
+            var now = connection ? connection.now() : Date.now();
+            var active = player && deadline && !controlled && (currentGame.status == "S" || currentGame.status == "G");
+            var countdown = document.getElementById("turnCountdown");
+            var text = active ? localizedMessage(`Tid igjen: ${Math.max(0, Math.ceil((deadline.until - now) / 1000))} s`) : "";
+            if (countdown.textContent != text) { countdown.textContent = text; }
+            countdown.hidden = !active;
+            var extend = document.getElementById("extendTurnButton");
+            extend.hidden = !active || deadline.extended || now >= deadline.until;
+            extend.disabled = !online;
+            var reclaim = document.getElementById("reclaimSeatButton");
+            reclaim.hidden = !controlled || !player || player.playerKey == "PC";
+            reclaim.disabled = !online;
+            document.getElementById("playerHand").inert = !online || !!controlled;
+            document.getElementById("gameTable").inert = !online || !!controlled;
+            if (!online || controlled) {
+                document.getElementById("passButton").disabled = true;
+            } else {
+                document.getElementById("passButton").disabled = false;
+            }
+            scheduleBotLoop();
+        }
+        var turnPauseRefreshTimer = null;
+        var roundVoteRefreshTimer = null;
+        var gameEndVoteRefreshTimer = null;
+        var gameToastTimer = null;
+        var gameToastExpiresAt = 0;
+        var lastShownTurnPauseId = null;
+        var activeToastPauseId = null;
+        var clearingPauseId = null;
+        var gameLogGameId = null;
+        var gameLogEntries = [];
+        var gameLogTrickCount = 0;
+        var gameLogNeedsTrickHeader = true;
+        var appShell = document.getElementById("gameShell");
+        var gameMenuToggle = document.getElementById("BnGameMenuToggle");
+        var gameMenu = document.getElementById("gameMenu");
+        var playerNameCookie = "norwegian_tycoon_player_name";
+        document.addEventListener("lobby-player-error", function (event) {
+            if (event.detail.game == currentGame) {
+                showGameToast(event.detail.message, currentGame);
+            }
+        });
+
+        function readLastUsedPlayerName() {
+            var cookiePrefix = `${playerNameCookie}=`;
+            var cookie = document.cookie.split(";")
+                .map(value => value.trim())
+                .find(value => value.startsWith(cookiePrefix));
+            if (cookie == null) { return ""; }
+            try {
+                return sanitizePlayerName(decodeURIComponent(cookie.slice(cookiePrefix.length))).trim();
+            } catch (error) {
+                console.warn("Kunne ikke lese lagret spillernavn fra cookie.", error);
+                return "";
+            }
+        }
+
+        function saveLastUsedPlayerName(name) {
+            var secureAttribute = window.location.protocol == "https:" ? "; Secure" : "";
+            document.cookie =
+                `${playerNameCookie}=${encodeURIComponent(name)}; Max-Age=31536000; Path=/; SameSite=Lax${secureAttribute}`;
+            updateSavedPlayerName();
+        }
+
+        function updateSavedPlayerName() {
+            var name = readLastUsedPlayerName();
+            GameLayout.savedPlayerName = name;
+            if (currentGame == null) {
+                GameLayout.cardStylePlayerName = name;
+                document.documentElement.dataset.cardStyle = GameLayout.cardStyle();
+            }
+            var splashName = document.getElementById("splashPlayerName");
+            splashName.textContent = name;
+            splashName.hidden = name == "";
+            document.getElementById("settingsPlayerName").textContent = name;
+        }
+
+        function promptForPlayerName(isRename = false, errorMessage = "") {
+            document.querySelector("#dialogSporOmNick .dialog-title").textContent =
+                isRename ? "Bytt spillernavn" : "Hva vil du hete?";
+            document.getElementById("dialogSporOmNickTxt").value =
+                isRename && currentPlayerName != null
+                    ? currentPlayerName
+                    : readLastUsedPlayerName();
+            document.getElementById("playerNameError").textContent = errorMessage;
+            document.getElementById("dialogSporOmNickTxt").classList.remove("input-soft-error");
+            document.getElementById("dialogSporOmNickOk").textContent =
+                isRename ? "Lagre navn" : "Bli spiller";
+            showDialog("SporOmNick", true);
+        }
+
+        var pendingSpectatorJoinName = null;
+
+        async function joinRememberedPlayerOrPrompt() {
+            pendingSpectatorJoinName = null;
+            var rememberedName = readLastUsedPlayerName();
+            if (currentGame.status == "S" || currentGame.status == "G") {
+                var alreadyPlaying = currentGame.players.some(player =>
+                    player.playerKey == getPlayerKey()
+                );
+                if (!alreadyPlaying) {
+                    // Spectate until the round is over, then join automatically.
+                    pendingSpectatorJoinName = rememberedName != "" ? rememberedName : null;
+                    showSpectatorJoinToast();
+                    registerWaitingSpectator(currentGame);
+                    if (rememberedName == "") { promptForPlayerName(); }
+                    return;
+                }
+            }
+            if (rememberedName != "") {
+                var joiningGame = currentGame;
+                var result = await joiningGame.addPlayer(
+                    new PresidentPlayer(rememberedName, getPlayerKey())
+                );
+                if (currentGame != joiningGame) { return; }
+                if (result.player) {
+                    currentPlayerName = result.player.name;
+                    saveLastUsedPlayerName(currentPlayerName);
+                    GameLayout.updateSharedView(currentGame, result.player);
+                    GameLayout.updatePlayerView(currentGame, result.player);
+                    scheduleBotLoop();
+                    return;
+                }
+                promptForPlayerName(false, result.text);
+                return;
+            }
+            promptForPlayerName();
+        }
+
+        var spectatorJoinPending = false;
+        var waitingSpectatorRef = null;
+        var spectatorJoinToastTimer = null;
+        function showSpectatorJoinToast() {
+            var toast = document.getElementById("spectatorJoinToast");
+            if (spectatorJoinToastTimer != null) { clearTimeout(spectatorJoinToastTimer); }
+            toast.textContent = localizedMessage("Spillet pågår. Du ser på til neste runde.");
+            var top = 8;
+            for (var element = document.getElementById("gameTable"); element != null; element = element.offsetParent) {
+                top += element.offsetTop;
+            }
+            toast.style.top = `${top}px`;
+            toast.classList.add("is-visible");
+            spectatorJoinToastTimer = setTimeout(function () {
+                toast.classList.remove("is-visible");
+                spectatorJoinToastTimer = null;
+            }, 3000);
+        }
+        async function clearWaitingSpectator() {
+            var ref = waitingSpectatorRef;
+            waitingSpectatorRef = null;
+            if (ref == null) { return; }
+            try {
+                await ref.remove();
+            } catch (error) {
+                console.error("Kunne ikke fjerne ventende tilskuer.", error);
+            }
+        }
+        async function registerWaitingSpectator(game) {
+            if (waitingSpectatorRef != null) { return; }
+            var ref = game.databaseRef.child("waitingSpectators").push();
+            waitingSpectatorRef = ref;
+            try {
+                await ref.onDisconnect().remove();
+                if (waitingSpectatorRef != ref || currentGame != game) { return; }
+                await ref.set({ playerKey: getPlayerKey() });
+                if (waitingSpectatorRef != ref || currentGame != game) { await ref.remove(); }
+            } catch (error) {
+                console.error("Kunne ikke registrere ventende tilskuer.", error);
+                if (waitingSpectatorRef == ref) {
+                    await clearWaitingSpectator();
+                    showGameToast("Kunne ikke registrere deg som ventende spiller.", game);
+                }
+            }
+        }
+        async function tryJoinWaitingSpectator(game) {
+            if (pendingSpectatorJoinName == null || currentGame != game ||
+                currentPlayerName != null || spectatorJoinPending ||
+                game.gameEndVote != null || game.roundStartVote != null ||
+                (game.status != "O" && game.status != "F")) {
+                return;
+            }
+            spectatorJoinPending = true;
+            var result = await game.addPlayer(
+                new PresidentPlayer(pendingSpectatorJoinName, getPlayerKey())
+            );
+            spectatorJoinPending = false;
+            if (currentGame != game) { return; }
+            if (result.player) {
+                pendingSpectatorJoinName = null;
+                currentPlayerName = result.player.name;
+                clearWaitingSpectator();
+                saveLastUsedPlayerName(currentPlayerName);
+                GameLayout.updateSharedView(game, result.player);
+                GameLayout.updatePlayerView(game, result.player);
+            } else {
+                pendingSpectatorJoinName = null;
+                clearWaitingSpectator();
+                showGameToast(result.text, game);
+            }
+        }
+
+        function connectAndPromptForPlayerName() {
+            var shouldJoin = true;
+            connectGame(function () {
+                if (shouldJoin && currentGame != null) {
+                    shouldJoin = false;
+                    joinRememberedPlayerOrPrompt();
+                }
+            });
+        }
+
+        function toggleAutoSuggestion() {
+            autoSuggestPlayableCards = !autoSuggestPlayableCards;
+            setCookie("AutoSuggestPlayableCards", autoSuggestPlayableCards, 365);
+            updateAutoSuggestionButton();
+            var player = currentGame == null || currentPlayerName == null
+                ? null
+                : currentGame.getPlayer(currentPlayerName);
+            if (player == null) { return; }
+            if (autoSuggestPlayableCards) {
+                autoSelectedTurnKey = null;
+            } else {
+                var selectionIsAutoSuggested = autoSuggestedCardKeys.size > 0 &&
+                    autoSuggestedCardKeys.size == selectedCardKeys.size &&
+                    Array.from(autoSuggestedCardKeys).every(cardKey =>
+                        selectedCardKeys.has(cardKey)
+                    );
+                if (selectionIsAutoSuggested) {
+                    clearCardSelection();
+                }
+            }
+            GameLayout.updateHand(currentGame, player);
+        }
+
+        var STARTER_FLASH_DURATION_MS = 2500;
+        var STARTER_FLASH_DURATION_MS = 1900;
+        var lastShuffleStartedAt = null;
+        var shuffleEndsAt = 0;
+        var shuffleTicker = null;
+        var starterFlashTimer = null;
+        var handDealTimer = null;
+
+        function clearShuffleAnimation(keepFlash = false) {
+            if (shuffleTicker != null) {
+                clearInterval(shuffleTicker);
+                shuffleTicker = null;
+            }
+            shuffleEndsAt = 0;
+            var overlay = document.getElementById("shuffleOverlay");
+            if (overlay != null) { overlay.remove(); }
+            var hand = document.getElementById("playerHand");
+            if (hand != null) { hand.classList.remove("is-dealing-wait"); }
+            if (!keepFlash) {
+                if (starterFlashTimer != null) {
+                    clearTimeout(starterFlashTimer);
+                    starterFlashTimer = null;
+                }
+                document.querySelectorAll(".player-summary--starter-flash").forEach(element => {
+                    element.classList.remove("player-summary--starter-flash");
+                });
+            }
+        }
+
+        function flashRoundStarter() {
+            var game = currentGame;
+            if (game == null) { return; }
+            var starterName = null;
+            if (game.status == "S" && game.turn >= 0 && game.players[game.turn] != null) {
+                starterName = game.players[game.turn].name;
+            } else if (game.status == "G") {
+                starterName = game.roundStarterName;
+            }
+            if (starterName == null) { return; }
+            showGameToast(game.status == "G"
+                ? `${starterName} er Boms og starter.`
+                : (starterName == currentPlayerName ? "Du begynner" : `${starterName} begynner`), game);
+            document.querySelectorAll("#playerList [data-player-name]").forEach(element => {
+                element.classList.toggle(
+                    "player-summary--starter-flash",
+                    element.dataset.playerName == starterName
+                );
+            });
+            if (starterFlashTimer != null) { clearTimeout(starterFlashTimer); }
+            starterFlashTimer = setTimeout(() => {
+                starterFlashTimer = null;
+                document.querySelectorAll(".player-summary--starter-flash").forEach(element => {
+                    element.classList.remove("player-summary--starter-flash");
+                });
+            }, STARTER_FLASH_DURATION_MS + 100);
+        }
+
+        function dealCardsIntoHand() {
+            var hand = document.getElementById("playerHand");
+            if (hand == null) { return; }
+            hand.classList.remove("is-dealing-wait");
+            var cards = hand.querySelectorAll(".game-card");
+            cards.forEach((card, index) => card.style.setProperty("--deal-index", String(index)));
+            hand.classList.add("is-dealing-in");
+            if (handDealTimer != null) { clearTimeout(handDealTimer); }
+            handDealTimer = setTimeout(() => {
+                handDealTimer = null;
+                hand.classList.remove("is-dealing-in");
+            }, 600 + cards.length * 45);
+        }
+
+        function playShuffleAnimation(game) {
+            clearShuffleAnimation();
+            var startedAt = game.shuffleStartedAt;
+            var overlay = document.createElement("div");
+            overlay.id = "shuffleOverlay";
+            overlay.className = "shuffle-overlay";
+            overlay.setAttribute("role", "status");
+            overlay.setAttribute("aria-label", "Stokker kortene");
+            var stack = document.createElement("div");
+            stack.className = "shuffle-stack";
+            for (var i = 0; i < 8; i++) {
+                var card = document.createElement("div");
+                card.className = "shuffle-card";
+                card.setAttribute("aria-hidden", "true");
+                card.style.setProperty("--shuffle-index", String(i));
+                stack.appendChild(card);
+            }
+            var label = document.createElement("div");
+            label.className = "shuffle-label";
+            label.textContent = "Stokker kortene …";
+            overlay.append(stack, label);
+            document.body.appendChild(overlay);
+            var hand = document.getElementById("playerHand");
+            if (hand != null) { hand.classList.add("is-dealing-wait"); }
+            shuffleEndsAt = startedAt + SHUFFLE_DURATION_MS;
+            shuffleTicker = setInterval(function () {
+                if (currentGame != game) {
+                    clearShuffleAnimation();
+                    return;
+                }
+                if (Date.now() - startedAt >= SHUFFLE_DURATION_MS) {
+                    clearShuffleAnimation(true);
+                    refreshAfterTurnPause(game);
+                    dealCardsIntoHand();
+                    flashRoundStarter();
+                }
+            }, 40);
+        }
+
+        function playShuffleIfNew(game) {
+            if (game == null || game.shuffleStartedAt == null ||
+                game.shuffleStartedAt == lastShuffleStartedAt) { return; }
+            lastShuffleStartedAt = game.shuffleStartedAt;
+            var elapsed = Math.max(0, Date.now() - game.shuffleStartedAt);
+            if (elapsed < SHUFFLE_DURATION_MS) {
+                playShuffleAnimation(game);
+            }
+        }
+
+        function startNewGame(isPublic = false) {
+            currentGame = new PresidentGame(null, isPublic === true);
+            currentPlayerName = null;
+            resetGameLog(currentGame);
+            connectAndPromptForPlayerName();
+        }
+
+        function startRoundInCurrentGame() {
+            if (currentGame == null || (currentGame.status != "O" && currentGame.status != "F")) { return; }
+            if (!isLobbyHost(currentGame)) {
+                showGameToast("Bare verten kan starte spillet.", currentGame);
+                return;
+            }
+            if (currentGame.status == "O" && !currentGame.allHumansReady()) {
+                showGameToast("Alle menneskespillere må være klare.", currentGame);
+                return;
+            }
+            if (currentGame.status == "O" && currentGame.players.length < 2) { return; }
+            if (currentGame.status == "F") {
+                if (currentGame.roundStartVote != null) {
+                    handleRoundStartVote(currentGame);
+                    return;
+                }
+                if (currentGame.gameEndVote == null) {
+                    currentGame.beginGameEndVote();
+                    GameLayout.updateSharedView(
+                        currentGame,
+                        currentGame.getPlayer(currentPlayerName)
+                    );
+                    GameLayout.updatePlayerView(
+                        currentGame,
+                        currentGame.getPlayer(currentPlayerName)
+                    );
+                }
+                handleGameEndVote(currentGame);
+                return;
+            }
+            if (turnPauseRefreshTimer != null) {
+                clearTimeout(turnPauseRefreshTimer);
+                turnPauseRefreshTimer = null;
+            }
+            if (roundVoteRefreshTimer != null) {
+                clearTimeout(roundVoteRefreshTimer);
+                roundVoteRefreshTimer = null;
+            }
+            if (gameEndVoteRefreshTimer != null) {
+                clearTimeout(gameEndVoteRefreshTimer);
+                gameEndVoteRefreshTimer = null;
+            }
+            hideGameToast();
+            lastShownTurnPauseId = null;
+            clearingPauseId = null;
+            currentGame.roundStartVote = null;
+            currentGame.startGame();
+            scheduleBotLoop();
+        }
+
+        function disconnectGameListener() {
+            if (connection) { connection.stop(); connection = null; }
+            if (currentGameSubscription != null && currentGameListener != null) {
+                currentGameSubscription.off("value", currentGameListener);
+            }
+            currentGameSubscription = null;
+            currentGameListener = null;
+            if (gameEndVoteRefreshTimer != null) {
+                clearTimeout(gameEndVoteRefreshTimer);
+                gameEndVoteRefreshTimer = null;
+            }
+        }
+
+        function leaveCurrentGame() {
+            var game = currentGame;
+            disconnectGameListener();
+            clearWaitingSpectator();
+            if (spectatorJoinToastTimer != null) {
+                clearTimeout(spectatorJoinToastTimer);
+                spectatorJoinToastTimer = null;
+            }
+            document.getElementById("spectatorJoinToast").classList.remove("is-visible");
+            receivedCardQueue = [];
+            if (receivedCardTimer != null) { clearTimeout(receivedCardTimer); receivedCardTimer = null; }
+            document.getElementById("receivedCardsOverlay").hidden = true;
+            if (turnPauseRefreshTimer != null) {
+                clearTimeout(turnPauseRefreshTimer);
+                turnPauseRefreshTimer = null;
+            }
+            if (roundVoteRefreshTimer != null) {
+                clearTimeout(roundVoteRefreshTimer);
+                roundVoteRefreshTimer = null;
+            }
+            if (gameEndVoteRefreshTimer != null) {
+                clearTimeout(gameEndVoteRefreshTimer);
+                gameEndVoteRefreshTimer = null;
+            }
+            if (gameToastTimer != null) {
+                clearTimeout(gameToastTimer);
+                gameToastTimer = null;
+            }
+            hideGameToast();
+            lastShuffleStartedAt = null;
+            clearShuffleAnimation();
+            lastShownTurnPauseId = null;
+            clearingPauseId = null;
+            if (game != null && currentPlayerName != null) {
+                var player = game.getPlayer(currentPlayerName);
+                if (player != null) {
+                    game.leavePlayer(player);
+                }
+            }
+            currentGame = null;
+            forgetActiveGame();
+            currentPlayerName = null;
+            pendingSpectatorJoinName = null;
+            resetGameLog(null);
+            GameLayout.updateSharedView(null, null);
+            GameLayout.updatePlayerView(null, null);
+        }
+
+        function showConnectGameDialog() {
+            document.getElementById("dialogKobleSpillId").value = null;
+            document.getElementById("joinGameError").innerHTML = "";
+            showDialog("KobleSpill", true);
+        }
+
+        function connectToAnotherGame() {
+            leaveCurrentGame();
+        }
+
+        function hideGameToast() {
+            if (gameToastTimer != null) {
+                clearTimeout(gameToastTimer);
+                gameToastTimer = null;
+            }
+            var toast = document.getElementById("GameToast");
+            toast.classList.remove("is-visible");
+            toast.textContent = "";
+            activeToastPauseId = null;
+            gameToastExpiresAt = 0;
+        }
+
+        function resetGameLog(game) {
+            gameLogGameId = game == null ? null : `${game.id}:${game.shuffleStartedAt || ""}`;
+            gameLogEntries = [];
+            gameLogTrickCount = 0;
+            gameLogNeedsTrickHeader = true;
+            var log = document.getElementById("gameLogEntries");
+            if (log == null) { return; }
+            log.replaceChildren();
+            if (game != null) {
+                var emptyMessage = document.createElement("p");
+                emptyMessage.className = "game-log__empty";
+                emptyMessage.textContent = localizedMessage("Ingen hendelser ennå.");
+                log.appendChild(emptyMessage);
+            }
+        }
+
+        function ensureGameLog(game) {
+            var logKey = game == null ? null : `${game.id}:${game.shuffleStartedAt || ""}`;
+            if (gameLogGameId !== logKey) {
+                resetGameLog(game);
+            }
+        }
+
+        function appendColoredGameMessage(container, message, players) {
+            var position = 0;
+            while (position < message.length) {
+                var match = null;
+                var matchIndex = message.length;
+                var isWordChar = character => character != null && /[\p{L}\p{N}_]/u.test(character);
+                players.forEach(player => {
+                    var index = message.indexOf(player.name, position);
+                    while (index >= 0 && (
+                        isWordChar(message[index - 1]) ||
+                        isWordChar(message[index + player.name.length])
+                    )) {
+                        index = message.indexOf(player.name, index + 1);
+                    }
+                    if (index >= 0 &&
+                        (index < matchIndex ||
+                            (index == matchIndex && match != null && player.name.length > match.name.length))) {
+                        match = player;
+                        matchIndex = index;
+                    }
+                });
+                if (match == null) {
+                    container.appendChild(document.createTextNode(message.slice(position)));
+                    break;
+                }
+                if (matchIndex > position) {
+                    container.appendChild(document.createTextNode(message.slice(position, matchIndex)));
+                }
+                var name = document.createElement("span");
+                name.className = "game-toast__player";
+                name.style.setProperty("--player-color", match.displayColor);
+                name.textContent = match.name;
+                container.appendChild(name);
+                position = matchIndex + match.name.length;
+            }
+        }
+
+        function localizedMessage(message) {
+            return window.I18n ? window.I18n.msg(message) : message;
+        }
+
+        function appendGameLogEntry(entry, animate = true) {
+            var log = document.getElementById("gameLogEntries");
+            var emptyMessage = log.querySelector(".game-log__empty");
+            if (emptyMessage) { emptyMessage.remove(); }
+            var item = document.createElement("div");
+            if (entry.trick != null) {
+                item.className = "game-log__trick";
+                if (animate) { item.classList.add("game-log__entry--enter"); }
+                item.textContent = localizedMessage(`Stikk ${entry.trick}`);
+                log.appendChild(item);
+                log.scrollTop = log.scrollHeight;
+                return;
+            }
+            item.className = "game-log__entry";
+            if (animate) { item.classList.add("game-log__entry--enter"); }
+            appendColoredGameMessage(item, localizedMessage(entry.message), entry.players);
+            log.appendChild(item);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function showGameLog() {
+            if (currentGame == null) { return; }
+            ensureGameLog(currentGame);
+            var log = document.getElementById("gameLogEntries");
+            log.replaceChildren();
+            if (gameLogEntries.length == 0) {
+                var emptyMessage = document.createElement("p");
+                emptyMessage.className = "game-log__empty";
+                emptyMessage.textContent = localizedMessage("Ingen hendelser ennå.");
+                log.appendChild(emptyMessage);
+            } else {
+                gameLogEntries.forEach(entry => appendGameLogEntry(entry, false));
+            }
+            showDialog("Spillogg", true);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function showGameToast(message, game, duration = GAME_SPEED_MS[currentGameSpeed()], pauseId = null, endsTrick = false) {
+            ensureGameLog(game);
+            var toast = document.getElementById("GameToast");
+            if (toast.classList.contains("is-visible") && Date.now() >= gameToastExpiresAt) {
+                hideGameToast();
+            }
+
+            if (toast.classList.contains("is-visible") && toast.textContent != "") {
+                var rect = toast.getBoundingClientRect();
+                var leaving = toast.cloneNode(true);
+                leaving.removeAttribute("id");
+                leaving.classList.add("game-toast--leaving");
+                leaving.setAttribute("aria-hidden", "true");
+                leaving.style.left = `${rect.left}px`;
+                leaving.style.top = `${rect.top}px`;
+                leaving.style.width = `${rect.width}px`;
+                leaving.style.setProperty("--toast-push", `${rect.height + 10}px`);
+                var leaveMs = { fast: 1000, normal: 2000, slow: 3000 }[currentGameSpeed()] || 1000;
+                leaving.style.setProperty("--toast-leave", `${leaveMs}ms`);
+                leaving.style.setProperty("--toast-leave-fade-delay", `${Math.round(leaveMs * 0.67)}ms`);
+                leaving.style.setProperty("--toast-leave-fade", `${Math.round(leaveMs * 0.33)}ms`);
+                document.body.appendChild(leaving);
+                leaving.getBoundingClientRect();
+                leaving.classList.add("is-leaving");
+                setTimeout(() => leaving.remove(), leaveMs + 50);
+            }
+            toast.classList.remove("is-visible");
+            toast.getBoundingClientRect();
+            toast.replaceChildren();
+            var players = game.players.slice().filter(player => player.name)
+                .sort((a, b) => b.name.length - a.name.length);
+            var logEntry = {
+                message: message,
+                players: players.map(player => ({
+                    name: player.name,
+                    displayColor: player.displayColor
+                }))
+            };
+            var logIsOpen = document.getElementById("dialogSpillogg")
+                .classList.contains("dialog-container--visible");
+            if (gameLogNeedsTrickHeader) {
+                var trickEntry = { trick: ++gameLogTrickCount };
+                gameLogEntries.push(trickEntry);
+                if (logIsOpen) { appendGameLogEntry(trickEntry); }
+                gameLogNeedsTrickHeader = false;
+            }
+            gameLogEntries.push(logEntry);
+            if (logIsOpen) {
+                appendGameLogEntry(logEntry);
+            }
+            if (endsTrick) { gameLogNeedsTrickHeader = true; }
+            var progressColors = players.map(player => player.displayColor).filter(Boolean);
+            toast.style.setProperty("--toast-duration", `${duration}ms`);
+            toast.style.setProperty(
+                "--toast-progress-gradient",
+                progressColors.length > 0
+                    ? `linear-gradient(90deg, ${progressColors.join(", ")})`
+                    : "linear-gradient(90deg, #17803d, #39a95f, #f4cf43)"
+            );
+            activeToastPauseId = pauseId;
+            appendColoredGameMessage(toast, localizedMessage(message), players);
+            toast.classList.add("is-visible");
+            gameToastExpiresAt = Date.now() + duration;
+            if (gameToastTimer != null) {
+                clearTimeout(gameToastTimer);
+            }
+            gameToastTimer = setTimeout(hideGameToast, duration);
+        }
+
+        var receivedCardQueue = [];
+        var receivedCardTimer = null;
+        function showNextReceivedCards() {
+            var overlay = document.getElementById("receivedCardsOverlay");
+            var receipt = receivedCardQueue.shift();
+            if (receipt == null) {
+                overlay.hidden = true;
+                receivedCardTimer = null;
+                return;
+            }
+            if (currentGame != receipt.game || currentPlayerName != receipt.recipient) {
+                showNextReceivedCards();
+                return;
+            }
+            var content = document.getElementById("receivedCardsContent");
+            content.replaceChildren();
+            var pile = document.createElement("div");
+            pile.className = "received-cards__pile";
+            receipt.cards.forEach((card, index) => {
+                var image = GameLayout.createCardImage(card, null, GameLayout.cardStyle());
+                image.style.setProperty("--received-angle", `${(index - (receipt.cards.length - 1) / 2) * 10}deg`);
+                image.style.setProperty("--received-index", String(index));
+                pile.appendChild(image);
+            });
+            var message = document.createElement("p");
+            var names = receipt.cards.map(card => localizedMessage(card.getName()));
+            var language = document.documentElement.lang;
+            var cardList = new Intl.ListFormat(language, { style: "long", type: "conjunction" }).format(names);
+            var text = language.startsWith("en")
+                ? `You received ${cardList} from ${receipt.sender}.`
+                : `Du fikk ${cardList} fra ${receipt.sender}.`;
+            appendColoredGameMessage(message, text, receipt.game.players);
+            content.append(pile, message);
+            overlay.hidden = false;
+            receivedCardTimer = setTimeout(showNextReceivedCards,
+                { fast: 5000, normal: 10000, slow: 15000 }[currentGameSpeed()]);
+        }
+        document.addEventListener("exchange-cards-received", function (event) {
+            var receipt = event.detail;
+            if (currentGame != receipt.game || currentPlayerName != receipt.recipient) { return; }
+            receivedCardQueue.push(receipt);
+            if (receivedCardTimer == null) { showNextReceivedCards(); }
+        });
+        document.getElementById("receivedCardsOverlay").addEventListener("click", function (event) {
+            if (event.target != event.currentTarget) { return; }
+            if (receivedCardTimer != null) { clearTimeout(receivedCardTimer); }
+            showNextReceivedCards();
+        });
+
+        function refreshAfterTurnPause(game) {
+            if (currentGame != game) { return; }
+            var player = game.getPlayer(currentPlayerName);
+            GameLayout.updateSharedView(game, player);
+            GameLayout.updatePlayerView(game, player);
+        }
+
+        function completeTurnPause(game, pause) {
+            if (currentGame != game || game.turnPause == null ||
+                game.turnPause.id != pause.id) {
+                return;
+            }
+            var hasClearedPiles = pause.kind == "clear" &&
+                Array.isArray(game.turnPause.clearedPiles) &&
+                game.turnPause.clearedPiles.length > 0;
+            if (!hasClearedPiles) {
+                if (pause.pendingGameEnd === true) {
+                    if (!GamePresence.canDrive(game, connection ? connection.now() : Date.now())) {
+                        refreshAfterTurnPause(game);
+                        return;
+                    }
+                    game.finishGame();
+                    game.save();
+                    refreshAfterTurnPause(game);
+                    handleGameEndVote(game);
+                    return;
+                }
+                refreshAfterTurnPause(game);
+                return;
+            }
+            var table = document.getElementById("gameTable");
+            var clearingPauseKey = `${game.id}:${pause.id}`;
+            if (table.dataset.animatingPlayedPauseId == clearingPauseKey) {
+                table.dataset.pendingClearPauseId = clearingPauseKey;
+                return;
+            }
+            if (clearingPauseId == pause.id) { return; }
+            clearingPauseId = pause.id;
+            table.dataset.clearingPauseId = clearingPauseKey;
+            GameLayout.animateDiscardedCards(
+                table,
+                function () {
+                    if (currentGame != game || game.turnPause == null ||
+                        game.turnPause.id != pause.id) {
+                        if (clearingPauseId == pause.id) { clearingPauseId = null; }
+                        if (table.dataset.clearingPauseId == clearingPauseKey) {
+                            delete table.dataset.clearingPauseId;
+                        }
+                        return;
+                    }
+                    delete game.turnPause.clearedPiles;
+                    if (clearingPauseId == pause.id) { clearingPauseId = null; }
+                    delete table.dataset.clearingPauseId;
+                    var pendingGameEnd = game.turnPause.pendingGameEnd === true;
+                    if (GamePresence.canDrive(game, connection ? connection.now() : Date.now())) {
+                        if (pendingGameEnd) { game.finishGame(); }
+                        game.save();
+                    }
+                    refreshAfterTurnPause(game);
+                    if (pendingGameEnd) { handleGameEndVote(game); }
+                }
+            );
+        }
+
+        document.getElementById("gameTable").addEventListener(
+            "played-cards-animation-complete",
+            function (event) {
+                var table = document.getElementById("gameTable");
+                var pauseId = event.detail && event.detail.pauseId;
+                if (pauseId == null || table.dataset.pendingClearPauseId != pauseId) {
+                    return;
+                }
+                delete table.dataset.pendingClearPauseId;
+                var game = currentGame;
+                if (game != null && game.turnPause != null &&
+                    `${game.id}:${game.turnPause.id}` == pauseId &&
+                    game.turnPause.until <= Date.now()) {
+                    completeTurnPause(game, game.turnPause);
+                }
+            }
+        );
+
+        function handleTurnPause(game) {
+            if (turnPauseRefreshTimer != null) {
+                clearTimeout(turnPauseRefreshTimer);
+                turnPauseRefreshTimer = null;
+            }
+            var pause = game.turnPause;
+            if (pause == null) { return; }
+            var delay = pause.until - Date.now();
+            if (pause.id != lastShownTurnPauseId) {
+                lastShownTurnPauseId = pause.id;
+                if (delay > 0) {
+                    var duration = currentGameSpeed() == "fast"
+                        ? Math.min(delay, GAME_SPEED_MS.fast)
+                        : GAME_SPEED_MS[currentGameSpeed()];
+                    showGameToast(pause.message, game, duration, pause.id, pause.kind == "clear");
+                    if (pause.extraMessage) {
+                        showGameToast(pause.extraMessage, game, duration, pause.id);
+                    }
+                    if (currentGameSpeed() == "fast") {
+                        gameToastExpiresAt = Math.min(gameToastExpiresAt, pause.until);
+                    }
+                }
+            }
+            if (delay > 0) {
+                turnPauseRefreshTimer = setTimeout(function () {
+                    turnPauseRefreshTimer = null;
+                    if (currentGame != game || game.turnPause == null || game.turnPause.id != pause.id) { return; }
+                    completeTurnPause(game, pause);
+                }, delay + 20);
+            } else {
+                completeTurnPause(game, pause);
+            }
+        }
+
+        function handleRoundStartVote(game) {
+            if (roundVoteRefreshTimer != null) {
+                clearTimeout(roundVoteRefreshTimer);
+                roundVoteRefreshTimer = null;
+            }
+            var vote = game.roundStartVote;
+            if (vote == null) { return; }
+            if (isLobbyHost(game) && vote.result == null) {
+                game.resolveNeutralRoundVote();
+                if (game.roundStartVote == null || game.roundStartVote.id != vote.id) { return; }
+            }
+            if (vote.result != null) {
+                game.claimNeutralRoundStart();
+                return;
+            }
+            var remaining = vote.until - Date.now();
+            var humanPlayers = game.players.filter(player => !GamePresence.isBot(game, player));
+            var humanIds = new Set(humanPlayers.map(roundVotePlayerId));
+            var voteMap = new Map();
+            (Array.isArray(vote.votes) ? vote.votes : []).forEach(playerVote => {
+                if (humanIds.has(playerVote.playerId)) {
+                    voteMap.set(playerVote.playerId, playerVote.neutral === true);
+                }
+            });
+            var countdown = document.getElementById("roundStartVoteCountdown");
+            if (countdown) {
+                countdown.textContent =
+                    `${voteMap.size} av ${humanPlayers.length} har stemt.` +
+                    (remaining > 0 ? ` ${Math.ceil(remaining / 1000)} sekunder igjen.` : "");
+            }
+            if (remaining <= 0) {
+                game.resolveNeutralRoundVote(true);
+                return;
+            }
+            roundVoteRefreshTimer = setTimeout(function () {
+                roundVoteRefreshTimer = null;
+                if (currentGame != game || game.roundStartVote == null ||
+                    game.roundStartVote.id != vote.id) {
+                    return;
+                }
+                handleRoundStartVote(game);
+            }, Math.min(1000, remaining));
+        }
+
+        function handleGameEndVote(game) {
+            if (gameEndVoteRefreshTimer != null) {
+                clearTimeout(gameEndVoteRefreshTimer);
+                gameEndVoteRefreshTimer = null;
+            }
+            if (currentGame != game || game.status != "F" || game.roundStartVote != null) {
+                return;
+            }
+            if (game.gameEndVote == null) {
+                game.beginGameEndVote();
+                var player = game.getPlayer(currentPlayerName);
+                GameLayout.updateSharedView(game, player);
+                GameLayout.updatePlayerView(game, player);
+            }
+            var vote = game.gameEndVote;
+            if (vote == null) { return; }
+            if (isLobbyHost(game) && vote.result == null) {
+                game.resolveGameEndVote();
+                if (game.gameEndVote == null || game.gameEndVote.id != vote.id) { return; }
+            }
+            if (vote.started === true) { return; }
+            if (vote.result != null) {
+                game.claimGameEndVote();
+                return;
+            }
+            var remaining = vote.until - Date.now();
+            var humanPlayers = game.players.filter(player => !GamePresence.isBot(game, player));
+            var humanIds = new Set(humanPlayers.map(roundVotePlayerId));
+            var voteIds = new Set();
+            (Array.isArray(vote.votes) ? vote.votes : []).forEach(playerVote => {
+                if (humanIds.has(playerVote.playerId) &&
+                    (playerVote.choice == "lobby" || playerVote.choice == "next_round")) {
+                    voteIds.add(playerVote.playerId);
+                }
+            });
+            var countdown = document.getElementById("gameEndVoteCountdown");
+            if (countdown) {
+                countdown.textContent =
+                    `${voteIds.size} av ${humanPlayers.length} har stemt.` +
+                    (remaining > 0 ? ` ${Math.ceil(remaining / 1000)} sekunder igjen.` : "");
+            }
+            if (remaining <= 0) {
+                game.resolveGameEndVote(true);
+                return;
+            }
+            var voteId = vote.id;
+            gameEndVoteRefreshTimer = setTimeout(function () {
+                gameEndVoteRefreshTimer = null;
+                if (currentGame != game || game.gameEndVote == null ||
+                    game.gameEndVote.id != voteId) {
+                    return;
+                }
+                handleGameEndVote(game);
+            }, Math.min(1000, remaining));
+        }
+
+        function dismissGameToast() {
+            hideGameToast();
+        }
+
+        function clearSelectedCardsFromBackground(event) {
+            if (!(event.target instanceof Element) ||
+                event.target.closest("button, a, input, select, textarea, [role='button']")) {
+                return;
+            }
+            if (document.getElementById("GameToast").classList.contains("is-visible")) {
+                dismissGameToast();
+                return;
+            }
+            if (selectedCardKeys.size == 0) { return; }
+            clearCardSelection();
+            var player = currentGame == null || currentPlayerName == null
+                ? null
+                : currentGame.getPlayer(currentPlayerName);
+            if (player != null) {
+                GameLayout.updateHand(currentGame, player);
+            }
+        }
+
+        document.getElementById("GameToast").addEventListener("click", function (event) {
+            event.stopPropagation();
+            dismissGameToast();
+        });
+        document.getElementById("playerActions").addEventListener(
+            "click",
+            clearSelectedCardsFromBackground
+        );
+
+        function setGameMenuOpen(isOpen, returnFocus = false) {
+            appShell.classList.toggle("GameMenuOpen", isOpen);
+            gameMenuToggle.setAttribute("aria-expanded", String(isOpen));
+            var label = isOpen ? "Lukk spillmeny" : "Åpne spillmeny";
+            gameMenuToggle.setAttribute("aria-label", label);
+            gameMenuToggle.title = label;
+            if (!isOpen && returnFocus && appShell.classList.contains("game-active")) {
+                gameMenuToggle.focus();
+            }
+        }
+
+        gameMenuToggle.addEventListener("click", function () {
+            setGameMenuOpen(!appShell.classList.contains("GameMenuOpen"));
+        });
+
+        gameMenu.addEventListener("click", function (event) {
+            var action = event.target.closest ? event.target.closest("button") : null;
+            if (!action || !appShell.classList.contains("GameMenuOpen")) { return; }
+            var dialogIsOpen = document.querySelector(".dialog-container--visible") != null;
+            setGameMenuOpen(false, !dialogIsOpen);
+        });
+
+        document.addEventListener("pointerdown", function (event) {
+            if (!appShell.classList.contains("GameMenuOpen") ||
+                gameMenu.contains(event.target) || gameMenuToggle.contains(event.target)) {
+                return;
+            }
+            setGameMenuOpen(false);
+        });
+
+        document.addEventListener("keydown", function (event) {
+            if (event.key != "Escape" || !appShell.classList.contains("GameMenuOpen")) {
+                return;
+            }
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            setGameMenuOpen(false, true);
+        });
+
+        document.addEventListener("keydown", function (event) {
+            if (event.key != "Escape" || selectedCardKeys.size == 0 ||
+                document.querySelector(".dialog-container--visible")) {
+                return;
+            }
+            var focusedCardKey = document.activeElement.dataset
+                ? document.activeElement.dataset.cardKey
+                : null;
+            clearCardSelection();
+            var currentPlayer = (currentGame == null) ? null : currentGame.getPlayer(currentPlayerName);
+            if (currentPlayer) {
+                GameLayout.updateHand(currentGame, currentPlayer);
+                var focusedCard = Array.from(document.querySelectorAll("#playerHand .game-card"))
+                    .find(card => card.dataset.cardKey == focusedCardKey);
+                if (focusedCard) {
+                    focusedCard.focus();
+                }
+            }
+        });
+
+        document.getElementById('BnHNySpill').addEventListener('click', function () {
+            document.getElementById("dialogNyttSpillOffentlig").checked = true;
+            showDialog("NyttSpill", true);
+        });
+
+        document.getElementById('dialogNyttSpillOk').addEventListener('click', function () {
+            var isPublic = document.getElementById("dialogNyttSpillOffentlig").checked;
+            showDialog("NyttSpill", false);
+            startNewGame(isPublic);
+        });
+
+        var publicLobbies = [];
+
+        function joinableLobbies() {
+            var oldest = Date.now() - PUBLIC_LOBBY_MAX_AGE_MS;
+            return publicLobbies.filter(lobby => lobby.ts > oldest);
+        }
+
+        function shuffledSample(items, count) {
+            var copy = items.slice();
+            for (var i = copy.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                [copy[i], copy[j]] = [copy[j], copy[i]];
+            }
+            return copy.slice(0, count);
+        }
+
+        function renderPublicLobbies() {
+            var list = document.getElementById("publicLobbyList");
+            var lobbies = joinableLobbies();
+            var heading = list.querySelector(".public-lobby-heading");
+            if (heading == null) {
+                heading = document.createElement("div");
+                heading.className = "public-lobby-heading";
+                var headingText = document.createElement("span");
+                headingText.textContent = "Åpne lobbyer";
+                heading.appendChild(headingText);
+                var randomButton = document.createElement("button");
+                randomButton.type = "button";
+                randomButton.className = "public-lobby-random";
+                randomButton.textContent = "🔀";
+                randomButton.title = "Bli med i en tilfeldig åpen lobby";
+                randomButton.setAttribute("aria-label", "Bli med i en tilfeldig åpen lobby");
+                randomButton.addEventListener("click", joinRandomPublicLobby);
+                heading.appendChild(randomButton);
+                list.appendChild(heading);
+            }
+            heading.querySelector("button").hidden =
+                !lobbies.some(lobby => lobby.waiting && (lobby.players < MAX_PLAYERS || lobby.bots > 0));
+            var empty = list.querySelector(".public-lobby-empty");
+            if (empty == null) {
+                empty = document.createElement("div");
+                empty.className = "public-lobby-empty";
+                empty.textContent = "Ingen åpne lobbyer akkurat nå";
+                list.appendChild(empty);
+            }
+            empty.hidden = lobbies.length != 0;
+            var available = new Map(lobbies.map(lobby => [lobby.id, lobby]));
+            var buttons = new Map();
+            list.querySelectorAll(".public-lobby-entry").forEach(button => {
+                if (available.has(button.dataset.lobbyId)) {
+                    buttons.set(button.dataset.lobbyId, button);
+                } else {
+                    button.remove();
+                }
+            });
+            var additions = shuffledSample(lobbies.filter(lobby => !buttons.has(lobby.id)), 5 - buttons.size);
+            additions.forEach(lobby => {
+                var button = document.createElement("button");
+                button.type = "button";
+                button.className = "public-lobby-entry";
+                button.dataset.lobbyId = lobby.id;
+                var name = document.createElement("span");
+                var status = document.createElement("span");
+                status.className = "public-lobby-entry__status";
+                button.append(name, status);
+                button.addEventListener("click", function () {
+                    joinGameById(lobby.id, showPublicLobbyError);
+                });
+                list.appendChild(button);
+                buttons.set(lobby.id, button);
+            });
+            buttons.forEach((button, id) => {
+                var lobby = available.get(id);
+                button.classList.toggle("is-running", !lobby.waiting);
+                var name = `${lobby.host} · ${lobby.players}/${MAX_PLAYERS}`;
+                var status = lobby.waiting ? "Venter i lobby" : "Spill pågår";
+                if (button.children[0].textContent != name) { button.children[0].textContent = name; }
+                if (button.children[1].textContent != status) { button.children[1].textContent = status; }
+            });
+        }
+
+        function showPublicLobbyError(text) {
+            var error = document.getElementById("publicLobbyError");
+            error.textContent = text;
+        }
+
+        function updatePublicLobbies(snapshot) {
+            publicLobbies = [];
+            snapshot.forEach(child => {
+                var lobby = child.val();
+                if (lobby != null && lobby.id != null && typeof lobby.host == "string") {
+                    publicLobbies.push({
+                        id: String(lobby.id),
+                        host: lobby.host,
+                        players: Number(lobby.players) || 0,
+                        bots: Number(lobby.bots) || 0,
+                        waiting: lobby.waiting !== false,
+                        ts: Number(lobby.ts) || 0
+                    });
+                }
+            });
+            publicLobbies.sort((a, b) => b.ts - a.ts);
+            renderPublicLobbies();
+        }
+        var publicLobbyRef = firebase.database().ref(PUBLIC_LOBBY_PATH);
+        publicLobbyRef.on("value", updatePublicLobbies, function (error) {
+            console.error("Kunne ikke hente offentlige lobbyer.", error);
+        });
+        renderPublicLobbies();
+
+        var publicLobbyRefreshPending = false;
+        async function refreshPublicLobbies() {
+            if (currentGame != null || document.hidden || publicLobbyRefreshPending) { return; }
+            publicLobbyRefreshPending = true;
+            try {
+                updatePublicLobbies(await publicLobbyRef.once("value"));
+            } catch (error) {
+                console.error("Kunne ikke oppdatere offentlige lobbyer.", error);
+            } finally {
+                publicLobbyRefreshPending = false;
+            }
+        }
+        setInterval(refreshPublicLobbies, 15000);
+        document.addEventListener("visibilitychange", refreshPublicLobbies);
+
+        function joinRandomPublicLobby() {
+            var lobbies = joinableLobbies().filter(lobby =>
+                lobby.waiting && (lobby.players < MAX_PLAYERS || lobby.bots > 0)
+            );
+            if (lobbies.length == 0) {
+                showPublicLobbyError("Ingen åpne lobbyer akkurat nå.");
+                return;
+            }
+            var lobby = lobbies[Math.floor(Math.random() * lobbies.length)];
+            joinGameById(lobby.id, showPublicLobbyError);
+        }
+
+        document.getElementById("gameTable").addEventListener("click", function (event) {
+            clearSelectedCardsFromBackground(event);
+        });
+
+        document.getElementById('BnHKobleSpill').addEventListener('click', function () {
+            showConnectGameDialog();
+        });
+
+        document.getElementById('BnFKobleSpill').addEventListener('click', connectToAnotherGame);
+
+        function joinGameById(id, onFail) {
+            showPublicLobbyError("");
+            var targetId = String(id || "").trim();
+            if (targetId == "") {
+                onFail("Skriv inn et spill-nummer.");
+                return;
+            }
+            if (currentGame != null && String(currentGame.id) == targetId) {
+                showDialog("KobleSpill", false);
+                return;
+            }
+            // Check the target first so a failed attempt keeps the current game.
+            firebase.database().ref(`boms_1/${targetId}`).once("value").then(function (snapshot) {
+                if (!snapshot.exists()) {
+                    onFail("Kunne ikke koble til. Er spill-nummeret riktig?");
+                    return;
+                }
+                if (currentGame != null) { leaveCurrentGame(); }
+                currentGame = new PresidentGame(targetId);
+                currentPlayerName = null;
+                var shouldJoin = true;
+                connectGame(function () {
+                    if (currentGame == null) {
+                        onFail("Kunne ikke koble til. Er spill-nummeret riktig?");
+                    } else {
+                        showDialog("KobleSpill", false);
+                        if (shouldJoin) {
+                            shouldJoin = false;
+                            joinRememberedPlayerOrPrompt();
+                        }
+                    }
+                });
+            }).catch(function () {
+                onFail("Kunne ikke koble til. Prøv igjen.");
+            });
+        }
+
+        document.getElementById('dialogKobleSpillOk').addEventListener('click', function () {
+            joinGameById(document.getElementById("dialogKobleSpillId").value, function (text) {
+                document.getElementById('joinGameError').innerHTML = text;
+                document.getElementById('dialogKobleSpillId').focus();
+            });
+        });
+
+        function connectGame(afterConnect = function () { }) {
+            disconnectGameListener();
+            if (turnPauseRefreshTimer != null) {
+                clearTimeout(turnPauseRefreshTimer);
+                turnPauseRefreshTimer = null;
+            }
+            if (roundVoteRefreshTimer != null) {
+                clearTimeout(roundVoteRefreshTimer);
+                roundVoteRefreshTimer = null;
+            }
+            lastShownTurnPauseId = null;
+            var connectingGame = currentGame;
+            resetGameLog(connectingGame);
+            connection = new GamePresence({
+                game: connectingGame,
+                playerName: () => currentPlayerName,
+                refresh: refreshConnectionView,
+                notify: message => {
+                    if (currentGame == connectingGame) { showGameToast(message, connectingGame); }
+                },
+                remember: player => {
+                    if (currentGame == connectingGame) { rememberActiveGame(player); }
+                }
+            });
+            connectingGame.onRoundStarted = function () {
+                if (currentGame == connectingGame) {
+                    if (roundVoteRefreshTimer != null) {
+                        clearTimeout(roundVoteRefreshTimer);
+                        roundVoteRefreshTimer = null;
+                    }
+                    if (gameEndVoteRefreshTimer != null) {
+                        clearTimeout(gameEndVoteRefreshTimer);
+                        gameEndVoteRefreshTimer = null;
+                    }
+                    scheduleBotLoop();
+                }
+            };
+            currentGameSubscription = connectingGame.databaseRef;
+            currentGameListener = function (snapshot) {
+                if (currentGame != connectingGame) { return; }
+                var snapshotRecord = snapshot.val();
+                if (snapshotRecord != null) {
+                    var storedPlayers = snapshotRecord["spillere"] || [];
+                    var storedPiles = snapshotRecord["spillBunke"] || [];
+                    connectingGame.status = snapshotRecord.status;
+                    connectingGame.hostKey = snapshotRecord["hostKey"] || null;
+                    connectingGame.hostName = snapshotRecord["hostName"] || null;
+                    connectingGame.isPublic = snapshotRecord["isPublic"] === true;
+                    connectingGame.waitingSpectators = snapshotRecord["waitingSpectators"] || {};
+                    if (connectingGame.hostKey == null) {
+                        var firstHumanRecord = storedPlayers.find(record =>
+                            record["spillerKey"] != "PC"
+                        );
+                        connectingGame.hostKey = firstHumanRecord
+                            ? firstHumanRecord["spillerKey"]
+                            : null;
+                    }
+                    if (connectingGame.hostName == null) {
+                        var hostRecord = storedPlayers.find(record => record["spillerKey"] == connectingGame.hostKey);
+                        connectingGame.hostName = hostRecord ? hostRecord.nick : null;
+                    }
+                    var storedRules = snapshotRecord["regler"] || {};
+                    connectingGame.rules = { showCardsOnly: storedRules["VisKunKort"] };
+                    connectingGame.round = snapshotRecord["runde"];
+                    connectingGame.shuffleStartedAt = snapshotRecord["shuffleStartedAt"] || null;
+                    ensureGameLog(connectingGame);
+                    connectingGame.roundStarterName = snapshotRecord["roundStarterName"] || null;
+                    connectingGame.playedCards = snapshotRecord["playedCards"] || [];
+                    connectingGame.dealTotal = snapshotRecord["dealTotal"] || 0;
+                    connectingGame.dealStarterStep = snapshotRecord["dealStarterStep"] ?? null;
+                    connectingGame.roundStartVote = snapshotRecord["roundStartVote"] || null;
+                    connectingGame.gameEndVote = snapshotRecord["gameEndVote"] || null;
+                    connectingGame.preservePlayerOrderOnStart =
+                        snapshotRecord["preservePlayerOrderOnStart"] === true;
+                    connectingGame.players = PresidentPlayer.deserializePlayers(storedPlayers);
+                    connectingGame.piles = ((connectingGame.status == "G") ? PresidentGame.deserializeExchanges(storedPiles) : PresidentCard.deserializePiles(storedPiles));
+                    connectingGame.turn = snapshotRecord["sinTur"];
+                    connectingGame.turnPause = snapshotRecord["turnPause"] || null;
+                    connectingGame.ts = snapshotRecord.ts;
+                    connection.receive(snapshotRecord);
+                    if (connectingGame.status == "F") {
+                        var stillActivePlayers = connectingGame.players.filter(player =>
+                            player.placement == 0
+                        );
+                        if (stillActivePlayers.length > 0) {
+                            console.error("Spillet er markert ferdig mens aktive spillere fortsatt finnes.", {
+                                gameId: connectingGame.id,
+                                activePlayerCount: stillActivePlayers.length,
+                                activeCardsRemaining: stillActivePlayers.reduce(
+                                    (total, player) => total + player.cards.length,
+                                    0
+                                )
+                            });
+                        }
+                    }
+                    GameLayout.updateSharedView(connectingGame, connectingGame.getPlayer(currentPlayerName));
+                    GameLayout.updatePlayerView(connectingGame, connectingGame.getPlayer(currentPlayerName));
+                    handleTurnPause(connectingGame);
+                    handleRoundStartVote(connectingGame);
+                    handleGameEndVote(connectingGame);
+                    playShuffleIfNew(connectingGame);
+                    tryJoinWaitingSpectator(connectingGame);
+                    scheduleBotLoop();
+                } else {
+                    disconnectGameListener();
+                    clearShuffleAnimation();
+                    if (roundVoteRefreshTimer != null) {
+                        clearTimeout(roundVoteRefreshTimer);
+                        roundVoteRefreshTimer = null;
+                    }
+                    if (gameEndVoteRefreshTimer != null) {
+                        clearTimeout(gameEndVoteRefreshTimer);
+                        gameEndVoteRefreshTimer = null;
+                    }
+                    currentGame = null;
+                    forgetActiveGame();
+                    clearWaitingSpectator();
+                    currentPlayerName = null;
+                    resetGameLog(null);
+                    GameLayout.updateSharedView(null, null);
+                    GameLayout.updatePlayerView(null, null);
+                }
+                afterConnect();
+            };
+            currentGameSubscription.on('value', currentGameListener, function (error) {
+                console.error("Kunne ikke koble til spillet.", error);
+                connectingGame.connectionOnline = false;
+                refreshConnectionView();
+                showGameToast("Kunne ikke koble til spillet. Prøv igjen.", connectingGame);
+            });
+        }
+
+        const inviteParams = new URLSearchParams(window.location.search);
+        const inviteId = inviteParams.get("gameid") || inviteParams.get("spillid");
+        if (inviteId && /^[1-9]\d{0,5}$/.test(inviteId)) {
+            currentGame = new PresidentGame(inviteId);
+            currentPlayerName = null;
+            connectAndPromptForPlayerName();
+        }
+        document.getElementById("resumeGameButton").addEventListener("click", function () {
+            var saved = readResumableGame();
+            if (!saved) { updateResumeButton(); return; }
+            currentGame = new PresidentGame(saved.id);
+            currentPlayerName = saved.name;
+            var checked = false;
+            connectGame(function () {
+                if (checked) { return; }
+                checked = true;
+                if (!currentGame) {
+                    showPublicLobbyError("Spillet finnes ikke lenger.");
+                    return;
+                }
+                var player = currentGame.getPlayer(saved.name);
+                if (!player || player.playerKey != getPlayerKey() || player.gaveUp) {
+                    leaveCurrentGame();
+                    showPublicLobbyError("Du har ikke lenger en plass i dette spillet.");
+                }
+            });
+        });
+        document.getElementById("extendTurnButton").addEventListener("click", () => {
+            if (connection) { connection.changeControl(); }
+        });
+        document.getElementById("reclaimSeatButton").addEventListener("click", () => {
+            if (connection) { connection.changeControl(true); }
+        });
+        updateResumeButton();
+
+        document.getElementById('BnFInviterSpill').addEventListener('click', function () {
+            if (currentGame == null) { throw ('Må lage spill før du inviterer.') }
+            const inviteUrl = new URL(document.baseURI);
+            inviteUrl.search = "";
+            inviteUrl.hash = "";
+            inviteUrl.searchParams.set("gameid", currentGame.id);
+            showInviteLink(currentGame.id, inviteUrl.href);
+        });
+
+        var GAME_SPEED_MS = { fast: TURN_ACTION_PAUSE_MS, normal: 5000, slow: 8000 };
+        function currentGameSpeed() {
+            var stored = null;
+            try { stored = localStorage.getItem("gameSpeed"); } catch (error) { }
+            return GAME_SPEED_MS[stored] != null ? stored : "fast";
+        }
+        function updateSpeedButtons() {
+            var speed = currentGameSpeed();
+            document.querySelectorAll(".speed-option").forEach(button => {
+                button.setAttribute("aria-pressed", String(button.dataset.speed == speed));
+            });
+        }
+        function updateCardStyleButtons() {
+            document.getElementById("secretStyleHeader").hidden = !GameLayout.canUseBotanicalStyle();
+            var style = GameLayout.cardStyle();
+            document.documentElement.dataset.cardStyle = style;
+            var previewCards = [new PresidentCard(2, 1), new PresidentCard(1, 12), new PresidentCard(4, 7)];
+            document.querySelectorAll(".card-style-option").forEach(button => {
+                button.hidden = button.dataset.cardStyle == "botanical" && !GameLayout.canUseBotanicalStyle();
+                button.setAttribute("aria-pressed", String(button.dataset.cardStyle == style));
+                var holder = button.querySelector(".card-style-option__cards");
+                if (holder != null && holder.childElementCount == 0) {
+                    previewCards.forEach(card => {
+                        var wrapper = document.createElement("span");
+                        wrapper.className = "card-preview card-preview--" + button.dataset.cardStyle;
+                        var image = GameLayout.createCardImage(card, null, button.dataset.cardStyle);
+                        image.alt = "";
+                        wrapper.appendChild(image);
+                        holder.appendChild(wrapper);
+                    });
+                }
+            });
+            var current = document.getElementById("cardStyleCurrent");
+            var selected = document.querySelector(`.card-style-option[data-card-style="${style}"] strong`);
+            if (current != null && selected != null) {
+                current.replaceChildren(selected.parentElement.querySelector(".card-preview").cloneNode(true));
+                current.title = localizedMessage(selected.textContent);
+                document.getElementById("cardStyleCurrentName").textContent = current.title;
+            }
+        }
+        updateCardStyleButtons();
+        document.addEventListener("languagechange", updateCardStyleButtons);
+
+        document.getElementById("cardStyleOpenButton").addEventListener("click", function () {
+            updateCardStyleButtons();
+            showDialog("Innstillinger", false);
+            showDialog("Korttype", true);
+        });
+        document.getElementById("cardStyleCloseButton").addEventListener("click", function () {
+            showDialog("Korttype", false);
+            showDialog("Innstillinger", true);
+        });
+
+        document.querySelectorAll(".speed-option")        .forEach(button => {
+                    button.addEventListener("click", function () {
+                        try { localStorage.setItem("gameSpeed", button.dataset.speed); } catch (error) { }
+                updateSpeedButtons();
+            });
+        });
+
+        document.querySelectorAll(".card-style-option").forEach(button => {
+            button.addEventListener("click", function () {
+                if (button.dataset.cardStyle == "botanical" && !GameLayout.canUseBotanicalStyle()) { return; }
+                try { localStorage.setItem("cardStyle", button.dataset.cardStyle); } catch (error) { }
+                updateCardStyleButtons();
+                if (currentGame != null) { refreshAfterTurnPause(currentGame); }
+                showDialog("Korttype", false);
+                showDialog("Innstillinger", true);
+            });
+        });
+
+        function openSettings() {
+            var inGame = currentGame != null;
+            updateSavedPlayerName();
+            updateCardStyleButtons();
+            GameLayout.setVisible("BnPByttNavn", !inGame || currentGame.status == "O");
+            document.getElementById("autoSuggestionToggleButton").hidden = !inGame;
+            document.querySelector(".setting-speed").hidden = !inGame;
+            document.getElementById("settingsGameId").hidden = !inGame;
+            updateAutoSuggestionButton();
+            updateSpeedButtons();
+            showDialog("Innstillinger", true);
+        }
+
+        document.getElementById("BnInnstillinger").addEventListener("click", openSettings);
+        window.addEventListener("resize", () => GameLayout.fitNames());
+        document.getElementById("homeButton").addEventListener("click", function () {
+            if (currentGame == null) { return; }
+            if (currentGame.status == "S" || currentGame.status == "G") {
+                showChoiceDialog(
+                    "Vil du forlate runden og gå til hovedmenyen? De andre spillerne fortsetter.",
+                    ["Ja, gå til hovedmenyen", "Fortsett spillet"],
+                    [leaveCurrentGame, function () {}]
+                );
+            } else {
+                leaveCurrentGame();
+            }
+        });
+
+        document.addEventListener("languagechange", function () {
+            if (currentGame != null &&
+                document.getElementById("dialogSpillogg").classList.contains("dialog-container--visible")) {
+                showGameLog();
+            }
+        });
+
+        var copyToastTimer = null;
+        function showCopyToast(text) {
+            var toast = document.getElementById("CopyToast");
+            toast.textContent = text;
+            toast.classList.add("is-visible");
+            clearTimeout(copyToastTimer);
+            copyToastTimer = setTimeout(function () {
+                toast.classList.remove("is-visible");
+            }, 1600);
+        }
+
+        function copyGameId(element) {
+            var id = element.textContent.trim();
+            if (id == "") { return; }
+            var fallbackCopy = function () {
+                var input = document.createElement("textarea");
+                input.value = id;
+                input.setAttribute("readonly", "");
+                input.style.position = "fixed";
+                input.style.opacity = "0";
+                document.body.appendChild(input);
+                input.select();
+                var copied = false;
+                try { copied = document.execCommand("copy"); } catch (error) { }
+                input.remove();
+                return copied;
+            };
+            var done = copied => showCopyToast(
+                copied ? `Spill-ID ${id} kopiert` : "Kunne ikke kopiere"
+            );
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(id).then(
+                    () => done(true),
+                    () => done(fallbackCopy())
+                );
+            } else {
+                done(fallbackCopy());
+            }
+        }
+
+        document.querySelectorAll(".copyable-game-id").forEach(element => {
+            element.addEventListener("click", function () { copyGameId(element); });
+            element.addEventListener("keydown", function (event) {
+                if (event.key == "Enter" || event.key == " ") {
+                    event.preventDefault();
+                    copyGameId(element);
+                }
+            });
+        });
+
+        document.getElementById("autoSuggestionToggleButton").addEventListener(
+            "click",
+            toggleAutoSuggestion
+        );
+
+        document.getElementById('startGameButton').addEventListener('click', function () {
+            startRoundInCurrentGame();
+        });
+        document.getElementById("readyButton").addEventListener("click", function () {
+            if (currentGame == null) { return; }
+            var player = currentGame.getPlayer(currentPlayerName);
+            currentGame.setReady(player, !player.ready);
+        });
+
+        var botLoopTimer = null;
+        function scheduleBotLoop() {
+            if (botLoopTimer != null || currentGame == null ||
+                !GamePresence.canDrive(currentGame, connection ? connection.now() : Date.now()) ||
+                (currentGame.status != "S" && currentGame.status != "G")) { return; }
+            var delay = BOT_ACTION_DELAY_MS;
+            if (currentGame.turnPause != null) {
+                var pauseRemaining = currentGame.turnPause.until - Date.now();
+                if (pauseRemaining > 0) {
+                    delay = Math.min(delay, pauseRemaining);
+                }
+            }
+            botLoopTimer = setTimeout(runBotLoop, delay);
+        }
+
+        function runBotLoop() {
+            botLoopTimer = null;
+            if (currentGame == null ||
+                !GamePresence.canDrive(currentGame, connection ? connection.now() : Date.now())) { return; }
+            if (Date.now() < shuffleEndsAt) {
+                scheduleBotLoop();
+                return;
+            }
+            if (currentGame.status == "G") {
+                currentGame.players.filter(player =>
+                    GamePresence.isBot(currentGame, player) || player.leaveAfterExchange === true
+                ).forEach(player => {
+                    playBotTurn(currentGame, player);
+                });
+            } else if (currentGame.status == "S" && currentGame.turn >= 0 && GamePresence.isBot(currentGame, currentGame.players[currentGame.turn])) {
+                playBotTurn(currentGame, currentGame.players[currentGame.turn]);
+            }
+            scheduleBotLoop();
+        }
+
+        document.getElementById('BnFHovedmeny').addEventListener('click', function () {
+            if (currentGame != null) {
+                if (currentPlayerName == null || currentGame.status == "F") {
+                    leaveCurrentGame();
+                } else {
+                    showChoiceDialog(
+                        "Vil du avslutte spillet?", [
+                        "Ja, gå til hovedmenyen",
+                        "Nei, fortsett spillet"
+                    ], [
+                        leaveCurrentGame,
+                        function () { }
+                    ]
+                    );
+                }
+            }
+        });
+
+        document.getElementById('BnPNySpiller').addEventListener('click', function () {
+            if (currentPlayerName != null) { throw ('Skal ikke lage ny spiller når man allerede har en spiller.') }
+            promptForPlayerName();
+        });
+
+        document.getElementById('BnPByttNavn').addEventListener('click', function () {
+            if (currentGame != null && currentGame.status != "O") { return; }
+            showDialog("Innstillinger", false);
+            promptForPlayerName(currentPlayerName != null || currentGame == null);
+        });
+
+        document.getElementById('dialogSporOmNickOk').addEventListener('click', async function () {
+            var requestedName = document.getElementById('dialogSporOmNickTxt').value.trim();
+            if (Array.from(requestedName).length > 28) {
+                document.getElementById('playerNameError').textContent = "Navnet kan ha maks 28 tegn.";
+                return;
+            }
+            if (requestedName != "") {
+                if (currentGame == null) {
+                    saveLastUsedPlayerName(requestedName);
+                    showDialog("SporOmNick", false);
+                    return;
+                }
+                if (currentPlayerName != null) {
+                    if (currentGame.status != "O") {
+                        document.getElementById('playerNameError').textContent = "Kan ikke endre navn under spill.";
+                        return;
+                    }
+                    var playerToRename = currentGame.getPlayer(currentPlayerName);
+                    if (playerToRename == null) {
+                        document.getElementById('playerNameError').textContent = "Spilleren finnes ikke lenger.";
+                        return;
+                    }
+                    var renamingGame = currentGame;
+                    var renameResult = await renamingGame.renamePlayer(playerToRename, requestedName);
+                    if (currentGame != renamingGame) { return; }
+                    if (!renameResult.player) {
+                        document.getElementById('playerNameError').textContent = renameResult.text;
+                        return;
+                    }
+                    currentPlayerName = renameResult.player.name;
+                    saveLastUsedPlayerName(currentPlayerName);
+                    GameLayout.updateSharedView(currentGame, renameResult.player);
+                    GameLayout.updatePlayerView(currentGame, renameResult.player);
+                    showDialog("SporOmNick", false);
+                } else {
+                    if (currentGame.status == "S" || currentGame.status == "G") {
+                        pendingSpectatorJoinName = requestedName;
+                        saveLastUsedPlayerName(requestedName);
+                        registerWaitingSpectator(currentGame);
+                        showDialog("SporOmNick", false);
+                        return;
+                    }
+                    var key = getPlayerKey();
+                    var joiningGame = currentGame;
+                    var newPlayerResult = await joiningGame.addPlayer(new PresidentPlayer(requestedName, key));
+                    if (currentGame != joiningGame) { return; }
+                    if (newPlayerResult.player) {
+                        pendingSpectatorJoinName = null;
+                        currentPlayerName = newPlayerResult.player.name;
+                        clearWaitingSpectator();
+                        saveLastUsedPlayerName(currentPlayerName);
+                        GameLayout.updateSharedView(currentGame, newPlayerResult.player);
+                        GameLayout.updatePlayerView(currentGame, newPlayerResult.player);
+                        showDialog("SporOmNick", false);
+                    } else {
+                        document.getElementById('playerNameError').textContent = newPlayerResult.text;
+                    }
+                }
+            }
+        });
+
+        document.getElementById('BnPGiOpp').addEventListener('click', function () {
+            showChoiceDialog(
+                "Vil du forlate runden og gå til hovedmenyen? De andre spillerne fortsetter.",
+                ["Ja, gå til hovedmenyen", "Fortsett spillet"],
+                [leaveCurrentGame, function () { }]
+            );
+        });
+
+        document.getElementById('BnFNyAutoSpiller').addEventListener('click', async function () {
+            if (currentGame == null || !isLobbyHost(currentGame) ||
+                (currentGame.status != "O" && currentGame.status != "F") ||
+                currentGame.gameEndVote != null) {
+                return;
+            }
+            const key = "PC";
+            var usedNames = currentGame.players.map(player => player.name.toLocaleLowerCase());
+            var availableNames = BOT_NAMES.filter(name => !usedNames.includes(name.toLocaleLowerCase()));
+            if (availableNames.length > 0) {
+                var name = availableNames[Math.floor(Math.random() * availableNames.length)];
+                var botGame = currentGame;
+                var result = await botGame.addPlayer(new PresidentPlayer(name, key));
+                if (currentGame != botGame) { return; }
+                if (!result.player) {
+                    showGameToast(result.text, currentGame);
+                }
+            }
+        })
+
+        document.getElementById('passButton').addEventListener('click', function () {
+            currentGame.passTurn(currentGame.getPlayer(currentPlayerName));
+        });
+
+        updateSavedPlayerName();
+        GameLayout.updateSharedView(null, null);
+        GameLayout.updatePlayerView(null, null);
+
+        document.getElementById('BnFRegler').addEventListener('click', function () {
+            showDialog("Regler", true);
+        });
+
+        document.getElementById('BnFSpillogg').addEventListener('click', showGameLog);
+
+        setInterval(() => {
+            function formatTime(minutes) {
+                const hours = Math.floor(minutes / 60);
+                const remainingMinutes = minutes % 60;
+                return `${hours}:${((remainingMinutes < 10) ? "0" : "")}${remainingMinutes}`;
+            }
+            if (currentGame && currentGame.round > 0) {
+                document.getElementById("SpanSpillStat").innerHTML =
+                    `Runde ${currentGame.round} - ${formatTime(currentGame.elapsedMinutes())}`;
+            } else {
+                document.getElementById("SpanSpillStat").innerHTML = "";
+            }
+        }, 1000);
+    }
+)();

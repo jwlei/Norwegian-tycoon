@@ -2081,6 +2081,55 @@ select:focus-visible {
     transition: none;
 }
 
+.player-summary__name[role="button"],
+.game-over__name > span[role="button"] {
+    cursor: pointer;
+}
+
+.expanded-player-name {
+    position: fixed;
+    z-index: 1000;
+    max-width: min(280px, calc(100vw - 16px));
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface-soft);
+    color: var(--ink);
+    box-shadow: var(--shadow);
+    font-size: 1rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    pointer-events: none;
+}
+
+.turn-countdown {
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+}
+
+#playerActions > #extendTurnButton {
+    padding: 6px 8px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+#reclaimSeatButton {
+    position: fixed;
+    z-index: 40;
+    bottom: calc(env(safe-area-inset-bottom) + 12px);
+    left: 50%;
+    padding: 10px 16px;
+    transform: translateX(-50%);
+}
+
+#resumeGameButton[hidden],
+#turnCountdown[hidden],
+#extendTurnButton[hidden],
+#reclaimSeatButton[hidden] {
+    display: none;
+}
+
 .vote-choice {
     min-width: 0;
     flex: 1 1 120px;

@@ -14,15 +14,15 @@ function seededRandom(seed) {
 function loadBots() {
     const context = vm.createContext({
         console, Math, getCookie: () => null, getPlayerKey: () => "host",
-        localStorage: { getItem: () => null }, setTimeout: () => 0,
+        localStorage: { getItem: () => null }, setTimeout: () => 0, clearTimeout() {},
         document: { dispatchEvent() {} },
         CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } }
     });
-    for (const file of ["cards.js", "player.js", "bot.js", "game.js"]) {
+    for (const file of [
+        "cards.js", "player.js", "bot.js", "presence.js", "game.js", "layout.js", "engine.js", "bot-turn.js"
+    ]) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
-        vm.runInContext(file == "game.js"
-            ? source.split(/\r?\n\(\r?\n/)[0] + source.slice(source.indexOf("\nfunction playBotTurn("))
-            : source, context);
+        vm.runInContext(source, context);
     }
     return vm.runInContext("({ BotAI, PresidentGame, PresidentPlayer, PresidentCard, CardDeck, CardPile, playBotTurn, BOT_NAMES })", context);
 }
@@ -51,6 +51,67 @@ function gameWithHands(hands, skills = hands.map(() => "good")) {
     game.setTurn(0);
     return game;
 }
+
+function optionalTradeGame() {
+    const game = gameWithHands([
+        [card(7), card(9), card(14)], [card(8, 2), card(10, 2), card(13, 2)],
+        [card(5, 4), card(12, 4), card(15, 4)]
+    ]);
+    game.status = "G";
+    game.players.forEach((player, index) => { player.lastPlacement = index + 1; });
+    game.piles = [{ id: "offer", tradeId: "trade", kind: "playerTrade", mode: "Tilbud",
+        from: 0, to: 1, count: 1, cards: [], sneakyVotes: [] }];
+    return game;
+}
+
+test("bot-initiated sneaky offers require both votes and complete legally through actual engine turns", () => {
+    const game = optionalTradeGame();
+    const before = game.players.reduce((sum, player) => sum + player.cards.length, 0);
+    let rolls = 0;
+    playBotTurn(game, game.players[0], () => { rolls++; return 0; });
+    assert.equal(game.piles[0].mode, "Tilbud");
+    assert.deepEqual(Array.from(game.piles[0].sneakyVotes), [0]);
+    playBotTurn(game, game.players[0], () => { throw new Error("Decision must be cached"); });
+    assert.equal(rolls, 1);
+    playBotTurn(game, game.players[1], () => 0);
+    assert.equal(game.piles.filter(exchange => exchange.mode == "Tilbud").length, 0);
+    assert.ok(game.piles.every(exchange => exchange.sneakyVotes.length === 2));
+    for (let step = 0; step < 8 && game.status === "G"; step++) {
+        for (const player of game.players) {
+            if (game.status === "G") { playBotTurn(game, player, () => 0); }
+        }
+    }
+    assert.equal(game.status, "S");
+    assert.equal(game.players.reduce((sum, player) => sum + player.cards.length, 0) +
+        game.piles.reduce((sum, pile) => sum + pile.length, 0), before);
+});
+
+test("a bot declining sneaky consent cannot leave the initiating bot stuck forever", () => {
+    const game = optionalTradeGame();
+    playBotTurn(game, game.players[0], () => 0);
+    playBotTurn(game, game.players[1], () => 0.99);
+    assert.equal(game.piles[0].botDecisions[1], "skip");
+    playBotTurn(game, game.players[0], () => { throw new Error("Decision must be cached"); });
+    assert.ok(game.piles.every(pile => pile.mode !== "Tilbud"));
+    assert.equal(game.status, "S");
+});
+
+test("optional bot decisions survive exchange serialization and host handoff", () => {
+    const game = optionalTradeGame();
+    game.piles[0].botDecisions = { 0: "sneaky", 1: "skip" };
+    const restored = PresidentGame.deserializeExchanges(game.serializePiles());
+    assert.equal(restored[0].botDecisions[0], "sneaky");
+    assert.equal(restored[0].botDecisions[1], "skip");
+});
+
+test("a human recipient can decline a bot's optional trade without waiting for a timeout", () => {
+    const game = optionalTradeGame();
+    game.players[1].playerKey = "human";
+    const offer = game.piles[0];
+    game.skipOptionalTrade(offer, 1);
+    assert.equal(game.status, "S");
+    assert.equal(game.piles.length, 0);
+});
 
 test("skills default to good, persist for bots, and reject unknown levels explicitly", () => {
     assert.equal(new PresidentPlayer("New", "PC").botSkill, "good");
@@ -226,6 +287,160 @@ test("exchange choices preserve combinations, never mutate the hand, and honor a
     }
     assert.deepEqual(cards.map(c => c.rank), [4, 4, 5, 6, 2]);
     assert.throws(() => BotAI.chooseExchange(cards, [], 2), /ikke nok gyldige/);
+});
+
+function optionalOffer(game, from = 0, to = 1) {
+    game.status = "G";
+    const offer = {
+        id: "optional", tradeId: "optional-trade", kind: "playerTrade",
+        from, to, count: 1, mode: "Tilbud", cards: [], sneakyVotes: []
+    };
+    game.piles = [offer];
+    return offer;
+}
+
+test("optional trade chances are seeded, skill-dependent, and use one roll per decision", () => {
+    const frequencies = [];
+    for (const skill of BotAI.skills) {
+        const game = gameWithHands([[card(7), card(12), card(2)], [card(8)], [card(9)]]);
+        const offer = optionalOffer(game);
+        game.players[0].botSkill = skill;
+        const decide = () => {
+            const random = seededRandom(42);
+            return Array.from({ length: 1000 }, () =>
+                BotAI.chooseOptionalTrade(game, game.players[0], offer, random));
+        };
+        const decisions = decide();
+        assert.deepEqual(decisions, decide());
+        frequencies.push({
+            sneaky: decisions.filter(value => value == "sneaky").length,
+            active: decisions.filter(value => value != "skip").length
+        });
+        let rolls = 0;
+        BotAI.chooseOptionalTrade(game, game.players[0], offer, () => { rolls++; return 0.5; });
+        assert.equal(rolls, 1);
+        assert.equal(BotAI.chooseOptionalTrade(game, game.players[0], offer, () => 0), "sneaky");
+        assert.equal(BotAI.chooseOptionalTrade(game, game.players[0], offer, () => 0.99), "skip");
+    }
+    for (let index = 1; index < frequencies.length; index++) {
+        assert.ok(frequencies[index].sneaky > frequencies[index - 1].sneaky);
+        assert.ok(frequencies[index].active > frequencies[index - 1].active);
+    }
+});
+
+test("ordinary offers use only the bot's hand, respect reservations, and preserve useful cards", () => {
+    for (const skill of BotAI.skills) {
+        const game = gameWithHands([[card(7), card(12), card(2)], [card(8)], [card(9)]]);
+        game.players[0].botSkill = skill;
+        const offer = optionalOffer(game);
+        const normalRandom = () => ({ bad: 0.2, good: 0.4, pro: 0.5, god: 0.6 })[skill];
+        game.players.slice(1).forEach(other => {
+            Object.defineProperty(other, "cards", { get() { throw new Error("Hidden hand"); } });
+        });
+        game.piles.push({
+            from: 1, to: 0, mode: "Velg",
+            get cards() { throw new Error("Hidden selection"); }
+        });
+        assert.equal(BotAI.chooseOptionalTrade(game, game.players[0], offer, normalRandom), "normal");
+        game.piles.push({ from: 0, to: 2, mode: "Best", cards: [game.players[0].cards[0]] });
+        assert.equal(BotAI.chooseOptionalTrade(game, game.players[0], offer, normalRandom), "skip");
+        game.piles.pop();
+        game.players[0].cards = [card(11), card(12), card(2)];
+        assert.equal(BotAI.chooseOptionalTrade(game, game.players[0], offer, normalRandom), skill == "bad" ? "normal" : "skip");
+        game.players[0].cards = [card(7), card(7, 2), card(12)];
+        assert.equal(BotAI.chooseOptionalTrade(game, game.players[0], offer, normalRandom), skill == "bad" ? "normal" : "skip");
+    }
+});
+
+test("target bots can consent to sneaky but never initiate a normal trade or mutate votes", () => {
+    const game = gameWithHands([[card(8)], [card(7), card(12)], [card(9)]]);
+    const offer = optionalOffer(game);
+    for (const skill of BotAI.skills) {
+        game.players[1].botSkill = skill;
+        assert.equal(BotAI.chooseOptionalTrade(game, game.players[1], offer, () => 0), "sneaky");
+        assert.equal(BotAI.chooseOptionalTrade(game, game.players[1], offer, () => 0.5), "skip");
+    }
+    assert.deepEqual(offer.sneakyVotes, []);
+    assert.equal(offer.mode, "Tilbud");
+    assert.equal(BotAI.chooseOptionalTrade(game, game.players[2], offer, () => 0), "skip");
+    offer.mode = "Velg";
+    assert.equal(BotAI.chooseOptionalTrade(game, game.players[0], offer, () => 0), "skip");
+});
+
+test("all sneaky skills use the actual chosen incoming card, before and after it is given", () => {
+    for (const skill of BotAI.skills) {
+        for (const mode of ["Velg", "Gitt", "Kan se"]) {
+            const seven = card(7), eight = card(8);
+            const game = gameWithHands([[seven, card(7, 2), eight, card(4)], [card(12), card(13)], [card(9)]]);
+            game.players[0].botSkill = skill;
+            const exchange = {
+                ...optionalOffer(game), mode: "Velg", sneakyVotes: [0, 1]
+            };
+            const incoming = {
+                ...exchange, id: "return", from: 1, to: 0, mode, cards: [card(7, 3)]
+            };
+            game.piles = [exchange, incoming];
+            if (mode == "Velg") { game.players[1].cards.push(incoming.cards[0]); }
+            assert.equal(BotAI.chooseSneakyExchange(game, game.players[0], exchange, [seven, eight],
+                seededRandom(1))[0], eight);
+            if (mode == "Velg") { game.players[1].cards.pop(); }
+            incoming.cards = [{ suit: 3, rank: 8 }];
+            assert.equal(BotAI.chooseSneakyExchange(game, game.players[0], exchange, [seven, eight],
+                seededRandom(1))[0], seven);
+            assert.deepEqual(Array.from(game.players[0].cards, c => c.rank), [7, 7, 8, 4]);
+        }
+    }
+});
+
+test("sneaky exchange avoids completing an opponent pair and predicts unchosen incoming cards", () => {
+    const four = card(4), five = card(5);
+    const game = gameWithHands([[four, five, card(12)], [card(4, 2), card(2)], [card(9)]]);
+    game.players[0].lastPlacement = 2;
+    game.players[1].lastPlacement = 1;
+    const exchange = { ...optionalOffer(game), mode: "Velg", sneakyVotes: [0, 1] };
+    const incoming = { ...exchange, id: "return", from: 1, to: 0, cards: [game.players[1].cards[1]] };
+    game.piles = [exchange, incoming];
+    assert.equal(BotAI.chooseSneakyExchange(game, game.players[0], exchange, [four, five])[0], five);
+    incoming.cards = [];
+    const before = Array.from(game.players[1].cards);
+    const chosen = BotAI.chooseSneakyExchange(game, game.players[0], exchange, [four, five]);
+    assert.equal(chosen.length, 1);
+    assert.ok([four, five].includes(chosen[0]));
+    assert.deepEqual(Array.from(game.players[1].cards), before);
+});
+
+test("sneaky role pressure values denying a higher-ranked rival more than a lower-ranked rival", () => {
+    const six = card(6), jack = card(11);
+    const game = gameWithHands([[six, jack, card(12)], [card(6, 2), card(2)], [card(9)]]);
+    const player = game.players[0];
+    player.lastPlacement = 2;
+    const exchange = { ...optionalOffer(game), mode: "Velg", sneakyVotes: [0, 1] };
+    game.piles = [exchange, {
+        ...exchange, id: "return", from: 1, to: 0, cards: [game.players[1].cards[1]]
+    }];
+    game.players[1].lastPlacement = 3;
+    assert.equal(BotAI.chooseSneakyExchange(game, player, exchange, [six, jack])[0], six);
+    game.players[1].lastPlacement = 1;
+    assert.equal(BotAI.chooseSneakyExchange(game, player, exchange, [six, jack])[0], jack);
+});
+
+test("sneaky choices require both real participants' consent and return distinct legal available cards", () => {
+    const game = gameWithHands([[card(4), card(5), card(6), card(3, 3)], [card(8), card(9)], [card(10)]]);
+    const exchange = { ...optionalOffer(game), count: 2, mode: "Velg", sneakyVotes: [0, 2] };
+    const player = game.players[0];
+    assert.throws(() => BotAI.chooseSneakyExchange(game, player, exchange, player.cards), /samtykke/);
+    exchange.sneakyVotes = [0, 1];
+    const reserved = { id: "mandatory", from: 0, to: 2, count: 1, mode: "Best", cards: [player.cards[0]] };
+    game.piles = [exchange, reserved];
+    const available = [player.cards[0], player.cards[1], player.cards[1], player.cards[2], card(1)];
+    for (const skill of BotAI.skills) {
+        player.botSkill = skill;
+        const chosen = BotAI.chooseSneakyExchange(game, player, exchange, available, seededRandom(3));
+        assert.deepEqual(Array.from(chosen), [player.cards[1], player.cards[2]]);
+    }
+    assert.throws(() => BotAI.chooseSneakyExchange(game, player, exchange, [player.cards[1]]), /ikke nok gyldige/);
+    exchange.count = 1;
+    assert.equal(BotAI.chooseSneakyExchange(game, player, exchange, [player.cards[3]])[0], player.cards[3]);
 });
 
 test("actual bot turns persist public memory, validate moves, and preserve hand order", () => {

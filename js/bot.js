@@ -352,6 +352,111 @@ class BotAI {
         return best.move;
     }
 
+    static tradeCards(game, player, exchange) {
+        var seat = game.players.indexOf(player);
+        var reserved = new Set();
+        (game.piles || []).filter(other =>
+            other.from == seat && other !== exchange &&
+            !(other.id != null && other.id == exchange.id) &&
+            !(other.tradeId != null && other.tradeId == exchange.tradeId &&
+                other.from == exchange.from && other.to == exchange.to) &&
+            (other.mode == "Velg" || other.mode == "Best")
+        ).forEach(other => (other.cards || []).forEach(card =>
+            reserved.add(`${card.suit}:${card.rank}`)));
+        return player.cards.filter(card => !reserved.has(`${card.suit}:${card.rank}`));
+    }
+
+    // Call once per offer/participant; "sneaky" is a consent vote, not permission to start alone.
+    static chooseOptionalTrade(game, player, offer, random = Math.random) {
+        var seat = game.players.indexOf(player);
+        if (game.status != "G" || game.players.length != 3 ||
+            offer.kind != "playerTrade" || offer.mode != "Tilbud" ||
+            seat < 0 || (seat != offer.from && seat != offer.to)) { return "skip"; }
+        var skill = BotAI.skill(player.botSkill || "good");
+        var available = BotAI.tradeCards(game, player, offer);
+        if (available.length == 0) { return "skip"; }
+        var chances = {
+            bad: [0.08, 0.45], good: [0.18, 0.65], pro: [0.32, 0.82], god: [0.48, 0.96]
+        }[skill];
+        var roll = random();
+        if (roll < chances[0]) { return "sneaky"; }
+        if (seat != offer.from || roll >= chances[1]) { return "skip"; }
+        var legal = available.filter(card => card.strengthRank >= 7 && card.strengthRank <= 11);
+        if (legal.length == 0) { return "skip"; }
+        if (skill == "bad") { return "normal"; }
+        var outgoing = BotAI.chooseExchange(player.cards, legal, 1, "good");
+        var rest = BotAI.remaining(player.cards, outgoing);
+        // Normal trades reveal no opponent identities, even for God: estimate a public 7–J return.
+        var expectedCost = [7, 8, 9, 10, 11].reduce((sum, rank) =>
+            sum + BotAI.handCost(rest.concat(new PresidentCard(1, rank))), 0) / 5;
+        return expectedCost < BotAI.handCost(player.cards) ? "normal" : "skip";
+    }
+
+    // Unlike ordinary play, every skill may inspect hidden cards after mutual sneaky consent.
+    static chooseSneakyExchange(game, player, exchange, available, random = Math.random) {
+        var seat = game.players.indexOf(player);
+        var votes = exchange.sneakyVotes || [];
+        if (exchange.kind != "playerTrade" || seat < 0 || exchange.from != seat ||
+            exchange.from == exchange.to || !votes.includes(exchange.from) ||
+            !votes.includes(exchange.to)) {
+            throw new Error("Sneaky bytte krever samtykke fra begge deltakerne.");
+        }
+        var count = exchange.count;
+        var ownAvailable = BotAI.tradeCards(game, player, exchange);
+        var keys = new Set();
+        var legal = available.filter(card => {
+            var key = `${card.suit}:${card.rank}`;
+            if (!ownAvailable.includes(card) || keys.has(key)) { return false; }
+            keys.add(key);
+            return true;
+        });
+        if (!Number.isInteger(count) || count < 0 || legal.length < count) {
+            throw new Error("Botten har ikke nok gyldige byttekort.");
+        }
+        var opponent = game.players[exchange.to];
+        if (!opponent) { throw new Error("Motspilleren finnes ikke i spillet."); }
+        var reciprocal = (game.piles || []).find(other =>
+            other.kind == "playerTrade" && other.tradeId == exchange.tradeId &&
+            other.from == exchange.to && other.to == seat);
+        var offered = reciprocal && reciprocal.cards || [];
+        // Given cards have already left the sender's hand; selected cards may still be in it.
+        var opponentCards = Array.from(opponent.cards);
+        var incoming = offered.length == count ? Array.from(offered, card =>
+            new PresidentCard(card.suit, card.rank)) : [];
+        if (incoming.length != count) {
+            var opponentAvailable = BotAI.tradeCards(game, opponent, reciprocal || {
+                from: exchange.to, to: seat, tradeId: exchange.tradeId
+            });
+            incoming = BotAI.chooseExchange(opponentCards, opponentAvailable, count, "good");
+        }
+        var opponentRest = opponentCards.filter(card => !incoming.some(other =>
+            card.suit == other.suit && card.rank == other.rank));
+        var ownRole = player.lastPlacement || 2;
+        var opponentRole = opponent.lastPlacement || 2;
+        var pressure = opponentRole < ownRole ? 0.7 : 0.4;
+        var best = [];
+        var bestScore = Infinity;
+        var visit = (start, chosen) => {
+            if (chosen.length == count) {
+                var after = BotAI.remaining(player.cards, chosen).concat(incoming);
+                var cost = BotAI.handCost(after) +
+                    chosen.reduce((sum, card) => sum + card.strengthRank, 0) * 0.8;
+                // Avoid completing the rival's combinations, especially a higher-ranked rival's.
+                cost -= pressure * BotAI.handCost(opponentRest.concat(chosen));
+                if (cost < bestScore || (cost == bestScore && random() < 0.5)) {
+                    best = chosen.slice();
+                    bestScore = cost;
+                }
+                return;
+            }
+            for (var index = start; index <= legal.length - (count - chosen.length); index++) {
+                visit(index + 1, chosen.concat(legal[index]));
+            }
+        };
+        visit(0, []);
+        return best;
+    }
+
     static chooseExchange(cards, available, count, skill = "good", random = Math.random) {
         skill = BotAI.skill(skill);
         if (available.length < count) { throw new Error("Botten har ikke nok gyldige byttekort."); }
