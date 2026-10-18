@@ -9,6 +9,7 @@ class Player {
         this.turn = 0;
         this.messages = [];
         this.lastPlay = null;
+        this.ready = false;
     }
     toRecord() {
         var result = {
@@ -17,6 +18,7 @@ class Player {
             "plassering": this.placement,
             "kort": this.cards,
             "sinTur": this.turn,
+            "ready": this.ready === true,
             "melding": this.messages,
             "laPaaSist": ((this.lastPlay == null) ? [] :
                 ((typeof this.lastPlay.toRecord == "function") ? this.lastPlay.toRecord() : this.lastPlay))
@@ -31,6 +33,7 @@ class Player {
         this.turn = record["sinTur"];
         this.messages = ((record["melding"] == null) ? [] : record["melding"]);
         this.lastPlay = record["laPaaSist"];
+        this.ready = record.ready === true;
         return this;
     }
     resetRound(currentTurnPlayer) {

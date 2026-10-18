@@ -5,12 +5,14 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 function loadGame() {
-    const context = vm.createContext({ console, getCookie: () => null });
+    const context = vm.createContext({
+        console, getCookie: () => null, getPlayerKey: () => "human-key", setTimeout: () => 0
+    });
     for (const file of ["cards.js", "player.js", "game.js"]) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(file === "game.js" ? source.split(/\r?\n\(\r?\n/)[0] : source, context);
     }
-    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile })", context);
+    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, isLobbyHost })", context);
 }
 
 function setupGame() {
@@ -103,6 +105,122 @@ test("two humans need a majority before returning to the lobby", () => {
     assert.equal(stored.status, "O");
 });
 
+test("a tied result vote clears votes and requires a new vote", () => {
+    const { game, players, stored } = finishedVotingGame(true);
+    const previousId = game.gameEndVote.id;
+    game.submitGameEndVote(players[0], "lobby");
+    game.submitGameEndVote(players[1], "next_round");
+    assert.equal(stored.status, "F");
+    assert.notEqual(stored.gameEndVote.id, previousId);
+    assert.equal(stored.gameEndVote.votes.length, 0);
+    assert.equal(stored.gameEndVote.revote, true);
+    game.submitGameEndVote(players[0], "lobby");
+    game.submitGameEndVote(players[1], "lobby");
+    assert.equal(stored.status, "O");
+});
+
+test("a non-host cannot resolve or claim the result vote", () => {
+    const { game, players, stored } = finishedVotingGame();
+    game.hostKey = "another-host";
+    game.submitGameEndVote(players[0], "lobby");
+    assert.equal(stored.status, "F");
+    assert.equal(stored.gameEndVote.result, undefined);
+    game.hostKey = "human-key";
+    game.resolveGameEndVote();
+    assert.equal(stored.status, "O");
+});
+
+test("a tied neutral-round vote also requires a new vote", () => {
+    const { game, players, stored } = finishedVotingGame(true);
+    game.roundStartVote = stored.roundStartVote = {
+        id: "neutral-vote", until: Date.now() + 10000, votes: []
+    };
+    game.submitNeutralRoundVote(players[0], true);
+    game.submitNeutralRoundVote(players[1], false);
+    assert.equal(stored.roundStartVote.revote, true);
+    assert.equal(stored.roundStartVote.votes.length, 0);
+    assert.equal(stored.status, "F");
+});
+
+test("only the host can start, even if everyone is ready", () => {
+    const { game, players } = setupGame();
+    game.status = "O";
+    players[0].ready = true;
+    game.hostKey = "someone-else";
+    assert.throws(() => game.startGame(), /Bare verten/);
+});
+
+test("host must wait for all humans, but bots need not press ready", () => {
+    const { game, players } = setupGame();
+    game.status = "O";
+    game.prepareRound = () => {};
+    game.save = () => {};
+    game.databaseRef = { child: () => ({ remove: () => Promise.resolve() }) };
+    assert.equal(game.allHumansReady(), false);
+    assert.throws(() => game.startGame(), /må være klare/);
+    players[0].ready = true;
+    assert.equal(game.allHumansReady(), true);
+    game.startGame();
+    assert.equal(game.status, "S");
+});
+
+test("host identity distinguishes two names using the same browser key", () => {
+    const { game } = setupGame();
+    const { isLobbyHost } = loadGame();
+    game.hostName = "Human";
+    game.localPlayerName = "Other";
+    assert.equal(isLobbyHost(game), false);
+    game.localPlayerName = "Human";
+    assert.equal(isLobbyHost(game), true);
+});
+
+test("the next human inherits the lobby when its creator leaves", () => {
+    const { game, players } = setupGame();
+    game.status = "O";
+    game.hostName = players[0].name;
+    players[2].playerKey = "next-human";
+    game.save = () => {};
+    game.leavePlayer(players[0]);
+    assert.equal(game.hostKey, "next-human");
+    assert.equal(game.hostName, players[2].name);
+    assert.equal(game.players.length, 2);
+});
+
+test("the next human also inherits a finished room with an active vote", () => {
+    const { game, players, stored } = finishedVotingGame(true);
+    game.hostName = players[0].name;
+    game.leavePlayer(players[0]);
+    assert.equal(game.hostName, players[1].name);
+    assert.equal(stored.spillere.length, 2);
+    assert.equal(stored.status, "F");
+});
+
+test("ready state persists and is reset on returning to the lobby", () => {
+    const { game, players } = finishedVotingGame();
+    const { PresidentPlayer } = loadGame();
+    players[0].ready = true;
+    const restored = new PresidentPlayer().fromRecord(
+        JSON.parse(JSON.stringify(players[0].toRecord()))
+    );
+    assert.equal(restored.ready, true);
+    game.returnToLobby();
+    assert.ok(game.players.every(player => player.ready === false));
+});
+
+test("readiness writes only the current player's ready field", async () => {
+    const { game, players } = setupGame();
+    game.status = "O";
+    const writes = [];
+    game.databaseRef = {
+        child(key) {
+            return { set: value => { writes.push({ key, value }); return Promise.resolve(); } };
+        }
+    };
+    await game.setReady(players[0], true);
+    assert.deepEqual(writes, [{ key: "spillere/0/ready", value: true }]);
+    assert.throws(() => game.setReady(players[1], true), /klar-status/);
+});
+
 test("one human with bots can still vote for the next round", () => {
     const { game, players } = finishedVotingGame();
     let started = false;
@@ -110,6 +228,36 @@ test("one human with bots can still vote for the next round", () => {
     game.startGame = () => { started = true; };
     assert.equal(game.submitGameEndVote(players[0], "next_round"), true);
     assert.equal(started, true);
+});
+
+test("the host starts a voted next round without exposing a finished game with no vote", () => {
+    const { game, players, stored, snapshots } = finishedVotingGame();
+    game.needsNeutralRoundVote = () => false;
+    game.prepareRound = () => {};
+    game.submitGameEndVote(players[0], "next_round");
+    assert.equal(stored.status, "S");
+    assert.equal(stored.gameEndVote, null);
+    assert.equal(snapshots.some(snapshot => snapshot.status === "F" && snapshot.vote == null), false);
+});
+
+test("finished status is saved before creating the result vote", () => {
+    const { game, stored, snapshots } = finishedVotingGame();
+    game.status = stored.status = "S";
+    game.gameEndVote = stored.gameEndVote = null;
+    assert.equal(game.finishGame(), true);
+    assert.equal(stored.status, "F");
+    assert.ok(stored.gameEndVote);
+    assert.equal(snapshots[0].status, "F");
+    assert.equal(snapshots.some(snapshot => snapshot.status === "S" && snapshot.vote != null), false);
+});
+
+test("host start waits for a second human to be ready too", () => {
+    const { game, players } = setupGame();
+    game.status = "O";
+    players[0].ready = true;
+    players[1].playerKey = "guest-key";
+    assert.equal(game.allHumansReady(), false);
+    assert.throws(() => game.startGame(), /må være klare/);
 });
 
 test("higher four of a kind keeps the pile open and can be played", () => {
@@ -190,4 +338,28 @@ test("club three still clears and ordinary pairs remain open until everyone pass
     const { PresidentCard, CardPile } = loadGame();
     game.piles = [new CardPile(players[0].name, new PresidentCard(3, 3))];
     assert.equal(game.pileCleared(), true);
+});
+
+test("all three natural threes clear with two players but only two do not", () => {
+    const { game, players } = setupGame();
+    const { PresidentCard, CardPile } = loadGame();
+    game.players = players.slice(0, 2);
+    const threes = [1, 2, 4].map(suit => new PresidentCard(suit, 3));
+    game.piles = [new CardPile(players[0].name, threes[0], threes[1])];
+    assert.equal(game.pileCleared(), false);
+    game.piles = [new CardPile(players[0].name, ...threes)];
+    const info = {};
+    assert.equal(game.pileCleared(info), true);
+    assert.equal(info.text, "Hjerter 3, Spar 3 og Ruter 3");
+    game.piles = threes.map(card => new CardPile(players[0].name, card));
+    assert.equal(game.pileCleared(), true);
+});
+
+test("natural-three clear remains restricted to the correct player count", () => {
+    const { game, players } = setupGame();
+    const { PresidentCard, CardPile, PresidentPlayer } = loadGame();
+    game.piles = [new CardPile(players[0].name, new PresidentCard(1, 3), new PresidentCard(2, 3))];
+    assert.equal(game.pileCleared(), true);
+    game.players.push(new PresidentPlayer("Fourth", "fourth-key"));
+    assert.equal(game.pileCleared(), false);
 });

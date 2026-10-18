@@ -1436,6 +1436,26 @@ select:focus-visible {
     gap: 8px;
 }
 
+.vote-choice {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+}
+
+.vote-choice small {
+    font-size: 0.75rem;
+}
+
+.player-summary__host {
+    font-size: 0.7rem;
+}
+
+#readyButton[aria-pressed="true"] {
+    border-color: #35c46a;
+    background: rgb(31 145 68 / 30%);
+}
+
 .round-start-vote__choices button[aria-pressed="true"] {
     border-color: #35c46a;
     background: rgb(31 145 68 / 30%);
