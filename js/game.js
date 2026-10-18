@@ -385,13 +385,12 @@ class GameLayout {
     static updateMainMenu() {
         this.setVisible("BnHNySpill", true);
         this.setVisible("BnHKobleSpill", true);
-        this.setVisible("BnFInnstillinger", true);
     }
     static updateGameButtons(game) {
-        this.el("gameIdDisplay").innerHTML = game.id;
+        this.el("gameIdDisplay").textContent = game.id;
         this.el("settingsGameIdValue").textContent = game.id;
         this.el("settingsGameId").hidden = false;
-        this.el("BnFInnstillinger").title = `Innstillinger · Spill-ID ${game.id}`;
+        this.el("BnInnstillinger").title = `Innstillinger · Spill-ID ${game.id}`;
         var waitingForPlayers = game.status == "O" && game.players.length < 2;
         this.el("gameMenu").classList.toggle("waiting-for-players", waitingForPlayers);
         var startButton = this.el("startGameButton");
@@ -4233,7 +4232,6 @@ class PresidentGame extends Game {
         }
 
         function connectToAnotherGame() {
-            leaveCurrentGame();
             showConnectGameDialog();
         }
 
@@ -4799,19 +4797,38 @@ class PresidentGame extends Game {
 
         function joinGameById(id, onFail) {
             showPublicLobbyError("");
-            currentGame = new PresidentGame(id);
-            currentPlayerName = null;
-            var shouldJoin = true;
-            connectGame(function () {
-                if (currentGame == null) {
+            var targetId = String(id || "").trim();
+            if (targetId == "") {
+                onFail("Skriv inn et spill-nummer.");
+                return;
+            }
+            if (currentGame != null && String(currentGame.id) == targetId) {
+                showDialog("KobleSpill", false);
+                return;
+            }
+            // Check the target first so a failed attempt keeps the current game.
+            firebase.database().ref(`boms_1/${targetId}`).once("value").then(function (snapshot) {
+                if (!snapshot.exists()) {
                     onFail("Kunne ikke koble til. Er spill-nummeret riktig?");
-                } else {
-                    showDialog("KobleSpill", false);
-                    if (shouldJoin) {
-                        shouldJoin = false;
-                        joinRememberedPlayerOrPrompt();
-                    }
+                    return;
                 }
+                if (currentGame != null) { leaveCurrentGame(); }
+                currentGame = new PresidentGame(targetId);
+                currentPlayerName = null;
+                var shouldJoin = true;
+                connectGame(function () {
+                    if (currentGame == null) {
+                        onFail("Kunne ikke koble til. Er spill-nummeret riktig?");
+                    } else {
+                        showDialog("KobleSpill", false);
+                        if (shouldJoin) {
+                            shouldJoin = false;
+                            joinRememberedPlayerOrPrompt();
+                        }
+                    }
+                });
+            }).catch(function () {
+                onFail("Kunne ikke koble til. Prøv igjen.");
             });
         }
 
@@ -4948,8 +4965,57 @@ class PresidentGame extends Game {
             showDialog("Innstillinger", true);
         }
 
-        document.getElementById("BnFInnstillinger").addEventListener("click", openSettings);
-        document.getElementById("BnHInnstillinger").addEventListener("click", openSettings);
+        document.getElementById("BnInnstillinger").addEventListener("click", openSettings);
+
+        var copyToastTimer = null;
+        function showCopyToast(text) {
+            var toast = document.getElementById("CopyToast");
+            toast.textContent = text;
+            toast.classList.add("is-visible");
+            clearTimeout(copyToastTimer);
+            copyToastTimer = setTimeout(function () {
+                toast.classList.remove("is-visible");
+            }, 1600);
+        }
+
+        function copyGameId(element) {
+            var id = element.textContent.trim();
+            if (id == "") { return; }
+            var fallbackCopy = function () {
+                var input = document.createElement("textarea");
+                input.value = id;
+                input.setAttribute("readonly", "");
+                input.style.position = "fixed";
+                input.style.opacity = "0";
+                document.body.appendChild(input);
+                input.select();
+                var copied = false;
+                try { copied = document.execCommand("copy"); } catch (error) { }
+                input.remove();
+                return copied;
+            };
+            var done = copied => showCopyToast(
+                copied ? `Spill-ID ${id} kopiert` : "Kunne ikke kopiere"
+            );
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(id).then(
+                    () => done(true),
+                    () => done(fallbackCopy())
+                );
+            } else {
+                done(fallbackCopy());
+            }
+        }
+
+        document.querySelectorAll(".copyable-game-id").forEach(element => {
+            element.addEventListener("click", function () { copyGameId(element); });
+            element.addEventListener("keydown", function (event) {
+                if (event.key == "Enter" || event.key == " ") {
+                    event.preventDefault();
+                    copyGameId(element);
+                }
+            });
+        });
 
         document.getElementById("autoSuggestionToggleButton").addEventListener(
             "click",
@@ -5078,8 +5144,8 @@ class PresidentGame extends Game {
 
         document.getElementById('BnPGiOpp').addEventListener('click', function () {
             showChoiceDialog(
-                "Vil du forlate runden og gå til lobbyen? De andre spillerne fortsetter.",
-                ["Ja, gå til lobbyen", "Fortsett spillet"],
+                "Vil du forlate runden og gå til hovedmenyen? De andre spillerne fortsetter.",
+                ["Ja, gå til hovedmenyen", "Fortsett spillet"],
                 [leaveCurrentGame, function () { }]
             );
         });

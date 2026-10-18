@@ -1698,11 +1698,10 @@ select:focus-visible {
     animation: game-surface-enter 420ms 95ms cubic-bezier(.2,.8,.25,1) both;
 }
 
-#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > :not(#BnFInnstillinger):not(#BnFInviterSpill):not(#BnFRegler):not(#BnFSpillogg):not(#BnPGiOpp) {
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > :not(#BnFInviterSpill):not(#BnFRegler):not(#BnFSpillogg):not(#BnPGiOpp) {
     display: none !important;
 }
 
-#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInnstillinger,
 #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInviterSpill,
 #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFRegler,
 #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFSpillogg,
@@ -1720,41 +1719,27 @@ select:focus-visible {
     white-space: nowrap;
 }
 
-#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu {
-    padding-inline: 52px;
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu,
+#gameShell.game-active.GameFinished > #gameMenu {
+    padding-inline: 56px;
 }
 
-#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInnstillinger,
-#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInnstillinger:hover,
-#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInnstillinger:active {
-    position: absolute;
-    top: 50%;
-    left: 8px;
-    width: 38px;
-    min-width: 38px;
-    padding: 0;
-    transform: translateY(-50%);
+#gameShell.game-active.Lobby > #gameMenu {
+    padding-top: 60px;
 }
 
-#BnFInnstillinger {
-    align-items: center;
-    justify-content: center;
-}
-
-#mainMenu > #BnHInnstillinger {
-    position: absolute;
-    z-index: 2;
+#BnInnstillinger {
+    position: fixed;
+    z-index: 32;
     top: calc(env(safe-area-inset-top) + 8px);
     left: calc(env(safe-area-inset-left) + 8px);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    grid-column: auto !important;
-    grid-row: auto !important;
     width: 44px;
     min-width: 44px;
-    min-height: 44px;
     height: 44px;
+    min-height: 44px;
     margin: 0;
     padding: 0;
     border-radius: 12px;
@@ -1762,26 +1747,50 @@ select:focus-visible {
     color: var(--ink);
 }
 
-#BnHInnstillinger .settings-gear {
+#BnInnstillinger:hover {
+    background: var(--surface);
+}
+
+#BnInnstillinger .settings-gear {
     width: 24px;
     height: 24px;
     transition: transform 300ms ease;
 }
 
-#BnHInnstillinger:hover .settings-gear {
+#BnInnstillinger:hover .settings-gear {
     transform: rotate(60deg);
 }
 
-#BnFInnstillinger .settings-gear {
-    width: 1.5em;
-    height: 1.5em;
-    min-width: 18px;
-    min-height: 18px;
-    transition: transform 300ms ease;
+#gameShell.game-active > .game-menu-toggle {
+    left: calc(env(safe-area-inset-left) + 60px);
 }
 
-#BnFInnstillinger:hover .settings-gear {
-    transform: rotate(60deg);
+.copyable-game-id {
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+}
+
+.copy-toast {
+    position: fixed;
+    z-index: 1100;
+    bottom: calc(env(safe-area-inset-bottom) + 24px);
+    left: 50%;
+    padding: 6px 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 0.85rem;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, 8px);
+    transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.copy-toast.is-visible {
+    opacity: 0.95;
+    transform: translate(-50%, 0);
 }
 
 .settings-list {
@@ -1816,6 +1825,20 @@ select:focus-visible {
     border-radius: 50%;
     background: #35c46a;
     box-shadow: 0 0 5px rgb(53 196 106 / 55%);
+}
+
+.setting-row,
+.setting-row:hover,
+.setting-row:active,
+.setting-row:focus {
+    background: var(--surface-soft);
+    color: var(--ink);
+    box-shadow: none;
+    transform: none;
+}
+
+.setting-row:active {
+    padding: 12px 14px;
 }
 
 .setting-row {
@@ -2747,7 +2770,6 @@ select:focus-visible {
         height: var(--shell-hand-card-height);
     }
 
-    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInnstillinger,
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInviterSpill,
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFRegler,
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFSpillogg,
