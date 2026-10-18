@@ -534,6 +534,8 @@ class GameLayout {
             var isPassed = game.status == "S" && !isTurn &&
                 (player.lastPlay === "Pass" || passedNames.has(player.name));
             playerElement.classList.toggle("player-summary--self", isCurrentPlayer);
+            playerElement.classList.toggle("player-summary--ready",
+                game.status == "O" && (player.ready === true || player.playerKey == "PC"));
             playerElement.classList.toggle("is-current-turn", isTurn && isActiveStatus);
             playerElement.classList.toggle("player-summary--passed", isPassed);
             var turnState = isTurn && isActiveStatus ? "turn" : (isPassed ? "passed" : "");

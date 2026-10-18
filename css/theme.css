@@ -2651,6 +2651,7 @@ select:focus-visible {
 #gameShell.game-active #playerList .opponent-seat-3 { grid-column: 2; grid-row: 2; }
 #gameShell.game-active #playerList .opponent-seat-4 { grid-column: 1; grid-row: 3; }
 
+#gameShell.game-active.Lobby > #playerList .player-summary.player-summary--ready,
 #gameShell.game-active #playerList .is-current-turn {
     border-color: #35c46a;
     background: rgb(31 145 68 / 30%);
