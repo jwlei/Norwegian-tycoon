@@ -404,6 +404,7 @@ class GameLayout {
                 var lobbyFull = game.players.length >= MAX_PLAYERS;
                 this.el("BnFNyAutoSpiller").classList.toggle("is-full", lobbyFull);
                 this.el("BnFNyAutoSpiller").disabled = lobbyFull;
+                this.el("BnFNyAutoSpiller").textContent = lobbyFull ? "Maks antall spillere nådd" : "Legg til bot";
                 if (!lobbyHost) { this.setVisible("BnFNyAutoSpiller_Off", false); }
                 this.setVisible("startGameButton", true);
                 this.setVisible("BnFRegler", true);
@@ -420,6 +421,7 @@ class GameLayout {
                 this.setVisible("BnFNyAutoSpiller", false);
                 this.el("BnFNyAutoSpiller").classList.remove("is-full");
                 this.el("BnFNyAutoSpiller").disabled = false;
+                this.el("BnFNyAutoSpiller").textContent = "Legg til bot";
                 this.setVisible("BnFNyAutoSpiller_Off", false);
                 this.setVisible("startGameButton", false);
                 this.setVisible("startGameButton_Off", false);
@@ -439,6 +441,7 @@ class GameLayout {
                 var finishedGameHost = isLobbyHost(game);
                 this.el("BnFNyAutoSpiller").classList.remove("is-full");
                 this.el("BnFNyAutoSpiller").disabled = false;
+                this.el("BnFNyAutoSpiller").textContent = "Legg til bot";
                 this.setVisible(
                     "BnFNyAutoSpiller",
                     finishedGameHost &&
@@ -1949,6 +1952,7 @@ class GameLayout {
             var turnKey = `${game.id}:${game.round}:${game.turn}:${player.name}:${topPileKey}`;
             if (autoSelectedTurnKey != turnKey) {
                 autoSelectedTurnKey = turnKey;
+                var suggestionApplied = false;
                 if (topPile == null) {
                     var lowestHandStrength = Math.min(...player.cards.map(card => card.strengthRank));
                     lowestCardKeys = player.cards
@@ -1964,6 +1968,7 @@ class GameLayout {
                             selectedCardKeys.add(cardKey);
                             autoSuggestedCardKeys.add(cardKey);
                         });
+                        suggestionApplied = true;
                     }
                 } else if (autoSuggestPlayableCards) {
                     var requiredCardCount = hasFourOfKindOnTop(game) ? 4 : topPile.length;
@@ -1991,8 +1996,13 @@ class GameLayout {
                             shouldCenterAutoSelection = automaticCards.length > 0;
                             autoCenterTurnKey = turnKey;
                             autoCenterCardKeys = automaticCards.map(card => `${card.suit}:${card.rank}`);
+                            suggestionApplied = automaticCards.length > 0;
                         }
                     }
+                }
+                // Retry on the next render if no suggestion could be applied yet.
+                if (autoSuggestPlayableCards && !suggestionApplied && playableStrengths.size > 0) {
+                    autoSelectedTurnKey = null;
                 }
             }
         }
@@ -2189,11 +2199,7 @@ class GameLayout {
                                         if (selectedCardStrength != null && selectedCardStrength != k.strengthRank) {
                                             clearCardSelection();
                                         }
-                                        if (selectedCardKeys.size > 1 && selectedCardKeys.has(cardKey)) {
-                                            clearCardSelection();
-                                            selectedCardStrength = k.strengthRank;
-                                            selectedCardKeys.add(cardKey);
-                                        } else if (selectedCardKeys.has(cardKey)) {
+                                        if (selectedCardKeys.has(cardKey)) {
                                             selectedCardKeys.delete(cardKey);
                                             if (selectedCardKeys.size == 0) {
                                                 selectedCardStrength = null;
