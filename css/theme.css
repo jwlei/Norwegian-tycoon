@@ -163,28 +163,73 @@ button {
 }
 
 .lobby-choice {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
+    display: block;
     margin: 8px 0;
-    padding: 10px 12px;
-    border: 1px solid var(--control-border);
-    border-radius: 10px;
     cursor: pointer;
 }
 
 .lobby-choice input {
-    width: auto;
-    margin-top: 4px;
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
 }
 
 .lobby-choice span {
     display: grid;
+    gap: 2px;
+    padding: 12px 14px;
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
     text-align: left;
+    transition: background-color 160ms ease, border-color 160ms ease;
 }
 
 .lobby-choice small {
     color: var(--muted);
+}
+
+.lobby-choice input:checked + span {
+    background: #17803d;
+    border-color: #39a95f;
+    color: #fff;
+}
+
+.lobby-choice input:checked + span small {
+    color: rgb(255 255 255 / 82%);
+}
+
+.lobby-choice input:focus-visible + span {
+    outline: 2px solid #39a95f;
+    outline-offset: 2px;
+}
+
+#dialogNyttSpill .dialog-footer {
+    float: none;
+    justify-content: center;
+}
+
+#dialogNyttSpill .dialog-footer > button {
+    flex: 0 1 160px;
+}
+
+#mainMenu button.public-lobby-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.public-lobby-entry__status {
+    flex: 0 0 auto;
+    font-size: 0.78rem;
+    font-weight: 600;
+    opacity: 0.85;
+}
+
+.public-lobby-entry.is-running .public-lobby-entry__status {
+    color: #f0d58a;
 }
 
 button:hover {

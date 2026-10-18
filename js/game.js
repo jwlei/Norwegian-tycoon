@@ -2697,9 +2697,8 @@ class PresidentGame extends Game {
     updatePublicListing() {
         var listingRef = firebase.database().ref(`${PUBLIC_LOBBY_PATH}/${this.id}`);
         var humans = (this.players || []).filter(player => player.playerKey != "PC");
-        var joinable = this.isPublic === true && this.status == "O" &&
-            humans.length > 0 && this.players.length < MAX_PLAYERS;
-        if (!joinable) {
+        var listed = this.isPublic === true && humans.length > 0;
+        if (!listed) {
             listingRef.remove().catch(() => { });
             return;
         }
@@ -2707,6 +2706,7 @@ class PresidentGame extends Game {
             id: this.id,
             host: humans[0].name,
             players: this.players.length,
+            waiting: this.status == "O",
             ts: Date.now()
         }).catch(error => {
             console.error("Kunne ikke oppdatere offentlig lobby.", error);
@@ -4630,7 +4630,7 @@ class PresidentGame extends Game {
         });
 
         document.getElementById('BnHNySpill').addEventListener('click', function () {
-            document.getElementById("dialogNyttSpillPrivat").checked = true;
+            document.getElementById("dialogNyttSpillOffentlig").checked = true;
             showDialog("NyttSpill", true);
         });
 
@@ -4644,16 +4644,25 @@ class PresidentGame extends Game {
 
         function joinableLobbies() {
             var oldest = Date.now() - PUBLIC_LOBBY_MAX_AGE_MS;
-            return publicLobbies.filter(lobby =>
-                lobby.ts > oldest && lobby.players < MAX_PLAYERS
-            );
+            return publicLobbies.filter(lobby => lobby.ts > oldest);
+        }
+
+        function shuffledSample(items, count) {
+            var copy = items.slice();
+            for (var i = copy.length - 1; i > 0; i--) {
+                var j = Math.floor(Math.random() * (i + 1));
+                [copy[i], copy[j]] = [copy[j], copy[i]];
+            }
+            return copy.slice(0, count);
         }
 
         function renderPublicLobbies() {
             var list = document.getElementById("publicLobbyList");
             var randomButton = document.getElementById("BnHTilfeldigLobby");
             var lobbies = joinableLobbies();
-            randomButton.disabled = lobbies.length == 0;
+            randomButton.disabled = !lobbies.some(lobby =>
+                lobby.waiting && lobby.players < MAX_PLAYERS
+            );
             list.innerHTML = "";
             var heading = document.createElement("div");
             heading.className = "public-lobby-heading";
@@ -4666,11 +4675,16 @@ class PresidentGame extends Game {
                 list.appendChild(empty);
                 return;
             }
-            lobbies.forEach(lobby => {
+            shuffledSample(lobbies, 5).forEach(lobby => {
                 var button = document.createElement("button");
                 button.type = "button";
-                button.className = "public-lobby-entry";
-                button.textContent = `${lobby.host} · ${lobby.players}/${MAX_PLAYERS} spillere`;
+                button.className = "public-lobby-entry" + (lobby.waiting ? "" : " is-running");
+                var name = document.createElement("span");
+                name.textContent = `${lobby.host} · ${lobby.players}/${MAX_PLAYERS}`;
+                var status = document.createElement("span");
+                status.className = "public-lobby-entry__status";
+                status.textContent = lobby.waiting ? "Venter i lobby" : "Spill pågår";
+                button.append(name, status);
                 button.addEventListener("click", function () {
                     joinGameById(lobby.id, showPublicLobbyError);
                 });
@@ -4692,6 +4706,7 @@ class PresidentGame extends Game {
                         id: String(lobby.id),
                         host: lobby.host,
                         players: Number(lobby.players) || 0,
+                        waiting: lobby.waiting !== false,
                         ts: Number(lobby.ts) || 0
                     });
                 }
@@ -4704,7 +4719,9 @@ class PresidentGame extends Game {
         renderPublicLobbies();
 
         document.getElementById("BnHTilfeldigLobby").addEventListener("click", function () {
-            var lobbies = joinableLobbies();
+            var lobbies = joinableLobbies().filter(lobby =>
+                lobby.waiting && lobby.players < MAX_PLAYERS
+            );
             if (lobbies.length == 0) {
                 showPublicLobbyError("Ingen åpne lobbyer akkurat nå.");
                 return;
