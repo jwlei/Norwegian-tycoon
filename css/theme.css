@@ -1933,7 +1933,9 @@ select:focus-visible {
 }
 
 #BnInnstillinger,
-#homeButton {
+#homeButton,
+#BnFSpillogg,
+#BnFRegler {
     position: fixed;
     z-index: 32;
     top: calc(env(safe-area-inset-top) + 8px);
@@ -1957,8 +1959,41 @@ select:focus-visible {
     right: calc(env(safe-area-inset-right) + 8px);
 }
 
-#homeButton[hidden] { display: none; }
-#homeButton svg { width: 24px; height: 24px; }
+#BnFSpillogg { left: auto; right: calc(env(safe-area-inset-right) + 60px); }
+#BnFRegler { left: auto; right: calc(env(safe-area-inset-right) + 112px); }
+#homeButton[hidden], #BnFSpillogg[hidden], #BnFRegler[hidden] { display: none; }
+#homeButton svg, #BnFSpillogg svg, #BnFRegler svg { width: 24px; height: 24px; }
+
+#waitingPlayers {
+    position: fixed;
+    z-index: 32;
+    top: calc(env(safe-area-inset-top) + 12px);
+    left: calc(env(safe-area-inset-left) + 60px);
+    max-width: calc(100vw - 230px - env(safe-area-inset-left) - env(safe-area-inset-right));
+    color: var(--muted);
+    font-size: 0.65rem;
+    line-height: 1.3;
+}
+
+#splashPlayerName {
+    color: var(--muted);
+    font-size: 0.8rem;
+    max-width: 90%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.settings-list #BnPByttNavn { width: 100%; }
+
+#spectatorJoinToast {
+    position: fixed;
+    transform: translateX(-50%);
+    pointer-events: none;
+    cursor: default;
+}
+
+#spectatorJoinToast::after { display: none; }
 
 .player-summary__name,
 .game-over__name > span:first-child {
@@ -1978,6 +2013,18 @@ select:focus-visible {
 }
 
 .vote-choice .player-summary__name { width: 100%; text-align: center; }
+
+.game-end-vote__choices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    align-items: start;
+}
+
+.game-end-vote__choices .vote-choice > button {
+    width: 100%;
+    min-width: 0;
+}
 
 #gameShell.game-active > #playerActions > #exchangePrompt {
     position: absolute;

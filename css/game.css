@@ -13,10 +13,6 @@
         grid-template-rows: 12vmin 1fr 12vmin 1fr;
     }
 
-        #gameShell.spectator-mode {
-            grid-template-rows: 12vmin 1fr 0px 0px;
-        }
-
         #gameShell.cards-only-mode {
             grid-template-rows: 12vmin 0px 12vmin 1fr;
         }
@@ -61,10 +57,6 @@
         grid-template-columns: 2fr 1fr;
         grid-template-rows: 12vmin 1fr 94px 12vmin 1fr;
     }
-
-        #gameShell.spectator-mode {
-            grid-template-rows: 12vmin 1fr 94px 0px 0px;
-        }
 
         #gameShell.cards-only-mode {
             grid-template-rows: 12vmin 0px 94px 12vmin 1fr;
@@ -160,10 +152,6 @@ div.scroll {
     height: 2em;
 }
 
-.spectator-mode .table-deck img {
-    height: 50vh;
-}
-
 .cards-only-mode > #gameTable {
     display: none;
 }
@@ -177,10 +165,6 @@ div.scroll {
     .table-decks img {
         height: 25vh;
     }
-
-.spectator-mode .table-decks img {
-    height: 50vh;
-}
 
 .tips {
     border: 1px solid #6f6a6a;

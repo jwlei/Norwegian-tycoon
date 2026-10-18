@@ -393,6 +393,14 @@ class GameLayout {
     }
     static updateSharedView(game, player) {
         document.getElementById("homeButton").hidden = game == null;
+        document.getElementById("BnFRegler").hidden = game == null;
+        document.getElementById("BnFSpillogg").hidden = game == null || game.status == "O";
+        var waitingCount = game == null ? 0 : Object.keys(game.waitingSpectators || {}).length;
+        var waitingLabel = document.getElementById("waitingPlayers");
+        waitingLabel.hidden = waitingCount == 0;
+        waitingLabel.textContent = waitingCount == 1
+            ? "1 spiller venter på å bli med..."
+            : `${waitingCount} spillere venter på å bli med...`;
         GameLayout.cardStylePlayerName = player ? player.name : null;
         document.documentElement.dataset.cardStyle = GameLayout.cardStyle();
         if (game != null) { game.localPlayerName = player ? player.name : null; }
@@ -693,12 +701,17 @@ class GameLayout {
                     removeButton.setAttribute("aria-label", `Fjern ${player.name}`);
                     playerElement.appendChild(removeButton);
                 }
-                removeButton.onclick = function () {
+                removeButton.onclick = async function () {
                     if (!isLobbyHost(game) || game.status == "S" || game.status == "G" ||
                         game.gameEndVote != null) {
                         return;
                     }
-                    game.leavePlayer(player);
+                    var result = await game.removeLobbyPlayer(player);
+                    if (result.text) {
+                        document.dispatchEvent(new CustomEvent("lobby-player-error", {
+                            detail: { game: game, message: result.text }
+                        }));
+                    }
                 };
             } else if (removeButton != null) {
                 removeButton.remove();
@@ -1670,7 +1683,7 @@ class GameLayout {
             this.setVisible("passButton", false);
             this.setVisible("passButton_Off", false);
             this.setVisible("BnPGiOpp", false);
-            this.setVisible("BnPByttNavn", false);
+            this.setVisible("BnPByttNavn", true);
             return;
         }
         if (game.status != "G") { this.el("exchangePrompt").textContent = ""; }
@@ -1735,9 +1748,7 @@ class GameLayout {
         this.setVisible("BnPGiOpp", false);
         this.setVisible(
             "BnPByttNavn",
-            player != null &&
-                (game.status == "O" ||
-                    (game.status == "F" && game.roundStartVote == null))
+            game.status == "O"
         );
     }
     static updateHand(game, player, centerCardKey = null, allowSkip = false) {
@@ -3185,6 +3196,50 @@ class PresidentGame extends Game {
             }, false);
         });
     }
+    removeLobbyPlayer(player) {
+        return new Promise(resolve => {
+            var failure = "Kan ikke fjerne spilleren nå.";
+            this.databaseRef.transaction(current => {
+                if (current == null) { return; }
+                if (current.hostKey != getPlayerKey() ||
+                    (current.hostName != null && current.hostName != this.localPlayerName)) {
+                    failure = "Bare verten kan fjerne spillere.";
+                    return;
+                }
+                if ((current.status != "O" && current.status != "F") ||
+                    current.gameEndVote != null || current.roundStartVote != null) { return; }
+                var players = current.spillere || [];
+                var index = players.findIndex(record =>
+                    record.nick == player.name && record.spillerKey == player.playerKey);
+                if (index < 0 || (player.playerKey == current.hostKey &&
+                    (current.hostName == null || player.name == current.hostName))) { return; }
+                var next = Object.assign({}, current, {
+                    spillere: players.filter((record, i) => i != index)
+                });
+                if (current.status == "O" && current.preservePlayerOrderOnStart) {
+                    next.spillere = next.spillere.map(record => Object.assign({}, record, {
+                        plassering: 0, lastPlacement: 0, presidentStreak: 0, bomsStreak: 0
+                    }));
+                    next.preservePlayerOrderOnStart = false;
+                    next.shufflePlayerOrder = true;
+                }
+                return next;
+            }, (error, committed, snapshot) => {
+                if (error) {
+                    console.error("Kunne ikke fjerne spilleren.", error);
+                    resolve({ text: "Kunne ikke fjerne spilleren. Prøv igjen." });
+                    return;
+                }
+                if (!committed) { resolve({ text: failure }); return; }
+                var record = snapshot.val();
+                this.players = PresidentPlayer.deserializePlayers(record.spillere || []);
+                this.preservePlayerOrderOnStart = record.preservePlayerOrderOnStart === true;
+                this.shufflePlayerOrder = record.shufflePlayerOrder === true;
+                this.updatePublicListing();
+                resolve({});
+            }, false);
+        });
+    }
     renamePlayer(player, requestedName) {
         var oldName = player.name;
         var assignedName;
@@ -3194,7 +3249,7 @@ class PresidentGame extends Game {
                 var players = current.spillere || [];
                 var index = players.findIndex(record =>
                     record.nick == oldName && record.spillerKey == player.playerKey);
-                if (index < 0 || player.playerKey != getPlayerKey()) { return; }
+                if (index < 0 || player.playerKey != getPlayerKey() || current.status != "O") { return; }
                 assignedName = availablePlayerName(requestedName,
                     players.filter((record, i) => i != index).map(record => record.nick));
                 var next = Object.assign({}, current);
@@ -3540,6 +3595,7 @@ class PresidentGame extends Game {
         }
         // Shuffle and deal the cards.
         deck.shuffle();
+        if (this.players.length == 2) { deck.splice(0, 12); }
         this.players.forEach(player => {
             player.cards = new CardDeck();
         });
@@ -3690,6 +3746,8 @@ class PresidentGame extends Game {
             );
             if (heartThreePlayerIndex >= 0) {
                 this.setTurn(heartThreePlayerIndex);
+            } else {
+                this.setTurn(Math.floor(Math.random() * this.players.length));
             }
         }
     }
@@ -4199,6 +4257,11 @@ class PresidentGame extends Game {
         var gameMenuToggle = document.getElementById("BnGameMenuToggle");
         var gameMenu = document.getElementById("gameMenu");
         var playerNameCookie = "norwegian_tycoon_player_name";
+        document.addEventListener("lobby-player-error", function (event) {
+            if (event.detail.game == currentGame) {
+                showGameToast(event.detail.message, currentGame);
+            }
+        });
 
         function readLastUsedPlayerName() {
             var cookiePrefix = `${playerNameCookie}=`;
@@ -4220,6 +4283,15 @@ class PresidentGame extends Game {
             var secureAttribute = window.location.protocol == "https:" ? "; Secure" : "";
             document.cookie =
                 `${playerNameCookie}=${encodeURIComponent(name)}; Max-Age=31536000; Path=/; SameSite=Lax${secureAttribute}`;
+            updateSavedPlayerName();
+        }
+
+        function updateSavedPlayerName() {
+            var name = readLastUsedPlayerName();
+            var splashName = document.getElementById("splashPlayerName");
+            splashName.textContent = name;
+            splashName.hidden = name == "";
+            document.getElementById("settingsPlayerName").textContent = name;
         }
 
         function promptForPlayerName(isRename = false, errorMessage = "") {
@@ -4248,11 +4320,9 @@ class PresidentGame extends Game {
                 if (!alreadyPlaying) {
                     // Spectate until the round is over, then join automatically.
                     pendingSpectatorJoinName = rememberedName != "" ? rememberedName : null;
-                    showGameToast(
-                        "Spillet pågår. Du ser på til neste runde.",
-                        currentGame,
-                        4000
-                    );
+                    showSpectatorJoinToast();
+                    registerWaitingSpectator(currentGame);
+                    if (rememberedName == "") { promptForPlayerName(); }
                     return;
                 }
             }
@@ -4277,9 +4347,54 @@ class PresidentGame extends Game {
         }
 
         var spectatorJoinPending = false;
+        var waitingSpectatorRef = null;
+        var spectatorJoinToastTimer = null;
+        function showSpectatorJoinToast() {
+            var toast = document.getElementById("spectatorJoinToast");
+            if (spectatorJoinToastTimer != null) { clearTimeout(spectatorJoinToastTimer); }
+            toast.textContent = localizedMessage("Spillet pågår. Du ser på til neste runde.");
+            var top = 8;
+            for (var element = document.getElementById("gameTable"); element != null; element = element.offsetParent) {
+                top += element.offsetTop;
+            }
+            toast.style.top = `${top}px`;
+            toast.classList.add("is-visible");
+            spectatorJoinToastTimer = setTimeout(function () {
+                toast.classList.remove("is-visible");
+                spectatorJoinToastTimer = null;
+            }, 3000);
+        }
+        async function clearWaitingSpectator() {
+            var ref = waitingSpectatorRef;
+            waitingSpectatorRef = null;
+            if (ref == null) { return; }
+            try {
+                await ref.remove();
+            } catch (error) {
+                console.error("Kunne ikke fjerne ventende tilskuer.", error);
+            }
+        }
+        async function registerWaitingSpectator(game) {
+            if (waitingSpectatorRef != null) { return; }
+            var ref = game.databaseRef.child("waitingSpectators").push();
+            waitingSpectatorRef = ref;
+            try {
+                await ref.onDisconnect().remove();
+                if (waitingSpectatorRef != ref || currentGame != game) { return; }
+                await ref.set({ playerKey: getPlayerKey() });
+                if (waitingSpectatorRef != ref || currentGame != game) { await ref.remove(); }
+            } catch (error) {
+                console.error("Kunne ikke registrere ventende tilskuer.", error);
+                if (waitingSpectatorRef == ref) {
+                    await clearWaitingSpectator();
+                    showGameToast("Kunne ikke registrere deg som ventende spiller.", game);
+                }
+            }
+        }
         async function tryJoinWaitingSpectator(game) {
             if (pendingSpectatorJoinName == null || currentGame != game ||
                 currentPlayerName != null || spectatorJoinPending ||
+                game.gameEndVote != null || game.roundStartVote != null ||
                 (game.status != "O" && game.status != "F")) {
                 return;
             }
@@ -4292,11 +4407,13 @@ class PresidentGame extends Game {
             if (result.player) {
                 pendingSpectatorJoinName = null;
                 currentPlayerName = result.player.name;
+                clearWaitingSpectator();
                 saveLastUsedPlayerName(currentPlayerName);
                 GameLayout.updateSharedView(game, result.player);
                 GameLayout.updatePlayerView(game, result.player);
             } else {
                 pendingSpectatorJoinName = null;
+                clearWaitingSpectator();
                 showGameToast(result.text, game);
             }
         }
@@ -4527,11 +4644,17 @@ class PresidentGame extends Game {
         }
 
         function leaveCurrentGame() {
+            var game = currentGame;
+            disconnectGameListener();
+            clearWaitingSpectator();
+            if (spectatorJoinToastTimer != null) {
+                clearTimeout(spectatorJoinToastTimer);
+                spectatorJoinToastTimer = null;
+            }
+            document.getElementById("spectatorJoinToast").classList.remove("is-visible");
             receivedCardQueue = [];
             if (receivedCardTimer != null) { clearTimeout(receivedCardTimer); receivedCardTimer = null; }
             document.getElementById("receivedCardsOverlay").hidden = true;
-            var game = currentGame;
-            disconnectGameListener();
             if (turnPauseRefreshTimer != null) {
                 clearTimeout(turnPauseRefreshTimer);
                 turnPauseRefreshTimer = null;
@@ -4793,13 +4916,19 @@ class PresidentGame extends Game {
             appendColoredGameMessage(message, text, receipt.game.players);
             content.append(pile, message);
             overlay.hidden = false;
-            receivedCardTimer = setTimeout(showNextReceivedCards, GAME_SPEED_MS[currentGameSpeed()]);
+            receivedCardTimer = setTimeout(showNextReceivedCards,
+                { fast: 5000, normal: 10000, slow: 15000 }[currentGameSpeed()]);
         }
         document.addEventListener("exchange-cards-received", function (event) {
             var receipt = event.detail;
             if (currentGame != receipt.game || currentPlayerName != receipt.recipient) { return; }
             receivedCardQueue.push(receipt);
             if (receivedCardTimer == null) { showNextReceivedCards(); }
+        });
+        document.getElementById("receivedCardsOverlay").addEventListener("click", function (event) {
+            if (event.target != event.currentTarget) { return; }
+            if (receivedCardTimer != null) { clearTimeout(receivedCardTimer); }
+            showNextReceivedCards();
         });
 
         function refreshAfterTurnPause(game) {
@@ -5312,6 +5441,7 @@ class PresidentGame extends Game {
                     connectingGame.hostKey = snapshotRecord["hostKey"] || null;
                     connectingGame.hostName = snapshotRecord["hostName"] || null;
                     connectingGame.isPublic = snapshotRecord["isPublic"] === true;
+                    connectingGame.waitingSpectators = snapshotRecord["waitingSpectators"] || {};
                     if (connectingGame.hostKey == null) {
                         var firstHumanRecord = storedPlayers.find(record =>
                             record["spillerKey"] != "PC"
@@ -5376,6 +5506,7 @@ class PresidentGame extends Game {
                         gameEndVoteRefreshTimer = null;
                     }
                     currentGame = null;
+                    clearWaitingSpectator();
                     currentPlayerName = null;
                     resetGameLog(null);
                     GameLayout.updateSharedView(null, null);
@@ -5471,6 +5602,8 @@ class PresidentGame extends Game {
         function openSettings() {
             var inGame = currentGame != null;
             updateCardStyleButtons();
+            updateSavedPlayerName();
+            GameLayout.setVisible("BnPByttNavn", !inGame || currentGame.status == "O");
             document.getElementById("autoSuggestionToggleButton").hidden = !inGame;
             document.querySelector(".setting-speed").hidden = !inGame;
             document.getElementById("settingsGameId").hidden = !inGame;
@@ -5622,9 +5755,9 @@ class PresidentGame extends Game {
         });
 
         document.getElementById('BnPByttNavn').addEventListener('click', function () {
-            if (currentPlayerName != null) {
-                promptForPlayerName(true);
-            }
+            if (currentGame != null && currentGame.status != "O") { return; }
+            showDialog("Innstillinger", false);
+            promptForPlayerName(currentPlayerName != null || currentGame == null);
         });
 
         document.getElementById('dialogSporOmNickOk').addEventListener('click', async function () {
@@ -5635,10 +5768,15 @@ class PresidentGame extends Game {
             }
             if (requestedName != "") {
                 if (currentGame == null) {
-                    document.getElementById('playerNameError').textContent = "Spillet er ikke tilkoblet.";
+                    saveLastUsedPlayerName(requestedName);
+                    showDialog("SporOmNick", false);
                     return;
                 }
                 if (currentPlayerName != null) {
+                    if (currentGame.status != "O") {
+                        document.getElementById('playerNameError').textContent = "Kan ikke endre navn under spill.";
+                        return;
+                    }
                     var playerToRename = currentGame.getPlayer(currentPlayerName);
                     if (playerToRename == null) {
                         document.getElementById('playerNameError').textContent = "Spilleren finnes ikke lenger.";
@@ -5657,12 +5795,21 @@ class PresidentGame extends Game {
                     GameLayout.updatePlayerView(currentGame, renameResult.player);
                     showDialog("SporOmNick", false);
                 } else {
+                    if (currentGame.status == "S" || currentGame.status == "G") {
+                        pendingSpectatorJoinName = requestedName;
+                        saveLastUsedPlayerName(requestedName);
+                        registerWaitingSpectator(currentGame);
+                        showDialog("SporOmNick", false);
+                        return;
+                    }
                     var key = getPlayerKey();
                     var joiningGame = currentGame;
                     var newPlayerResult = await joiningGame.addPlayer(new PresidentPlayer(requestedName, key));
                     if (currentGame != joiningGame) { return; }
                     if (newPlayerResult.player) {
+                        pendingSpectatorJoinName = null;
                         currentPlayerName = newPlayerResult.player.name;
+                        clearWaitingSpectator();
                         saveLastUsedPlayerName(currentPlayerName);
                         GameLayout.updateSharedView(currentGame, newPlayerResult.player);
                         GameLayout.updatePlayerView(currentGame, newPlayerResult.player);
@@ -5706,6 +5853,7 @@ class PresidentGame extends Game {
             currentGame.passTurn(currentGame.getPlayer(currentPlayerName));
         });
 
+        updateSavedPlayerName();
         GameLayout.updateSharedView(null, null);
         GameLayout.updatePlayerView(null, null);
 

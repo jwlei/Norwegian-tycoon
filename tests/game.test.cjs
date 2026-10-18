@@ -96,12 +96,13 @@ test("received-card overlays filter recipients, queue receipts and honor every g
     const start = source.indexOf("        var receivedCardQueue");
     const end = source.indexOf("        function refreshAfterTurnPause", start);
     const { PresidentCard } = loadGame();
-    for (const [speed, duration] of [["fast", 3000], ["normal", 5000], ["slow", 8000]]) {
+    for (const [speed, duration] of [["fast", 5000], ["normal", 10000], ["slow", 15000]]) {
         const element = () => ({
             hidden: true, children: [], style: { setProperty() {} },
             append(...children) { this.children.push(...children); },
             appendChild(child) { this.children.push(child); },
-            replaceChildren() { this.children = []; }
+            replaceChildren() { this.children = []; },
+            addEventListener(type, callback) { this.click = callback; }
         });
         const overlay = element();
         const content = element();
@@ -127,7 +128,8 @@ test("received-card overlays filter recipients, queue receipts and honor every g
                 createElement: element,
                 addEventListener: (type, callback) => { listener = callback; }
             },
-            setTimeout: (callback, delay) => { timers.push({ callback, delay }); return timers.length; }
+            setTimeout: (callback, delay) => { timers.push({ callback, delay }); return timers.length; },
+            clearTimeout: id => { timers[id - 1].cleared = true; }
         });
         vm.runInContext(source.slice(start, end), context);
         const receipt = {
@@ -147,7 +149,10 @@ test("received-card overlays filter recipients, queue receipts and honor every g
         timers[0].callback();
         assert.equal(content.children[0].children.length, 1);
         assert.equal(timers[1].delay, duration);
-        timers[1].callback();
+        overlay.click({ target: content, currentTarget: overlay });
+        assert.equal(overlay.hidden, false);
+        overlay.click({ target: overlay, currentTarget: overlay });
+        assert.equal(timers[1].cleared, true);
         assert.equal(overlay.hidden, true);
     }
 });
@@ -192,6 +197,76 @@ function loadGame(cardStyle = null, globals = {}) {
     }
     return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, isLobbyHost, availablePlayerName })", context);
 }
+
+test("waiting spectators register once, arm disconnect cleanup first and remove their own entry on leave", async () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const start = source.indexOf("        var spectatorJoinPending");
+    const end = source.indexOf("        async function tryJoinWaitingSpectator", start);
+    const calls = [];
+    const ref = {
+        onDisconnect() { return { remove: async () => { calls.push("disconnect"); } }; },
+        set: async record => { calls.push(["set", record.playerKey]); },
+        remove: async () => { calls.push("remove"); }
+    };
+    const game = { databaseRef: { child: key => {
+        assert.equal(key, "waitingSpectators");
+        return { push: () => ref };
+    } } };
+    const context = vm.createContext({
+        currentGame: game, getPlayerKey: () => "viewer-key", console,
+        showGameToast: () => assert.fail("unexpected presence error")
+    });
+    vm.runInContext(source.slice(start, end), context);
+    await context.registerWaitingSpectator(game);
+    await context.registerWaitingSpectator(game);
+    assert.deepEqual(calls, ["disconnect", ["set", "viewer-key"]]);
+    await context.clearWaitingSpectator();
+    await context.clearWaitingSpectator();
+    assert.deepEqual(calls, ["disconnect", ["set", "viewer-key"], "remove"]);
+});
+
+test("a spectator who leaves during registration is never added after leaving", async () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    let armDisconnect;
+    let writes = 0;
+    const ref = {
+        onDisconnect: () => ({ remove: () => new Promise(resolve => { armDisconnect = resolve; }) }),
+        set: async () => { writes++; }, remove: async () => {}
+    };
+    const game = { databaseRef: { child: () => ({ push: () => ref }) } };
+    const context = vm.createContext({ currentGame: game, getPlayerKey: () => "viewer-key", console });
+    vm.runInContext(source.slice(source.indexOf("        var spectatorJoinPending"),
+        source.indexOf("        async function tryJoinWaitingSpectator")), context);
+    const registering = context.registerWaitingSpectator(game);
+    await context.clearWaitingSpectator();
+    context.currentGame = null;
+    armDisconnect();
+    await registering;
+    assert.equal(writes, 0);
+});
+
+test("spectator join notices sit above the board for exactly three seconds", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const toast = {
+        style: {}, classList: { add() {}, remove() { toast.closed = true; } }
+    };
+    let callback;
+    let duration;
+    const context = vm.createContext({
+        spectatorJoinToastTimer: null, localizedMessage: text => text,
+        document: { getElementById: id => id == "spectatorJoinToast" ? toast :
+            { offsetTop: 116, offsetParent: null } },
+        setTimeout: (fn, delay) => { callback = fn; duration = delay; return 1; }
+    });
+    const start = source.indexOf("        function showSpectatorJoinToast()");
+    const end = source.indexOf("        async function clearWaitingSpectator()", start);
+    vm.runInContext(source.slice(start, end), context);
+    context.showSpectatorJoinToast();
+    assert.equal(toast.style.top, "124px");
+    assert.equal(duration, 3000);
+    callback();
+    assert.equal(toast.closed, true);
+});
 
 test("every card renders in each style with distinct artwork", () => {
     const { PresidentCard } = loadGame();
@@ -283,6 +358,79 @@ test("adding a bot preserves humans missing from the host's stale local list", a
     assert.equal(result.player.name, "New bot");
     assert.deepEqual(stored.spillere.map(player => player.nick), ["Human", "Guest", "New bot"]);
     assert.equal(stored.spillere[1].spillerKey, "guest-key");
+});
+
+test("the host can remove ready or unready humans and bots using current room data", async () => {
+    for (const key of ["PC", "guest-key"]) {
+        for (const ready of [false, true]) {
+            const { game, stored, PresidentPlayer } = lobbyWithStoredPlayers([
+                ["Guest", key], ["Keep", "other-key"]
+            ]);
+            stored.spillere[1].ready = ready;
+            stored.spillere[2].ready = true;
+            const result = await game.removeLobbyPlayer(new PresidentPlayer("Guest", key));
+            assert.equal(result.text, undefined);
+            assert.deepEqual(stored.spillere.map(player => player.nick), ["Human", "Keep"]);
+            assert.equal(stored.spillere[1].ready, true);
+            assert.equal(game.getPlayer("Guest"), null);
+        }
+    }
+});
+
+test("removing lobby players never bypasses host authority or active rounds and votes", async () => {
+    for (const change of [
+        { hostKey: "other-key" }, { hostName: "Other" }, { status: "S" },
+        { status: "G" }, { gameEndVote: { id: "vote" } }, { roundStartVote: { id: "vote" } }
+    ]) {
+        const { game, stored, PresidentPlayer } = lobbyWithStoredPlayers([["Guest", "PC"]]);
+        Object.assign(stored, change);
+        const before = JSON.stringify(stored);
+        assert.ok((await game.removeLobbyPlayer(new PresidentPlayer("Guest", "PC"))).text);
+        assert.equal(JSON.stringify(stored), before);
+    }
+});
+
+test("host removal preserves a concurrent arrival when the transaction retries", async () => {
+    const { game, stored, PresidentPlayer } = lobbyWithStoredPlayers([["Bot", "PC"]]);
+    game.databaseRef.transaction = (transform, complete) => {
+        transform(JSON.parse(JSON.stringify(stored)));
+        stored.spillere.push(new PresidentPlayer("Arrival", "arrival-key").toRecord());
+        const next = transform(JSON.parse(JSON.stringify(stored)));
+        Object.assign(stored, next);
+        complete(null, true, { val: () => stored });
+    };
+    await game.removeLobbyPlayer(new PresidentPlayer("Bot", "PC"));
+    assert.deepEqual(stored.spillere.map(player => player.nick), ["Human", "Arrival"]);
+});
+
+test("two-player rounds deal exactly 40 unique cards, without changing three- or four-player deals", () => {
+    for (const [count, expected] of [[2, 40], [3, 51], [4, 52]]) {
+        const { PresidentGame, PresidentPlayer } = loadGame();
+        const game = Object.assign(Object.create(PresidentGame.prototype), {
+            players: Array.from({ length: count }, (_, i) => new PresidentPlayer(`Player ${i}`, "PC")),
+            status: "S", round: 1, piles: []
+        });
+        game.prepareRound();
+        assert.equal(game.dealTotal, expected);
+        assert.ok(game.players.every(player => player.cards.length == expected / count));
+        const dealt = game.players.flatMap(player => Array.from(player.cards, card => `${card.suit}:${card.rank}`));
+        assert.equal(new Set(dealt).size, expected);
+        assert.equal(game.players.filter(player => player.turn == 1).length, 1);
+    }
+});
+
+test("a random player starts if heart three is among the twelve discarded cards", () => {
+    const math = Object.create(Math);
+    math.random = () => 0.9999;
+    const { PresidentGame, PresidentPlayer } = loadGame(null, { Math: math });
+    const game = Object.assign(Object.create(PresidentGame.prototype), {
+        players: [new PresidentPlayer("First", "PC"), new PresidentPlayer("Second", "PC")],
+        status: "S", round: 1, piles: []
+    });
+    game.prepareRound();
+    assert.ok(game.players.every(player => !player.cards.some(card => card.suit == 2 && card.rank == 3)));
+    assert.equal(game.dealStarterStep, null);
+    assert.equal(game.players[1].turn, 1);
 });
 
 test("a human replaces only a bot when the lobby is full", async () => {
@@ -402,6 +550,15 @@ test("renaming to one's own name does not add a suffix", async () => {
     const { game } = lobbyWithStoredPlayers([]);
     const result = await game.renamePlayer(game.players[0], "Human");
     assert.equal(result.player.name, "Human");
+});
+
+test("name changes cannot be submitted after the lobby starts", async () => {
+    const { game, stored } = lobbyWithStoredPlayers([]);
+    stored.status = "S";
+    const before = JSON.stringify(stored);
+    const result = await game.renamePlayer(game.players[0], "Changed");
+    assert.ok(result.text);
+    assert.equal(JSON.stringify(stored), before);
 });
 
 test("a transaction retry uses the new human's slot instead of overwriting it", async () => {
