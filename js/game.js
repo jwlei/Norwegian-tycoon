@@ -389,6 +389,9 @@ class GameLayout {
     }
     static updateGameButtons(game) {
         this.el("gameIdDisplay").innerHTML = game.id;
+        this.el("settingsGameIdValue").textContent = game.id;
+        this.el("settingsGameId").hidden = false;
+        this.el("BnFInnstillinger").title = `Innstillinger · Spill-ID ${game.id}`;
         var waitingForPlayers = game.status == "O" && game.players.length < 2;
         this.el("gameMenu").classList.toggle("waiting-for-players", waitingForPlayers);
         var startButton = this.el("startGameButton");

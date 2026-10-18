@@ -1704,7 +1704,9 @@ select:focus-visible {
     padding-inline: 52px;
 }
 
-#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInnstillinger {
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInnstillinger,
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInnstillinger:hover,
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInnstillinger:active {
     position: absolute;
     top: 50%;
     left: 8px;
@@ -1734,6 +1736,35 @@ select:focus-visible {
 .settings-list {
     display: grid;
     gap: 8px;
+}
+
+.settings-game-id {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 0.85rem;
+    text-align: center;
+    letter-spacing: 0.08em;
+}
+
+.settings-game-id strong {
+    color: var(--ink);
+    font-size: 1.05rem;
+    letter-spacing: 0.14em;
+}
+
+.setting-row__text strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.setting-row[aria-pressed="true"] .setting-row__text strong::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #35c46a;
+    box-shadow: 0 0 5px rgb(53 196 106 / 55%);
 }
 
 .setting-row {
