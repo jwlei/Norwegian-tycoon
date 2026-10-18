@@ -82,6 +82,18 @@ function hasFourOfKindOnTop(game) {
     return count >= 4;
 }
 
+function describeRequiredPlay(game) {
+    var topPile = game.topPile();
+    if (topPile[0].isClubThree()) { return "kløver 3"; }
+    var requiredCardCount = hasFourOfKindOnTop(game) ? 4 : topPile.length;
+    var playType = ["", "singel", "par", "tress", "fire like"][requiredCardCount];
+    var rankName = [
+        "", "ess", "to", "tre", "fire", "fem", "seks", "syv",
+        "åtte", "ni", "ti", "knekt", "dame", "konge"
+    ][topPile[0].rank];
+    return `${playType} i ${rankName}`;
+}
+
 function hasBothNaturalThreesOnTop(game) {
     if (game.players.length != 3) { return false; }
     var threesOnTop = new Set();
@@ -388,6 +400,7 @@ class GameLayout {
                 if (!lobbyHost) { this.setVisible("BnFNyAutoSpiller_Off", false); }
                 this.setVisible("startGameButton", game.players.length >= 2);
                 this.setVisible("BnFRegler", true);
+                this.setVisible("BnFSpillogg", false);
                 this.setVisible("BnFHovedmeny", false);
                 this.setVisible("BnFResultater", false);
                 break;
@@ -402,6 +415,7 @@ class GameLayout {
                 this.setVisible("startGameButton", false);
                 this.setVisible("startGameButton_Off", false);
                 this.setVisible("BnFRegler", true);
+                this.setVisible("BnFSpillogg", true);
                 this.setVisible("BnFHovedmeny", false);
                 this.setVisible("BnFResultater", false);
                 break;
@@ -430,6 +444,7 @@ class GameLayout {
                 );
                 if (game.gameEndVote != null) { this.setVisible("startGameButton_Off", false); }
                 this.setVisible("BnFRegler", true);
+                this.setVisible("BnFSpillogg", true);
                 this.setVisible("BnFHovedmeny", game.gameEndVote == null);
                 this.setVisible("BnFResultater", true);
                 break;
@@ -1287,10 +1302,12 @@ class GameLayout {
                         });
                     }
                 }
-                if (player != null && player.turn == 1 && game.topPile() != null) {
+                if (game.topPile() != null) {
                     var tableSummary = document.createElement("div");
                     tableSummary.className = "table-pile-summary";
-                    tableSummary.textContent = `På bordet ligger: ${game.topPile().describe()}.`;
+                    tableSummary.textContent = player != null && player.turn == 1
+                        ? `Du må slå:\n${describeRequiredPlay(game)}`
+                        : `På bordet ligger:\n${game.topPile().describe()}`;
                     table.appendChild(tableSummary);
                 }
                 break;
@@ -1917,20 +1934,24 @@ class GameLayout {
                     lowestCardTurnKey = turnKey;
                     autoScrollEmptyTurnKey = turnKey;
                     if (autoSuggestPlayableCards && lowestCardKeys.length > 0) {
-                        var lowestSingle = player.cards.find(card =>
-                            card.strengthRank == lowestHandStrength
-                        );
-                        if (lowestSingle != null) {
-                            selectedCardStrength = lowestHandStrength;
-                            var lowestSingleKey = `${lowestSingle.suit}:${lowestSingle.rank}`;
-                            selectedCardKeys.add(lowestSingleKey);
-                            autoSuggestedCardKeys.clear();
-                            autoSuggestedCardKeys.add(lowestSingleKey);
-                        }
+                        selectedCardStrength = lowestHandStrength;
+                        autoSuggestedCardKeys.clear();
+                        lowestCardKeys.forEach(cardKey => {
+                            selectedCardKeys.add(cardKey);
+                            autoSuggestedCardKeys.add(cardKey);
+                        });
                     }
                 } else if (autoSuggestPlayableCards) {
-                    var lowestPlayableStrength = Array.from(playableStrengths)
-                        .sort((a, b) => a - b)[0];
+                    var requiredCardCount = hasFourOfKindOnTop(game) ? 4 : topPile.length;
+                    var sortedPlayableStrengths = Array.from(playableStrengths)
+                        .sort((a, b) => a - b);
+                    var lowestPlayableStrength = sortedPlayableStrengths.find(strengthRank =>
+                        player.cards.filter(card => card.strengthRank == strengthRank).length ==
+                        requiredCardCount
+                    );
+                    if (lowestPlayableStrength == null) {
+                        lowestPlayableStrength = sortedPlayableStrengths[0];
+                    }
                     if (lowestPlayableStrength != null) {
                         var lowestPlay = {};
                         if (game.canPlayRank(player, lowestPlayableStrength, lowestPlay) && lowestPlay.pile) {
@@ -2155,7 +2176,16 @@ class GameLayout {
                                             }
                                         } else {
                                             selectedCardStrength = k.strengthRank;
-                                            selectedCardKeys.add(cardKey);
+                                            var matchingCards = player.cards.filter(card =>
+                                                card.strengthRank == k.strengthRank
+                                            );
+                                            if (selectedCardKeys.size == 0) {
+                                                matchingCards.forEach(card =>
+                                                    selectedCardKeys.add(`${card.suit}:${card.rank}`)
+                                                );
+                                            } else {
+                                                selectedCardKeys.add(cardKey);
+                                            }
                                         }
                                     } else {
                                         if (selectedCardStrength != null && selectedCardStrength != k.strengthRank) {
@@ -3779,6 +3809,8 @@ class PresidentGame extends Game {
         var lastShownTurnPauseId = null;
         var activeToastPauseId = null;
         var clearingPauseId = null;
+        var gameLogGameId = null;
+        var gameLogEntries = [];
         var appShell = document.getElementById("gameShell");
         var gameMenuToggle = document.getElementById("BnGameMenuToggle");
         var gameMenu = document.getElementById("gameMenu");
@@ -3873,6 +3905,7 @@ class PresidentGame extends Game {
         function startNewGame() {
             currentGame = new PresidentGame();
             currentPlayerName = null;
+            resetGameLog(currentGame);
             connectAndPromptForPlayerName();
         }
 
@@ -3959,6 +3992,7 @@ class PresidentGame extends Game {
             }
             currentGame = null;
             currentPlayerName = null;
+            resetGameLog(null);
             GameLayout.updateSharedView(null, null);
             GameLayout.updatePlayerView(null, null);
         }
@@ -3985,22 +4019,28 @@ class PresidentGame extends Game {
             activeToastPauseId = null;
         }
 
-        function showGameToast(message, game, duration = TURN_ACTION_PAUSE_MS, pauseId = null) {
-            var toast = document.getElementById("GameToast");
-            toast.classList.remove("is-visible");
-            toast.getBoundingClientRect();
-            toast.replaceChildren();
-            var players = game.players.slice().filter(player => player.name)
-                .sort((a, b) => b.name.length - a.name.length);
-            var progressColors = players.map(player => player.displayColor).filter(Boolean);
-            toast.style.setProperty("--toast-duration", `${duration}ms`);
-            toast.style.setProperty(
-                "--toast-progress-gradient",
-                progressColors.length > 0
-                    ? `linear-gradient(90deg, ${progressColors.join(", ")})`
-                    : "linear-gradient(90deg, #17803d, #39a95f, #f4cf43)"
-            );
-            activeToastPauseId = pauseId;
+        function resetGameLog(game) {
+            gameLogGameId = game == null ? null : String(game.id);
+            gameLogEntries = [];
+            var log = document.getElementById("gameLogEntries");
+            if (log == null) { return; }
+            log.replaceChildren();
+            if (game != null) {
+                var emptyMessage = document.createElement("p");
+                emptyMessage.className = "game-log__empty";
+                emptyMessage.textContent = "Ingen hendelser ennå.";
+                log.appendChild(emptyMessage);
+            }
+        }
+
+        function ensureGameLog(game) {
+            var gameId = game == null ? null : String(game.id);
+            if (gameLogGameId !== gameId) {
+                resetGameLog(game);
+            }
+        }
+
+        function appendColoredGameMessage(container, message, players) {
             var position = 0;
             while (position < message.length) {
                 var match = null;
@@ -4015,19 +4055,79 @@ class PresidentGame extends Game {
                     }
                 });
                 if (match == null) {
-                    toast.appendChild(document.createTextNode(message.slice(position)));
+                    container.appendChild(document.createTextNode(message.slice(position)));
                     break;
                 }
                 if (matchIndex > position) {
-                    toast.appendChild(document.createTextNode(message.slice(position, matchIndex)));
+                    container.appendChild(document.createTextNode(message.slice(position, matchIndex)));
                 }
                 var name = document.createElement("span");
                 name.className = "game-toast__player";
                 name.style.setProperty("--player-color", match.displayColor);
                 name.textContent = match.name;
-                toast.appendChild(name);
+                container.appendChild(name);
                 position = matchIndex + match.name.length;
             }
+        }
+
+        function appendGameLogEntry(entry, animate = true) {
+            var log = document.getElementById("gameLogEntries");
+            var emptyMessage = log.querySelector(".game-log__empty");
+            if (emptyMessage) { emptyMessage.remove(); }
+            var item = document.createElement("div");
+            item.className = "game-log__entry";
+            if (animate) { item.classList.add("game-log__entry--enter"); }
+            appendColoredGameMessage(item, entry.message, entry.players);
+            log.appendChild(item);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function showGameLog() {
+            if (currentGame == null) { return; }
+            ensureGameLog(currentGame);
+            var log = document.getElementById("gameLogEntries");
+            log.replaceChildren();
+            if (gameLogEntries.length == 0) {
+                var emptyMessage = document.createElement("p");
+                emptyMessage.className = "game-log__empty";
+                emptyMessage.textContent = "Ingen hendelser ennå.";
+                log.appendChild(emptyMessage);
+            } else {
+                gameLogEntries.forEach(entry => appendGameLogEntry(entry, false));
+            }
+            showDialog("Spillogg", true);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function showGameToast(message, game, duration = TURN_ACTION_PAUSE_MS, pauseId = null) {
+            ensureGameLog(game);
+            var toast = document.getElementById("GameToast");
+            toast.classList.remove("is-visible");
+            toast.getBoundingClientRect();
+            toast.replaceChildren();
+            var players = game.players.slice().filter(player => player.name)
+                .sort((a, b) => b.name.length - a.name.length);
+            var logEntry = {
+                message: message,
+                players: players.map(player => ({
+                    name: player.name,
+                    displayColor: player.displayColor
+                }))
+            };
+            gameLogEntries.push(logEntry);
+            if (document.getElementById("dialogSpillogg").classList.contains("dialog-container--visible")) {
+                appendGameLogEntry(logEntry);
+            }
+            var progressColors = players.map(player => player.displayColor).filter(Boolean);
+            toast.style.setProperty("--toast-duration", `${duration}ms`);
+            toast.style.setProperty(
+                "--toast-progress-gradient",
+                progressColors.length > 0
+                    ? `linear-gradient(90deg, ${progressColors.join(", ")})`
+                    : "linear-gradient(90deg, #17803d, #39a95f, #f4cf43)"
+            );
+            activeToastPauseId = pauseId;
+            appendColoredGameMessage(toast, message, players);
             toast.classList.add("is-visible");
             if (gameToastTimer != null) {
                 clearTimeout(gameToastTimer);
@@ -4371,6 +4471,7 @@ class PresidentGame extends Game {
             }
             lastShownTurnPauseId = null;
             var connectingGame = currentGame;
+            resetGameLog(connectingGame);
             connectingGame.onRoundStarted = function () {
                 if (currentGame == connectingGame) {
                     if (roundVoteRefreshTimer != null) {
@@ -4446,6 +4547,7 @@ class PresidentGame extends Game {
                     }
                     currentGame = null;
                     currentPlayerName = null;
+                    resetGameLog(null);
                     GameLayout.updateSharedView(null, null);
                     GameLayout.updatePlayerView(null, null);
                 }
@@ -4625,6 +4727,8 @@ class PresidentGame extends Game {
         document.getElementById('BnFRegler').addEventListener('click', function () {
             showDialog("Regler", true);
         });
+
+        document.getElementById('BnFSpillogg').addEventListener('click', showGameLog);
 
         setInterval(() => {
             function formatTime(minutes) {

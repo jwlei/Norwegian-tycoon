@@ -35,6 +35,7 @@
             <button type="button" id="BnFKobleSpill" title="Koble til et annet spill" aria-label="Koble til annet spill">Koble til annet spill</button>
             <button type="button" id="BnPByttNavn" title="Bytt navn i spillet" aria-label="Bytt spillernavn" style="float: right;">Bytt navn</button>
             <button type="button" id="BnFRegler" title="Regler" aria-label="Vis regler" style="float: right;">Vis regler</button>
+            <button type="button" id="BnFSpillogg" title="Vis spillogg" aria-label="Vis spillogg">Spillogg</button>
             <div class="lobby-primary-actions" role="group" aria-label="Spillhandlinger">
                 <div class="lobby-primary-action">
                     <button type="button" id="BnFNyAutoSpiller" title="Legg til bot" aria-label="Legg til bot">Legg til bot</button>
@@ -298,6 +299,16 @@
             </div>
             <p class="rules-credit">Laget av: <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">GitHub</a></p>
             <div class="dialog-footer rules-dialog__footer"><button class="autofocus" type="button" onclick="showDialog('Regler', false);">Lukk regler</button></div>
+        </div>
+    </div>
+
+    <div id="dialogSpillogg" class="dialog-container">
+        <div class="dialog-window game-log-dialog">
+            <div class="dialog-title-row">
+                <div class="dialog-title">Spillogg</div>
+                <button type="button" class="dialog-close" onclick="showDialog('Spillogg', false);">Lukk</button>
+            </div>
+            <div id="gameLogEntries" class="game-log" role="log" aria-live="polite" aria-relevant="additions"></div>
         </div>
     </div>
 
