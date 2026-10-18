@@ -99,7 +99,7 @@ function loadGame() {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(file === "game.js" ? source.split(/\r?\n\(\r?\n/)[0] : source, context);
     }
-    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, isLobbyHost })", context);
+    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, isLobbyHost, availablePlayerName })", context);
 }
 
 function setupGame() {
@@ -203,6 +203,75 @@ test("rejoining and duplicate names never replace an existing human", async () =
     assert.ok(rejected.text);
     assert.equal(stored.spillere.length, 2);
     assert.equal(stored.spillere[1].spillerKey, "guest-key");
+});
+
+test("humans receive the next free case-insensitive name suffix", async () => {
+    const { game, stored, PresidentPlayer } = lobbyWithStoredPlayers([
+        ["Guest", "guest-key"], ["Guest-1", "other-key"]
+    ]);
+    const result = await game.addPlayer(new PresidentPlayer("guest", "new-key"));
+    assert.equal(result.player.name, "guest-2");
+    assert.equal(stored.spillere[1].nick, "Guest");
+    assert.equal(stored.spillere[3].nick, "guest-2");
+});
+
+test("simultaneous name choices are numbered again on transaction retry", async () => {
+    const { game, stored, PresidentPlayer } = lobbyWithStoredPlayers([["Guest", "guest-key"]]);
+    game.databaseRef.transaction = (transform, complete) => {
+        transform(JSON.parse(JSON.stringify(stored)));
+        stored.spillere.push(new PresidentPlayer("Guest-1", "concurrent-key").toRecord());
+        const next = transform(JSON.parse(JSON.stringify(stored)));
+        Object.assign(stored, next);
+        complete(null, true, { val: () => JSON.parse(JSON.stringify(stored)) });
+    };
+    const result = await game.addPlayer(new PresidentPlayer("Guest", "last-key"));
+    assert.equal(result.player.name, "Guest-2");
+    assert.deepEqual(stored.spillere.map(player => player.nick), ["Human", "Guest", "Guest-1", "Guest-2"]);
+});
+
+test("a human colliding with a bot gets a suffix", async () => {
+    const { game, PresidentPlayer } = lobbyWithStoredPlayers([["Knurt", "PC"]]);
+    const result = await game.addPlayer(new PresidentPlayer("Knurt", "human-two"));
+    assert.equal(result.player.name, "Knurt-1");
+});
+
+test("bot name collisions are rejected regardless of case or player type", async () => {
+    for (const key of ["guest-key", "PC"]) {
+        const { game, stored, PresidentPlayer } = lobbyWithStoredPlayers([["Knurt", key]]);
+        const result = await game.addPlayer(new PresidentPlayer("knurt", "PC"));
+        assert.ok(result.text);
+        assert.equal(stored.spillere.length, 2);
+    }
+});
+
+test("name suffixes remain within 28 code points and can skip used suffixes", () => {
+    const { availablePlayerName } = loadGame();
+    const name = "A".repeat(28);
+    assert.equal(availablePlayerName(name, [name]), "A".repeat(26) + "-1");
+    assert.equal(availablePlayerName("Guest", ["Guest", "Guest-2"]), "Guest-1");
+    const emojiName = "\u{1f600}".repeat(28);
+    assert.equal(Array.from(availablePlayerName(emojiName, [emojiName])).length, 28);
+});
+
+test("renaming adds a suffix atomically and preserves host, pile and vote identity", async () => {
+    const { game, stored } = lobbyWithStoredPlayers([["Guest", "guest-key"], ["Guest-1", "third-key"]]);
+    stored.spillBunke = [{ nick: "Human", verdiBoms: 5, 0: { farge: 1, verdi: 5 } }];
+    stored.spillere[0].laPaaSist = stored.spillBunke[0];
+    stored.gameEndVote = {
+        votes: [{ playerId: JSON.stringify(["human-key", "Human"]), choice: "lobby" }]
+    };
+    const result = await game.renamePlayer(game.players[0], "Guest");
+    assert.equal(result.player.name, "Guest-2");
+    assert.equal(stored.hostName, "Guest-2");
+    assert.equal(stored.spillBunke[0].nick, "Guest-2");
+    assert.equal(stored.spillere[0].laPaaSist.nick, "Guest-2");
+    assert.equal(stored.gameEndVote.votes[0].playerId, JSON.stringify(["human-key", "Guest-2"]));
+});
+
+test("renaming to one's own name does not add a suffix", async () => {
+    const { game } = lobbyWithStoredPlayers([]);
+    const result = await game.renamePlayer(game.players[0], "Human");
+    assert.equal(result.player.name, "Human");
 });
 
 test("a transaction retry uses the new human's slot instead of overwriting it", async () => {

@@ -166,6 +166,17 @@ function roundVotePlayerId(player) {
     return JSON.stringify([player.playerKey || "", player.name]);
 }
 
+function availablePlayerName(name, usedNames) {
+    var used = new Set(usedNames.map(value => value.toLocaleLowerCase()));
+    var candidate = name;
+    var number = 0;
+    while (used.has(candidate.toLocaleLowerCase())) {
+        var suffix = `-${++number}`;
+        candidate = Array.from(name).slice(0, 28 - suffix.length).join("") + suffix;
+    }
+    return candidate;
+}
+
 function updateAutoSuggestionButton() {
     var button = document.getElementById("autoSuggestionToggleButton");
     if (button == null) { return; }
@@ -3093,18 +3104,26 @@ class PresidentGame extends Game {
     addPlayer(incomingPlayer) {
         return new Promise(resolve => {
             var failure;
+            var assignedName = incomingPlayer.name;
             this.databaseRef.transaction(current => {
                 failure = null;
+                assignedName = incomingPlayer.name;
                 if (current == null) {
                     failure = "Spillet er ikke tilkoblet.";
                     return;
                 }
                 var players = current.spillere || [];
-                var existing = players.find(player => player.nick == incomingPlayer.name);
+                var existing = players.find(player =>
+                    player.nick.toLocaleLowerCase() == incomingPlayer.name.toLocaleLowerCase());
                 if (existing != null) {
-                    if (existing.spillerKey == incomingPlayer.playerKey) { return current; }
-                    failure = "Nick er allerede i bruk av annen spiller.";
-                    return;
+                    if (incomingPlayer.playerKey == "PC") {
+                        failure = "Navnet er allerede i bruk.";
+                        return;
+                    }
+                    if (existing.spillerKey == incomingPlayer.playerKey && existing.nick == incomingPlayer.name) {
+                        assignedName = existing.nick;
+                        return current;
+                    }
                 }
                 if (current.status != "O" && current.status != "F") {
                     failure = "Ingen nye spillere når spillet pågår.";
@@ -3127,11 +3146,14 @@ class PresidentGame extends Game {
                     return;
                 }
                 var next = Object.assign({}, current);
+                assignedName = availablePlayerName(incomingPlayer.name, players.map(player => player.nick));
+                var incomingRecord = incomingPlayer.toRecord();
+                incomingRecord.nick = assignedName;
                 next.spillere = players.slice();
                 if (players.length >= MAX_PLAYERS) {
-                    next.spillere[botIndex] = incomingPlayer.toRecord();
+                    next.spillere[botIndex] = incomingRecord;
                 } else {
-                    next.spillere.push(incomingPlayer.toRecord());
+                    next.spillere.push(incomingRecord);
                 }
                 if (current.status == "F" || current.preservePlayerOrderOnStart) {
                     next.spillere = next.spillere.map(player => Object.assign({}, player, {
@@ -3143,7 +3165,7 @@ class PresidentGame extends Game {
                 if (incomingPlayer.playerKey != "PC" &&
                     (next.hostKey == null || (next.hostName == null && next.hostKey == incomingPlayer.playerKey))) {
                     next.hostKey = incomingPlayer.playerKey;
-                    next.hostName = incomingPlayer.name;
+                    next.hostName = assignedName;
                 }
                 return next;
             }, (error, committed, snapshot) => {
@@ -3163,7 +3185,68 @@ class PresidentGame extends Game {
                 this.status = record.status;
                 this.preservePlayerOrderOnStart = record.preservePlayerOrderOnStart === true;
                 this.updatePublicListing();
-                resolve({ player: this.getPlayer(incomingPlayer.name) });
+                resolve({ player: this.getPlayer(assignedName) });
+            }, false);
+        });
+    }
+    renamePlayer(player, requestedName) {
+        var oldName = player.name;
+        var assignedName;
+        return new Promise(resolve => {
+            this.databaseRef.transaction(current => {
+                if (current == null) { return; }
+                var players = current.spillere || [];
+                var index = players.findIndex(record =>
+                    record.nick == oldName && record.spillerKey == player.playerKey);
+                if (index < 0 || player.playerKey != getPlayerKey()) { return; }
+                assignedName = availablePlayerName(requestedName,
+                    players.filter((record, i) => i != index).map(record => record.nick));
+                var next = Object.assign({}, current);
+                next.spillere = players.map((record, i) => {
+                    var updated = Object.assign({}, record);
+                    if (i == index) { updated.nick = assignedName; }
+                    if (updated.laPaaSist && updated.laPaaSist.nick == oldName) {
+                        updated.laPaaSist = Object.assign({}, updated.laPaaSist, { nick: assignedName });
+                    }
+                    return updated;
+                });
+                if (Array.isArray(current.spillBunke)) {
+                    next.spillBunke = current.spillBunke.map(pile =>
+                        pile.nick == oldName ? Object.assign({}, pile, { nick: assignedName }) : pile);
+                }
+                if (current.hostName == oldName && current.hostKey == player.playerKey) {
+                    next.hostName = assignedName;
+                }
+                ["gameEndVote", "roundStartVote"].forEach(key => {
+                    if (current[key] && Array.isArray(current[key].votes)) {
+                        next[key] = Object.assign({}, current[key], {
+                            votes: current[key].votes.map(vote =>
+                                vote.playerId == roundVotePlayerId(player)
+                                    ? Object.assign({}, vote, {
+                                        playerId: roundVotePlayerId({ name: assignedName, playerKey: player.playerKey })
+                                    }) : vote)
+                        });
+                    }
+                });
+                return next;
+            }, (error, committed, snapshot) => {
+                if (error) {
+                    console.error("Kunne ikke endre spillernavnet.", error);
+                }
+                if (error || !committed) {
+                    resolve({ text: "Kunne ikke endre spillernavnet. Prøv igjen." });
+                    return;
+                }
+                var record = snapshot.val();
+                this.players = PresidentPlayer.deserializePlayers(record.spillere || []);
+                this.hostName = record.hostName || null;
+                if (this.status != "G") {
+                    this.piles = PresidentCard.deserializePiles(record.spillBunke || []);
+                }
+                this.gameEndVote = record.gameEndVote || null;
+                this.roundStartVote = record.roundStartVote || null;
+                this.updatePublicListing();
+                resolve({ player: this.getPlayer(assignedName) });
             }, false);
         });
     }
@@ -4170,6 +4253,7 @@ class PresidentGame extends Game {
                 if (currentGame != joiningGame) { return; }
                 if (result.player) {
                     currentPlayerName = result.player.name;
+                    saveLastUsedPlayerName(currentPlayerName);
                     GameLayout.updateSharedView(currentGame, result.player);
                     GameLayout.updatePlayerView(currentGame, result.player);
                     scheduleBotLoop();
@@ -4197,6 +4281,7 @@ class PresidentGame extends Game {
             if (result.player) {
                 pendingSpectatorJoinName = null;
                 currentPlayerName = result.player.name;
+                saveLastUsedPlayerName(currentPlayerName);
                 GameLayout.updateSharedView(game, result.player);
                 GameLayout.updatePlayerView(game, result.player);
             } else {
@@ -5476,33 +5561,17 @@ class PresidentGame extends Game {
                         document.getElementById('playerNameError').textContent = "Spilleren finnes ikke lenger.";
                         return;
                     }
-                    var isNameTaken = currentGame.players.some(player =>
-                        player !== playerToRename && player.name.toLocaleLowerCase() == requestedName.toLocaleLowerCase()
-                    );
-                    if (isNameTaken) {
-                        document.getElementById('playerNameError').textContent = "Navnet er allerede i bruk.";
+                    var renamingGame = currentGame;
+                    var renameResult = await renamingGame.renamePlayer(playerToRename, requestedName);
+                    if (currentGame != renamingGame) { return; }
+                    if (!renameResult.player) {
+                        document.getElementById('playerNameError').textContent = renameResult.text;
                         return;
                     }
-                    var oldName = playerToRename.name;
-                    if (currentGame.hostName == oldName && currentGame.hostKey == playerToRename.playerKey) {
-                        currentGame.hostName = requestedName;
-                    }
-                    playerToRename.name = requestedName;
-                    currentGame.piles.forEach(pile => {
-                        if (pile instanceof CardPile && pile.name == oldName) {
-                            pile.name = requestedName;
-                        }
-                    });
-                    currentGame.players.forEach(player => {
-                        if (player.lastPlay instanceof CardPile && player.lastPlay.name == oldName) {
-                            player.lastPlay.name = requestedName;
-                        }
-                    });
-                    currentPlayerName = requestedName;
-                    currentGame.save();
+                    currentPlayerName = renameResult.player.name;
                     saveLastUsedPlayerName(currentPlayerName);
-                    GameLayout.updateSharedView(currentGame, playerToRename);
-                    GameLayout.updatePlayerView(currentGame, playerToRename);
+                    GameLayout.updateSharedView(currentGame, renameResult.player);
+                    GameLayout.updatePlayerView(currentGame, renameResult.player);
                     showDialog("SporOmNick", false);
                 } else {
                     var key = getPlayerKey();
