@@ -869,7 +869,8 @@ select:focus-visible {
 }
 
 .card-style-current .card-preview {
-    width: 32px;
+    width: 30px;
+    height: 45px;
     border-radius: 5px;
 }
 
@@ -2006,13 +2007,19 @@ select:focus-visible {
     color: var(--ink);
 }
 
-#homeButton {
-    left: auto;
+.topbar-actions {
+    position: fixed;
+    z-index: 32;
+    top: calc(env(safe-area-inset-top) + 8px);
     right: calc(env(safe-area-inset-right) + 8px);
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-#BnFSpillogg { left: auto; right: calc(env(safe-area-inset-right) + 112px); }
-#BnFRegler { left: auto; right: calc(env(safe-area-inset-right) + 60px); }
+#gameShell .topbar-actions > button {
+    position: static;
+}
 #homeButton[hidden], #BnFSpillogg[hidden], #BnFRegler[hidden] { display: none; }
 #homeButton svg, #BnFSpillogg svg, #BnFRegler svg {
     display: block;

@@ -268,6 +268,37 @@ test("club three glints once per played pause, with a muted loss color and no mo
     assert.deepEqual([...classes], ["club-three-glint", "club-three-glint--loss"]);
 });
 
+test("settings show the localized selected style name alongside its preview", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const { PresidentCard } = loadGame();
+    const label = {};
+    const preview = { replaceChildren(child) { this.child = child; } };
+    const cards = {};
+    const context = vm.createContext({
+        PresidentCard, style: "holo", selectedName: "Holo",
+        GameLayout: { cardStyle: () => context.style, canUseBotanicalStyle: () => true },
+        localizedMessage: text => "Translated " + text,
+        document: {
+            documentElement: { dataset: {} },
+            getElementById: id => id == "cardStyleCurrent" ? preview :
+                (id == "cardStyleCurrentName" ? label : {}),
+            querySelectorAll: () => [],
+            querySelector: () => ({
+                textContent: context.selectedName,
+                parentElement: { querySelector: () => ({ cloneNode: () => cards }) }
+            })
+        }
+    });
+    vm.runInContext(source.slice(source.indexOf("        function updateCardStyleButtons()"),
+        source.indexOf("        updateCardStyleButtons();")), context);
+    for (const name of ["Holo", "Gull", "Pixel Art", "Parallax", "Neon", "Vanlig", "Grønn tåke"]) {
+        context.selectedName = name;
+        context.updateCardStyleButtons();
+        assert.equal(label.textContent, "Translated " + name);
+        assert.equal(preview.child, cards);
+    }
+});
+
 test("rank icons show streaks only for consecutive presidents and boms", () => {
     const { PresidentGame, PresidentPlayer, resultIconForPlacement } = loadGame();
     const players = ["Winner", "Middle", "Last"].map(name => new PresidentPlayer(name, name));
@@ -319,12 +350,42 @@ test("expired result votes keep the vote count without tie hints or stale second
     assert.equal(resolutions, 1);
 });
 
+test("invites generate gameid links and accept both new and legacy links", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const start = source.indexOf("        const inviteParams");
+    const end = source.indexOf("        var GAME_SPEED_MS", start);
+    for (const [search, expected] of [
+        ["?gameid=123", "123"], ["?spillid=456", "456"],
+        ["?gameid=123&spillid=456", "123"], ["?gameid=invalid", null], ["", null]
+    ]) {
+        let joined = null;
+        let invite;
+        let click;
+        const context = vm.createContext({
+            URL, URLSearchParams, currentGame: { id: "789" }, currentPlayerName: "Guest",
+            window: { location: { search } },
+            PresidentGame: class { constructor(id) { this.id = id; } },
+            connectAndPromptForPlayerName() { joined = context.currentGame.id; },
+            showInviteLink(id, url) { invite = { id, url }; },
+            document: {
+                baseURI: "https://playboms.eu/?spillid=456#old",
+                getElementById: () => ({ addEventListener(type, callback) { click = callback; } })
+            }
+        });
+        vm.runInContext(source.slice(start, end), context);
+        assert.equal(joined, expected);
+        context.currentGame = { id: "789" };
+        click();
+        assert.deepEqual(invite, { id: "789", url: "https://playboms.eu/?gameid=789" });
+    }
+});
+
 test("Messenger sharing uses the invitation URL and explains unsupported desktop sharing", async () => {
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
     const start = html.indexOf("            async function shareInviteMessenger()");
     const end = html.indexOf("            function sendInviteSms()", start);
     const status = {};
-    const inviteUrl = "https://playboms.eu/?spillid=123";
+    const inviteUrl = "https://playboms.eu/?gameid=123";
     const context = vm.createContext({
         navigator: { userAgent: "Android" }, window: { location: {} },
         document: { getElementById: id => id == "dialogVisLinkStatus" ? status : { value: inviteUrl } }

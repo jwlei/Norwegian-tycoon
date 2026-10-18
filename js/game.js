@@ -5512,7 +5512,8 @@ class PresidentGame extends Game {
             currentGameSubscription.on('value', currentGameListener);
         }
 
-        const inviteId = new URLSearchParams(window.location.search).get("spillid");
+        const inviteParams = new URLSearchParams(window.location.search);
+        const inviteId = inviteParams.get("gameid") || inviteParams.get("spillid");
         if (inviteId && /^[1-9]\d{0,5}$/.test(inviteId)) {
             currentGame = new PresidentGame(inviteId);
             currentPlayerName = null;
@@ -5521,8 +5522,11 @@ class PresidentGame extends Game {
 
         document.getElementById('BnFInviterSpill').addEventListener('click', function () {
             if (currentGame == null) { throw ('Må lage spill før du inviterer.') }
-            const inviteUrl = `${document.baseURI}?spillid=${currentGame.id}`;
-            showInviteLink(currentGame.id, inviteUrl);
+            const inviteUrl = new URL(document.baseURI);
+            inviteUrl.search = "";
+            inviteUrl.hash = "";
+            inviteUrl.searchParams.set("gameid", currentGame.id);
+            showInviteLink(currentGame.id, inviteUrl.href);
         });
 
         var GAME_SPEED_MS = { fast: TURN_ACTION_PAUSE_MS, normal: 5000, slow: 8000 };
@@ -5560,9 +5564,9 @@ class PresidentGame extends Game {
             var current = document.getElementById("cardStyleCurrent");
             var selected = document.querySelector(`.card-style-option[data-card-style="${style}"] strong`);
             if (current != null && selected != null) {
-                current.replaceChildren(selected.parentElement.querySelector(".card-style-option__cards").cloneNode(true));
+                current.replaceChildren(selected.parentElement.querySelector(".card-preview").cloneNode(true));
                 current.title = localizedMessage(selected.textContent);
-                current.setAttribute("aria-label", current.title);
+                document.getElementById("cardStyleCurrentName").textContent = current.title;
             }
         }
         updateCardStyleButtons();
