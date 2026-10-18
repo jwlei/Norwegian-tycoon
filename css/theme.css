@@ -1885,6 +1885,38 @@ select:focus-visible {
     transform: translateX(18px);
 }
 
+.setting-speed {
+    cursor: default;
+}
+
+.speed-options {
+    display: inline-flex;
+    gap: 4px;
+    flex: 0 0 auto;
+}
+
+.speed-option,
+.speed-option:hover,
+.speed-option:active,
+.speed-option:focus {
+    min-width: 0;
+    padding: 5px 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink);
+    box-shadow: none;
+    transform: none;
+    font-size: 0.85rem;
+    opacity: 0.7;
+}
+
+.speed-option[aria-pressed="true"] {
+    border-color: #39a95f;
+    opacity: 1;
+    font-weight: 700;
+}
+
 @media (min-width: 761px) and (orientation: landscape) {
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);

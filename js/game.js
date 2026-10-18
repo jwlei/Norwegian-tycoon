@@ -4980,11 +4980,32 @@ class PresidentGame extends Game {
             showInviteLink(currentGame.id, inviteUrl);
         });
 
+        var GAME_SPEED_MS = { fast: TURN_ACTION_PAUSE_MS, normal: 5000, slow: 8000 };
+        function currentGameSpeed() {
+            var stored = null;
+            try { stored = localStorage.getItem("gameSpeed"); } catch (error) { }
+            return GAME_SPEED_MS[stored] != null ? stored : "fast";
+        }
+        function updateSpeedButtons() {
+            var speed = currentGameSpeed();
+            document.querySelectorAll(".speed-option").forEach(button => {
+                button.setAttribute("aria-pressed", String(button.dataset.speed == speed));
+            });
+        }
+        document.querySelectorAll(".speed-option").forEach(button => {
+            button.addEventListener("click", function () {
+                try { localStorage.setItem("gameSpeed", button.dataset.speed); } catch (error) { }
+                updateSpeedButtons();
+            });
+        });
+
         function openSettings() {
             var inGame = currentGame != null;
             document.getElementById("autoSuggestionToggleButton").hidden = !inGame;
+            document.querySelector(".setting-speed").hidden = !inGame;
             document.getElementById("settingsGameId").hidden = !inGame;
             updateAutoSuggestionButton();
+            updateSpeedButtons();
             showDialog("Innstillinger", true);
         }
 
