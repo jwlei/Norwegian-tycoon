@@ -363,7 +363,7 @@
     });
 
     var language = detectLanguage();
-    var SKIP = "script, style, [data-i18n-skip], .player-summary__name, .game-over__name, .game-toast__player, [data-player-name]";
+    var SKIP = "script, style, [data-i18n-skip], .player-summary__name, .game-over__name, .game-toast__player";
     var attributeNames = ["title", "aria-label", "placeholder", "alt"];
     var textState = new WeakMap();
     var textNodes = new Set();
