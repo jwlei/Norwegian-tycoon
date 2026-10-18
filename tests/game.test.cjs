@@ -195,8 +195,43 @@ function loadGame(cardStyle = null, globals = {}) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(file === "game.js" ? source.split(/\r?\n\(\r?\n/)[0] : source, context);
     }
-    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement })", context);
+    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors })", context);
 }
+
+test("lobby colors stay distinct and at least 60 degrees apart for humans and bots", () => {
+    const { assignPlayerColors } = loadGame();
+    const checkColors = game => {
+        assignPlayerColors(game);
+        const hues = game.players.map(player => Number(player.displayColor.match(/^hsl\((\d+) 82% 70%\)$/)[1]));
+        assert.equal(new Set(hues).size, game.players.length);
+        for (let i = 0; i < hues.length; i++) {
+            for (let j = i + 1; j < hues.length; j++) {
+                const distance = Math.abs(hues[i] - hues[j]);
+                assert.ok(Math.min(distance, 360 - distance) >= 60);
+            }
+        }
+        return Object.fromEntries(game.players.map(player => [player.name, player.displayColor]));
+    };
+    for (let room = 0; room < 360; room++) {
+        const game = {
+            id: String(room),
+            players: ["Guest", "Guest-1", "Tante_Pose", "ギフテッド"].map((name, index) =>
+                ({ name, playerKey: index < 2 ? "shared-human-key" : "PC" }))
+        };
+        for (let count = 1; count <= 4; count++) {
+            checkColors({ id: game.id, players: game.players.slice(0, count) });
+        }
+        const initial = checkColors(game);
+        game.players.reverse();
+        assert.deepEqual(checkColors(game), initial);
+        const snapshot = { id: game.id, players: game.players.map(({ name, playerKey }) => ({ name, playerKey })) };
+        assert.deepEqual(checkColors(snapshot), initial);
+        game.players[0] = { name: "New arrival", playerKey: "new-key" };
+        checkColors(game);
+        game.players[1].name = "Renamed";
+        checkColors(game);
+    }
+});
 
 test("rank icons show streaks only for consecutive presidents and boms", () => {
     const { PresidentGame, PresidentPlayer, resultIconForPlacement } = loadGame();
