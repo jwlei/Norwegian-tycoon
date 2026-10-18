@@ -3876,6 +3876,8 @@ class PresidentGame extends Game {
         var clearingPauseId = null;
         var gameLogGameId = null;
         var gameLogEntries = [];
+        var gameLogTrickCount = 0;
+        var gameLogNeedsTrickHeader = true;
         var appShell = document.getElementById("gameShell");
         var gameMenuToggle = document.getElementById("BnGameMenuToggle");
         var gameMenu = document.getElementById("gameMenu");
@@ -4211,8 +4213,10 @@ class PresidentGame extends Game {
         }
 
         function resetGameLog(game) {
-            gameLogGameId = game == null ? null : String(game.id);
+            gameLogGameId = game == null ? null : `${game.id}:${game.round ?? 0}`;
             gameLogEntries = [];
+            gameLogTrickCount = 0;
+            gameLogNeedsTrickHeader = true;
             var log = document.getElementById("gameLogEntries");
             if (log == null) { return; }
             log.replaceChildren();
@@ -4225,8 +4229,8 @@ class PresidentGame extends Game {
         }
 
         function ensureGameLog(game) {
-            var gameId = game == null ? null : String(game.id);
-            if (gameLogGameId !== gameId) {
+            var logKey = game == null ? null : `${game.id}:${game.round ?? 0}`;
+            if (gameLogGameId !== logKey) {
                 resetGameLog(game);
             }
         }
@@ -4273,6 +4277,14 @@ class PresidentGame extends Game {
             var emptyMessage = log.querySelector(".game-log__empty");
             if (emptyMessage) { emptyMessage.remove(); }
             var item = document.createElement("div");
+            if (entry.trick != null) {
+                item.className = "game-log__trick";
+                if (animate) { item.classList.add("game-log__entry--enter"); }
+                item.textContent = `Stikk ${entry.trick}`;
+                log.appendChild(item);
+                log.scrollTop = log.scrollHeight;
+                return;
+            }
             item.className = "game-log__entry";
             if (animate) { item.classList.add("game-log__entry--enter"); }
             appendColoredGameMessage(item, entry.message, entry.players);
@@ -4297,7 +4309,7 @@ class PresidentGame extends Game {
             log.scrollTop = log.scrollHeight;
         }
 
-        function showGameToast(message, game, duration = TURN_ACTION_PAUSE_MS, pauseId = null) {
+        function showGameToast(message, game, duration = TURN_ACTION_PAUSE_MS, pauseId = null, endsTrick = false) {
             ensureGameLog(game);
             var toast = document.getElementById("GameToast");
             toast.classList.remove("is-visible");
@@ -4312,10 +4324,19 @@ class PresidentGame extends Game {
                     displayColor: player.displayColor
                 }))
             };
+            var logIsOpen = document.getElementById("dialogSpillogg")
+                .classList.contains("dialog-container--visible");
+            if (gameLogNeedsTrickHeader) {
+                var trickEntry = { trick: ++gameLogTrickCount };
+                gameLogEntries.push(trickEntry);
+                if (logIsOpen) { appendGameLogEntry(trickEntry); }
+                gameLogNeedsTrickHeader = false;
+            }
             gameLogEntries.push(logEntry);
-            if (document.getElementById("dialogSpillogg").classList.contains("dialog-container--visible")) {
+            if (logIsOpen) {
                 appendGameLogEntry(logEntry);
             }
+            if (endsTrick) { gameLogNeedsTrickHeader = true; }
             var progressColors = players.map(player => player.displayColor).filter(Boolean);
             toast.style.setProperty("--toast-duration", `${duration}ms`);
             toast.style.setProperty(
@@ -4420,7 +4441,7 @@ class PresidentGame extends Game {
             if (pause.id != lastShownTurnPauseId) {
                 lastShownTurnPauseId = pause.id;
                 if (delay > 0) {
-                    showGameToast(pause.message, game, delay, pause.id);
+                    showGameToast(pause.message, game, delay, pause.id, pause.kind == "clear");
                 }
             }
             if (delay <= 0 && activeToastPauseId == pause.id) {
