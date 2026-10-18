@@ -1641,6 +1641,21 @@ select:focus-visible {
     transform: translate(-50%, -50%);
 }
 
+.game-toast--leaving {
+    pointer-events: none;
+}
+
+.game-toast--leaving::after {
+    animation: none !important;
+    transform: scaleX(0);
+}
+
+.game-toast--leaving.is-leaving {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% - var(--toast-push, 60px)));
+    transition: opacity 1s ease, transform 1s ease;
+}
+
 .game-toast__player {
     display: inline-block;
     max-width: 100%;
