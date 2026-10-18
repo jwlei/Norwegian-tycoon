@@ -1423,6 +1423,26 @@ select:focus-visible {
     animation: game-log-entry-enter 260ms cubic-bezier(.2,.8,.25,1) both;
 }
 
+.game-log__trick {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.game-log__trick::after {
+    height: 1px;
+    flex: 1 1 auto;
+    background: var(--line);
+    content: "";
+}
+
 .game-log__empty {
     margin: auto;
     color: var(--muted);

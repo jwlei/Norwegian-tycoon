@@ -3920,8 +3920,26 @@ class PresidentGame extends Game {
             showDialog("SporOmNick", true);
         }
 
+        var pendingSpectatorJoinName = null;
+
         function joinRememberedPlayerOrPrompt() {
+            pendingSpectatorJoinName = null;
             var rememberedName = readLastUsedPlayerName();
+            if (currentGame.status == "S" || currentGame.status == "G") {
+                var alreadyPlaying = currentGame.players.some(player =>
+                    player.playerKey == getPlayerKey()
+                );
+                if (!alreadyPlaying) {
+                    // Spectate until the round is over, then join automatically.
+                    pendingSpectatorJoinName = rememberedName != "" ? rememberedName : null;
+                    showGameToast(
+                        "Spillet pågår. Du ser på til neste runde.",
+                        currentGame,
+                        4000
+                    );
+                    return;
+                }
+            }
             if (rememberedName != "") {
                 var result = currentGame.addPlayer(
                     new PresidentPlayer(rememberedName, getPlayerKey())
@@ -3935,6 +3953,23 @@ class PresidentGame extends Game {
                 return;
             }
             promptForPlayerName();
+        }
+
+        function tryJoinWaitingSpectator(game) {
+            if (pendingSpectatorJoinName == null || currentGame != game ||
+                currentPlayerName != null ||
+                (game.status != "O" && game.status != "F")) {
+                return;
+            }
+            var result = game.addPlayer(
+                new PresidentPlayer(pendingSpectatorJoinName, getPlayerKey())
+            );
+            if (result.player) {
+                pendingSpectatorJoinName = null;
+                currentPlayerName = result.player.name;
+                GameLayout.updateSharedView(game, result.player);
+                GameLayout.updatePlayerView(game, result.player);
+            }
         }
 
         function connectAndPromptForPlayerName() {
@@ -4185,6 +4220,7 @@ class PresidentGame extends Game {
             }
             currentGame = null;
             currentPlayerName = null;
+            pendingSpectatorJoinName = null;
             resetGameLog(null);
             GameLayout.updateSharedView(null, null);
             GameLayout.updatePlayerView(null, null);
@@ -4833,6 +4869,7 @@ class PresidentGame extends Game {
                     var storedRules = snapshotRecord["regler"] || {};
                     connectingGame.rules = { showCardsOnly: storedRules["VisKunKort"] };
                     connectingGame.round = snapshotRecord["runde"];
+                    ensureGameLog(connectingGame);
                     connectingGame.roundStarterName = snapshotRecord["roundStarterName"] || null;
                     connectingGame.shuffleStartedAt = snapshotRecord["shuffleStartedAt"] || null;
                     connectingGame.dealTotal = snapshotRecord["dealTotal"] || 0;
@@ -4867,6 +4904,7 @@ class PresidentGame extends Game {
                     handleRoundStartVote(connectingGame);
                     handleGameEndVote(connectingGame);
                     playShuffleIfNew(connectingGame);
+                    tryJoinWaitingSpectator(connectingGame);
                 } else {
                     disconnectGameListener();
                     clearShuffleAnimation();
