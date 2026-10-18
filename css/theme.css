@@ -1741,7 +1741,7 @@ select:focus-visible {
 
 .game-toast.game-toast--leaving {
     position: fixed;
-    z-index: 1000;
+    z-index: 199;
     margin: 0;
     pointer-events: none;
     transform: none;

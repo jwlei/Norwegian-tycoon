@@ -757,6 +757,13 @@ class GameLayout {
             if (pendingAnimations == 0 && !completed) {
                 completed = true;
                 if (onComplete) { onComplete(); }
+                // Cards stay hidden until the table has been re-rendered, so they don't flash back.
+                requestAnimationFrame(function () {
+                    if (table == null) { return; }
+                    table.querySelectorAll(".table-play__card").forEach(card => {
+                        card.style.opacity = "";
+                    });
+                });
             }
         };
         if (table == null ||
@@ -802,7 +809,6 @@ class GameLayout {
             var finishAnimation = function () {
                 if (animationFinished) { return; }
                 animationFinished = true;
-                card.style.opacity = "";
                 flight.remove();
                 pendingAnimations--;
                 completeIfReady();
