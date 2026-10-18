@@ -395,6 +395,11 @@ class GameLayout {
         document.getElementById("homeButton").hidden = game == null;
         document.getElementById("BnFRegler").hidden = game == null;
         document.getElementById("BnFSpillogg").hidden = game == null || game.status == "O";
+        var capacity = document.getElementById("lobbyCapacity");
+        capacity.hidden = game == null || game.status != "O";
+        if (!capacity.hidden) {
+            capacity.textContent = `${MAX_PLAYERS - game.players.length}/${MAX_PLAYERS} plasser ledige`;
+        }
         var waitingCount = game == null ? 0 : Object.keys(game.waitingSpectators || {}).length;
         var waitingLabel = document.getElementById("waitingPlayers");
         waitingLabel.hidden = waitingCount == 0;
@@ -474,12 +479,13 @@ class GameLayout {
         readyButton.hidden = game.status != "O" || localPlayer == null || localPlayer.playerKey == "PC";
         readyButton.textContent = localPlayer && localPlayer.ready ? "Ikke klar" : "Klar";
         readyButton.setAttribute("aria-pressed", String(localPlayer != null && localPlayer.ready === true));
-        startButton.classList.toggle("is-waiting", waitingForPlayers);
+        startButton.classList.toggle("is-waiting",
+            game.status == "O" && (waitingForPlayers || !game.allHumansReady()));
         startButton.disabled = waitingForPlayers;
         switch (game.status) {
             case "O":
-                startButton.textContent = waitingForPlayers ? "Venter på spillere" :
-                    (game.allHumansReady() ? "Start spill" : "Venter på klare spillere");
+                startButton.textContent = waitingForPlayers ? "Venter på flere spillere" :
+                    (game.allHumansReady() ? "Start spill" : "Venter på spillere");
                 startButton.disabled = !isLobbyHost(game) || !game.allHumansReady() || waitingForPlayers;
                 this.setVisible("BnFInviterSpill", true);
                 this.setVisible("BnFKobleSpill", false);
@@ -492,8 +498,6 @@ class GameLayout {
                 if (!lobbyHost) { this.setVisible("BnFNyAutoSpiller_Off", false); }
                 this.setVisible("startGameButton", lobbyHost);
                 this.setVisible("startGameButton_Off", false);
-                this.setVisible("BnFRegler", true);
-                this.setVisible("BnFSpillogg", false);
                 this.setVisible("BnFHovedmeny", false);
                 this.setVisible("BnFResultater", false);
                 break;
@@ -509,8 +513,6 @@ class GameLayout {
                 this.setVisible("BnFNyAutoSpiller_Off", false);
                 this.setVisible("startGameButton", false);
                 this.setVisible("startGameButton_Off", false);
-                this.setVisible("BnFRegler", true);
-                this.setVisible("BnFSpillogg", true);
                 this.setVisible("BnFHovedmeny", false);
                 this.setVisible("BnFResultater", false);
                 break;
@@ -540,8 +542,6 @@ class GameLayout {
                     finishedGameHost && game.roundStartVote == null && game.gameEndVote == null
                 );
                 if (game.gameEndVote != null) { this.setVisible("startGameButton_Off", false); }
-                this.setVisible("BnFRegler", true);
-                this.setVisible("BnFSpillogg", true);
                 this.setVisible("BnFHovedmeny", false);
                 this.setVisible("BnFResultater", true);
                 break;

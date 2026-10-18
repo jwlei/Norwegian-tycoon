@@ -329,6 +329,58 @@ function setupGame() {
     return { game, players, pile };
 }
 
+test("lobby start stays neutral until enough players are present and every human is ready", () => {
+    const elements = new Map();
+    const getElement = id => {
+        if (!elements.has(id)) {
+            const classes = new Set();
+            elements.set(id, {
+                style: {}, setAttribute() {},
+                classList: {
+                    toggle(name, enabled) { if (enabled) { classes.add(name); } else { classes.delete(name); } },
+                    contains: name => classes.has(name)
+                }
+            });
+        }
+        return elements.get(id);
+    };
+    const { GameLayout, PresidentGame, PresidentPlayer } = loadGame(null, {
+        document: { getElementById: getElement }
+    });
+    const host = new PresidentPlayer("Host", "human-key");
+    const guest = new PresidentPlayer("Guest", "guest-key");
+    const bot = new PresidentPlayer("Bot", "PC");
+    const game = Object.assign(Object.create(PresidentGame.prototype), {
+        id: "lobby", status: "O", hostKey: host.playerKey, hostName: host.name,
+        localPlayerName: host.name, players: [host]
+    });
+    host.ready = true;
+    const start = getElement("startGameButton");
+    GameLayout.updateGameButtons(game);
+    assert.equal(start.textContent, "Venter på flere spillere");
+    assert.equal(start.disabled, true);
+    assert.equal(start.classList.contains("is-waiting"), true);
+
+    game.players.push(guest);
+    GameLayout.updateGameButtons(game);
+    assert.equal(start.textContent, "Venter på spillere");
+    assert.equal(start.disabled, true);
+    assert.equal(start.classList.contains("is-waiting"), true);
+
+    guest.ready = true;
+    game.players.push(bot);
+    GameLayout.updateGameButtons(game);
+    assert.equal(start.textContent, "Start spill");
+    assert.equal(start.disabled, false);
+    assert.equal(start.classList.contains("is-waiting"), false);
+
+    host.ready = false;
+    GameLayout.updateGameButtons(game);
+    assert.equal(start.textContent, "Venter på spillere");
+    assert.equal(start.disabled, true);
+    assert.equal(start.classList.contains("is-waiting"), true);
+});
+
 function lobbyWithStoredPlayers(names) {
     const { game, players } = setupGame();
     const { PresidentPlayer } = loadGame();
