@@ -1585,6 +1585,32 @@ select:focus-visible {
     white-space: nowrap;
 }
 
+#autoSuggestionToggleButton {
+    gap: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#autoSuggestionToggleButton::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    box-sizing: border-box;
+}
+
+#autoSuggestionToggleButton[aria-pressed="true"]::before {
+    border-color: #35c46a;
+    background: #35c46a;
+    box-shadow: 0 0 6px rgb(53 196 106 / 70%);
+}
+
+#autoSuggestionToggleButton[aria-pressed="false"] {
+    opacity: 0.72;
+}
+
 @media (min-width: 761px) and (orientation: landscape) {
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);
@@ -2025,17 +2051,6 @@ select:focus-visible {
     overflow-wrap: anywhere;
 }
 
-#gameShell.game-active.Lobby .lobby-wait-hint {
-    align-self: center;
-    color: var(--muted);
-    font-size: 0.78rem;
-    line-height: 1.2;
-}
-
-#gameShell.game-active.Lobby .lobby-wait-hint[hidden] {
-    display: none;
-}
-
 #gameShell.game-active.Lobby > #gameMenu #gameMetadata {
     order: -1;
     width: min(100%, 360px);
@@ -2055,6 +2070,17 @@ select:focus-visible {
 
 #gameShell.game-active.Lobby #startGameButton:hover {
     background: #1c9948;
+}
+
+#gameShell.game-active.Lobby #startGameButton.is-waiting,
+#gameShell.game-active.Lobby #startGameButton.is-waiting:hover {
+    border-color: #c5ad61;
+    background: #d8c783;
+    color: #342a08;
+    box-shadow: none;
+    opacity: 1;
+    cursor: default;
+    transform: none;
 }
 
 #gameShell.game-active.Lobby #gameMenu.waiting-for-players #BnFNyAutoSpiller {
@@ -2161,6 +2187,80 @@ select:focus-visible {
 
 #gameShell.game-active #playerList .player-summary__turn {
     background: #17803d;
+}
+
+.shuffle-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    background: rgb(0 0 0 / 38%);
+    transition: background-color 0.4s ease;
+}
+
+.shuffle-overlay--clear {
+    background-color: transparent;
+}
+
+.shuffle-stack {
+    position: relative;
+    width: clamp(70px, 16vmin, 110px);
+    aspect-ratio: 5 / 7;
+}
+
+.shuffle-card {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    box-shadow: 0 3px 10px rgb(0 0 0 / 35%);
+    animation: shuffle-card-riffle 0.62s ease-in-out infinite;
+    animation-delay: calc(var(--shuffle-index) * 0.07s);
+}
+
+.shuffle-label {
+    color: #fff;
+    font-weight: 750;
+    text-shadow: 0 2px 8px rgb(0 0 0 / 60%);
+}
+
+@keyframes shuffle-card-riffle {
+    0%, 100% { transform: translateX(0) rotate(0deg); }
+    25% { transform: translateX(calc(-1 * clamp(30px, 8vmin, 60px))) rotate(-8deg); }
+    75% { transform: translateX(clamp(30px, 8vmin, 60px)) rotate(8deg); }
+}
+
+#gameShell.game-active #playerList .player-summary--starter-flash {
+    z-index: 450;
+    animation: starter-flash 0.5s ease-in-out 5;
+}
+
+@keyframes starter-flash {
+    0%, 100% {
+        border-color: #35c46a;
+        background: rgb(31 145 68 / 25%);
+        box-shadow: inset 4px 0 #35c46a;
+    }
+    50% {
+        border-color: #7dffa8;
+        background: rgb(53 196 106 / 80%);
+        box-shadow: inset 4px 0 #7dffa8, 0 0 22px rgb(53 196 106 / 90%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .shuffle-card,
+    #gameShell.game-active #playerList .player-summary--starter-flash {
+        animation: none;
+    }
+
+    .shuffle-card:nth-child(odd) { transform: rotate(-5deg); }
+    .shuffle-card:nth-child(even) { transform: rotate(5deg); }
 }
 
 #gameShell.game-active #playerList .player-summary--passed .player-summary__turn {
