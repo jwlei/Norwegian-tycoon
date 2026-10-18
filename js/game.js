@@ -1556,7 +1556,8 @@ class GameLayout {
             Array.from(selectedCardKeys).join(","),
             selectedCardStrength,
             Array.from(autoSuggestedCardKeys).join(","),
-            autoSuggestPlayableCards ? 1 : 0
+            autoSuggestPlayableCards ? 1 : 0,
+            GameLayout.cardStyle()
         ].join(";");
     }
     static updatePlayerButtons(game, player) {
