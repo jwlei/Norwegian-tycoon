@@ -191,7 +191,7 @@ function loadGame(cardStyle = null, globals = {}) {
         console, getCookie: () => null, getPlayerKey: () => "human-key", setTimeout: () => 0,
         localStorage: { getItem: () => cardStyle }, ...globals
     });
-    for (const file of ["cards.js", "player.js", "game.js"]) {
+    for (const file of ["cards.js", "player.js", "bot.js", "game.js"]) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(file === "game.js" ? source.split(/\r?\n\(\r?\n/)[0] : source, context);
     }

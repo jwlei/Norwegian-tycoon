@@ -2667,6 +2667,7 @@ class PresidentPlayer extends Player {
         this.bomsStreak = 0;
         this.lastPlacement = 0;
         this.gaveUp = false;
+        this.botSkill = playerKey == "PC" ? "good" : null;
     }
     toRecord() {
         var result = super.toRecord();
@@ -2675,6 +2676,7 @@ class PresidentPlayer extends Player {
         result["presidentStreak"] = this.presidentStreak;
         result["bomsStreak"] = this.bomsStreak;
         result["lastPlacement"] = this.lastPlacement;
+        if (this.playerKey == "PC") { result.botSkill = BotAI.skill(this.botSkill); }
         if (this.gaveUp === true) {
             result["gaveUp"] = true;
         }
@@ -2700,6 +2702,7 @@ class PresidentPlayer extends Player {
             ? record["lastPlacement"]
             : 0;
         this.gaveUp = record["gaveUp"] === true;
+        this.botSkill = this.playerKey == "PC" ? BotAI.skill(record.botSkill) : null;
         this.leaveAfterExchange = record["leaveAfterExchange"] === true;
         return this;
     }
@@ -2740,6 +2743,7 @@ class PresidentGame extends Game {
         this.gameEndVote = null;
         this.roundStarterName = null;
         this.shuffleStartedAt = null;
+        this.playedCards = [];
         this.shufflePlayerOrder = false;
         this.preservePlayerOrderOnStart = false;
         this.endGameVoteResolvedForStart = false;
@@ -2821,6 +2825,7 @@ class PresidentGame extends Game {
             "turnPause": this.turnPause,
             "roundStarterName": this.roundStarterName,
             "shuffleStartedAt": this.shuffleStartedAt,
+            "playedCards": this.playedCards || [],
             "dealTotal": this.dealTotal ?? null,
             "dealStarterStep": this.dealStarterStep ?? null,
             "hostKey": this.hostKey,
@@ -3059,6 +3064,7 @@ class PresidentGame extends Game {
     }
     resetForRound() {
         super.resetForRound();
+        this.playedCards = [];
         this.players.forEach(player => {
             player.presidentStreak = 0;
             player.bomsStreak = 0;
@@ -3093,6 +3099,7 @@ class PresidentGame extends Game {
         this.turn = -1;
         this.turnPause = null;
         this.piles = [];
+        this.playedCards = [];
         this.roundStartVote = null;
         this.gameEndVote = null;
         this.roundStarterName = null;
@@ -3171,6 +3178,7 @@ class PresidentGame extends Game {
                     next.preservePlayerOrderOnStart = false;
                 }
                 next.status = "O";
+                next.playedCards = [];
                 if (incomingPlayer.playerKey != "PC" &&
                     (next.hostKey == null || (next.hostName == null && next.hostKey == incomingPlayer.playerKey))) {
                     next.hostKey = incomingPlayer.playerKey;
@@ -3576,6 +3584,7 @@ class PresidentGame extends Game {
         }
     }
     prepareRound() {
+        this.playedCards = [];
         // Build a fresh deck.
         var deck = new CardDeck();
         for (let i = this.deckCount(); i > 0; i--) {
@@ -4103,6 +4112,9 @@ class PresidentGame extends Game {
             player.cards.splice(i, 1);
         });
         player.lastPlay = pile;
+        this.playedCards = (this.playedCards || []).concat(pile.map(card => ({
+            suit: card.suit, rank: card.rank
+        })));
         this.piles.push(pile);
         var now = Date.now();
         this.turnPause = {
@@ -5455,6 +5467,7 @@ class PresidentGame extends Game {
                     ensureGameLog(connectingGame);
                     connectingGame.roundStarterName = snapshotRecord["roundStarterName"] || null;
                     connectingGame.shuffleStartedAt = snapshotRecord["shuffleStartedAt"] || null;
+                    connectingGame.playedCards = snapshotRecord["playedCards"] || [];
                     connectingGame.dealTotal = snapshotRecord["dealTotal"] || 0;
                     connectingGame.dealStarterStep = snapshotRecord["dealStarterStep"] ?? null;
                     connectingGame.roundStartVote = snapshotRecord["roundStartVote"] || null;
@@ -5880,7 +5893,7 @@ class PresidentGame extends Game {
     }
 )();
 
-function playBotTurn(game, player, entireRound = false) {
+function playBotTurn(game, player, random = Math.random) {
     if (game.status == "S" && game.isTurnPaused()) { return; }
     if (game.status == "G") {
         game.piles.slice().filter(exchange =>
@@ -5908,12 +5921,12 @@ function playBotTurn(game, player, entireRound = false) {
                     availableCards = availableCards.filter(card =>
                         isCardAllowedForExchange(exchange, card)
                     );
+                } else {
+                    availableCards = availableCards.filter(card => !card.isClubThree());
                 }
-                availableCards.sort((a, b) => a.strengthRank - b.strengthRank || a.suit - b.suit);
-                if (availableCards.length < exchange.count) {
-                    throw ("Datamaskinen har ikke nok gyldige kort til byttet.");
-                }
-                exchange.cards = availableCards.slice(0, exchange.count);
+                exchange.cards = BotAI.chooseExchange(
+                    player.cards, availableCards, exchange.count, player.botSkill, random
+                );
                 game.giveExchangeCards(exchange);
             });
         }
@@ -5926,30 +5939,10 @@ function playBotTurn(game, player, entireRound = false) {
         }
     }
     if (game.status == "S" && player.turn == 1 && player.placement == 0) {
-        var pile = null;
-        if (game.piles.length == 0) {
-            player.cards.forEach(cards => {
-                cards._count = player.cards.filter(k => (k.strengthRank == cards.strengthRank)).length;
-            });
-            const selectedRank = player.cards.sort((a, b) => (b._count - a._count))[0].strengthRank;
-            pile = new CardPile(player.name);
-            player.cards.filter(k => (k.strengthRank == selectedRank)).forEach(cards => {
-                pile.push(cards);
-            })
-        } else {
-            player.cards.filter(cards =>
-                game.canPlayRank(player, cards.strengthRank) &&
-                !(cards.isClubThree() && player.cards.length == 1) // Never finish on the club three.
-            ).forEach(cards => {
-                if (pile == null || cards.strengthRank < pile.strengthRank) {
-                    pile = new CardPile(player.name, cards);
-                } else if (cards.strengthRank == pile.strengthRank &&
-                    (pile.length < (hasFourOfKindOnTop(game) ? 4 : game.topPile().length))) {
-                    pile.push(cards);
-                }
-            })
-        }
-        if (pile != null) {
+        var cards = BotAI.chooseMove(BotAI.observe(game, player), player.botSkill, random);
+        if (cards != null) {
+            var pile = new CardPile(player.name);
+            cards.forEach(card => pile.push(card));
             game.playCards(player, pile);
         } else {
             game.passTurn(player);
