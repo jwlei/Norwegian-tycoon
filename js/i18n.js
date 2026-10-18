@@ -71,7 +71,7 @@
         "Vanlig": "Normal",
         "Sakte": "Slow",
         "Språk": "Language",
-        "Kortstiler": "Card styles",
+        "Kortstil": "Card style",
         "Bare for dine egne kort": "Only for your own cards",
         "Holo": "Holo",
         "Gull": "Gold",
