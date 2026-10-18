@@ -1912,33 +1912,46 @@ select:focus-visible {
 }
 
 .setting-speed {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
     cursor: default;
 }
 
 .speed-options {
-    display: inline-flex;
-    gap: 4px;
-    flex: 0 0 auto;
+    display: flex;
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 10px;
 }
 
 .speed-option,
 .speed-option:hover,
 .speed-option:active,
 .speed-option:focus {
+    flex: 1 1 0;
     min-width: 0;
-    padding: 5px 10px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
+    margin: 0;
+    padding: 8px 6px;
+    border: 0;
+    border-radius: 0;
     background: transparent;
     color: var(--ink);
     box-shadow: none;
     transform: none;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     opacity: 0.7;
 }
 
-.speed-option[aria-pressed="true"] {
-    border-color: #39a95f;
+.speed-option + .speed-option {
+    border-left: 1px solid var(--line);
+}
+
+.speed-option[aria-pressed="true"],
+.speed-option[aria-pressed="true"]:hover {
+    background: rgb(53 196 106 / 18%);
+    box-shadow: inset 0 -3px 0 #35c46a;
     opacity: 1;
     font-weight: 700;
 }
