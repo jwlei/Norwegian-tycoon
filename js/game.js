@@ -385,7 +385,7 @@ class GameLayout {
     static updateMainMenu() {
         this.setVisible("BnHNySpill", true);
         this.setVisible("BnHKobleSpill", true);
-        this.setVisible("autoSuggestionToggleButton", false);
+        this.setVisible("BnFInnstillinger", true);
     }
     static updateGameButtons(game) {
         this.el("gameIdDisplay").innerHTML = game.id;
@@ -398,7 +398,6 @@ class GameLayout {
             case "O":
                 startButton.textContent = waitingForPlayers ? "Venter på spillere" : "Start spill";
                 this.setVisible("BnFInviterSpill", true);
-                this.setVisible("autoSuggestionToggleButton", false);
                 this.setVisible("BnFKobleSpill", true);
                 var lobbyHost = isLobbyHost(game);
                 this.setVisible("BnFNyAutoSpiller", lobbyHost);
@@ -416,7 +415,6 @@ class GameLayout {
             case "S":
             case "G":
                 this.setVisible("BnFInviterSpill", false);
-                this.setVisible("autoSuggestionToggleButton", true);
                 updateAutoSuggestionButton();
                 this.setVisible("BnFKobleSpill", false);
                 this.setVisible("BnFNyAutoSpiller", false);
@@ -437,7 +435,6 @@ class GameLayout {
                         ? "Avstemning pågår"
                         : "Start ny runde";
                 this.setVisible("BnFInviterSpill", game.gameEndVote == null);
-                this.setVisible("autoSuggestionToggleButton", false);
                 this.setVisible("BnFKobleSpill", false);
                 var finishedGameHost = isLobbyHost(game);
                 this.el("BnFNyAutoSpiller").classList.remove("is-full");
@@ -4879,6 +4876,11 @@ class PresidentGame extends Game {
             if (currentGame == null) { throw ('Må lage spill før du inviterer.') }
             const inviteUrl = `${document.baseURI}?spillid=${currentGame.id}`;
             showInviteLink(currentGame.id, inviteUrl);
+        });
+
+        document.getElementById("BnFInnstillinger").addEventListener("click", function () {
+            updateAutoSuggestionButton();
+            showDialog("Innstillinger", true);
         });
 
         document.getElementById("autoSuggestionToggleButton").addEventListener(

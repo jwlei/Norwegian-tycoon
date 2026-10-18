@@ -1678,12 +1678,12 @@ select:focus-visible {
     animation: game-surface-enter 420ms 95ms cubic-bezier(.2,.8,.25,1) both;
 }
 
-#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > :not(#BnFInviterSpill):not(#autoSuggestionToggleButton):not(#BnFRegler):not(#BnFSpillogg):not(#BnPGiOpp) {
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > :not(#BnFInnstillinger):not(#BnFInviterSpill):not(#BnFRegler):not(#BnFSpillogg):not(#BnPGiOpp) {
     display: none !important;
 }
 
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInnstillinger,
 #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInviterSpill,
-#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #autoSuggestionToggleButton,
 #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFRegler,
 #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFSpillogg,
 #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnPGiOpp {
@@ -1700,38 +1700,95 @@ select:focus-visible {
     white-space: nowrap;
 }
 
-#autoSuggestionToggleButton {
-    flex-direction: column;
-    gap: 4px;
-    overflow: hidden;
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu {
+    padding-inline: 52px;
 }
 
-#autoSuggestionToggleButton .auto-suggest-label {
-    display: block;
-    min-width: 0;
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInnstillinger {
+    position: absolute;
+    top: 50%;
+    left: 8px;
+    width: 38px;
+    min-width: 38px;
+    padding: 0;
+    transform: translateY(-50%);
+}
+
+#BnFInnstillinger {
+    align-items: center;
+    justify-content: center;
+}
+
+#BnFInnstillinger .settings-gear {
+    width: 1.5em;
+    height: 1.5em;
+    min-width: 18px;
+    min-height: 18px;
+    transition: transform 300ms ease;
+}
+
+#BnFInnstillinger:hover .settings-gear {
+    transform: rotate(60deg);
+}
+
+.settings-list {
+    display: grid;
+    gap: 8px;
+}
+
+.setting-row {
+    display: flex;
+    width: 100%;
     max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 14px;
+    background: var(--surface-soft);
+    color: var(--ink);
+    text-align: left;
 }
 
-#autoSuggestionToggleButton::after {
-    content: "";
-    flex: 0 0 auto;
-    width: 20px;
-    height: 3px;
-    border-radius: 2px;
+.setting-row__text {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.setting-row__text small {
+    color: var(--muted);
+    font-weight: 500;
+}
+
+.setting-row__switch {
+    position: relative;
+    flex: 0 0 40px;
+    width: 40px;
+    height: 22px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    opacity: 0.6;
+}
+
+.setting-row__switch > span {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
     background: currentColor;
-    opacity: 0.45;
+    transition: transform 160ms ease, background-color 160ms ease;
 }
 
-#autoSuggestionToggleButton[aria-pressed="true"]::after {
-    background: #35c46a;
-    box-shadow: 0 0 6px rgb(53 196 106 / 70%);
+.setting-row[aria-pressed="true"] .setting-row__switch {
+    border-color: #39a95f;
     opacity: 1;
 }
 
-#autoSuggestionToggleButton[aria-pressed="false"] {
-    opacity: 0.72;
+.setting-row[aria-pressed="true"] .setting-row__switch > span {
+    background: #35c46a;
+    transform: translateX(18px);
 }
 
 @media (min-width: 761px) and (orientation: landscape) {
@@ -2608,8 +2665,8 @@ select:focus-visible {
         height: var(--shell-hand-card-height);
     }
 
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInnstillinger,
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInviterSpill,
-    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #autoSuggestionToggleButton,
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFRegler,
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFSpillogg,
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnPGiOpp {
