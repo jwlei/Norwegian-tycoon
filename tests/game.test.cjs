@@ -195,8 +195,92 @@ function loadGame(cardStyle = null, globals = {}) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(file === "game.js" ? source.split(/\r?\n\(\r?\n/)[0] : source, context);
     }
-    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors })", context);
+    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage })", context);
 }
+
+test("a gift requires the same owner on the first and fourth consecutive singles", () => {
+    const { CardPile, PresidentCard, isGiftPackage } = loadGame();
+    const single = (name, suit) => new CardPile(name, new PresidentCard(suit, 5));
+    const piles = [single("A", 1), single("B", 2), single("C", 3), single("A", 4)];
+    assert.equal(isGiftPackage(piles), true);
+    assert.equal(isGiftPackage(piles.slice(0, 3)), false);
+    piles[3].name = "B";
+    assert.equal(isGiftPackage(piles), false);
+    piles[3].name = "A";
+    piles[1] = new CardPile("B", new PresidentCard(2, 5), new PresidentCard(3, 5));
+    assert.equal(isGiftPackage(piles), false);
+});
+
+test("exchange rendering waits for the exact shuffle deadline", () => {
+    let now = 1000;
+    const elements = new Map();
+    const { GameLayout } = loadGame(null, {
+        Date: { now: () => now },
+        document: { getElementById(id) {
+            if (!elements.has(id)) { elements.set(id, { replaceChildren() { this.cleared = true; } }); }
+            return elements.get(id);
+        } }
+    });
+    const game = { status: "G", shuffleStartedAt: 1000 };
+    assert.equal(GameLayout.isShufflingExchange(game), true);
+    GameLayout.updateTable(game, null);
+    assert.equal(elements.get("gameTable").cleared, true);
+    now = 4499;
+    assert.equal(GameLayout.isShufflingExchange(game), true);
+    now = 4500;
+    assert.equal(GameLayout.isShufflingExchange(game), false);
+    game.status = "S";
+    now = 1000;
+    assert.equal(GameLayout.isShufflingExchange(game), false);
+});
+
+test("the gift toast survives the transition from the fourth single to a cleared pile", () => {
+    const { game, players } = setupGame();
+    const { PresidentCard, CardPile } = loadGame();
+    game.save = () => {};
+    players.forEach(player => { player.cards = [new PresidentCard(1, 8), new PresidentCard(2, 9)]; });
+    game.piles = [0, 1, 2].map((index) =>
+        new CardPile(players[index].name, new PresidentCard(index + 1, 5)));
+    const fourth = new PresidentCard(4, 5);
+    players[0].cards.push(fourth);
+    game.setTurn(0);
+    game.playCards(players[0], new CardPile(players[0].name, fourth));
+    assert.equal(game.turnPause.kind, "clear");
+    assert.equal(game.turnPause.extraMessage, "Oi, oi.. gavepakke!");
+    assert.equal(game.turnPause.clearedPiles.length, 4);
+});
+
+test("shuffle completion renders the exchange before announcing the starter", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const events = [];
+    let tick;
+    let now = 1000;
+    const element = () => ({
+        style: { setProperty() {} }, setAttribute() {}, append() {}, appendChild() {},
+        classList: { add() {} }
+    });
+    const game = { status: "G", shuffleStartedAt: 1000 };
+    const context = vm.createContext({
+        currentGame: game, Date: { now: () => now }, SHUFFLE_DURATION_MS: 3500,
+        shuffleEndsAt: 0, shuffleTicker: null,
+        clearShuffleAnimation: () => events.push("clear"),
+        refreshAfterTurnPause: () => events.push("render"),
+        dealCardsIntoHand: () => events.push("deal"),
+        flashRoundStarter: () => events.push("starter"),
+        setInterval: callback => { tick = callback; return 1; },
+        document: { createElement: element, getElementById: () => element(), body: { appendChild() {} } }
+    });
+    vm.runInContext(source.slice(source.indexOf("        function playShuffleAnimation("),
+        source.indexOf("        function playShuffleIfNew(")), context);
+    context.playShuffleAnimation(game);
+    assert.deepEqual(events, ["clear"]);
+    now = 4499;
+    tick();
+    assert.deepEqual(events, ["clear"]);
+    now = 4500;
+    tick();
+    assert.deepEqual(events, ["clear", "clear", "render", "deal", "starter"]);
+});
 
 test("the log resets for a new deal, not for cleared tricks or repeated snapshots", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");

@@ -182,6 +182,7 @@
         "Ingen hendelser ennå.": "No events yet.",
         "Spillet pågår. Du ser på til neste runde.": "The game is in progress. You are watching until the next round.",
         "Du begynner": "You start",
+        "Oi, oi.. gavepakke!": "Oh, wow.. a gift!",
         "ett kort": "one card",
         "1 kort": "1 card",
         "1 bytte gjenstår": "1 exchange remaining",

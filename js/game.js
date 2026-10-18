@@ -156,6 +156,17 @@ const BOT_NAMES = [
 ];
 const TURN_ACTION_PAUSE_MS = 3000;
 const BOT_ACTION_DELAY_MS = TURN_ACTION_PAUSE_MS;
+const SHUFFLE_DURATION_MS = 3500;
+
+function isGiftPackage(piles) {
+    if (piles.length < 4) { return false; }
+    var singles = piles.slice(-4);
+    var rank = singles[0].strengthRank;
+    return rank != PresidentCard.clubThreePower() &&
+        singles.every(pile => pile.length == 1 && pile.strengthRank == rank) &&
+        singles[0].name == singles[3].name &&
+        (piles.length == 4 || piles[piles.length - 5].strengthRank != rank);
+}
 
 function resultIconForPlacement(game, placement, player = null) {
     if (placement == 1) {
@@ -316,6 +327,10 @@ function startCardHandInertia(element, velocity) {
 }
 
 class GameLayout {
+    static isShufflingExchange(game) {
+        return game != null && game.status == "G" && game.shuffleStartedAt != null &&
+            Date.now() < game.shuffleStartedAt + SHUFFLE_DURATION_MS;
+    }
     static fitName(name) {
         name.style.fontSize = "";
         var size = parseFloat(getComputedStyle(name).fontSize);
@@ -1027,6 +1042,12 @@ class GameLayout {
     }
     static updateTable(game, player, existingPileSignatures = new Set(), playOrigins = null) {
         document.getElementById("exchangePrompt").textContent = "";
+        if (this.isShufflingExchange(game)) {
+            var waitingTable = document.getElementById("gameTable");
+            waitingTable.className = "table-explanation";
+            waitingTable.replaceChildren();
+            return;
+        }
         GameLayout.viewerName = player != null ? player.name : null;
         var table = document.getElementById("gameTable");
         var pauseId = game.turnPause ? `${game.id}:${game.turnPause.id}` : null;
@@ -1651,8 +1672,9 @@ class GameLayout {
     static updatePlayerView(game, player) {
         setClass(document.getElementById("gameShell"), "spectator-mode", (player == null));
         setClass(document.getElementById("gameShell"), "cards-only-mode", (game != null && game.rules.showCardsOnly && player != null));
-        this.updatePlayerButtons(game, player);
-        this.updateHand(game, player, null, true);
+        var waitingForShuffle = this.isShufflingExchange(game);
+        this.updatePlayerButtons(waitingForShuffle ? null : game, waitingForShuffle ? null : player);
+        this.updateHand(waitingForShuffle ? null : game, waitingForShuffle ? null : player, null, true);
     }
     // Describes everything the hand rendering depends on during play, so an
     // unchanged hand can be kept in the DOM across snapshots. Null means "always rebuild".
@@ -4132,6 +4154,9 @@ class PresidentGame extends Game {
                 cards: PresidentCard.serializeDeck(pile)
             }
         };
+        if (isGiftPackage(this.piles)) {
+            this.turnPause.extraMessage = "Oi, oi.. gavepakke!";
+        }
         if (player.cards.length == 0) {
             if (pile.strengthRank == PresidentCard.clubThreePower()) {
                 // Playing the club three as the final card is a loss.
@@ -4233,6 +4258,7 @@ class PresidentGame extends Game {
                     ? `${clearedPile.name}: ${info.text}! Starter igjen.`
                     : `${clearedPile.name}: ${info.text}! ${nextPlayer.name} starter.`);
             var placementMessage = this.turnPause && this.turnPause.placementMessage;
+            var extraMessage = this.turnPause && this.turnPause.extraMessage;
             this.turnPause = {
                 id: `${now}-${Math.random().toString(36).slice(2)}`,
                 kind: "clear",
@@ -4241,6 +4267,7 @@ class PresidentGame extends Game {
                 clearedPiles: clearedPiles,
                 playedPile: playedPile
             };
+            if (extraMessage) { this.turnPause.extraMessage = extraMessage; }
             if (passedPlayers.length > 0) {
                 this.turnPause.passedPlayers = passedPlayers;
             }
@@ -4473,7 +4500,6 @@ class PresidentGame extends Game {
             GameLayout.updateHand(currentGame, player);
         }
 
-        var SHUFFLE_DURATION_MS = 3500;
         var STARTER_FLASH_DURATION_MS = 2500;
         var STARTER_FLASH_DURATION_MS = 1900;
         var lastShuffleStartedAt = null;
@@ -4548,7 +4574,6 @@ class PresidentGame extends Game {
         function playShuffleAnimation(game) {
             clearShuffleAnimation();
             var startedAt = game.shuffleStartedAt;
-            var flashAtEnd = game.dealStarterStep != null;
             var overlay = document.createElement("div");
             overlay.id = "shuffleOverlay";
             overlay.className = "shuffle-overlay";
@@ -4571,8 +4596,6 @@ class PresidentGame extends Game {
             var hand = document.getElementById("playerHand");
             if (hand != null) { hand.classList.add("is-dealing-wait"); }
             shuffleEndsAt = startedAt + SHUFFLE_DURATION_MS;
-            // Boms starts the later rounds, so that flash can begin right away.
-            if (!flashAtEnd) { flashRoundStarter(); }
             shuffleTicker = setInterval(function () {
                 if (currentGame != game) {
                     clearShuffleAnimation();
@@ -4580,8 +4603,9 @@ class PresidentGame extends Game {
                 }
                 if (Date.now() - startedAt >= SHUFFLE_DURATION_MS) {
                     clearShuffleAnimation(true);
+                    refreshAfterTurnPause(game);
                     dealCardsIntoHand();
-                    if (flashAtEnd) { flashRoundStarter(); }
+                    flashRoundStarter();
                 }
             }, 40);
         }
@@ -4591,7 +4615,7 @@ class PresidentGame extends Game {
                 game.shuffleStartedAt == lastShuffleStartedAt) { return; }
             lastShuffleStartedAt = game.shuffleStartedAt;
             var elapsed = Math.max(0, Date.now() - game.shuffleStartedAt);
-            if (elapsed < SHUFFLE_DURATION_MS - 500) {
+            if (elapsed < SHUFFLE_DURATION_MS) {
                 playShuffleAnimation(game);
             }
         }
@@ -5047,6 +5071,9 @@ class PresidentGame extends Game {
                         ? Math.min(delay, GAME_SPEED_MS.fast)
                         : GAME_SPEED_MS[currentGameSpeed()];
                     showGameToast(pause.message, game, duration, pause.id, pause.kind == "clear");
+                    if (pause.extraMessage) {
+                        showGameToast(pause.extraMessage, game, duration, pause.id);
+                    }
                     if (currentGameSpeed() == "fast") {
                         gameToastExpiresAt = Math.min(gameToastExpiresAt, pause.until);
                     }
