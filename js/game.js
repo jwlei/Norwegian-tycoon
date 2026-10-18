@@ -8,7 +8,8 @@ var autoSuggestPlayableCards = getCookie("AutoSuggestPlayableCards") != "false";
 var autoScrollEmptyTurnKey = null;
 var recentlyReceivedCards = { owner: null, keys: new Set(), timer: null };
 var suppressNextCardClick = false;
-
+const PUBLIC_LOBBY_PATH = "boms_public";
+const PUBLIC_LOBBY_MAX_AGE_MS = 2 * 60 * 60 * 1000;
 function markReceivedCards(owner, cards) {
     if (recentlyReceivedCards.timer != null) { clearTimeout(recentlyReceivedCards.timer); }
     recentlyReceivedCards.owner = owner;
@@ -2609,9 +2610,10 @@ class PresidentPlayer extends Player {
 }
 
 class PresidentGame extends Game {
-    constructor(id = null) {
+    constructor(id = null, isPublic = false) {
         super(id);
         this.debug = true;
+        this.isPublic = isPublic === true;
         this.turnPause = null;
         this.roundStartVote = null;
         this.gameEndVote = null;
@@ -2684,11 +2686,34 @@ class PresidentGame extends Game {
             "dealTotal": this.dealTotal ?? null,
             "dealStarterStep": this.dealStarterStep ?? null,
             "hostKey": this.hostKey,
+            "isPublic": this.isPublic === true,
             "preservePlayerOrderOnStart": this.preservePlayerOrderOnStart,
             ts: new Date()
         }).catch(error => {
             console.error("Kunne ikke lagre spillet.", error);
         });
+        this.updatePublicListing();
+    }
+    updatePublicListing() {
+        var listingRef = firebase.database().ref(`${PUBLIC_LOBBY_PATH}/${this.id}`);
+        var humans = (this.players || []).filter(player => player.playerKey != "PC");
+        var joinable = this.isPublic === true && this.status == "O" &&
+            humans.length > 0 && this.players.length < MAX_PLAYERS;
+        if (!joinable) {
+            listingRef.remove().catch(() => { });
+            return;
+        }
+        listingRef.set({
+            id: this.id,
+            host: humans[0].name,
+            players: this.players.length,
+            ts: Date.now()
+        }).catch(error => {
+            console.error("Kunne ikke oppdatere offentlig lobby.", error);
+        });
+        if (isLobbyHost(this)) {
+            listingRef.onDisconnect().remove();
+        }
     }
     finishGame() {
         var finished = super.finishGame();
@@ -4065,8 +4090,8 @@ class PresidentGame extends Game {
             }
         }
 
-        function startNewGame() {
-            currentGame = new PresidentGame();
+        function startNewGame(isPublic = false) {
+            currentGame = new PresidentGame(null, isPublic === true);
             currentPlayerName = null;
             resetGameLog(currentGame);
             connectAndPromptForPlayerName();
@@ -4604,7 +4629,89 @@ class PresidentGame extends Game {
             }
         });
 
-        document.getElementById('BnHNySpill').addEventListener('click', startNewGame);
+        document.getElementById('BnHNySpill').addEventListener('click', function () {
+            document.getElementById("dialogNyttSpillPrivat").checked = true;
+            showDialog("NyttSpill", true);
+        });
+
+        document.getElementById('dialogNyttSpillOk').addEventListener('click', function () {
+            var isPublic = document.getElementById("dialogNyttSpillOffentlig").checked;
+            showDialog("NyttSpill", false);
+            startNewGame(isPublic);
+        });
+
+        var publicLobbies = [];
+
+        function joinableLobbies() {
+            var oldest = Date.now() - PUBLIC_LOBBY_MAX_AGE_MS;
+            return publicLobbies.filter(lobby =>
+                lobby.ts > oldest && lobby.players < MAX_PLAYERS
+            );
+        }
+
+        function renderPublicLobbies() {
+            var list = document.getElementById("publicLobbyList");
+            var randomButton = document.getElementById("BnHTilfeldigLobby");
+            var lobbies = joinableLobbies();
+            randomButton.disabled = lobbies.length == 0;
+            list.innerHTML = "";
+            var heading = document.createElement("div");
+            heading.className = "public-lobby-heading";
+            heading.textContent = "Åpne lobbyer";
+            list.appendChild(heading);
+            if (lobbies.length == 0) {
+                var empty = document.createElement("div");
+                empty.className = "public-lobby-empty";
+                empty.textContent = "Ingen åpne lobbyer akkurat nå";
+                list.appendChild(empty);
+                return;
+            }
+            lobbies.forEach(lobby => {
+                var button = document.createElement("button");
+                button.type = "button";
+                button.className = "public-lobby-entry";
+                button.textContent = `${lobby.host} · ${lobby.players}/${MAX_PLAYERS} spillere`;
+                button.addEventListener("click", function () {
+                    joinGameById(lobby.id, showPublicLobbyError);
+                });
+                list.appendChild(button);
+            });
+        }
+
+        function showPublicLobbyError(text) {
+            var error = document.getElementById("publicLobbyError");
+            error.textContent = text;
+        }
+
+        firebase.database().ref(PUBLIC_LOBBY_PATH).on("value", function (snapshot) {
+            publicLobbies = [];
+            snapshot.forEach(child => {
+                var lobby = child.val();
+                if (lobby != null && lobby.id != null && typeof lobby.host == "string") {
+                    publicLobbies.push({
+                        id: String(lobby.id),
+                        host: lobby.host,
+                        players: Number(lobby.players) || 0,
+                        ts: Number(lobby.ts) || 0
+                    });
+                }
+            });
+            publicLobbies.sort((a, b) => b.ts - a.ts);
+            renderPublicLobbies();
+        }, function (error) {
+            console.error("Kunne ikke hente offentlige lobbyer.", error);
+        });
+        renderPublicLobbies();
+
+        document.getElementById("BnHTilfeldigLobby").addEventListener("click", function () {
+            var lobbies = joinableLobbies();
+            if (lobbies.length == 0) {
+                showPublicLobbyError("Ingen åpne lobbyer akkurat nå.");
+                return;
+            }
+            var lobby = lobbies[Math.floor(Math.random() * lobbies.length)];
+            joinGameById(lobby.id, showPublicLobbyError);
+        });
 
         document.getElementById("gameTable").addEventListener("click", function (event) {
             clearSelectedCardsFromBackground(event);
@@ -4616,15 +4723,14 @@ class PresidentGame extends Game {
 
         document.getElementById('BnFKobleSpill').addEventListener('click', connectToAnotherGame);
 
-        document.getElementById('dialogKobleSpillOk').addEventListener('click', function () {
-            var id = document.getElementById("dialogKobleSpillId").value;
+        function joinGameById(id, onFail) {
+            showPublicLobbyError("");
             currentGame = new PresidentGame(id);
             currentPlayerName = null;
             var shouldJoin = true;
             connectGame(function () {
                 if (currentGame == null) {
-                    document.getElementById('joinGameError').innerHTML = "Kunne ikke koble til. Er spill-nummeret riktig?";
-                    document.getElementById('dialogKobleSpillId').focus();
+                    onFail("Kunne ikke koble til. Er spill-nummeret riktig?");
                 } else {
                     showDialog("KobleSpill", false);
                     if (shouldJoin) {
@@ -4632,6 +4738,13 @@ class PresidentGame extends Game {
                         joinRememberedPlayerOrPrompt();
                     }
                 }
+            });
+        }
+
+        document.getElementById('dialogKobleSpillOk').addEventListener('click', function () {
+            joinGameById(document.getElementById("dialogKobleSpillId").value, function (text) {
+                document.getElementById('joinGameError').innerHTML = text;
+                document.getElementById('dialogKobleSpillId').focus();
             });
         });
 
@@ -4670,6 +4783,7 @@ class PresidentGame extends Game {
                     var storedPiles = snapshotRecord["spillBunke"] || [];
                     connectingGame.status = snapshotRecord.status;
                     connectingGame.hostKey = snapshotRecord["hostKey"] || null;
+                    connectingGame.isPublic = snapshotRecord["isPublic"] === true;
                     if (connectingGame.hostKey == null) {
                         var firstHumanRecord = storedPlayers.find(record =>
                             record["spillerKey"] != "PC"
