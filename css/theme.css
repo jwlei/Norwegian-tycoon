@@ -1668,7 +1668,9 @@ select:focus-visible {
 .game-toast.game-toast--leaving.is-leaving {
     opacity: 0;
     transform: translateY(calc(-1 * var(--toast-push, 60px)));
-    transition: opacity 1s ease, transform 1s ease;
+    transition:
+        opacity var(--toast-leave-fade, 330ms) linear var(--toast-leave-fade-delay, 670ms),
+        transform var(--toast-leave, 1000ms) ease-out;
 }
 
 .game-toast__player {

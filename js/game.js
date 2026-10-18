@@ -4357,10 +4357,14 @@ class PresidentGame extends Game {
                 leaving.style.top = `${rect.top}px`;
                 leaving.style.width = `${rect.width}px`;
                 leaving.style.setProperty("--toast-push", `${rect.height + 10}px`);
+                var leaveMs = { fast: 1000, normal: 2000, slow: 3000 }[currentGameSpeed()] || 1000;
+                leaving.style.setProperty("--toast-leave", `${leaveMs}ms`);
+                leaving.style.setProperty("--toast-leave-fade-delay", `${Math.round(leaveMs * 0.67)}ms`);
+                leaving.style.setProperty("--toast-leave-fade", `${Math.round(leaveMs * 0.33)}ms`);
                 document.body.appendChild(leaving);
                 leaving.getBoundingClientRect();
                 leaving.classList.add("is-leaving");
-                setTimeout(() => leaving.remove(), 1000);
+                setTimeout(() => leaving.remove(), leaveMs + 50);
             }
             toast.classList.remove("is-visible");
             toast.getBoundingClientRect();
