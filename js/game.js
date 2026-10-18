@@ -82,16 +82,21 @@ function hasFourOfKindOnTop(game) {
     return count >= 4;
 }
 
+function describeCards(rank, count) {
+    var spelledRank = [
+        "", "ess", "to", "tre", "fire", "fem", "seks", "syv",
+        "åtte", "ni", "ti", "knekt", "dame", "konge"
+    ][rank];
+    if (count == 1) { return `singel ${Card.rankInfo(rank).singularName.toLowerCase()}`; }
+    var playType = ["", "", "par", "tress", "fire like"][count];
+    return playType ? `${playType} i ${spelledRank}` : `${count} ${Card.rankInfo(rank).pluralName.toLowerCase()}`;
+}
+
 function describeRequiredPlay(game) {
     var topPile = game.topPile();
     if (topPile[0].isClubThree()) { return "kløver 3"; }
     var requiredCardCount = hasFourOfKindOnTop(game) ? 4 : topPile.length;
-    var playType = ["", "singel", "par", "tress", "fire like"][requiredCardCount];
-    var rankName = [
-        "", "ess", "to", "tre", "fire", "fem", "seks", "syv",
-        "åtte", "ni", "ti", "knekt", "dame", "konge"
-    ][topPile[0].rank];
-    return `${playType} i ${rankName}`;
+    return describeCards(topPile[0].rank, requiredCardCount);
 }
 
 function hasBothNaturalThreesOnTop(game) {
@@ -396,7 +401,10 @@ class GameLayout {
                 this.setVisible("autoSuggestionToggleButton", false);
                 this.setVisible("BnFKobleSpill", true);
                 var lobbyHost = isLobbyHost(game);
-                this.setVisible("BnFNyAutoSpiller", lobbyHost && game.players.length < MAX_PLAYERS);
+                this.setVisible("BnFNyAutoSpiller", lobbyHost);
+                var lobbyFull = game.players.length >= MAX_PLAYERS;
+                this.el("BnFNyAutoSpiller").classList.toggle("is-full", lobbyFull);
+                this.el("BnFNyAutoSpiller").disabled = lobbyFull;
                 if (!lobbyHost) { this.setVisible("BnFNyAutoSpiller_Off", false); }
                 this.setVisible("startGameButton", true);
                 this.setVisible("BnFRegler", true);
@@ -411,6 +419,8 @@ class GameLayout {
                 updateAutoSuggestionButton();
                 this.setVisible("BnFKobleSpill", false);
                 this.setVisible("BnFNyAutoSpiller", false);
+                this.el("BnFNyAutoSpiller").classList.remove("is-full");
+                this.el("BnFNyAutoSpiller").disabled = false;
                 this.setVisible("BnFNyAutoSpiller_Off", false);
                 this.setVisible("startGameButton", false);
                 this.setVisible("startGameButton_Off", false);
@@ -428,6 +438,8 @@ class GameLayout {
                 this.setVisible("autoSuggestionToggleButton", false);
                 this.setVisible("BnFKobleSpill", false);
                 var finishedGameHost = isLobbyHost(game);
+                this.el("BnFNyAutoSpiller").classList.remove("is-full");
+                this.el("BnFNyAutoSpiller").disabled = false;
                 this.setVisible(
                     "BnFNyAutoSpiller",
                     finishedGameHost &&
@@ -493,6 +505,18 @@ class GameLayout {
             playerElement.classList.toggle("player-summary--self", isCurrentPlayer);
             playerElement.classList.toggle("is-current-turn", isTurn && isActiveStatus);
             playerElement.classList.toggle("player-summary--passed", isPassed);
+            var turnState = isTurn && isActiveStatus ? "turn" : (isPassed ? "passed" : "");
+            if (playerElement.dataset.turnState !== undefined &&
+                playerElement.dataset.turnState !== turnState && turnState !== "" &&
+                document.getElementById("shuffleOverlay") == null) {
+                playerElement.classList.remove("player-summary--pulse-turn", "player-summary--pulse-passed");
+                void playerElement.offsetWidth;
+                playerElement.classList.add(`player-summary--pulse-${turnState}`);
+                playerElement.addEventListener("animationend", () => {
+                    playerElement.classList.remove("player-summary--pulse-turn", "player-summary--pulse-passed");
+                }, { once: true });
+            }
+            playerElement.dataset.turnState = turnState;
             playerElement.style.setProperty("--player-color", player.displayColor);
             var detailsText;
             var displayedPlacement = player.placement > 0
@@ -1307,7 +1331,7 @@ class GameLayout {
                     tableSummary.className = "table-pile-summary";
                     tableSummary.textContent = player != null && player.turn == 1
                         ? `Du må slå:\n${describeRequiredPlay(game)}`
-                        : `På bordet ligger:\n${game.topPile().describe()}`;
+                        : `På bordet ligger:\n${describeRequiredPlay(game)}`;
                     table.appendChild(tableSummary);
                 }
                 break;
@@ -2496,11 +2520,7 @@ class CardPile extends Array {
     describe() {
         if (this.length == 0) { return "ingen kort" };
         if (this[0].isClubThree()) { return "kløver 3" };
-        var rank = Card.rankInfo(this[0].rank);
-        if (this.length == 2) { return `Par i ${rank.name}`; }
-        if (this.length == 3) { return `Tress i ${rank.name}`; }
-        if (this.length == 4) { return `Fire like i ${rank.name}`; }
-        return ["", "en", "to", "tre", "fire", "fem", "seks", "syv"][this.length] + " " + ((this.length > 1) ? rank.pluralName : rank.singularName);
+        return describeCards(this[0].rank, this.length);
     }
     canBePlayedOn(topPile) {
         return (
@@ -2655,6 +2675,8 @@ class PresidentGame extends Game {
             "turnPause": this.turnPause,
             "roundStarterName": this.roundStarterName,
             "shuffleStartedAt": this.shuffleStartedAt,
+            "dealTotal": this.dealTotal ?? null,
+            "dealStarterStep": this.dealStarterStep ?? null,
             "hostKey": this.hostKey,
             "preservePlayerOrderOnStart": this.preservePlayerOrderOnStart,
             ts: new Date()
@@ -3202,14 +3224,23 @@ class PresidentGame extends Game {
             deck.sort((a, b) => b.strengthRank - a.strengthRank || b.suit - a.suit);
             deck.splice(0, cardCount).forEach(cards => h4cker.cards.push(cards));
         }
+        var dealStep = 0;
+        this.dealStarterStep = null;
         while (deck.length > 0) {
             this.players.forEach(player => {
                 if (player !== h4cker && deck.length > 0) {
-                    player.cards.push(deck.pop());
+                    var dealtCard = deck.pop();
+                    if (dealtCard.suit == 2 && dealtCard.rank == 3) {
+                        this.dealStarterStep = dealStep;
+                    }
+                    player.cards.push(dealtCard);
+                    dealStep++;
                 }
             });
         }
+        this.dealTotal = dealStep;
         var hasPreviousPlacements = this.players.some(player => player.placement != 0);
+        if (hasPreviousPlacements) { this.dealStarterStep = null; }
         if (hasPreviousPlacements) {
             var presidentIndex = this.players.findIndex(player => player.placement == 1);
             var bomsIndex = this.players.findIndex(player => player.placement == this.players.length);
@@ -3907,19 +3938,31 @@ class PresidentGame extends Game {
 
         var SHUFFLE_DURATION_MS = 5000;
         var STARTER_FLASH_DURATION_MS = 2500;
+        var SHUFFLE_RIFFLE_MS = 1000;
+        var SHUFFLE_DEAL_END_MS = 4500;
         var lastShuffleStartedAt = null;
         var shuffleEndsAt = 0;
-        var shuffleTimers = [];
+        var shuffleTicker = null;
+        var starterFlashTimer = null;
 
-        function clearShuffleAnimation() {
-            shuffleTimers.forEach(timer => clearTimeout(timer));
-            shuffleTimers = [];
+        function clearShuffleAnimation(keepFlash = false) {
+            if (shuffleTicker != null) {
+                clearInterval(shuffleTicker);
+                shuffleTicker = null;
+            }
             shuffleEndsAt = 0;
             var overlay = document.getElementById("shuffleOverlay");
             if (overlay != null) { overlay.remove(); }
-            document.querySelectorAll(".player-summary--starter-flash").forEach(element => {
-                element.classList.remove("player-summary--starter-flash");
-            });
+            document.querySelectorAll(".shuffle-flying-card").forEach(element => element.remove());
+            if (!keepFlash) {
+                if (starterFlashTimer != null) {
+                    clearTimeout(starterFlashTimer);
+                    starterFlashTimer = null;
+                }
+                document.querySelectorAll(".player-summary--starter-flash").forEach(element => {
+                    element.classList.remove("player-summary--starter-flash");
+                });
+            }
         }
 
         function flashRoundStarter() {
@@ -3932,23 +3975,61 @@ class PresidentGame extends Game {
                 starterName = game.roundStarterName;
             }
             if (starterName == null) { return; }
-            var overlay = document.getElementById("shuffleOverlay");
-            if (overlay != null) { overlay.classList.add("shuffle-overlay--clear"); }
             document.querySelectorAll("#playerList [data-player-name]").forEach(element => {
                 element.classList.toggle(
                     "player-summary--starter-flash",
                     element.dataset.playerName == starterName
                 );
             });
+            if (starterFlashTimer != null) { clearTimeout(starterFlashTimer); }
+            starterFlashTimer = setTimeout(() => {
+                starterFlashTimer = null;
+                document.querySelectorAll(".player-summary--starter-flash").forEach(element => {
+                    element.classList.remove("player-summary--starter-flash");
+                });
+            }, STARTER_FLASH_DURATION_MS + 100);
         }
 
-        function playShuffleAnimation(durationMs) {
+        function launchDealtCard(stack, game, dealIndex) {
+            var target = game.players[dealIndex % game.players.length];
+            var targetElement = target == null ? null : Array.from(
+                document.querySelectorAll("#playerList [data-player-name]")
+            ).find(element => element.dataset.playerName == target.name);
+            var from = stack.getBoundingClientRect();
+            var to = targetElement != null
+                ? targetElement.getBoundingClientRect()
+                : { left: from.left, top: window.innerHeight, width: from.width, height: 0 };
+            var flying = document.createElement("img");
+            flying.className = "shuffle-flying-card";
+            flying.src = "icons/back.svg";
+            flying.alt = "";
+            flying.setAttribute("aria-hidden", "true");
+            flying.style.left = `${from.left + from.width / 2 - 18}px`;
+            flying.style.top = `${from.top + from.height / 2 - 25}px`;
+            document.body.appendChild(flying);
+            var dx = to.left + to.width / 2 - (from.left + from.width / 2);
+            var dy = to.top + to.height / 2 - (from.top + from.height / 2);
+            var animation = flying.animate([
+                { transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1 },
+                { transform: `translate(${dx}px, ${dy}px) rotate(${dx > 0 ? 25 : -25}deg) scale(0.6)`, opacity: 0.9 }
+            ], { duration: 260, easing: "ease-in", fill: "forwards" });
+            animation.onfinish = () => flying.remove();
+        }
+
+        function playShuffleAnimation(game) {
             clearShuffleAnimation();
+            var startedAt = game.shuffleStartedAt;
+            var total = game.dealTotal || 0;
+            var starterStep = game.dealStarterStep;
+            var flashAt = starterStep == null || total == 0
+                ? 0
+                : SHUFFLE_RIFFLE_MS +
+                    ((starterStep + 1) / total) * (SHUFFLE_DEAL_END_MS - SHUFFLE_RIFFLE_MS);
             var overlay = document.createElement("div");
             overlay.id = "shuffleOverlay";
             overlay.className = "shuffle-overlay";
             overlay.setAttribute("role", "status");
-            overlay.setAttribute("aria-label", "Stokker kortene");
+            overlay.setAttribute("aria-label", "Stokker og deler ut kortene");
             var stack = document.createElement("div");
             stack.className = "shuffle-stack";
             for (var i = 0; i < 8; i++) {
@@ -3965,12 +4046,37 @@ class PresidentGame extends Game {
             label.textContent = "Stokker kortene …";
             overlay.append(stack, label);
             document.body.appendChild(overlay);
-            shuffleEndsAt = Date.now() + durationMs;
-            shuffleTimers.push(setTimeout(
-                flashRoundStarter,
-                Math.max(0, durationMs - STARTER_FLASH_DURATION_MS)
-            ));
-            shuffleTimers.push(setTimeout(clearShuffleAnimation, durationMs));
+            shuffleEndsAt = startedAt + SHUFFLE_DURATION_MS;
+            var dealt = 0;
+            var flashed = false;
+            var dealing = false;
+            var tick = function () {
+                var elapsed = Date.now() - startedAt;
+                if (elapsed >= SHUFFLE_DURATION_MS || currentGame != game) {
+                    clearShuffleAnimation(true);
+                    return;
+                }
+                if (!dealing && elapsed >= SHUFFLE_RIFFLE_MS) {
+                    dealing = true;
+                    stack.classList.add("shuffle-stack--dealing");
+                    label.textContent = "Deler ut kortene …";
+                }
+                var progress = Math.min(1, Math.max(0,
+                    (elapsed - SHUFFLE_RIFFLE_MS) / (SHUFFLE_DEAL_END_MS - SHUFFLE_RIFFLE_MS)
+                ));
+                var target = Math.floor(progress * total);
+                if (target - dealt > 8) { dealt = target - 8; }
+                while (dealt < target) {
+                    launchDealtCard(stack, game, dealt);
+                    dealt++;
+                }
+                if (!flashed && elapsed >= flashAt) {
+                    flashed = true;
+                    flashRoundStarter();
+                }
+            };
+            shuffleTicker = setInterval(tick, 40);
+            tick();
         }
 
         function playShuffleIfNew(game) {
@@ -3979,7 +4085,7 @@ class PresidentGame extends Game {
             lastShuffleStartedAt = game.shuffleStartedAt;
             var elapsed = Math.max(0, Date.now() - game.shuffleStartedAt);
             if (elapsed < SHUFFLE_DURATION_MS - 500) {
-                playShuffleAnimation(SHUFFLE_DURATION_MS - elapsed);
+                playShuffleAnimation(game);
             }
         }
 
@@ -4129,8 +4235,15 @@ class PresidentGame extends Game {
             while (position < message.length) {
                 var match = null;
                 var matchIndex = message.length;
+                var isWordChar = character => character != null && /[\p{L}\p{N}_]/u.test(character);
                 players.forEach(player => {
                     var index = message.indexOf(player.name, position);
+                    while (index >= 0 && (
+                        isWordChar(message[index - 1]) ||
+                        isWordChar(message[index + player.name.length])
+                    )) {
+                        index = message.indexOf(player.name, index + 1);
+                    }
                     if (index >= 0 &&
                         (index < matchIndex ||
                             (index == matchIndex && match != null && player.name.length > match.name.length))) {
@@ -4591,6 +4704,8 @@ class PresidentGame extends Game {
                     connectingGame.round = snapshotRecord["runde"];
                     connectingGame.roundStarterName = snapshotRecord["roundStarterName"] || null;
                     connectingGame.shuffleStartedAt = snapshotRecord["shuffleStartedAt"] || null;
+                    connectingGame.dealTotal = snapshotRecord["dealTotal"] || 0;
+                    connectingGame.dealStarterStep = snapshotRecord["dealStarterStep"] ?? null;
                     connectingGame.roundStartVote = snapshotRecord["roundStartVote"] || null;
                     connectingGame.gameEndVote = snapshotRecord["gameEndVote"] || null;
                     connectingGame.preservePlayerOrderOnStart =

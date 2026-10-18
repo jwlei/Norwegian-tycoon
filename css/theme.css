@@ -1418,7 +1418,7 @@ select:focus-visible {
     z-index: 60;
     top: 50%;
     left: calc(100% + 10px);
-    max-width: min(180px, calc(50vw - 80px));
+    max-width: none;
     padding: 5px 9px;
     border: 1px solid var(--line);
     border-radius: 999px;
@@ -1426,7 +1426,7 @@ select:focus-visible {
     color: var(--ink);
     font-size: 0.78rem;
     font-weight: 750;
-    white-space: normal;
+    white-space: nowrap;
     line-height: 1.2;
     text-align: center;
     overflow-wrap: anywhere;
@@ -2072,6 +2072,17 @@ select:focus-visible {
     background: #1c9948;
 }
 
+#gameShell.game-active.Lobby #gameMenu #BnFNyAutoSpiller.is-full,
+#gameShell.game-active.Lobby #gameMenu #BnFNyAutoSpiller.is-full:hover {
+    border-color: #b87878;
+    background: #a86060;
+    color: #fff;
+    box-shadow: none;
+    opacity: 1;
+    cursor: default;
+    transform: none;
+}
+
 #gameShell.game-active.Lobby #startGameButton.is-waiting,
 #gameShell.game-active.Lobby #startGameButton.is-waiting:hover {
     border-color: #c5ad61;
@@ -2198,12 +2209,21 @@ select:focus-visible {
     align-items: center;
     justify-content: center;
     gap: 28px;
-    background: rgb(0 0 0 / 38%);
-    transition: background-color 0.4s ease;
+    background: rgb(0 0 0 / 30%);
 }
 
-.shuffle-overlay--clear {
-    background-color: transparent;
+.shuffle-stack--dealing .shuffle-card {
+    animation: none;
+}
+
+.shuffle-flying-card {
+    position: fixed;
+    z-index: 410;
+    width: 36px;
+    height: 50px;
+    border-radius: 5px;
+    pointer-events: none;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 40%);
 }
 
 .shuffle-stack {
@@ -2233,6 +2253,24 @@ select:focus-visible {
     0%, 100% { transform: translateX(0) rotate(0deg); }
     25% { transform: translateX(calc(-1 * clamp(30px, 8vmin, 60px))) rotate(-8deg); }
     75% { transform: translateX(clamp(30px, 8vmin, 60px)) rotate(8deg); }
+}
+
+#gameShell.game-active #playerList .player-summary--pulse-turn {
+    animation: turn-pulse 0.7s ease-out 1;
+}
+
+#gameShell.game-active #playerList .player-summary--pulse-passed {
+    animation: passed-pulse 0.7s ease-out 1;
+}
+
+@keyframes turn-pulse {
+    0% { background: rgb(53 196 106 / 75%); box-shadow: inset 4px 0 #7dffa8, 0 0 20px rgb(53 196 106 / 85%); }
+    100% { box-shadow: inset 4px 0 #35c46a, 0 0 14px rgb(53 196 106 / 22%); }
+}
+
+@keyframes passed-pulse {
+    0% { background: rgb(216 199 131 / 75%); box-shadow: inset 4px 0 #f0de9a, 0 0 20px rgb(216 199 131 / 80%); }
+    100% { box-shadow: inset 4px 0 #c5ad61, 0 0 14px rgb(197 173 97 / 14%); }
 }
 
 #gameShell.game-active #playerList .player-summary--starter-flash {
