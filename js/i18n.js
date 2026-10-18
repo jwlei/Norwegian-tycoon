@@ -75,6 +75,7 @@
         "Bare for dine egne kort": "Only for your own cards",
         "Holo": "Holo",
         "Gull": "Gold",
+        "Velg korttype": "Choose card type",
         "Velg språk for spillet": "Choose the game language",
         "Lukk": "Close",
         "Offentlig": "Public",

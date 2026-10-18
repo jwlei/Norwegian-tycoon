@@ -856,7 +856,7 @@ class GameLayout {
             playElement.style.setProperty("--play-index", String(playIndex));
             var playOffset = Math.min(cardsOnTable * 2.5, compactStack ? 18 : 44);
             pile.forEach((card, cardIndex) => {
-                var image = GameLayout.createCardImage(card, null);
+                var image = GameLayout.createCardImage(card, null, pile.name != null && pile.name === GameLayout.viewerName ? GameLayout.cardStyle() : "normal");
                 image.className = "table-play__card";
                 var cardKey = `${card.suit}:${card.rank}`;
                 image.dataset.cardKey = cardKey;
@@ -898,6 +898,7 @@ class GameLayout {
         return { element: tablePile, newlyPlayed: newlyPlayed };
     }
     static updateTable(game, player, existingPileSignatures = new Set(), playOrigins = null) {
+        GameLayout.viewerName = player != null ? player.name : null;
         var table = document.getElementById("gameTable");
         var pauseId = game.turnPause ? `${game.id}:${game.turnPause.id}` : null;
         if (pauseId != null && table.dataset.clearingPauseId == pauseId) { return; }
@@ -5005,11 +5006,38 @@ class PresidentGame extends Game {
         function updateCardStyleButtons() {
             var style = GameLayout.cardStyle();
             document.documentElement.dataset.cardStyle = style;
+            var previewCards = [new PresidentCard(2, 1), new PresidentCard(1, 12), new PresidentCard(4, 7)];
             document.querySelectorAll(".card-style-option").forEach(button => {
                 button.setAttribute("aria-pressed", String(button.dataset.cardStyle == style));
+                var holder = button.querySelector(".card-style-option__cards");
+                if (holder != null && holder.childElementCount == 0) {
+                    previewCards.forEach(card => {
+                        var wrapper = document.createElement("span");
+                        wrapper.className = "card-preview card-preview--" + button.dataset.cardStyle;
+                        var image = GameLayout.createCardImage(card, null, button.dataset.cardStyle);
+                        image.alt = "";
+                        wrapper.appendChild(image);
+                        holder.appendChild(wrapper);
+                    });
+                }
             });
+            var current = document.getElementById("cardStyleCurrent");
+            var selected = document.querySelector(`.card-style-option[data-card-style="${style}"] strong`);
+            if (current != null && selected != null) {
+                current.textContent = localizedMessage(selected.textContent);
+            }
         }
         updateCardStyleButtons();
+        document.addEventListener("languagechange", updateCardStyleButtons);
+
+        document.getElementById("cardStyleOpenButton").addEventListener("click", function () {
+            showDialog("Innstillinger", false);
+            showDialog("Korttype", true);
+        });
+        document.getElementById("cardStyleCloseButton").addEventListener("click", function () {
+            showDialog("Korttype", false);
+            showDialog("Innstillinger", true);
+        });
 
         document.querySelectorAll(".speed-option")        .forEach(button => {
                     button.addEventListener("click", function () {
@@ -5023,6 +5051,8 @@ class PresidentGame extends Game {
                 try { localStorage.setItem("cardStyle", button.dataset.cardStyle); } catch (error) { }
                 updateCardStyleButtons();
                 if (currentGame != null) { refreshAfterTurnPause(currentGame); }
+                showDialog("Korttype", false);
+                showDialog("Innstillinger", true);
             });
         });
 
