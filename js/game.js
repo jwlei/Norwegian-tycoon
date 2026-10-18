@@ -4255,7 +4255,7 @@ class PresidentGame extends Game {
         }
 
         function resetGameLog(game) {
-            gameLogGameId = game == null ? null : `${game.id}:${game.round ?? 0}`;
+            gameLogGameId = game == null ? null : `${game.id}`;
             gameLogEntries = [];
             gameLogTrickCount = 0;
             gameLogNeedsTrickHeader = true;
@@ -4271,7 +4271,7 @@ class PresidentGame extends Game {
         }
 
         function ensureGameLog(game) {
-            var logKey = game == null ? null : `${game.id}:${game.round ?? 0}`;
+            var logKey = game == null ? null : `${game.id}`;
             if (gameLogGameId !== logKey) {
                 resetGameLog(game);
             }
@@ -4412,6 +4412,7 @@ class PresidentGame extends Game {
             );
             activeToastPauseId = pauseId;
             appendColoredGameMessage(toast, localizedMessage(message), players);
+            toast.classList.add("is-visible");
             if (gameToastTimer != null) {
                 clearTimeout(gameToastTimer);
             }
