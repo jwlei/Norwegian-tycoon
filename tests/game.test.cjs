@@ -91,16 +91,56 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
     assert.equal(clones, 1);
 });
 
-function loadGame() {
+function loadGame(cardStyle = null) {
     const context = vm.createContext({
-        console, getCookie: () => null, getPlayerKey: () => "human-key", setTimeout: () => 0
+        console, getCookie: () => null, getPlayerKey: () => "human-key", setTimeout: () => 0,
+        localStorage: { getItem: () => cardStyle }
     });
     for (const file of ["cards.js", "player.js", "game.js"]) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(file === "game.js" ? source.split(/\r?\n\(\r?\n/)[0] : source, context);
     }
-    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, isLobbyHost, availablePlayerName })", context);
+    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, isLobbyHost, availablePlayerName })", context);
 }
+
+test("every card renders in each style with distinct artwork", () => {
+    const { PresidentCard } = loadGame();
+    const styles = ["normal", "holo", "gold", "pixel", "parallax", "neon", "botanical"];
+    for (let suit = 1; suit <= 4; suit++) {
+        for (let rank = 1; rank <= 13; rank++) {
+            const card = new PresidentCard(suit, rank);
+            const images = styles.map(style => card.toImageDataUri(style));
+            assert.equal(new Set(images).size, styles.length);
+            for (const image of images) {
+                const svg = decodeURIComponent(image.split(",")[1]);
+                assert.ok(svg.startsWith("<svg"));
+                assert.ok(svg.endsWith("</svg>"));
+                assert.equal(/undefined|NaN/.test(svg), false);
+            }
+        }
+    }
+});
+
+test("new card styles can be restored from local settings", () => {
+    for (const style of ["normal", "holo", "gold", "pixel", "parallax", "neon"]) {
+        assert.equal(loadGame(style).GameLayout.cardStyle(), style);
+    }
+    assert.equal(loadGame("invalid").GameLayout.cardStyle(), "normal");
+});
+
+test("secret card style requires an exact case-insensitive eligible player name", () => {
+    const { GameLayout } = loadGame("botanical");
+    for (const name of ["mrhotbox", "MRHOTBOX", "TåKeFyRsTeN", "BJØRN"]) {
+        GameLayout.cardStylePlayerName = name;
+        assert.equal(GameLayout.canUseBotanicalStyle(), true);
+        assert.equal(GameLayout.cardStyle(), "botanical");
+    }
+    for (const name of [null, "", "Guest", "mrhotbox-1", "bjørn-1"]) {
+        GameLayout.cardStylePlayerName = name;
+        assert.equal(GameLayout.canUseBotanicalStyle(), false);
+        assert.equal(GameLayout.cardStyle(), "normal");
+    }
+});
 
 function setupGame() {
     const types = loadGame();

@@ -869,10 +869,50 @@ select:focus-visible {
     white-space: nowrap;
 }
 
+.secret-style-header {
+    color: var(--muted);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+}
+
 .card-style-list {
     display: grid;
-    grid-template-rows: repeat(3, auto);
+    grid-auto-rows: auto;
     gap: 10px;
+}
+
+[data-card-style="pixel"] #playerHand .game-card > img,
+.card-preview--pixel > img {
+    image-rendering: pixelated;
+    border-radius: 0;
+}
+
+[data-card-style="neon"] #playerHand .game-card > img,
+.card-preview--neon > img {
+    box-shadow: 0 0 10px rgb(85 237 255 / 45%), 0 0 18px rgb(255 96 200 / 25%);
+}
+
+[data-card-style="parallax"] #playerHand .game-card::before,
+.card-preview--parallax::before {
+    position: absolute;
+    inset: 2px;
+    z-index: 1;
+    border-radius: 8px;
+    background: repeating-linear-gradient(135deg, transparent 0 18px, rgb(150 175 255 / 25%) 19px 20px, transparent 21px 38px);
+    background-position: var(--pointer-x, 50%) var(--pointer-y, 50%);
+    background-size: 200% 200%;
+    content: "";
+    pointer-events: none;
+    mix-blend-mode: multiply;
+}
+
+.card-preview--parallax > img {
+    transition: transform 180ms ease;
+}
+
+.card-style-option:hover .card-preview--parallax > img,
+.card-style-option:focus-visible .card-preview--parallax > img {
+    transform: perspective(300px) rotateY(-12deg) rotateX(5deg) scale(1.04);
 }
 
 .card-style-list .card-style-option,
@@ -899,6 +939,10 @@ select:focus-visible {
     background: rgb(53 196 106 / 14%);
 }
 
+.card-style-list .card-style-option[hidden] {
+    display: none;
+}
+
 .card-style-option__cards {
     display: flex;
     gap: 6px;
@@ -919,6 +963,11 @@ select:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .card-preview--parallax > img {
+        transition: none;
+        transform: none !important;
+    }
+
     [data-card-style="holo"] #playerHand .game-card::before,
     .card-preview--holo::before {
         animation: none;
@@ -1451,6 +1500,21 @@ select:focus-visible {
     font-size: 0.7rem;
 }
 
+.player-summary__low-cards {
+    animation: low-card-count-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes low-card-count-pulse {
+    0%, 100% { text-shadow: 0 0 0 transparent; }
+    50% { text-shadow: 0 0 5px rgb(255 255 255 / 75%), 0 0 10px rgb(255 255 255 / 35%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .player-summary__low-cards {
+        animation: none;
+    }
+}
+
 #readyButton[aria-pressed="true"] {
     border-color: #35c46a;
     background: rgb(31 145 68 / 30%);
@@ -1977,6 +2041,8 @@ select:focus-visible {
     justify-content: space-between;
     gap: 14px;
     padding: 12px 14px;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
     background: var(--surface-soft);
     color: var(--ink);
     text-align: left;

@@ -350,7 +350,14 @@ class GameLayout {
     static cardStyle() {
         var stored = null;
         try { stored = localStorage.getItem("cardStyle"); } catch (error) { }
-        return stored == "holo" || stored == "gold" ? stored : "normal";
+        if (stored == "botanical") {
+            return GameLayout.canUseBotanicalStyle() ? stored : "normal";
+        }
+        return ["holo", "gold", "pixel", "parallax", "neon"].includes(stored) ? stored : "normal";
+    }
+    static canUseBotanicalStyle() {
+        return ["mrhotbox", "tåkefyrsten", "bjørn"].includes(
+            (GameLayout.cardStylePlayerName || "").trim().toLocaleLowerCase());
     }
     static cardImageHtml(K, width = null, rotering = null, style = "normal") {
         return `<img src='${K.toImageDataUri(style)}' ${((width != null) ? "width='" + width + "'" : "")} alt='${K.getName()}' ${((rotering != null) ? "transform: translateX(" + rotering + "px) rotate(" + rotering + "deg);" : "")} />`;
@@ -363,6 +370,8 @@ class GameLayout {
         return e;
     }
     static updateSharedView(game, player) {
+        GameLayout.cardStylePlayerName = player ? player.name : null;
+        document.documentElement.dataset.cardStyle = GameLayout.cardStyle();
         if (game != null) { game.localPlayerName = player ? player.name : null; }
         var appShell = document.getElementById("gameShell");
         setClass(appShell, "game-active", (game != null));
@@ -591,6 +600,9 @@ class GameLayout {
             if (detailsTextElement.textContent != detailsText) {
                 detailsTextElement.textContent = detailsText;
             }
+            detailsTextElement.classList.toggle("player-summary__low-cards",
+                game.status == "S" && player.placement == 0 &&
+                player.cards.length > 0 && player.cards.length <= 2);
             var hostLabel = playerElement.querySelector(".player-summary__host");
             var isHostPlayer = game.status == "O" && player.playerKey == game.hostKey &&
                 (game.hostName == null || player.name == game.hostName);
@@ -5346,10 +5358,12 @@ class PresidentGame extends Game {
             });
         }
         function updateCardStyleButtons() {
+            document.getElementById("secretStyleHeader").hidden = !GameLayout.canUseBotanicalStyle();
             var style = GameLayout.cardStyle();
             document.documentElement.dataset.cardStyle = style;
             var previewCards = [new PresidentCard(2, 1), new PresidentCard(1, 12), new PresidentCard(4, 7)];
             document.querySelectorAll(".card-style-option").forEach(button => {
+                button.hidden = button.dataset.cardStyle == "botanical" && !GameLayout.canUseBotanicalStyle();
                 button.setAttribute("aria-pressed", String(button.dataset.cardStyle == style));
                 var holder = button.querySelector(".card-style-option__cards");
                 if (holder != null && holder.childElementCount == 0) {
@@ -5373,6 +5387,7 @@ class PresidentGame extends Game {
         document.addEventListener("languagechange", updateCardStyleButtons);
 
         document.getElementById("cardStyleOpenButton").addEventListener("click", function () {
+            updateCardStyleButtons();
             showDialog("Innstillinger", false);
             showDialog("Korttype", true);
         });
@@ -5390,6 +5405,7 @@ class PresidentGame extends Game {
 
         document.querySelectorAll(".card-style-option").forEach(button => {
             button.addEventListener("click", function () {
+                if (button.dataset.cardStyle == "botanical" && !GameLayout.canUseBotanicalStyle()) { return; }
                 try { localStorage.setItem("cardStyle", button.dataset.cardStyle); } catch (error) { }
                 updateCardStyleButtons();
                 if (currentGame != null) { refreshAfterTurnPause(currentGame); }

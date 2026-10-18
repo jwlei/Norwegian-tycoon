@@ -95,6 +95,18 @@ class Card {
             <path d="M20 60h40" stroke="#d6b45a" stroke-width="1.5"/>
             <circle cx="40" cy="60" r="2.5" fill="#d6b45a"/>`;
     }
+    static pixelSuitMark(code, x, y, size, color, rotation = 0) {
+        const pixels = {
+            H: ["0110110", "1111111", "1111111", "0111110", "0011100", "0001000", "0000000"],
+            S: ["0001000", "0011100", "0111110", "1111111", "1111111", "0001000", "0011100"],
+            D: ["0001000", "0011100", "0111110", "1111111", "0111110", "0011100", "0001000"],
+            C: ["0011100", "0011100", "1101011", "1111111", "1101011", "0001000", "0011100"]
+        }[code];
+        const blocks = pixels.map((row, py) => Array.from(row).map((pixel, px) =>
+            pixel === "1" ? `<rect x="${px}" y="${py}" width="1" height="1"/>` : ""
+        ).join("")).join("");
+        return `<g transform="translate(${x} ${y}) rotate(${rotation}) scale(${size / 7}) translate(-3.5 -3.5)" fill="${color}" shape-rendering="crispEdges">${blocks}</g>`;
+    }
     toImageDataUri(style = "normal") {
         const code = Card.suitInfo(this.suit).code;
         const rank = this.rank === 1 ? "A" : this.rank > 10 ? { 11: "J", 12: "Q", 13: "K" }[this.rank] : String(this.rank);
@@ -102,12 +114,18 @@ class Card {
         const theme = {
             normal: { color: isRed ? "#ad3447" : "#193b35", paper: ["#fffdf6", "#f3ead8"], edge: "#cbbd9f", inner: "#d8cba9" },
             holo: { color: isRed ? "#b02a52" : "#1f2f6b", paper: ["#f4f1ff", "#d9ecff"], edge: "#9aa6ff", inner: "#b9c2ff" },
-            gold: { color: isRed ? "#8f2a14" : "#3b2605", paper: ["#fff0a6", "#e0ae2f"], edge: "#8a5f0f", inner: "#b8841c" }
+            gold: { color: isRed ? "#8f2a14" : "#3b2605", paper: ["#fff0a6", "#e0ae2f"], edge: "#8a5f0f", inner: "#b8841c" },
+            pixel: { color: isRed ? "#ee5173" : "#7af2ce", paper: ["#24334d", "#111a2b"], edge: "#89a6cf", inner: "#435c80" },
+            parallax: { color: isRed ? "#a73572" : "#203f86", paper: ["#edf6ff", "#c3c9ed"], edge: "#7e8cce", inner: "#a2b2e0" },
+            neon: { color: isRed ? "#ff60c8" : "#55edff", paper: ["#170f2d", "#080e20"], edge: "#7657ff", inner: "#473b83" },
+            botanical: { color: isRed ? "#c7a85e" : "#92d98c", paper: ["#143b2a", "#071c16"], edge: "#b8a15b", inner: "#3c7048" }
         }[style] || null;
         const palette = theme || { color: isRed ? "#ad3447" : "#193b35", paper: ["#fffdf6", "#f3ead8"], edge: "#cbbd9f", inner: "#d8cba9" };
         const color = palette.color;
-        const mark = (x, y, size, rotation = 0) => Card.suitMark(code, x, y, size, color, rotation);
-        const corner = `<g font-family="Georgia,serif" font-size="12" font-weight="700" text-anchor="middle" fill="${color}"><text x="12" y="18">${rank}</text>${mark(12, 25, 7)}</g>`;
+        const mark = (x, y, size, rotation = 0) => style === "pixel"
+            ? Card.pixelSuitMark(code, x, y, size, color, rotation)
+            : Card.suitMark(code, x, y, size, color, rotation);
+        const corner = `<g font-family="${style === "pixel" ? "monospace" : "Georgia,serif"}" font-size="12" font-weight="700" text-anchor="middle" fill="${color}"><text x="12" y="18">${rank}</text>${mark(12, 25, 7)}</g>`;
         const positions = {
             2: [[40, 38], [40, 82]],
             3: [[40, 34], [40, 60], [40, 86]],
@@ -120,7 +138,13 @@ class Card {
             10: [[27, 30], [53, 30], [40, 40], [27, 50], [53, 50], [27, 70], [53, 70], [40, 80], [27, 90], [53, 90]]
         };
         let illustration;
-        if (this.rank === 1) {
+        if (style === "pixel" && (this.rank === 1 || this.rank >= 11)) {
+            illustration = `<path d="M22 28h36v4h4v56h-4v4H22v-4h-4V32h4Z" fill="none" stroke="${palette.inner}" stroke-width="2" shape-rendering="crispEdges"/>
+                ${mark(40, 53, 28)}
+                <text x="40" y="82" text-anchor="middle" font-family="monospace" font-size="16" font-weight="bold" fill="${color}">${rank}</text>`;
+        } else if (style === "pixel") {
+            illustration = positions[this.rank].map(([x, y]) => mark(x, y, 13, y > 60 ? 180 : 0)).join("");
+        } else if (this.rank === 1) {
             illustration = `<circle cx="40" cy="60" r="25" fill="#f5eddc" stroke="#d6b45a" stroke-width="1.5"/>
                 <circle cx="40" cy="60" r="21" fill="none" stroke="${color}" stroke-opacity=".4" stroke-width=".8"/>
                 <path d="M40 31v58M11 60h58M20 40l40 40m0-40L20 80" stroke="#d6b45a" stroke-opacity=".7" stroke-width="1"/>
@@ -144,14 +168,34 @@ class Card {
                         <stop offset=".6" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
                     <rect x="1.5" y="1.5" width="77" height="117" rx="8" fill="url(#sheen)"/>`
                 : "";
+        const depth = style === "parallax"
+            ? `<g fill="none" stroke="${palette.edge}" stroke-width="1">
+                <path d="M8 30 40 12 72 30 40 48Z M8 46 40 28 72 46 40 64Z M8 62 40 44 72 62 40 80Z" opacity=".3"/>
+                <path d="M8 78 40 60 72 78 40 96Z M8 94 40 76 72 94 40 112Z" opacity=".5"/></g>`
+            : style === "botanical"
+                ? `<g fill="#69b968" opacity=".2" transform="translate(40 60)">
+                    <path d="M0 25C-7 8-8-13 0-39 8-13 7 8 0 25Z"/>
+                    <path d="M0 25C-18 13-27-1-29-22-10-13-2 3 0 25Z M0 25C18 13 27-1 29-22 10-13 2 3 0 25Z"/>
+                    <path d="M0 25C-21 23-31 16-35 3-16 2-5 11 0 25Z M0 25C21 23 31 16 35 3 16 2 5 11 0 25Z"/>
+                    <path d="M0 25v17" fill="none" stroke="#b8a15b" stroke-width="2"/>
+                  </g>
+                  <path d="M8 9Q40 32 72 9M8 111Q40 88 72 111" fill="none" stroke="#7ca379" stroke-width="1" opacity=".5"/>`
+                : "";
+        const glow = style === "neon"
+            ? `<defs><filter id="neon" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`
+            : "";
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 120">
             <defs><linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${palette.paper[0]}"/><stop offset="1" stop-color="${palette.paper[1]}"/></linearGradient></defs>
-            <rect x="1.5" y="1.5" width="77" height="117" rx="8" fill="url(#paper)" stroke="${palette.edge}" stroke-width="1.5"/>
-            <rect x="5" y="5" width="70" height="110" rx="5" fill="none" stroke="${palette.inner}" stroke-width=".8"/>
+            ${glow}
+            <rect x="1.5" y="1.5" width="77" height="117" rx="${style === "pixel" ? 0 : 8}" fill="url(#paper)" stroke="${palette.edge}" stroke-width="1.5"/>
+            <rect x="5" y="5" width="70" height="110" rx="${style === "pixel" ? 0 : 5}" fill="none" stroke="${palette.inner}" stroke-width=".8"/>
             <path d="M23 10h34M23 110h34" stroke="${palette.inner}" stroke-width=".7"/>
+            ${depth}
+            <g${style === "neon" ? ' filter="url(#neon)"' : ""}>
             ${corner}
             <g transform="rotate(180 40 60)">${corner}</g>
             ${illustration}
+            </g>
             ${foil}
         </svg>`;
         return Card.imageSource(svg);
