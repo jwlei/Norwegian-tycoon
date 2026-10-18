@@ -1393,10 +1393,10 @@ select:focus-visible {
 
 .game-over__standing {
     display: grid;
-    grid-template-columns: clamp(7.5rem, 40%, 11rem) minmax(0, 1fr);
-    gap: 12px;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 8px;
     align-items: center;
-    padding: 9px 12px;
+    padding: 9px 10px;
     border: 1px solid var(--line);
     border-radius: 10px;
     background: var(--surface);
@@ -1425,13 +1425,19 @@ select:focus-visible {
 
 .game-over__rank {
     display: inline-flex;
+    min-width: 0;
     align-items: center;
     justify-content: flex-start;
-    gap: 6px;
+    gap: 4px;
     color: var(--muted);
+    font-size: 0.85rem;
     font-weight: 700;
     text-align: left;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
+}
+
+.game-over__rank > span {
+    flex: 0 0 auto;
 }
 
 .game-over__rank-number {
@@ -1441,7 +1447,7 @@ select:focus-visible {
 
 .game-over__standing-icon {
     flex: 0 0 auto;
-    font-size: 18px;
+    font-size: 1.1em;
     line-height: 1;
     white-space: nowrap;
 }
@@ -1524,9 +1530,14 @@ select:focus-visible {
     }
 }
 
-#readyButton[aria-pressed="true"] {
-    border-color: #35c46a;
-    background: rgb(31 145 68 / 30%);
+#gameMenu #readyButton[aria-pressed="true"] {
+    border-color: var(--control-border);
+    background: var(--surface-soft);
+    color: var(--ink);
+}
+
+#gameMenu #readyButton[aria-pressed="true"]:hover {
+    background: var(--line);
 }
 
 .round-start-vote__choices button[aria-pressed="true"] {
@@ -3071,7 +3082,7 @@ select:focus-visible {
     text-align: center;
 }
 
-#gameShell.game-active:not(.Lobby) > #playerList {
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #playerList {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);

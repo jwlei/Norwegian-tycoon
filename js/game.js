@@ -347,7 +347,7 @@ class GameLayout {
                 });
             }
             this.nameResizeObserver.disconnect();
-            document.querySelectorAll(".player-summary__name, .game-over__name > span:first-child").forEach(name => {
+            document.querySelectorAll(".player-summary__name, .game-over__rank, .game-over__name > span:first-child").forEach(name => {
                 this.fitName(name);
                 this.nameResizeObserver.observe(name);
             });
@@ -669,7 +669,7 @@ class GameLayout {
                 hostLabel.remove();
             }
             var rankIcon = displayedPlacement > 0
-                ? resultIconForPlacement(game, displayedPlacement, player)
+                ? resultIconForPlacement(game, displayedPlacement)
                 : null;
             var rankIconElement = detailsElement.querySelector(".player-summary__rank-icon");
             if (rankIcon == null) {
@@ -5311,13 +5311,13 @@ class PresidentGame extends Game {
         function renderPublicLobbies() {
             var list = document.getElementById("publicLobbyList");
             var lobbies = joinableLobbies();
-            list.innerHTML = "";
-            var heading = document.createElement("div");
-            heading.className = "public-lobby-heading";
-            var headingText = document.createElement("span");
-            headingText.textContent = "Åpne lobbyer";
-            heading.appendChild(headingText);
-            if (lobbies.some(lobby => lobby.waiting && (lobby.players < MAX_PLAYERS || lobby.bots > 0))) {
+            var heading = list.querySelector(".public-lobby-heading");
+            if (heading == null) {
+                heading = document.createElement("div");
+                heading.className = "public-lobby-heading";
+                var headingText = document.createElement("span");
+                headingText.textContent = "Åpne lobbyer";
+                heading.appendChild(headingText);
                 var randomButton = document.createElement("button");
                 randomButton.type = "button";
                 randomButton.className = "public-lobby-random";
@@ -5326,29 +5326,50 @@ class PresidentGame extends Game {
                 randomButton.setAttribute("aria-label", "Bli med i en tilfeldig åpen lobby");
                 randomButton.addEventListener("click", joinRandomPublicLobby);
                 heading.appendChild(randomButton);
+                list.appendChild(heading);
             }
-            list.appendChild(heading);
-            if (lobbies.length == 0) {
-                var empty = document.createElement("div");
+            heading.querySelector("button").hidden =
+                !lobbies.some(lobby => lobby.waiting && (lobby.players < MAX_PLAYERS || lobby.bots > 0));
+            var empty = list.querySelector(".public-lobby-empty");
+            if (empty == null) {
+                empty = document.createElement("div");
                 empty.className = "public-lobby-empty";
                 empty.textContent = "Ingen åpne lobbyer akkurat nå";
                 list.appendChild(empty);
-                return;
             }
-            shuffledSample(lobbies, 5).forEach(lobby => {
+            empty.hidden = lobbies.length != 0;
+            var available = new Map(lobbies.map(lobby => [lobby.id, lobby]));
+            var buttons = new Map();
+            list.querySelectorAll(".public-lobby-entry").forEach(button => {
+                if (available.has(button.dataset.lobbyId)) {
+                    buttons.set(button.dataset.lobbyId, button);
+                } else {
+                    button.remove();
+                }
+            });
+            var additions = shuffledSample(lobbies.filter(lobby => !buttons.has(lobby.id)), 5 - buttons.size);
+            additions.forEach(lobby => {
                 var button = document.createElement("button");
                 button.type = "button";
-                button.className = "public-lobby-entry" + (lobby.waiting ? "" : " is-running");
+                button.className = "public-lobby-entry";
+                button.dataset.lobbyId = lobby.id;
                 var name = document.createElement("span");
-                name.textContent = `${lobby.host} · ${lobby.players}/${MAX_PLAYERS}`;
                 var status = document.createElement("span");
                 status.className = "public-lobby-entry__status";
-                status.textContent = lobby.waiting ? "Venter i lobby" : "Spill pågår";
                 button.append(name, status);
                 button.addEventListener("click", function () {
                     joinGameById(lobby.id, showPublicLobbyError);
                 });
                 list.appendChild(button);
+                buttons.set(lobby.id, button);
+            });
+            buttons.forEach((button, id) => {
+                var lobby = available.get(id);
+                button.classList.toggle("is-running", !lobby.waiting);
+                var name = `${lobby.host} · ${lobby.players}/${MAX_PLAYERS}`;
+                var status = lobby.waiting ? "Venter i lobby" : "Spill pågår";
+                if (button.children[0].textContent != name) { button.children[0].textContent = name; }
+                if (button.children[1].textContent != status) { button.children[1].textContent = status; }
             });
         }
 
@@ -5357,7 +5378,7 @@ class PresidentGame extends Game {
             error.textContent = text;
         }
 
-        firebase.database().ref(PUBLIC_LOBBY_PATH).on("value", function (snapshot) {
+        function updatePublicLobbies(snapshot) {
             publicLobbies = [];
             snapshot.forEach(child => {
                 var lobby = child.val();
@@ -5374,10 +5395,27 @@ class PresidentGame extends Game {
             });
             publicLobbies.sort((a, b) => b.ts - a.ts);
             renderPublicLobbies();
-        }, function (error) {
+        }
+        var publicLobbyRef = firebase.database().ref(PUBLIC_LOBBY_PATH);
+        publicLobbyRef.on("value", updatePublicLobbies, function (error) {
             console.error("Kunne ikke hente offentlige lobbyer.", error);
         });
         renderPublicLobbies();
+
+        var publicLobbyRefreshPending = false;
+        async function refreshPublicLobbies() {
+            if (currentGame != null || document.hidden || publicLobbyRefreshPending) { return; }
+            publicLobbyRefreshPending = true;
+            try {
+                updatePublicLobbies(await publicLobbyRef.once("value"));
+            } catch (error) {
+                console.error("Kunne ikke oppdatere offentlige lobbyer.", error);
+            } finally {
+                publicLobbyRefreshPending = false;
+            }
+        }
+        setInterval(refreshPublicLobbies, 15000);
+        document.addEventListener("visibilitychange", refreshPublicLobbies);
 
         function joinRandomPublicLobby() {
             var lobbies = joinableLobbies().filter(lobby =>

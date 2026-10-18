@@ -450,6 +450,8 @@ test("rank icons show streaks only for consecutive presidents and boms", () => {
         assert.equal(resultIconForPlacement(game, 1, players[0]), `👑 🔥 ×${count}`);
         assert.equal(resultIconForPlacement(game, 2, players[1]), null);
         assert.equal(resultIconForPlacement(game, 3, players[2]), `🗑️ 🌧️ ×${count}`);
+        assert.equal(resultIconForPlacement(game, 1), "👑");
+        assert.equal(resultIconForPlacement(game, 3), "🗑️");
         const restored = new PresidentPlayer().fromRecord(players[0].toRecord());
         assert.equal(resultIconForPlacement(game, 1, restored), `👑 🔥 ×${count}`);
     }
@@ -459,6 +461,36 @@ test("rank icons show streaks only for consecutive presidents and boms", () => {
     assert.equal(resultIconForPlacement(game, 3, players[2]), "🗑️");
     assert.equal(players[0].bomsStreak, 0);
     assert.equal(players[2].presidentStreak, 0);
+});
+
+test("result ranks and player names are fitted on render and observed for resizing", () => {
+    const targets = [".player-summary__name", ".game-over__rank", ".game-over__name > span:first-child"];
+    const elements = targets.map(() => ({ style: {}, clientWidth: 120,
+        get scrollWidth() { return 160 * (parseFloat(this.style.fontSize) || 16) / 16; }
+    }));
+    const observed = [];
+    const { GameLayout } = loadGame(null, {
+        requestAnimationFrame: callback => callback(),
+        getComputedStyle: () => ({ fontSize: "16px" }),
+        ResizeObserver: class {
+            constructor(callback) { this.callback = callback; }
+            disconnect() { observed.length = 0; }
+            observe(element) { observed.push(element); }
+        },
+        document: { querySelectorAll: selector => {
+            assert.deepEqual(selector.split(", "), targets);
+            return elements;
+        } }
+    });
+    GameLayout.fitNames();
+    for (const element of elements) {
+        assert.ok(element.scrollWidth <= element.clientWidth);
+        assert.equal(element.style.fontSize, "12px");
+    }
+    assert.deepEqual(observed, elements);
+    elements[1].clientWidth = 100;
+    GameLayout.nameResizeObserver.callback([{ target: elements[1] }]);
+    assert.ok(elements[1].scrollWidth <= 100);
 });
 
 test("expired result votes keep the vote count without tie hints or stale seconds", () => {
@@ -483,6 +515,101 @@ test("expired result votes keep the vote count without tie hints or stale second
     context.handleGameEndVote(game);
     assert.equal(countdown.textContent, "1 av 1 har stemt.");
     assert.equal(resolutions, 1);
+});
+
+function publicLobbyContext() {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const element = (tag = "div") => {
+        const node = {
+            tag, className: "", dataset: {}, children: [], hidden: false, textContent: "",
+            appendChild(child) { child.parent = this; this.children.push(child); },
+            append(...children) { children.forEach(child => this.appendChild(child)); },
+            remove() { this.parent.children = this.parent.children.filter(child => child !== this); },
+            setAttribute() {}, addEventListener() {},
+            querySelectorAll(selector) {
+                return this.children.flatMap(child => [
+                    ...(selector === child.tag || child.className.split(" ").includes(selector.slice(1)) ? [child] : []),
+                    ...child.querySelectorAll(selector)
+                ]);
+            },
+            querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
+        };
+        node.classList = { toggle(name, enabled) {
+            const classes = new Set(node.className.split(" ").filter(Boolean));
+            if (enabled) { classes.add(name); } else { classes.delete(name); }
+            node.className = [...classes].join(" ");
+        } };
+        return node;
+    };
+    const list = element();
+    const state = { fetches: 0, errors: [], timer: null, listener: null, pending: null };
+    const snapshot = records => ({ forEach: callback => records.forEach(record => callback({ val: () => record })) });
+    const context = vm.createContext({
+        console: { error: (...args) => state.errors.push(args) }, currentGame: null,
+        PUBLIC_LOBBY_PATH: "boms_public", PUBLIC_LOBBY_MAX_AGE_MS: 7200000, MAX_PLAYERS: 4,
+        document: {
+            hidden: false, createElement: element, getElementById: () => list,
+            addEventListener: (type, callback) => { state.listener = callback; }
+        },
+        firebase: { database: () => ({ ref: () => ({
+            on(type, callback) { state.update = records => callback(snapshot(records)); },
+            once() { state.fetches++; return state.pending || Promise.resolve(snapshot(state.records || [])); }
+        }) }) },
+        setInterval: (callback, delay) => { state.timer = callback; assert.equal(delay, 15000); },
+        joinGameById() {}
+    });
+    vm.runInContext(source.slice(source.indexOf("        var publicLobbies = [];"),
+        source.indexOf('        document.getElementById("gameTable").addEventListener("click"', source.indexOf("        var publicLobbies = [];"))), context);
+    return { context, list, state, snapshot };
+}
+
+test("public lobby refresh keeps existing buttons, order and scroll position", () => {
+    const { list, state } = publicLobbyContext();
+    const lobby = (id, players = 1) => ({ id, host: id, players, waiting: true, ts: Date.now() });
+    state.update([lobby("one"), lobby("two")]);
+    const buttons = list.querySelectorAll(".public-lobby-entry");
+    list.scrollTop = 30;
+    state.update([lobby("two"), lobby("one")]);
+    assert.deepEqual(list.querySelectorAll(".public-lobby-entry"), buttons);
+    assert.equal(list.scrollTop, 30);
+    state.update([lobby("one", 3), lobby("two"), lobby("three")]);
+    assert.deepEqual(list.querySelectorAll(".public-lobby-entry").slice(0, 2), buttons);
+    assert.equal(buttons.find(button => button.dataset.lobbyId === "one").children[0].textContent, "one · 3/4");
+    assert.equal(list.querySelectorAll(".public-lobby-entry").length, 3);
+    state.update([]);
+    assert.equal(list.querySelectorAll(".public-lobby-entry").length, 0);
+    assert.equal(list.querySelector(".public-lobby-empty").hidden, false);
+    assert.equal(list.querySelector(".public-lobby-random").hidden, true);
+});
+
+test("15-second lobby polling skips games, hidden pages and overlapping requests, and reports failures", async () => {
+    const { context, list, state, snapshot } = publicLobbyContext();
+    state.records = [{ id: "new", host: "Host", players: 2, ts: Date.now() }];
+    await state.timer();
+    assert.equal(state.fetches, 1);
+    assert.equal(list.querySelector(".public-lobby-entry").dataset.lobbyId, "new");
+    context.currentGame = {};
+    await state.timer();
+    context.currentGame = null;
+    context.document.hidden = true;
+    await state.timer();
+    assert.equal(state.fetches, 1);
+    context.document.hidden = false;
+    let resolve;
+    state.pending = new Promise(callback => { resolve = callback; });
+    const refresh = state.listener();
+    await state.timer();
+    assert.equal(state.fetches, 2);
+    resolve(snapshot(state.records));
+    await refresh;
+    state.pending = Promise.reject(new Error("offline"));
+    await state.timer();
+    assert.equal(state.errors.length, 1);
+    assert.match(state.errors[0][0], /Kunne ikke oppdatere/);
+    assert.ok(list.querySelector(".public-lobby-entry"));
+    state.pending = null;
+    await state.timer();
+    assert.equal(state.fetches, 4);
 });
 
 test("invites generate gameid links and accept both new and legacy links", () => {
