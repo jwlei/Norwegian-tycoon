@@ -3943,7 +3943,7 @@ class PresidentGame extends Game {
             GameLayout.updateHand(currentGame, player);
         }
 
-        var SHUFFLE_DURATION_MS = 5000;
+        var SHUFFLE_DURATION_MS = 3500;
         var STARTER_FLASH_DURATION_MS = 2500;
         var STARTER_FLASH_DURATION_MS = 1900;
         var lastShuffleStartedAt = null;
@@ -4522,11 +4522,14 @@ class PresidentGame extends Game {
         }
 
         function clearSelectedCardsFromBackground(event) {
-            if (selectedCardKeys.size == 0 ||
-                !(event.target instanceof Element) ||
+            if (!(event.target instanceof Element) ||
                 event.target.closest("button, a, input, select, textarea, [role='button']")) {
                 return;
             }
+            if (document.getElementById("GameToast").classList.contains("is-visible")) {
+                dismissGameToast();
+            }
+            if (selectedCardKeys.size == 0) { return; }
             clearCardSelection();
             var player = currentGame == null || currentPlayerName == null
                 ? null
