@@ -195,8 +195,59 @@ function loadGame(cardStyle = null, globals = {}) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(file === "game.js" ? source.split(/\r?\n\(\r?\n/)[0] : source, context);
     }
-    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES })", context);
+    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement })", context);
 }
+
+test("rank icons show streaks only for consecutive presidents and boms", () => {
+    const { PresidentGame, PresidentPlayer, resultIconForPlacement } = loadGame();
+    const players = ["Winner", "Middle", "Last"].map(name => new PresidentPlayer(name, name));
+    const game = Object.assign(Object.create(PresidentGame.prototype), { players, status: "S" });
+    const finishRound = () => {
+        players.forEach(player => { player.placement = 0; });
+        players.forEach(player => game.finishPlayer(player));
+    };
+    finishRound();
+    assert.equal(resultIconForPlacement(game, 1, players[0]), "👑");
+    assert.equal(resultIconForPlacement(game, 3, players[2]), "🗑️");
+    for (const count of [2, 3, 4]) {
+        finishRound();
+        assert.equal(resultIconForPlacement(game, 1, players[0]), `👑 🔥 ×${count}`);
+        assert.equal(resultIconForPlacement(game, 2, players[1]), null);
+        assert.equal(resultIconForPlacement(game, 3, players[2]), `🗑️ 🌧️ ×${count}`);
+        const restored = new PresidentPlayer().fromRecord(players[0].toRecord());
+        assert.equal(resultIconForPlacement(game, 1, restored), `👑 🔥 ×${count}`);
+    }
+    players.reverse();
+    finishRound();
+    assert.equal(resultIconForPlacement(game, 1, players[0]), "👑");
+    assert.equal(resultIconForPlacement(game, 3, players[2]), "🗑️");
+    assert.equal(players[0].bomsStreak, 0);
+    assert.equal(players[2].presidentStreak, 0);
+});
+
+test("expired result votes keep the vote count without tie hints or stale seconds", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const countdown = {};
+    let resolutions = 0;
+    const player = { name: "Guest", playerKey: "guest" };
+    const game = {
+        status: "F", players: [player], roundStartVote: null,
+        gameEndVote: { id: "vote", until: 100, votes: [{ playerId: "guest", choice: "lobby" }] },
+        resolveGameEndVote(force) { assert.equal(force, true); resolutions++; }
+    };
+    const context = vm.createContext({
+        currentGame: game, gameEndVoteRefreshTimer: null,
+        Date: { now: () => 200 }, isLobbyHost: () => false,
+        roundVotePlayerId: player => player.playerKey,
+        document: { getElementById: () => countdown },
+        setTimeout: () => assert.fail("expired vote must not schedule a timer")
+    });
+    vm.runInContext(source.slice(source.indexOf("        function handleGameEndVote("),
+        source.indexOf("        function dismissGameToast(")), context);
+    context.handleGameEndVote(game);
+    assert.equal(countdown.textContent, "1 av 1 har stemt.");
+    assert.equal(resolutions, 1);
+});
 
 test("Messenger sharing uses the invitation URL and explains unsupported desktop sharing", async () => {
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
@@ -258,6 +309,7 @@ test("secret style remains available on the main menu through the saved name", (
         GameLayout.savedPlayerName = name;
         GameLayout.cardStylePlayerName = null;
         GameLayout.updateSharedView(null, null);
+        assert.equal(elements.get("BnFRegler").hidden, false);
         assert.equal(GameLayout.cardStylePlayerName, name);
         assert.equal(GameLayout.cardStyle(), name == "Guest" ? "normal" : "botanical");
         assert.equal(document.documentElement.dataset.cardStyle, GameLayout.cardStyle());

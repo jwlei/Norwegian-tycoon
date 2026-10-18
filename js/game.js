@@ -156,9 +156,13 @@ const BOT_NAMES = [
 const TURN_ACTION_PAUSE_MS = 3000;
 const BOT_ACTION_DELAY_MS = TURN_ACTION_PAUSE_MS;
 
-function resultIconForPlacement(game, placement) {
-    if (placement == 1) { return "👑"; }
-    if (placement == game.players.length) { return "🗑️"; }
+function resultIconForPlacement(game, placement, player = null) {
+    if (placement == 1) {
+        return "👑" + (player && player.presidentStreak > 1 ? ` 🔥 ×${player.presidentStreak}` : "");
+    }
+    if (placement == game.players.length) {
+        return "🗑️" + (player && player.bomsStreak > 1 ? ` 🌧️ ×${player.bomsStreak}` : "");
+    }
     return null;
 }
 
@@ -397,7 +401,7 @@ class GameLayout {
     }
     static updateSharedView(game, player) {
         document.getElementById("homeButton").hidden = game == null;
-        document.getElementById("BnFRegler").hidden = game == null;
+        document.getElementById("BnFRegler").hidden = false;
         document.getElementById("BnFSpillogg").hidden = game == null || game.status == "O";
         var capacity = document.getElementById("lobbyCapacity");
         capacity.hidden = game == null || game.status != "O";
@@ -504,7 +508,6 @@ class GameLayout {
                 this.setVisible("startGameButton", lobbyHost);
                 this.setVisible("startGameButton_Off", false);
                 this.setVisible("BnFHovedmeny", false);
-                this.setVisible("BnFResultater", false);
                 break;
             case "S":
             case "G":
@@ -519,7 +522,6 @@ class GameLayout {
                 this.setVisible("startGameButton", false);
                 this.setVisible("startGameButton_Off", false);
                 this.setVisible("BnFHovedmeny", false);
-                this.setVisible("BnFResultater", false);
                 break;
             case "F":
                 this.el("startGameButton").textContent =
@@ -548,7 +550,6 @@ class GameLayout {
                 );
                 if (game.gameEndVote != null) { this.setVisible("startGameButton_Off", false); }
                 this.setVisible("BnFHovedmeny", false);
-                this.setVisible("BnFResultater", true);
                 break;
             default:
                 throw ('Ukjent spillstatus.');
@@ -652,7 +653,7 @@ class GameLayout {
                 hostLabel.remove();
             }
             var rankIcon = displayedPlacement > 0
-                ? resultIconForPlacement(game, displayedPlacement)
+                ? resultIconForPlacement(game, displayedPlacement, player)
                 : null;
             var rankIconElement = detailsElement.querySelector(".player-summary__rank-icon");
             if (rankIcon == null) {
@@ -1448,7 +1449,7 @@ class GameLayout {
                 var gameOver = document.createElement("section");
                 gameOver.className = "game-over";
                 var heading = document.createElement("h2");
-                heading.textContent = "Rundens resultater";
+                heading.textContent = "Resultater";
                 gameOver.appendChild(heading);
                 var standings = document.createElement("ol");
                 standings.className = "game-over__standings";
@@ -1471,7 +1472,7 @@ class GameLayout {
                         rankNumber.className = "game-over__rank-number";
                         rankNumber.textContent = `${standingPlayer.placement}.`;
                         rank.appendChild(rankNumber);
-                        var positionIcon = resultIconForPlacement(game, standingPlayer.placement);
+                        var positionIcon = resultIconForPlacement(game, standingPlayer.placement, standingPlayer);
                         if (positionIcon != null) {
                             var rankIcon = document.createElement("span");
                             rankIcon.className = "game-over__standing-icon";
@@ -1524,23 +1525,6 @@ class GameLayout {
                             `${endVotes.size} av ${humanVoters.length} menneskespillere har stemt.`;
                     }
                     endVotePanel.append(endVoteHeading, endVoteSummary);
-                    var voteStatus = document.createElement("div");
-                    voteStatus.className = "round-start-vote__summary";
-                    humanVoters.filter(voter => !endVotes.has(roundVotePlayerId(voter))).forEach(voter => {
-                        var row = document.createElement("div");
-                        var name = document.createElement("span");
-                        name.className = "player-summary__name";
-                        name.textContent = voter.name;
-                        name.style.color = voter.displayColor;
-                        var choice = endVotes.get(roundVotePlayerId(voter));
-                        var label = document.createElement("span");
-                        label.textContent = choice == "lobby"
-                            ? "Stemt på lobby"
-                            : (choice == "next_round" ? "Stemt på neste runde" : "Har ikke stemt");
-                        row.append(name, document.createTextNode(": "), label);
-                        voteStatus.appendChild(row);
-                    });
-                    endVotePanel.appendChild(voteStatus);
                     if (game.gameEndVote.result == null) {
                         var canVote = player != null && player.playerKey != "PC" && humanVoters.includes(player);
                         var endVoteChoices = document.createElement("div");
@@ -1569,12 +1553,6 @@ class GameLayout {
                                 endVotes.get(roundVotePlayerId(voter)) == "next_round"))
                         );
                         endVotePanel.appendChild(endVoteChoices);
-                    }
-                    if (game.gameEndVote.result == null) {
-                        var lobbyHint = document.createElement("span");
-                        lobbyHint.className = "round-start-vote__hint";
-                        lobbyHint.textContent = "Lobbyen er spillerrommet før start. Alle blir i rommet. Hovedmenyen er startsiden.";
-                        endVotePanel.appendChild(lobbyHint);
                     }
                     gameOver.appendChild(endVotePanel);
                 } else if (game.roundStartVote != null) {
@@ -4541,10 +4519,8 @@ class PresidentGame extends Game {
             var stack = document.createElement("div");
             stack.className = "shuffle-stack";
             for (var i = 0; i < 8; i++) {
-                var card = document.createElement("img");
+                var card = document.createElement("div");
                 card.className = "shuffle-card";
-                card.src = Card.createBack().toImageDataUri();
-                card.alt = "";
                 card.setAttribute("aria-hidden", "true");
                 card.style.setProperty("--shuffle-index", String(i));
                 stack.appendChild(card);
@@ -5065,14 +5041,6 @@ class PresidentGame extends Game {
                 return;
             }
             var remaining = vote.until - Date.now();
-            if (remaining <= 0) {
-                game.resolveNeutralRoundVote(true);
-                var countdown = document.getElementById("roundStartVoteCountdown");
-                if (countdown && vote.result == null) {
-                    countdown.textContent = "Ved uavgjort venter vi på vertens stemme.";
-                }
-                return;
-            }
             var humanPlayers = game.players.filter(player => player.playerKey != "PC");
             var humanIds = new Set(humanPlayers.map(roundVotePlayerId));
             var voteMap = new Map();
@@ -5084,8 +5052,12 @@ class PresidentGame extends Game {
             var countdown = document.getElementById("roundStartVoteCountdown");
             if (countdown) {
                 countdown.textContent =
-                    `${voteMap.size} av ${humanPlayers.length} har stemt. ` +
-                    `${Math.ceil(remaining / 1000)} sekunder igjen.`;
+                    `${voteMap.size} av ${humanPlayers.length} har stemt.` +
+                    (remaining > 0 ? ` ${Math.ceil(remaining / 1000)} sekunder igjen.` : "");
+            }
+            if (remaining <= 0) {
+                game.resolveNeutralRoundVote(true);
+                return;
             }
             roundVoteRefreshTimer = setTimeout(function () {
                 roundVoteRefreshTimer = null;
@@ -5123,14 +5095,6 @@ class PresidentGame extends Game {
                 return;
             }
             var remaining = vote.until - Date.now();
-            if (remaining <= 0) {
-                game.resolveGameEndVote(true);
-                var countdown = document.getElementById("gameEndVoteCountdown");
-                if (countdown && vote.result == null) {
-                    countdown.textContent = "Ved uavgjort venter vi på vertens stemme.";
-                }
-                return;
-            }
             var humanPlayers = game.players.filter(player => player.playerKey != "PC");
             var humanIds = new Set(humanPlayers.map(roundVotePlayerId));
             var voteIds = new Set();
@@ -5143,8 +5107,12 @@ class PresidentGame extends Game {
             var countdown = document.getElementById("gameEndVoteCountdown");
             if (countdown) {
                 countdown.textContent =
-                    `${voteIds.size} av ${humanPlayers.length} har stemt. ` +
-                    `${Math.ceil(remaining / 1000)} sekunder igjen.`;
+                    `${voteIds.size} av ${humanPlayers.length} har stemt.` +
+                    (remaining > 0 ? ` ${Math.ceil(remaining / 1000)} sekunder igjen.` : "");
+            }
+            if (remaining <= 0) {
+                game.resolveGameEndVote(true);
+                return;
             }
             var voteId = vote.id;
             gameEndVoteRefreshTimer = setTimeout(function () {
@@ -5864,11 +5832,6 @@ class PresidentGame extends Game {
         updateSavedPlayerName();
         GameLayout.updateSharedView(null, null);
         GameLayout.updatePlayerView(null, null);
-
-        document.getElementById('BnFResultater').addEventListener('click', function () {
-            if (!currentGame.results) { currentGame.results = []; };
-            showResultsDialog(currentGame.results);
-        });
 
         document.getElementById('BnFRegler').addEventListener('click', function () {
             showDialog("Regler", true);
