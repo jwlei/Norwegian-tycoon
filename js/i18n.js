@@ -73,6 +73,8 @@
         "Språk": "Language",
         "Korttype": "Card type",
         "Bare for dine egne kort": "Only for your own cards",
+        "Se andres korttype": "See others' card type",
+        "Vis kortene på bordet slik hver spiller har valgt": "Show table cards as each player chose",
         "Holo": "Holo",
         "Gull": "Gold",
         "Velg korttype": "Choose card type",
