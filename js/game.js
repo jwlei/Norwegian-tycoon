@@ -3872,7 +3872,6 @@ class PresidentGame extends Game {
         var gameEndVoteRefreshTimer = null;
         var gameToastTimer = null;
         var lastShownTurnPauseId = null;
-        var starterAnnounceState = null;
         var activeToastPauseId = null;
         var clearingPauseId = null;
         var gameLogGameId = null;
@@ -4035,27 +4034,6 @@ class PresidentGame extends Game {
             }
         }
 
-        function announceRoundStarter(game) {
-            var key = `${game.id}:${game.round}`;
-            if (game.status != "S") {
-                if (game.status == "O" || game.status == "G" || game.status == "F") {
-                    starterAnnounceState = { key: key, seenNonPlaying: true, announced: false };
-                }
-                return;
-            }
-            if (starterAnnounceState == null || starterAnnounceState.key != key ||
-                !starterAnnounceState.seenNonPlaying || starterAnnounceState.announced) {
-                if (starterAnnounceState == null || starterAnnounceState.key != key) {
-                    starterAnnounceState = { key: key, seenNonPlaying: false, announced: true };
-                }
-                return;
-            }
-            var starter = game.turn >= 0 ? game.players[game.turn] : null;
-            if (starter == null || game.turnPause != null) { return; }
-            starterAnnounceState.announced = true;
-            showGameToast(starter.name == currentPlayerName ? "Du begynner" : `${starter.name} begynner`, game);
-        }
-
         function flashRoundStarter() {
             var game = currentGame;
             if (game == null) { return; }
@@ -4066,6 +4044,7 @@ class PresidentGame extends Game {
                 starterName = game.roundStarterName;
             }
             if (starterName == null) { return; }
+            showGameToast(starterName == currentPlayerName ? "Du begynner" : `${starterName} begynner`, game);
             document.querySelectorAll("#playerList [data-player-name]").forEach(element => {
                 element.classList.toggle(
                     "player-summary--starter-flash",
@@ -4959,7 +4938,6 @@ class PresidentGame extends Game {
                     handleRoundStartVote(connectingGame);
                     handleGameEndVote(connectingGame);
                     playShuffleIfNew(connectingGame);
-                    announceRoundStarter(connectingGame);
                     tryJoinWaitingSpectator(connectingGame);
                 } else {
                     disconnectGameListener();
