@@ -4743,15 +4743,23 @@ class PresidentGame extends Game {
 
         function renderPublicLobbies() {
             var list = document.getElementById("publicLobbyList");
-            var randomButton = document.getElementById("BnHTilfeldigLobby");
             var lobbies = joinableLobbies();
-            randomButton.disabled = !lobbies.some(lobby =>
-                lobby.waiting && lobby.players < MAX_PLAYERS
-            );
             list.innerHTML = "";
             var heading = document.createElement("div");
             heading.className = "public-lobby-heading";
-            heading.textContent = "Åpne lobbyer";
+            var headingText = document.createElement("span");
+            headingText.textContent = "Åpne lobbyer";
+            heading.appendChild(headingText);
+            if (lobbies.some(lobby => lobby.waiting && lobby.players < MAX_PLAYERS)) {
+                var randomButton = document.createElement("button");
+                randomButton.type = "button";
+                randomButton.className = "public-lobby-random";
+                randomButton.textContent = "🔀";
+                randomButton.title = "Bli med i en tilfeldig åpen lobby";
+                randomButton.setAttribute("aria-label", "Bli med i en tilfeldig åpen lobby");
+                randomButton.addEventListener("click", joinRandomPublicLobby);
+                heading.appendChild(randomButton);
+            }
             list.appendChild(heading);
             if (lobbies.length == 0) {
                 var empty = document.createElement("div");
@@ -4803,7 +4811,7 @@ class PresidentGame extends Game {
         });
         renderPublicLobbies();
 
-        document.getElementById("BnHTilfeldigLobby").addEventListener("click", function () {
+        function joinRandomPublicLobby() {
             var lobbies = joinableLobbies().filter(lobby =>
                 lobby.waiting && lobby.players < MAX_PLAYERS
             );
@@ -4813,7 +4821,7 @@ class PresidentGame extends Game {
             }
             var lobby = lobbies[Math.floor(Math.random() * lobbies.length)];
             joinGameById(lobby.id, showPublicLobbyError);
-        });
+        }
 
         document.getElementById("gameTable").addEventListener("click", function (event) {
             clearSelectedCardsFromBackground(event);
