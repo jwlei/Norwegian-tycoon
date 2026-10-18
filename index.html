@@ -67,7 +67,7 @@
             <button type="button" id="BnHKobleSpill" title="Koble til spill med kode" style="grid-row: 3 / 4; grid-column: 2 / -2;">Koble til med kode</button>
             <div id="publicLobbyList" class="public-lobby-list" aria-live="polite"></div>
             <div id="publicLobbyError" class="public-lobby-error" role="alert"></div>
-            <small class="app-version"><span aria-label="Spillversjon 0.3.6">v0.3.6</span> · <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://jleiros.com" target="_blank" rel="noopener noreferrer">jleiros.com</a></small>
+            <small class="app-version"><span aria-label="Spillversjon 0.3.7">v0.3.7</span> · <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://jleiros.com" target="_blank" rel="noopener noreferrer">jleiros.com</a></small>
         </div>
         <div id="gameMenu" role="group" aria-label="Spillkontroller" style="text-align: center; vertical-align: middle;">
             <button type="button" id="BnFInviterSpill" title="Inviter andre" aria-label="Del invitasjon" style="float: left;">Del invitasjon</button>
@@ -166,7 +166,7 @@
                     </span>
                 </div>
                 <button type="button" id="cardStyleOpenButton" class="setting-row setting-language" aria-haspopup="dialog">
-                    <span class="setting-row__text"><strong>Skin</strong><small>Utseendet på kortene dine</small></span>
+                    <span class="setting-row__text"><strong>Korttype</strong><small>Bare for dine egne kort</small></span>
                     <span id="cardStyleCurrent" class="card-style-current"></span>
                 </button>
                 <div class="setting-row setting-speed" role="group" aria-label="Spillhastighet">
@@ -185,11 +185,7 @@
     </div>
     <div id="dialogKorttype" class="dialog-container">
         <div class="dialog-window">
-            <div class="dialog-title">Velg skin</div>
-            <button type="button" id="showOthersStyleButton" class="setting-row" aria-pressed="false">
-                <span class="setting-row__text"><strong>Se andres skin</strong><small>Av: alle kort vises med ditt skin</small></span>
-                <span class="setting-row__switch" aria-hidden="true"><span></span></span>
-            </button>
+            <div class="dialog-title">Velg korttype</div>
             <div class="dialogBody card-style-list">
                 <button type="button" class="card-style-option" data-card-style="normal" aria-pressed="true"><span class="card-style-option__cards"></span><strong>Vanlig</strong></button>
                 <button type="button" class="card-style-option" data-card-style="holo" aria-pressed="false"><span class="card-style-option__cards"></span><strong>Holo</strong></button>

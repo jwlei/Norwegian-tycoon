@@ -324,14 +324,6 @@ class GameLayout {
         try { stored = localStorage.getItem("cardStyle"); } catch (error) { }
         return stored == "holo" || stored == "gold" ? stored : "normal";
     }
-    static showOthersStyle() {
-        try { return localStorage.getItem("showOthersCardStyle") == "1"; } catch (error) { return false; }
-    }
-    static tablePileStyle(pile) {
-        if (!GameLayout.showOthersStyle()) { return GameLayout.cardStyle(); }
-        var style = pile.cardStyle;
-        return style == "holo" || style == "gold" ? style : "normal";
-    }
     static cardImageHtml(K, width = null, rotering = null, style = "normal") {
         return `<img src='${K.toImageDataUri(style)}' ${((width != null) ? "width='" + width + "'" : "")} alt='${K.getName()}' ${((rotering != null) ? "transform: translateX(" + rotering + "px) rotate(" + rotering + "deg);" : "")} />`;
     }
@@ -870,7 +862,7 @@ class GameLayout {
             playElement.style.setProperty("--play-index", String(playIndex));
             var playOffset = Math.min(cardsOnTable * 2.5, compactStack ? 18 : 44);
             pile.forEach((card, cardIndex) => {
-                var image = GameLayout.createCardImage(card, null, GameLayout.tablePileStyle(pile));
+                var image = GameLayout.createCardImage(card, null, pile.name != null && pile.name === GameLayout.viewerName ? GameLayout.cardStyle() : "normal");
                 image.className = "table-play__card";
                 var cardKey = `${card.suit}:${card.rank}`;
                 image.dataset.cardKey = cardKey;
@@ -2485,7 +2477,6 @@ class PresidentCard extends Card {
         var result = [];
         records.forEach(element => {
             var pile = new CardPile(element["nick"])
-            if (element["stil"]) { pile.cardStyle = element["stil"]; }
             var index = 0;
             while (element[index]) {
                 const card = element[index];
@@ -2516,7 +2507,6 @@ class CardPile extends Array {
     }
     toRecord() {
         var record = { "nick": this.name, "verdiBoms": this.strengthRank };
-        if (this.cardStyle) { record["stil"] = this.cardStyle; }
         this.forEach((card, index) => {
             record[index] = { "farge": card.suit, "verdi": card.rank };
         });
@@ -2535,7 +2525,7 @@ class CardPile extends Array {
     }
     fromRecord(pile) {
         this.name = pile["nick"];
-        if (pile["stil"]) { this.cardStyle = pile["stil"]; }
+        var i = 0;
         while (pile[i]) {
             var card = pile[i];
             if (!(card instanceof PresidentCard)) { card = new PresidentCard(card["farge"], card["verdi"]); };
@@ -3750,9 +3740,6 @@ class PresidentGame extends Game {
             player.cards.splice(i, 1);
         });
         player.lastPlay = pile;
-        if (player.playerKey != "PC" && typeof GameLayout != "undefined") {
-            pile.cardStyle = GameLayout.cardStyle();
-        }
         this.piles.push(pile);
         var now = Date.now();
         this.turnPause = {
@@ -5065,15 +5052,6 @@ class PresidentGame extends Game {
                         try { localStorage.setItem("gameSpeed", button.dataset.speed); } catch (error) { }
                 updateSpeedButtons();
             });
-        });
-
-        var showOthersButton = document.getElementById("showOthersStyleButton");
-        showOthersButton.setAttribute("aria-pressed", String(GameLayout.showOthersStyle()));
-        showOthersButton.addEventListener("click", function () {
-            var next = !GameLayout.showOthersStyle();
-            try { localStorage.setItem("showOthersCardStyle", next ? "1" : "0"); } catch (error) { }
-            showOthersButton.setAttribute("aria-pressed", String(next));
-            if (currentGame != null) { refreshAfterTurnPause(currentGame); }
         });
 
         document.querySelectorAll(".card-style-option").forEach(button => {
