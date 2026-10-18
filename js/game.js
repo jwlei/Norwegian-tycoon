@@ -4091,6 +4091,7 @@ class PresidentGame extends Game {
         var roundVoteRefreshTimer = null;
         var gameEndVoteRefreshTimer = null;
         var gameToastTimer = null;
+        var gameToastExpiresAt = 0;
         var lastShownTurnPauseId = null;
         var activeToastPauseId = null;
         var clearingPauseId = null;
@@ -4484,6 +4485,7 @@ class PresidentGame extends Game {
             toast.classList.remove("is-visible");
             toast.textContent = "";
             activeToastPauseId = null;
+            gameToastExpiresAt = 0;
         }
 
         function resetGameLog(game) {
@@ -4590,6 +4592,9 @@ class PresidentGame extends Game {
         function showGameToast(message, game, duration = GAME_SPEED_MS[currentGameSpeed()], pauseId = null, endsTrick = false) {
             ensureGameLog(game);
             var toast = document.getElementById("GameToast");
+            if (toast.classList.contains("is-visible") && Date.now() >= gameToastExpiresAt) {
+                hideGameToast();
+            }
             if (toast.classList.contains("is-visible") && toast.textContent != "") {
                 var rect = toast.getBoundingClientRect();
                 var leaving = toast.cloneNode(true);
@@ -4645,6 +4650,7 @@ class PresidentGame extends Game {
             activeToastPauseId = pauseId;
             appendColoredGameMessage(toast, localizedMessage(message), players);
             toast.classList.add("is-visible");
+            gameToastExpiresAt = Date.now() + duration;
             if (gameToastTimer != null) {
                 clearTimeout(gameToastTimer);
             }
@@ -4741,7 +4747,13 @@ class PresidentGame extends Game {
             if (pause.id != lastShownTurnPauseId) {
                 lastShownTurnPauseId = pause.id;
                 if (delay > 0) {
-                    showGameToast(pause.message, game, GAME_SPEED_MS[currentGameSpeed()], pause.id, pause.kind == "clear");
+                    var duration = currentGameSpeed() == "fast"
+                        ? Math.min(delay, GAME_SPEED_MS.fast)
+                        : GAME_SPEED_MS[currentGameSpeed()];
+                    showGameToast(pause.message, game, duration, pause.id, pause.kind == "clear");
+                    if (currentGameSpeed() == "fast") {
+                        gameToastExpiresAt = Math.min(gameToastExpiresAt, pause.until);
+                    }
                 }
             }
             if (delay > 0) {
@@ -4856,21 +4868,7 @@ class PresidentGame extends Game {
         }
 
         function dismissGameToast() {
-            var pauseId = activeToastPauseId;
             hideGameToast();
-            var game = currentGame;
-            if (game != null && !isLobbyHost(game)) { return; }
-            if (pauseId == null || game == null || game.turnPause == null ||
-                game.turnPause.id != pauseId) {
-                return;
-            }
-            if (game.turnPause.until > Date.now()) {
-                game.turnPause.until = Date.now();
-                handleTurnPause(game);
-                game.save();
-                return;
-            }
-            handleTurnPause(game);
         }
 
         function clearSelectedCardsFromBackground(event) {
@@ -4880,6 +4878,7 @@ class PresidentGame extends Game {
             }
             if (document.getElementById("GameToast").classList.contains("is-visible")) {
                 dismissGameToast();
+                return;
             }
             if (selectedCardKeys.size == 0) { return; }
             clearCardSelection();
@@ -4891,7 +4890,10 @@ class PresidentGame extends Game {
             }
         }
 
-        document.getElementById("GameToast").addEventListener("click", dismissGameToast);
+        document.getElementById("GameToast").addEventListener("click", function (event) {
+            event.stopPropagation();
+            dismissGameToast();
+        });
         document.getElementById("playerActions").addEventListener(
             "click",
             clearSelectedCardsFromBackground

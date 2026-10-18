@@ -4,6 +4,93 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
+function toastClickContext(visible) {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    class Element {
+        closest() { return false; }
+    }
+    const state = { visible, clears: 0 };
+    const context = vm.createContext({
+        Element, currentGame: null, currentPlayerName: null,
+        selectedCardKeys: new Set(["1:5"]),
+        hideGameToast: () => { state.visible = false; },
+        clearCardSelection: () => { state.clears++; },
+        document: { getElementById: () => ({ classList: { contains: () => state.visible } }) }
+    });
+    const start = source.indexOf("        function dismissGameToast()");
+    const end = source.indexOf('        document.getElementById("GameToast").addEventListener', start);
+    vm.runInContext(source.slice(start, end), context);
+    context.event = { target: new Element() };
+    return { context, state };
+}
+
+test("a table click dismisses the toast before clearing selected cards", () => {
+    const { context, state } = toastClickContext(true);
+    vm.runInContext("clearSelectedCardsFromBackground(event)", context);
+    assert.equal(state.visible, false);
+    assert.equal(state.clears, 0);
+    vm.runInContext("clearSelectedCardsFromBackground(event)", context);
+    assert.equal(state.clears, 1);
+});
+
+test("a direct toast dismissal never clears cards or advances the game pause", () => {
+    const { context, state } = toastClickContext(true);
+    context.currentGame = { turnPause: { until: 123456 } };
+    vm.runInContext("dismissGameToast()", context);
+    assert.equal(state.visible, false);
+    assert.equal(state.clears, 0);
+    assert.equal(context.currentGame.turnPause.until, 123456);
+});
+
+test("a fast toast that has reached its deadline is not cloned behind the next toast", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    let visible = true;
+    let clones = 0;
+    const toast = {
+        textContent: "Previous",
+        classList: {
+            contains: () => visible,
+            remove: () => { visible = false; },
+            add: () => { visible = true; }
+        },
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 30 }),
+        replaceChildren() { this.textContent = ""; },
+        style: { setProperty() {} },
+        cloneNode() {
+            clones++;
+            return {
+                removeAttribute() {}, setAttribute() {}, classList: { add() {} },
+                style: { setProperty() {} }, getBoundingClientRect() {}
+            };
+        }
+    };
+    const context = vm.createContext({
+        Date: { now: () => 3000 }, gameToastExpiresAt: 3000,
+        gameToastTimer: null, activeToastPauseId: null,
+        GAME_SPEED_MS: { fast: 3000 }, currentGameSpeed: () => "fast",
+        ensureGameLog() {}, clearTimeout() {}, setTimeout: () => 1,
+        document: {
+            getElementById: id => id === "GameToast" ? toast : { classList: { contains: () => false } },
+            body: { appendChild() {} }
+        },
+        gameLogNeedsTrickHeader: false, gameLogEntries: [],
+        localizedMessage: message => message, appendColoredGameMessage() {},
+        game: { players: [] }
+    });
+    const hideStart = source.indexOf("        function hideGameToast()");
+    const hideEnd = source.indexOf("        function resetGameLog", hideStart);
+    const showStart = source.indexOf("        function showGameToast(");
+    const showEnd = source.indexOf("        function refreshAfterTurnPause", showStart);
+    vm.runInContext(source.slice(hideStart, hideEnd) + source.slice(showStart, showEnd), context);
+    vm.runInContext('showGameToast("Next", game)', context);
+    assert.equal(clones, 0);
+    assert.equal(context.gameToastExpiresAt, 6000);
+    assert.equal(visible, true);
+    toast.textContent = "Current";
+    vm.runInContext('showGameToast("Early next", game)', context);
+    assert.equal(clones, 1);
+});
+
 function loadGame() {
     const context = vm.createContext({
         console, getCookie: () => null, getPlayerKey: () => "human-key", setTimeout: () => 0
