@@ -154,8 +154,8 @@ const TURN_ACTION_PAUSE_MS = 3000;
 const BOT_ACTION_DELAY_MS = TURN_ACTION_PAUSE_MS;
 
 function resultIconForPlacement(game, placement) {
-    if (placement == 1) { return "president.svg"; }
-    if (placement == game.players.length) { return "boms.svg"; }
+    if (placement == 1) { return "👑"; }
+    if (placement == game.players.length) { return "🗑️"; }
     return null;
 }
 
@@ -553,15 +553,13 @@ class GameLayout {
                 if (rankIconElement != null) { rankIconElement.remove(); }
             } else {
                 if (rankIconElement == null) {
-                    rankIconElement = document.createElement("img");
+                    rankIconElement = document.createElement("span");
                     rankIconElement.className = "player-summary__rank-icon";
-                    rankIconElement.alt = "";
                     rankIconElement.setAttribute("aria-hidden", "true");
                     detailsElement.insertBefore(rankIconElement, detailsTextElement);
                 }
-                var rankIconSource = `icons/${rankIcon}`;
-                if (rankIconElement.getAttribute("src") != rankIconSource) {
-                    rankIconElement.setAttribute("src", rankIconSource);
+                if (rankIconElement.textContent != rankIcon) {
+                    rankIconElement.textContent = rankIcon;
                 }
             }
             var turnElement = playerElement.querySelector(".player-summary__turn");
@@ -810,9 +808,11 @@ class GameLayout {
         completeIfReady();
     }
     // Deterministic, so every client draws the same pile; the player's seat biases the tilt.
-    static pileCardJitter(game, pile, card, stackIndex) {
+    // All cards in one play share the tilt and fan out evenly, so the play stays readable as a pair, triple, etc.
+    static pileCardJitter(game, pile, card, stackIndex, cardIndex = 0) {
         var seed = 2166136261;
-        var text = `${game.round}:${pile.name}:${card.suit}:${card.rank}:${stackIndex}`;
+        var first = pile[0];
+        var text = `${game.round}:${pile.name}:${first.suit}:${first.rank}:${stackIndex - cardIndex}`;
         for (var i = 0; i < text.length; i++) {
             seed = Math.imul(seed ^ text.charCodeAt(i), 16777619) >>> 0;
         }
@@ -824,10 +824,13 @@ class GameLayout {
         var seatBias = (seat < 0 || seatCount < 2)
             ? 0
             : ((seat / (seatCount - 1)) - 0.5) * 24;
+        var spread = 7;
+        var fanAngle = (cardIndex - (pile.length - 1) / 2) * spread;
+        var arc = Math.abs(cardIndex - (pile.length - 1) / 2);
         return {
-            angle: Math.round((seatBias + unit(0) * 36) * 10) / 10,
-            x: Math.round(unit(8) * 16),
-            y: Math.round(unit(16) * 12)
+            angle: Math.round((seatBias + unit(0) * 24 + fanAngle) * 10) / 10,
+            x: Math.round(unit(8) * 14),
+            y: Math.round(unit(16) * 10 + arc * 3)
         };
     }
     static createTablePile(game, piles, existingPileSignatures, hiddenCardKeys = new Set()) {
@@ -837,9 +840,8 @@ class GameLayout {
         var newlyPlayed = [];
         var totalCardCount = piles.reduce((total, pile) => total + pile.length, 0);
         var maxCardsPerPlay = piles.reduce((max, pile) => Math.max(max, pile.length), 0);
-        var fanStep = Math.max(24, Math.min(56, window.innerWidth * 0.05));
         var compactStack = window.matchMedia("(orientation: landscape) and (max-height: 500px)").matches;
-        tablePile.style.setProperty("--pile-fan-width", `${Math.max(0, maxCardsPerPlay - 1) * fanStep}px`);
+        tablePile.style.setProperty("--pile-fan-count", String(Math.max(0, maxCardsPerPlay - 1)));
         tablePile.style.setProperty("--pile-depth", `${Math.min(totalCardCount * 2.5, compactStack ? 18 : 44)}px`);
         piles.forEach((pile, playIndex) => {
             var signature = `${game.round}:${pile.name}:${pile.map(card => `${card.suit}:${card.rank}`).join(",")}`;
@@ -857,8 +859,8 @@ class GameLayout {
                 if (hiddenCardKeys.has(cardKey)) {
                     image.style.opacity = "0";
                 }
-                var rotation = GameLayout.pileCardJitter(game, pile, card, cardsOnTable);
-                image.style.left = `${5 + cardIndex * fanStep + rotation.x}px`;
+                var rotation = GameLayout.pileCardJitter(game, pile, card, cardsOnTable, cardIndex);
+                image.style.left = `calc(5px + ${cardIndex} * var(--pile-fan-step) + ${rotation.x}px)`;
                 image.style.top = `${5 + playOffset + rotation.y}px`;
                 image.style.setProperty("--stack-index", String(cardsOnTable));
                 image.style.setProperty("--pile-rotation", `${rotation.angle}deg`);
@@ -1045,9 +1047,9 @@ class GameLayout {
                     var playerIcon = document.createElement("div");
                     playerIcon.className = "exchange-player";
                     if (exchangeRole.title == "President" || exchangeRole.title == "Boms") {
-                        var roleImage = document.createElement("img");
-                        roleImage.src = `icons/${exchangeRole.img}`;
-                        roleImage.alt = "";
+                        var roleImage = document.createElement("span");
+                        roleImage.className = "exchange-player__emoji";
+                        roleImage.textContent = exchangeRole.title == "President" ? "👑" : "🗑️";
                         roleImage.setAttribute("aria-hidden", "true");
                         playerIcon.appendChild(roleImage);
                     } else {
@@ -1369,10 +1371,9 @@ class GameLayout {
                         rank.appendChild(rankNumber);
                         var positionIcon = resultIconForPlacement(game, standingPlayer.placement);
                         if (positionIcon != null) {
-                            var rankIcon = document.createElement("img");
+                            var rankIcon = document.createElement("span");
                             rankIcon.className = "game-over__standing-icon";
-                            rankIcon.src = `icons/${positionIcon}`;
-                            rankIcon.alt = "";
+                            rankIcon.textContent = positionIcon;
                             rankIcon.setAttribute("aria-hidden", "true");
                             rank.appendChild(rankIcon);
                         }
@@ -2304,7 +2305,7 @@ class GameLayout {
             var resultIcon = resultIconForPlacement(game, player.placement);
             var s = (resultIcon == null)
                 ? ""
-                : `<img class="player-placement-result-icon" src="icons/${resultIcon}" alt="" aria-hidden="true" />`;
+                : `<span class="player-placement-result-icon" aria-hidden="true">${resultIcon}</span>`;
             if (game.status == "S") {
                 s += `<span>Du ble <b>${game.placementTitle(player.placement).title}</b>. Venter på at de andre skal spille ferdig.</span>`;
             } else {
@@ -3890,9 +3891,8 @@ class PresidentGame extends Game {
             if (cookie == null) { return ""; }
             try {
                 return decodeURIComponent(cookie.slice(cookiePrefix.length))
-                    .replace(/[^0-9A-ZÆØÅa-zæøå /-]/g, "")
-                    .trim()
-                    .slice(0, 30);
+                    .replace(/[^0-9A-ZÆØÅa-zæøå \/\-\p{Extended_Pictographic}\u200d\ufe0f]/gu, "")
+                    .trim();
             } catch (error) {
                 console.warn("Kunne ikke lese lagret spillernavn fra cookie.", error);
                 return "";
@@ -5087,7 +5087,7 @@ class PresidentGame extends Game {
 
         document.getElementById('dialogSporOmNickOk').addEventListener('click', function () {
             var requestedName = document.getElementById('dialogSporOmNickTxt').value.trim();
-            if (requestedName.length > 28) {
+            if (Array.from(requestedName).length > 28) {
                 document.getElementById('playerNameError').textContent = "Navnet kan ha maks 28 tegn.";
                 return;
             }

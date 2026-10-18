@@ -504,10 +504,9 @@ select:focus-visible {
 }
 
 .player-summary__rank-icon {
-    width: 16px;
-    height: 16px;
     flex: 0 0 auto;
-    object-fit: contain;
+    font-size: 16px;
+    line-height: 1;
 }
 
 .player-summary__turn {
@@ -610,10 +609,9 @@ select:focus-visible {
     justify-content: center;
 }
 
-.exchange-panel .exchange-player img {
-    width: 38px;
-    height: 38px;
-    object-fit: contain;
+.exchange-panel .exchange-player .exchange-player__emoji {
+    font-size: 34px;
+    line-height: 1;
 }
 
 .exchange-panel .exchange--neutral .exchange-player {
@@ -1225,9 +1223,8 @@ select:focus-visible {
 }
 
 .player-placement-result-icon {
-    width: clamp(40px, 8vmin, 64px);
-    height: clamp(40px, 8vmin, 64px);
-    object-fit: contain;
+    font-size: clamp(36px, 7vmin, 56px);
+    line-height: 1;
 }
 
 .game-over__standings {
@@ -1288,10 +1285,9 @@ select:focus-visible {
 }
 
 .game-over__standing-icon {
-    width: 20px;
-    height: 20px;
     flex: 0 0 auto;
-    object-fit: contain;
+    font-size: 18px;
+    line-height: 1;
 }
 
 .game-over__name {
@@ -1498,6 +1494,8 @@ select:focus-visible {
 .table-card-pile {
     --table-card-height: clamp(96px, 25vh, 190px);
     --table-card-width: calc(var(--table-card-height) * 2 / 3);
+    --pile-fan-step: max(34px, min(60px, calc(var(--table-card-width) * 0.42)));
+    --pile-fan-width: calc(var(--pile-fan-count, 0) * var(--pile-fan-step));
     position: relative;
     flex: 0 0 auto;
     width: calc(var(--table-card-width) + var(--pile-fan-width) + var(--pile-depth) + 10px);
@@ -1540,7 +1538,7 @@ select:focus-visible {
     width: var(--table-card-width);
     height: var(--table-card-height);
     max-width: none;
-    border: 1px solid rgb(0 0 0 / 35%);
+    border: 0;
     border-radius: 8px;
     object-fit: fill;
     box-shadow: 0 3px 10px rgb(0 0 0 / 26%);
@@ -1582,7 +1580,7 @@ select:focus-visible {
     position: fixed;
     z-index: 150;
     pointer-events: none;
-    border: 1px solid rgb(0 0 0 / 35%);
+    border: 0;
     border-radius: 8px;
     object-fit: fill;
     box-shadow: 0 3px 10px rgb(0 0 0 / 26%);

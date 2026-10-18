@@ -169,7 +169,7 @@
             <div class="dialog-title">Hva vil du hete?</div>
             <div class="dialogBody">
                 <div><label for="dialogSporOmNickTxt">Skriv inn navnet ditt i spillet:</label></div>
-                <div><input class="autofocus" type="text" id="dialogSporOmNickTxt" maxlength="30" oninput="this.value=this.value.replace(/[^0-9A-ZÆØÅa-zæøå /-]/g, ''); document.getElementById( 'playerNameError').innerHTML=''; this.classList.toggle('input-soft-error', this.value.trim() === '' || this.value.length > 28);" /></div>
+                <div><input class="autofocus" type="text" id="dialogSporOmNickTxt" maxlength="60" oninput="this.value=this.value.replace(/[^0-9A-ZÆØÅa-zæøå \/\-\p{Extended_Pictographic}\u200d\ufe0f]/gu, ''); document.getElementById( 'playerNameError').innerHTML=''; this.classList.toggle('input-soft-error', this.value.trim() === '' || Array.from(this.value).length > 28);" /></div>
                 <div id="playerNameError" style="color: red;"></div>
             </div>
             <div class="dialog-footer">

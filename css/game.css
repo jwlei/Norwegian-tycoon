@@ -218,10 +218,8 @@ div.scroll {
         background: var(--accent-soft, #dceeff);
     }
 
-    .exchange-panel .exchange .exchange-player img {
-        width: 3em;
-        height: 3em;
-        object-fit: contain;
+    .exchange-panel .exchange .exchange-player .exchange-player__emoji {
+        font-size: 2.6em;
     }
 
     .exchange-panel .exchange .exchange-player {
