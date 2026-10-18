@@ -1816,15 +1816,6 @@ select:focus-visible {
     gap: 7px;
 }
 
-.setting-row[aria-pressed="true"] .setting-row__text strong::before {
-    content: "";
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: #35c46a;
-    box-shadow: 0 0 5px rgb(53 196 106 / 55%);
-}
-
 .setting-row,
 .setting-row:hover,
 .setting-row:active,

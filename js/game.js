@@ -3872,6 +3872,7 @@ class PresidentGame extends Game {
         var gameEndVoteRefreshTimer = null;
         var gameToastTimer = null;
         var lastShownTurnPauseId = null;
+        var starterAnnounceState = null;
         var activeToastPauseId = null;
         var clearingPauseId = null;
         var gameLogGameId = null;
@@ -4032,6 +4033,27 @@ class PresidentGame extends Game {
                     element.classList.remove("player-summary--starter-flash");
                 });
             }
+        }
+
+        function announceRoundStarter(game) {
+            var key = `${game.id}:${game.round}`;
+            if (game.status != "S") {
+                if (game.status == "O" || game.status == "G" || game.status == "F") {
+                    starterAnnounceState = { key: key, seenNonPlaying: true, announced: false };
+                }
+                return;
+            }
+            if (starterAnnounceState == null || starterAnnounceState.key != key ||
+                !starterAnnounceState.seenNonPlaying || starterAnnounceState.announced) {
+                if (starterAnnounceState == null || starterAnnounceState.key != key) {
+                    starterAnnounceState = { key: key, seenNonPlaying: false, announced: true };
+                }
+                return;
+            }
+            var starter = game.turn >= 0 ? game.players[game.turn] : null;
+            if (starter == null || game.turnPause != null) { return; }
+            starterAnnounceState.announced = true;
+            showGameToast(starter.name == currentPlayerName ? "Du begynner" : `${starter.name} begynner`, game);
         }
 
         function flashRoundStarter() {
@@ -4232,7 +4254,7 @@ class PresidentGame extends Game {
         }
 
         function connectToAnotherGame() {
-            showConnectGameDialog();
+            leaveCurrentGame();
         }
 
         function hideGameToast() {
@@ -4921,6 +4943,7 @@ class PresidentGame extends Game {
                     handleRoundStartVote(connectingGame);
                     handleGameEndVote(connectingGame);
                     playShuffleIfNew(connectingGame);
+                    announceRoundStarter(connectingGame);
                     tryJoinWaitingSpectator(connectingGame);
                 } else {
                     disconnectGameListener();
