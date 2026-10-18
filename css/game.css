@@ -345,8 +345,12 @@ input {
 
     input:invalid {
         border: 2px dashed red;
-        animation: invalid-background 0.3s;
     }
+
+input.input-soft-error {
+    border-color: #b87878;
+    background-color: rgb(168 96 96 / 18%);
+}
 
 @keyframes invalid-background {
     0% {

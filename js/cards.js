@@ -40,7 +40,7 @@ class Card {
             { name: "2", singularName: "toer", pluralName: "toere", code: "2" },
             { name: "3", singularName: "treer", pluralName: "treere", code: "3" },
             { name: "4", singularName: "firer", pluralName: "firere", code: "4" },
-            { name: "5", singularName: "femer", pluralName: "femere", code: "5" },
+            { name: "5", singularName: "femmer", pluralName: "femmere", code: "5" },
             { name: "6", singularName: "sekser", pluralName: "seksere", code: "6" },
             { name: "7", singularName: "syver", pluralName: "syvere", code: "7" },
             { name: "8", singularName: "åtter", pluralName: "Åttere", code: "8" },

@@ -27,7 +27,7 @@
                 <span class="theme-toggle__switch" aria-hidden="true"><span></span></span>
                 <span class="theme-toggle__label">Mørk</span>
             </button>
-            <small class="app-version"><span aria-label="Spillversjon 0.1.3">v0.1.3</span> · <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">jwlei</a></small>
+            <small class="app-version"><span aria-label="Spillversjon 0.1.4">v0.1.4</span> · <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://jleiros.com" target="_blank" rel="noopener noreferrer">jleiros.com</a></small>
         </div>
         <div id="gameMenu" role="group" aria-label="Spillkontroller" style="text-align: center; vertical-align: middle;">
             <button type="button" id="BnFInviterSpill" title="Inviter andre" aria-label="Del invitasjon" style="float: left;">Del invitasjon</button>
@@ -133,7 +133,7 @@
             <div class="dialog-title">Hva vil du hete?</div>
             <div class="dialogBody">
                 <div><label for="dialogSporOmNickTxt">Skriv inn navnet ditt i spillet:</label></div>
-                <div><input class="autofocus" type="text" id="dialogSporOmNickTxt" maxlength="30" oninput="this.value=this.value.replace(/[^0-9A-ZÆØÅa-zæøå /-]/g, ''); document.getElementById( 'playerNameError').innerHTML='';" required /></div>
+                <div><input class="autofocus" type="text" id="dialogSporOmNickTxt" maxlength="30" oninput="this.value=this.value.replace(/[^0-9A-ZÆØÅa-zæøå /-]/g, ''); document.getElementById( 'playerNameError').innerHTML=''; this.classList.toggle('input-soft-error', this.value.trim() === '' || this.value.length > 28);" /></div>
                 <div id="playerNameError" style="color: red;"></div>
             </div>
             <div class="dialog-footer">
@@ -296,7 +296,6 @@
                 <div>Pass</div>
                 <div>Pass er bare mulig når bunken ikke er tom. Når alle andre passer, ryddes bunken; siste spiller starter igjen, eller neste aktive hvis hen er ferdig.</div>
             </div>
-            <p class="rules-credit">Laget av: <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">GitHub</a></p>
             <div class="dialog-footer rules-dialog__footer"><button class="autofocus" type="button" onclick="showDialog('Regler', false);">Lukk regler</button></div>
         </div>
     </div>

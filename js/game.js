@@ -3881,6 +3881,7 @@ class PresidentGame extends Game {
                     ? currentPlayerName
                     : readLastUsedPlayerName();
             document.getElementById("playerNameError").textContent = errorMessage;
+            document.getElementById("dialogSporOmNickTxt").classList.remove("input-soft-error");
             document.getElementById("dialogSporOmNickOk").textContent =
                 isRename ? "Lagre navn" : "Bli spiller";
             showDialog("SporOmNick", true);
@@ -4810,6 +4811,10 @@ class PresidentGame extends Game {
 
         document.getElementById('dialogSporOmNickOk').addEventListener('click', function () {
             var requestedName = document.getElementById('dialogSporOmNickTxt').value.trim();
+            if (requestedName.length > 28) {
+                document.getElementById('playerNameError').textContent = "Navnet kan ha maks 28 tegn.";
+                return;
+            }
             if (requestedName != "") {
                 if (currentGame == null) {
                     document.getElementById('playerNameError').textContent = "Spillet er ikke tilkoblet.";
