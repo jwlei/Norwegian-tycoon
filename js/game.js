@@ -579,7 +579,7 @@ class GameLayout {
                 detailsTextElement.textContent = detailsText;
             }
             var hostLabel = playerElement.querySelector(".player-summary__host");
-            var isHostPlayer = player.playerKey == game.hostKey &&
+            var isHostPlayer = game.status == "O" && player.playerKey == game.hostKey &&
                 (game.hostName == null || player.name == game.hostName);
             if (isHostPlayer && hostLabel == null) {
                 hostLabel = document.createElement("small");
@@ -1706,7 +1706,7 @@ class GameLayout {
             "BnPNySpiller",
             player == null &&
                 (game.status == "O" || game.status == "F") &&
-            game.players.length < MAX_PLAYERS &&
+            (game.players.length < MAX_PLAYERS || game.players.some(candidate => candidate.playerKey == "PC")) &&
             game.roundStartVote == null &&
             game.gameEndVote == null
         );
@@ -2822,6 +2822,7 @@ class PresidentGame extends Game {
             id: this.id,
             host: humans[0].name,
             players: this.players.length,
+            bots: this.players.filter(player => player.playerKey == "PC").length,
             waiting: this.status == "O",
             ts: Date.now()
         }).catch(error => {
@@ -3088,20 +3089,81 @@ class PresidentGame extends Game {
         this.shufflePlayerOrder = true;
     }
     addPlayer(incomingPlayer) {
-        var existingPlayer = this.players.find(player => player.name == incomingPlayer.name);
-        if (this.status == "F" && this.gameEndVote != null && existingPlayer == null) {
-            return { text: "Vent til avstemningen er ferdig før du blir med i neste runde." };
-        }
-        if (this.status == "O" && this.preservePlayerOrderOnStart &&
-            existingPlayer == null && this.players.length < MAX_PLAYERS) {
-            this.resetPreservedLobbyPlacements();
-        }
-        if (incomingPlayer.playerKey != "PC" &&
-            (this.hostKey == null || (this.hostName == null && incomingPlayer.playerKey == this.hostKey))) {
-            this.hostKey = incomingPlayer.playerKey;
-            this.hostName = incomingPlayer.name;
-        }
-        return super.addPlayer(incomingPlayer);
+        return new Promise(resolve => {
+            var failure;
+            this.databaseRef.transaction(current => {
+                failure = null;
+                if (current == null) {
+                    failure = "Spillet er ikke tilkoblet.";
+                    return;
+                }
+                var players = current.spillere || [];
+                var existing = players.find(player => player.nick == incomingPlayer.name);
+                if (existing != null) {
+                    if (existing.spillerKey == incomingPlayer.playerKey) { return current; }
+                    failure = "Nick er allerede i bruk av annen spiller.";
+                    return;
+                }
+                if (current.status != "O" && current.status != "F") {
+                    failure = "Ingen nye spillere når spillet pågår.";
+                    return;
+                }
+                if (current.gameEndVote != null || current.roundStartVote != null) {
+                    failure = "Vent til avstemningen er ferdig før du blir med i neste runde.";
+                    return;
+                }
+                var botIndex = incomingPlayer.playerKey != "PC"
+                    ? players.findIndex(player => player.spillerKey == "PC") : -1;
+                if (players.length >= MAX_PLAYERS && botIndex < 0) {
+                    failure = `Spillet har plass til maks ${MAX_PLAYERS} spillere.`;
+                    return;
+                }
+                if (incomingPlayer.playerKey == "PC" &&
+                    (current.hostKey != getPlayerKey() ||
+                        (current.hostName != null && current.hostName != this.localPlayerName))) {
+                    failure = "Bare verten kan legge til bots.";
+                    return;
+                }
+                var next = Object.assign({}, current);
+                next.spillere = players.slice();
+                if (players.length >= MAX_PLAYERS) {
+                    next.spillere[botIndex] = incomingPlayer.toRecord();
+                } else {
+                    next.spillere.push(incomingPlayer.toRecord());
+                }
+                if (current.status == "F" || current.preservePlayerOrderOnStart) {
+                    next.spillere = next.spillere.map(player => Object.assign({}, player, {
+                        plassering: 0, lastPlacement: 0, presidentStreak: 0, bomsStreak: 0
+                    }));
+                    next.preservePlayerOrderOnStart = false;
+                }
+                next.status = "O";
+                if (incomingPlayer.playerKey != "PC" &&
+                    (next.hostKey == null || (next.hostName == null && next.hostKey == incomingPlayer.playerKey))) {
+                    next.hostKey = incomingPlayer.playerKey;
+                    next.hostName = incomingPlayer.name;
+                }
+                return next;
+            }, (error, committed, snapshot) => {
+                if (error) {
+                    console.error("Kunne ikke legge til spilleren.", error);
+                    resolve({ text: "Kunne ikke legge til spilleren. Prøv igjen." });
+                    return;
+                }
+                if (!committed) {
+                    resolve({ text: failure || "Kunne ikke legge til spilleren. Prøv igjen." });
+                    return;
+                }
+                var record = snapshot.val();
+                this.players = PresidentPlayer.deserializePlayers(record.spillere || []);
+                this.hostKey = record.hostKey || null;
+                this.hostName = record.hostName || null;
+                this.status = record.status;
+                this.preservePlayerOrderOnStart = record.preservePlayerOrderOnStart === true;
+                this.updatePublicListing();
+                resolve({ player: this.getPlayer(incomingPlayer.name) });
+            }, false);
+        });
     }
     needsNeutralRoundVote() {
         return this.players.some(player =>
@@ -4079,7 +4141,7 @@ class PresidentGame extends Game {
 
         var pendingSpectatorJoinName = null;
 
-        function joinRememberedPlayerOrPrompt() {
+        async function joinRememberedPlayerOrPrompt() {
             pendingSpectatorJoinName = null;
             var rememberedName = readLastUsedPlayerName();
             if (currentGame.status == "S" || currentGame.status == "G") {
@@ -4098,9 +4160,11 @@ class PresidentGame extends Game {
                 }
             }
             if (rememberedName != "") {
-                var result = currentGame.addPlayer(
+                var joiningGame = currentGame;
+                var result = await joiningGame.addPlayer(
                     new PresidentPlayer(rememberedName, getPlayerKey())
                 );
+                if (currentGame != joiningGame) { return; }
                 if (result.player) {
                     currentPlayerName = result.player.name;
                     GameLayout.updateSharedView(currentGame, result.player);
@@ -4114,20 +4178,27 @@ class PresidentGame extends Game {
             promptForPlayerName();
         }
 
-        function tryJoinWaitingSpectator(game) {
+        var spectatorJoinPending = false;
+        async function tryJoinWaitingSpectator(game) {
             if (pendingSpectatorJoinName == null || currentGame != game ||
-                currentPlayerName != null ||
+                currentPlayerName != null || spectatorJoinPending ||
                 (game.status != "O" && game.status != "F")) {
                 return;
             }
-            var result = game.addPlayer(
+            spectatorJoinPending = true;
+            var result = await game.addPlayer(
                 new PresidentPlayer(pendingSpectatorJoinName, getPlayerKey())
             );
+            spectatorJoinPending = false;
+            if (currentGame != game) { return; }
             if (result.player) {
                 pendingSpectatorJoinName = null;
                 currentPlayerName = result.player.name;
                 GameLayout.updateSharedView(game, result.player);
                 GameLayout.updatePlayerView(game, result.player);
+            } else {
+                pendingSpectatorJoinName = null;
+                showGameToast(result.text, game);
             }
         }
 
@@ -4921,7 +4992,7 @@ class PresidentGame extends Game {
             var headingText = document.createElement("span");
             headingText.textContent = "Åpne lobbyer";
             heading.appendChild(headingText);
-            if (lobbies.some(lobby => lobby.waiting && lobby.players < MAX_PLAYERS)) {
+            if (lobbies.some(lobby => lobby.waiting && (lobby.players < MAX_PLAYERS || lobby.bots > 0))) {
                 var randomButton = document.createElement("button");
                 randomButton.type = "button";
                 randomButton.className = "public-lobby-random";
@@ -4970,6 +5041,7 @@ class PresidentGame extends Game {
                         id: String(lobby.id),
                         host: lobby.host,
                         players: Number(lobby.players) || 0,
+                        bots: Number(lobby.bots) || 0,
                         waiting: lobby.waiting !== false,
                         ts: Number(lobby.ts) || 0
                     });
@@ -4984,7 +5056,7 @@ class PresidentGame extends Game {
 
         function joinRandomPublicLobby() {
             var lobbies = joinableLobbies().filter(lobby =>
-                lobby.waiting && lobby.players < MAX_PLAYERS
+                lobby.waiting && (lobby.players < MAX_PLAYERS || lobby.bots > 0)
             );
             if (lobbies.length == 0) {
                 showPublicLobbyError("Ingen åpne lobbyer akkurat nå.");
@@ -5383,7 +5455,7 @@ class PresidentGame extends Game {
             }
         });
 
-        document.getElementById('dialogSporOmNickOk').addEventListener('click', function () {
+        document.getElementById('dialogSporOmNickOk').addEventListener('click', async function () {
             var requestedName = document.getElementById('dialogSporOmNickTxt').value.trim();
             if (Array.from(requestedName).length > 28) {
                 document.getElementById('playerNameError').textContent = "Navnet kan ha maks 28 tegn.";
@@ -5430,7 +5502,9 @@ class PresidentGame extends Game {
                     showDialog("SporOmNick", false);
                 } else {
                     var key = getPlayerKey();
-                    var newPlayerResult = currentGame.addPlayer(new PresidentPlayer(requestedName, key));
+                    var joiningGame = currentGame;
+                    var newPlayerResult = await joiningGame.addPlayer(new PresidentPlayer(requestedName, key));
+                    if (currentGame != joiningGame) { return; }
                     if (newPlayerResult.player) {
                         currentPlayerName = newPlayerResult.player.name;
                         saveLastUsedPlayerName(currentPlayerName);
@@ -5452,7 +5526,7 @@ class PresidentGame extends Game {
             );
         });
 
-        document.getElementById('BnFNyAutoSpiller').addEventListener('click', function () {
+        document.getElementById('BnFNyAutoSpiller').addEventListener('click', async function () {
             if (currentGame == null || !isLobbyHost(currentGame) ||
                 (currentGame.status != "O" && currentGame.status != "F") ||
                 currentGame.gameEndVote != null) {
@@ -5463,7 +5537,9 @@ class PresidentGame extends Game {
             var availableNames = BOT_NAMES.filter(name => !usedNames.includes(name.toLocaleLowerCase()));
             if (availableNames.length > 0) {
                 var name = availableNames[Math.floor(Math.random() * availableNames.length)];
-                var result = currentGame.addPlayer(new PresidentPlayer(name, key));
+                var botGame = currentGame;
+                var result = await botGame.addPlayer(new PresidentPlayer(name, key));
+                if (currentGame != botGame) { return; }
                 if (!result.player) {
                     showGameToast(result.text, currentGame);
                 }

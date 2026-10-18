@@ -37,6 +37,137 @@ function setupGame() {
     return { game, players, pile };
 }
 
+function lobbyWithStoredPlayers(names) {
+    const { game, players } = setupGame();
+    const { PresidentPlayer } = loadGame();
+    game.status = "O";
+    game.hostName = game.localPlayerName = players[0].name;
+    const stored = {
+        status: "O", hostKey: game.hostKey, hostName: game.hostName,
+        spillere: [
+            players[0].toRecord(),
+            ...names.map(([name, key]) => new PresidentPlayer(name, key).toRecord())
+        ]
+    };
+    game.databaseRef = {
+        transaction(transform, complete) {
+            const next = transform(JSON.parse(JSON.stringify(stored)));
+            if (next !== undefined) { Object.assign(stored, next); }
+            complete(null, next !== undefined, { val: () => JSON.parse(JSON.stringify(stored)) });
+        }
+    };
+    return { game, stored, PresidentPlayer };
+}
+
+test("adding a bot preserves humans missing from the host's stale local list", async () => {
+    const { game, stored, PresidentPlayer } = lobbyWithStoredPlayers([["Guest", "guest-key"]]);
+    game.players = game.players.slice(0, 1);
+    const result = await game.addPlayer(new PresidentPlayer("New bot", "PC"));
+    assert.equal(result.player.name, "New bot");
+    assert.deepEqual(stored.spillere.map(player => player.nick), ["Human", "Guest", "New bot"]);
+    assert.equal(stored.spillere[1].spillerKey, "guest-key");
+});
+
+test("a human replaces only a bot when the lobby is full", async () => {
+    const { game, stored, PresidentPlayer } = lobbyWithStoredPlayers([
+        ["Guest", "guest-key"], ["Bot A", "PC"], ["Bot B", "PC"]
+    ]);
+    stored.spillere[1].ready = true;
+    const result = await game.addPlayer(new PresidentPlayer("New human", "new-key"));
+    assert.equal(result.player.name, "New human");
+    assert.deepEqual(stored.spillere.map(player => player.nick), ["Human", "Guest", "New human", "Bot B"]);
+    assert.equal(stored.spillere[1].ready, true);
+    assert.equal(stored.spillere[2].ready, false);
+});
+
+test("bots cannot replace anyone in a full lobby", async () => {
+    const { game, stored, PresidentPlayer } = lobbyWithStoredPlayers([
+        ["Guest", "guest-key"], ["Bot A", "PC"], ["Bot B", "PC"]
+    ]);
+    const before = JSON.stringify(stored);
+    const result = await game.addPlayer(new PresidentPlayer("New bot", "PC"));
+    assert.ok(result.text);
+    assert.equal(JSON.stringify(stored), before);
+});
+
+test("a full human lobby rejects a fifth human without overwriting players", async () => {
+    const { game, stored, PresidentPlayer } = lobbyWithStoredPlayers([
+        ["Guest", "guest-key"], ["Third", "third-key"], ["Fourth", "fourth-key"]
+    ]);
+    const before = JSON.stringify(stored);
+    const result = await game.addPlayer(new PresidentPlayer("Fifth", "fifth-key"));
+    assert.ok(result.text);
+    assert.equal(JSON.stringify(stored), before);
+});
+
+test("a non-host cannot add a bot through the game method", async () => {
+    const { game, stored, PresidentPlayer } = lobbyWithStoredPlayers([]);
+    game.localPlayerName = "Guest";
+    const result = await game.addPlayer(new PresidentPlayer("Bot", "PC"));
+    assert.ok(result.text);
+    assert.equal(stored.spillere.length, 1);
+});
+
+test("rejoining and duplicate names never replace an existing human", async () => {
+    const { game, stored, PresidentPlayer } = lobbyWithStoredPlayers([["Guest", "guest-key"]]);
+    const result = await game.addPlayer(new PresidentPlayer("Guest", "guest-key"));
+    assert.equal(result.player.playerKey, "guest-key");
+    const rejected = await game.addPlayer(new PresidentPlayer("Guest", "PC"));
+    assert.ok(rejected.text);
+    assert.equal(stored.spillere.length, 2);
+    assert.equal(stored.spillere[1].spillerKey, "guest-key");
+});
+
+test("a transaction retry uses the new human's slot instead of overwriting it", async () => {
+    const { game, stored, PresidentPlayer } = lobbyWithStoredPlayers([]);
+    game.databaseRef.transaction = (transform, complete) => {
+        transform(JSON.parse(JSON.stringify(stored)));
+        stored.spillere.push(new PresidentPlayer("Concurrent human", "guest-key").toRecord());
+        const next = transform(JSON.parse(JSON.stringify(stored)));
+        Object.assign(stored, next);
+        complete(null, true, { val: () => JSON.parse(JSON.stringify(stored)) });
+    };
+    await game.addPlayer(new PresidentPlayer("Bot", "PC"));
+    assert.deepEqual(stored.spillere.map(player => player.nick), ["Human", "Concurrent human", "Bot"]);
+});
+
+test("a human cannot replace a bot in a game already in progress", async () => {
+    const { game, stored, PresidentPlayer } = lobbyWithStoredPlayers([
+        ["Guest", "guest-key"], ["Bot A", "PC"], ["Bot B", "PC"]
+    ]);
+    stored.status = "S";
+    const before = JSON.stringify(stored);
+    const result = await game.addPlayer(new PresidentPlayer("New human", "new-key"));
+    assert.ok(result.text);
+    assert.equal(JSON.stringify(stored), before);
+});
+
+test("the creator is assigned as host when joining the empty room", async () => {
+    const { game, stored, PresidentPlayer } = lobbyWithStoredPlayers([]);
+    stored.spillere = [];
+    stored.hostName = null;
+    await game.addPlayer(new PresidentPlayer("Creator", "human-key"));
+    assert.equal(stored.hostKey, "human-key");
+    assert.equal(stored.hostName, "Creator");
+    assert.equal(game.hostName, "Creator");
+});
+
+test("a retry at full capacity preserves the concurrent human and rejects the bot", async () => {
+    const { game, stored, PresidentPlayer } = lobbyWithStoredPlayers([
+        ["Guest", "guest-key"], ["Third", "third-key"]
+    ]);
+    game.databaseRef.transaction = (transform, complete) => {
+        transform(JSON.parse(JSON.stringify(stored)));
+        stored.spillere.push(new PresidentPlayer("Fourth", "fourth-key").toRecord());
+        const next = transform(JSON.parse(JSON.stringify(stored)));
+        assert.equal(next, undefined);
+        complete(null, false, { val: () => stored });
+    };
+    const result = await game.addPlayer(new PresidentPlayer("Bot", "PC"));
+    assert.ok(result.text);
+    assert.deepEqual(stored.spillere.map(player => player.nick), ["Human", "Guest", "Third", "Fourth"]);
+});
+
 function finishedVotingGame(sharedKey = false) {
     const { game, players } = setupGame();
     if (sharedKey) { players[1].playerKey = players[0].playerKey; }
