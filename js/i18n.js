@@ -223,7 +223,7 @@
         "Starter valgt neste steg …": "Starting the chosen next step …",
         "Klargjør avstemning …": "Preparing the vote …",
         "Vert": "Host",
-        "1–28 tegn: bokstaver, tall, mellomrom, - / og emojier. Like navn får -1, -2 osv.": "1–28 characters: letters, numbers, spaces, - / and emojis. Duplicate names get -1, -2, etc.",
+        "1–28 tegn: bokstaver (også japanske), tall, mellomrom, - / og emojier. Like navn får -1, -2 osv.": "1–28 characters: letters (including Japanese), numbers, spaces, - / and emojis. Duplicate names get -1, -2, etc.",
         "Kunne ikke endre spillernavnet. Prøv igjen.": "Could not change the player name. Please try again.",
         "Bare verten kan legge til bots.": "Only the host can add bots.",
         "Kunne ikke legge til spilleren. Prøv igjen.": "Could not add the player. Please try again.",
@@ -357,7 +357,7 @@
 
     // [Norwegian template, English template]. Specific rules come before generic ones.
     var RULE_SOURCE = [
-        ["{n}/{m} plasser ledige", "{n}/{m} seats available"],
+        ["{n}/{m} plasser fylt", "{n}/{m} seats filled"],
         ["{name} ble President!", "{name} became President!"],
         ["{name} ble Boms!", "{name} became Boms!"],
         ["{name} gikk ut som Nøytral.", "{name} went out as Neutral."],

@@ -151,7 +151,7 @@ const BOT_NAMES = [
     "Onkel Pass", "Severin Suveren", "H4cker-man", "Kurt-Josef", "Kjell-Bjarne",
     "Steinar Storspiller", "Mathias (CEO)", "xXLegolasXx", "J21Oslo", "Guest_839201",
     "Fetter Anton", "DeepSeek", "GPT6", "Jompa", "Sjefen_Over_Alle_Sjefer",
-    "Mysil Bergsprekken", "RNGesus"
+    "Mysil Bergsprekken", "RNGesus", "Tante_Pose", "BobRoss", "IlIllIlIIl", "ギフテッド"
 ];
 const TURN_ACTION_PAUSE_MS = 3000;
 const BOT_ACTION_DELAY_MS = TURN_ACTION_PAUSE_MS;
@@ -164,6 +164,10 @@ function resultIconForPlacement(game, placement) {
 
 function roundVotePlayerId(player) {
     return JSON.stringify([player.playerKey || "", player.name]);
+}
+
+function sanitizePlayerName(name) {
+    return name.replace(/[^0-9A-ZÆØÅa-zæøå \/\-\p{Script_Extensions=Katakana}\p{Script_Extensions=Hiragana}\p{Script=Han}\p{Extended_Pictographic}\u200d\ufe0f]/gu, "");
 }
 
 function availablePlayerName(name, usedNames) {
@@ -398,7 +402,7 @@ class GameLayout {
         var capacity = document.getElementById("lobbyCapacity");
         capacity.hidden = game == null || game.status != "O";
         if (!capacity.hidden) {
-            capacity.textContent = `${MAX_PLAYERS - game.players.length}/${MAX_PLAYERS} plasser ledige`;
+            capacity.textContent = `${game.players.length}/${MAX_PLAYERS} plasser fylt`;
         }
         var waitingCount = game == null ? 0 : Object.keys(game.waitingSpectators || {}).length;
         var waitingLabel = document.getElementById("waitingPlayers");
@@ -406,7 +410,8 @@ class GameLayout {
         waitingLabel.textContent = waitingCount == 1
             ? "1 spiller venter på å bli med..."
             : `${waitingCount} spillere venter på å bli med...`;
-        GameLayout.cardStylePlayerName = player ? player.name : null;
+        GameLayout.cardStylePlayerName = player ? player.name :
+            (game == null ? GameLayout.savedPlayerName : null);
         document.documentElement.dataset.cardStyle = GameLayout.cardStyle();
         if (game != null) { game.localPlayerName = player ? player.name : null; }
         var appShell = document.getElementById("gameShell");
@@ -4270,9 +4275,7 @@ class PresidentGame extends Game {
                 .find(value => value.startsWith(cookiePrefix));
             if (cookie == null) { return ""; }
             try {
-                return decodeURIComponent(cookie.slice(cookiePrefix.length))
-                    .replace(/[^0-9A-ZÆØÅa-zæøå \/\-\p{Extended_Pictographic}\u200d\ufe0f]/gu, "")
-                    .trim();
+                return sanitizePlayerName(decodeURIComponent(cookie.slice(cookiePrefix.length))).trim();
             } catch (error) {
                 console.warn("Kunne ikke lese lagret spillernavn fra cookie.", error);
                 return "";
@@ -4288,6 +4291,11 @@ class PresidentGame extends Game {
 
         function updateSavedPlayerName() {
             var name = readLastUsedPlayerName();
+            GameLayout.savedPlayerName = name;
+            if (currentGame == null) {
+                GameLayout.cardStylePlayerName = name;
+                document.documentElement.dataset.cardStyle = GameLayout.cardStyle();
+            }
             var splashName = document.getElementById("splashPlayerName");
             splashName.textContent = name;
             splashName.hidden = name == "";
@@ -5601,8 +5609,8 @@ class PresidentGame extends Game {
 
         function openSettings() {
             var inGame = currentGame != null;
-            updateCardStyleButtons();
             updateSavedPlayerName();
+            updateCardStyleButtons();
             GameLayout.setVisible("BnPByttNavn", !inGame || currentGame.status == "O");
             document.getElementById("autoSuggestionToggleButton").hidden = !inGame;
             document.querySelector(".setting-speed").hidden = !inGame;

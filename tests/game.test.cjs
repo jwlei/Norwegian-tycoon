@@ -195,8 +195,77 @@ function loadGame(cardStyle = null, globals = {}) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(file === "game.js" ? source.split(/\r?\n\(\r?\n/)[0] : source, context);
     }
-    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, isLobbyHost, availablePlayerName })", context);
+    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES })", context);
 }
+
+test("new bot names are available and Japanese player names survive input and cookie sanitization", () => {
+    const { BOT_NAMES, sanitizePlayerName } = loadGame();
+    for (const name of ["Tante_Pose", "BobRoss", "IlIllIlIIl", "ギフテッド"]) {
+        assert.ok(BOT_NAMES.includes(name));
+    }
+    for (const name of ["ギフテッド", "カービィ", "ぎふてっど", "日本語", "ギフト", "Bjørn 123 /- 😎"]) {
+        assert.equal(sanitizePlayerName(name), name);
+    }
+    assert.equal(sanitizePlayerName('Name_<>"&()'), "Name");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    const context = vm.createContext({
+        document: { cookie: `other=value; norwegian_tycoon_player_name=${encodeURIComponent("ギフテッド")}` },
+        playerNameCookie: "norwegian_tycoon_player_name", sanitizePlayerName, console
+    });
+    vm.runInContext(source.slice(source.indexOf("        function readLastUsedPlayerName()"),
+        source.indexOf("        function saveLastUsedPlayerName(")), context);
+    assert.equal(context.readLastUsedPlayerName(), "ギフテッド");
+});
+
+test("secret style remains available on the main menu through the saved name", () => {
+    const elements = new Map();
+    const document = {
+        documentElement: { dataset: {} }, querySelectorAll: () => [],
+        getElementById(id) {
+            if (!elements.has(id)) {
+                elements.set(id, {
+                    hidden: false, dataset: {}, style: {}, classList: { remove() {} }, setAttribute() {}
+                });
+            }
+            return elements.get(id);
+        }
+    };
+    const { GameLayout } = loadGame("botanical", { document, setClass() {} });
+    for (const name of ["MRHOTBOX", "Tåkefyrsten", "BJØRN", "Guest"]) {
+        GameLayout.savedPlayerName = name;
+        GameLayout.cardStylePlayerName = null;
+        GameLayout.updateSharedView(null, null);
+        assert.equal(GameLayout.cardStylePlayerName, name);
+        assert.equal(GameLayout.cardStyle(), name == "Guest" ? "normal" : "botanical");
+        assert.equal(document.documentElement.dataset.cardStyle, GameLayout.cardStyle());
+    }
+});
+
+test("lobby capacity counts filled seats for every player count", () => {
+    const elements = new Map();
+    const { GameLayout } = loadGame(null, {
+        setClass() {},
+        document: {
+            documentElement: { dataset: {} }, querySelectorAll: () => [],
+            getElementById(id) {
+                if (!elements.has(id)) {
+                    elements.set(id, { dataset: {}, style: {}, classList: { remove() {} }, setAttribute() {} });
+                }
+                return elements.get(id);
+            }
+        }
+    });
+    for (const method of ["updateGameButtons", "updatePlayers", "updateTable", "fitNames"]) {
+        GameLayout[method] = () => {};
+    }
+    for (let count = 1; count <= 4; count++) {
+        GameLayout.updateSharedView({ id: "lobby", status: "O", players: Array(count) }, null);
+        assert.equal(elements.get("lobbyCapacity").textContent, `${count}/4 plasser fylt`);
+        assert.equal(elements.get("lobbyCapacity").hidden, false);
+    }
+    GameLayout.updateSharedView({ id: "lobby", status: "S", players: [] }, null);
+    assert.equal(elements.get("lobbyCapacity").hidden, true);
+});
 
 test("waiting spectators register once, arm disconnect cleanup first and remove their own entry on leave", async () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
