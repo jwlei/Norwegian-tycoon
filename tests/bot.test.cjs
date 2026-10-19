@@ -24,11 +24,11 @@ function loadBots() {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(source, context);
     }
-    return vm.runInContext("({ BotAI, PresidentGame, PresidentPlayer, PresidentCard, CardDeck, CardPile, playBotTurn, BOT_NAMES })", context);
+    return vm.runInContext("({ BotAI, PresidentGame, PresidentPlayer, PresidentCard, CardDeck, CardPile, playBotTurn, BOT_NAMES, isCardAllowedForExchange })", context);
 }
 
 const types = loadBots();
-const { BotAI, PresidentGame, PresidentPlayer, PresidentCard, CardDeck, CardPile, playBotTurn } = types;
+const { BotAI, PresidentGame, PresidentPlayer, PresidentCard, CardDeck, CardPile, playBotTurn, isCardAllowedForExchange } = types;
 const card = (rank, suit = 1) => new PresidentCard(suit, rank);
 const view = (cards, top = null, opponents = [{ name: "Other", count: 8, passed: false }]) =>
     ({ cards, top, opponents: opponents.map(other => ({
@@ -88,22 +88,22 @@ test("bot-initiated sneaky offers require both votes and complete legally throug
         game.piles.reduce((sum, pile) => sum + pile.length, 0), before);
 });
 
-test("trade consent is evaluated at initiation and cannot be changed afterward", () => {
+test("sneaky consent may be added after initiation until a card is given", () => {
     const game = optionalTradeGame();
     const offer = game.piles[0];
     game.toggleSneakyTrade(offer, 0);
-    game.toggleSneakyTrade(offer, 1);
-    assert.equal(offer.mode, "Tilbud");
-    game.toggleSneakyTrade(offer, 1);
     game.startOptionalTrade(offer);
-    assert.ok(game.piles.every(exchange => exchange.sneakyLocked));
     const outgoing = game.piles.find(exchange => exchange.from === 0);
-    assert.throws(() => game.toggleSneakyTrade(outgoing, 1), /kan ikke endres/);
+    const incoming = game.piles.find(exchange => exchange.from === 1);
+    assert.ok(game.piles.every(exchange => !exchange.sneakyLocked));
+    game.toggleSneakyTrade(incoming, 1);
+    assert.ok(game.piles.every(exchange => exchange.sneakyVotes.length === 2));
+    assert.ok(game.piles.every(exchange => isCardAllowedForExchange(exchange, card(14))));
     outgoing.cards = [card(14)];
-    assert.throws(() => game.giveExchangeCards(outgoing), /ikke gyldige/);
-    outgoing.cards = [card(7)];
     game.giveExchangeCards(outgoing);
     assert.equal(outgoing.mode, "Gitt");
+    assert.ok(game.piles.every(exchange => exchange.sneakyLocked));
+    assert.throws(() => game.toggleSneakyTrade(incoming, 1), /kan ikke endres/);
 });
 
 test("mutual consent at initiation allows cards outside 7–J without requiring a legal normal card", () => {
@@ -401,6 +401,12 @@ test("target bots can consent to sneaky but never initiate a normal trade or mut
     assert.equal(BotAI.chooseOptionalTrade(game, game.players[2], offer, () => 0), "skip");
     offer.mode = "Velg";
     assert.equal(BotAI.chooseOptionalTrade(game, game.players[0], offer, () => 0), "skip");
+
+    const startedTrade = optionalTradeGame();
+    startedTrade.startOptionalTrade(startedTrade.piles[0]);
+    playBotTurn(startedTrade, startedTrade.players[1], () => 0);
+    assert.ok(startedTrade.piles.every(exchange => exchange.sneakyVotes.length === 2));
+    assert.ok(startedTrade.piles.some(exchange => exchange.mode === "Gitt"));
 });
 
 test("all sneaky skills use the actual chosen incoming card, before and after it is given", () => {

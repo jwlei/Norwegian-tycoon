@@ -680,6 +680,7 @@ select:focus-visible {
     flex: 0 0 auto;
     flex-direction: column;
     gap: 6px;
+    min-height: 174px;
     margin-top: auto;
     padding: 10px;
     border: 1px solid var(--line);
@@ -690,9 +691,10 @@ select:focus-visible {
 
 .exchange-selection__cards {
     display: flex;
-    min-height: 42px;
+    min-height: 84px;
     flex-wrap: wrap;
     align-items: center;
+    align-content: center;
     gap: 8px;
 }
 
@@ -702,18 +704,6 @@ select:focus-visible {
     border: 1px solid var(--line);
     border-radius: 6px;
     box-shadow: 0 3px 8px rgb(0 0 0 / 20%);
-    animation: exchange-card-arrive 220ms cubic-bezier(.2,.8,.25,1) both;
-}
-
-@keyframes exchange-card-arrive {
-    from {
-        opacity: 0;
-        transform: translateY(12px) scale(0.92);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
 }
 
 .exchange-preview {
@@ -1045,6 +1035,12 @@ select:focus-visible {
 
 .game-card.is-exchange-selected {
     transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-15.4px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .game-card:hover:not(.is-selected):not(.is-exchange-selected):not(.is-dragging) {
+        transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-8px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
+    }
 }
 
 .game-card.is-unplayable {
@@ -3301,6 +3297,10 @@ select:focus-visible {
     .game-card.is-selected,
     .game-card.is-exchange-selected,
     .game-card:active {
+        transform: translateX(var(--card-offset, 0px)) rotate(var(--card-rotation, 0deg));
+    }
+
+    .game-card:hover:not(.is-selected):not(.is-exchange-selected):not(.is-dragging) {
         transform: translateX(var(--card-offset, 0px)) rotate(var(--card-rotation, 0deg));
     }
 

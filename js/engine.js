@@ -1364,7 +1364,7 @@ class PresidentGame extends Game {
             mode: "Velg",
             cards: [],
             sneakyVotes: votes.slice(),
-            sneakyLocked: true
+            sneakyLocked: false
         });
         this.piles.push(
             createExchange(currentOffer.from, currentOffer.to),
@@ -1399,7 +1399,8 @@ class PresidentGame extends Game {
         var current = this.piles.find(candidate =>
             getExchangeId(candidate) == getExchangeId(exchange)
         );
-        if (!current || current.kind != "playerTrade" || current.mode != "Tilbud") {
+        if (!current || current.kind != "playerTrade" ||
+            (current.mode != "Tilbud" && current.mode != "Velg")) {
             throw ("Sneaky-samtykke kan ikke endres nå.");
         }
         if (playerIndex != current.from && playerIndex != current.to) {
@@ -1408,12 +1409,16 @@ class PresidentGame extends Game {
         var relatedExchanges = this.piles.filter(candidate =>
             candidate.tradeId != null && candidate.tradeId == current.tradeId
         );
+        if (relatedExchanges.some(candidate =>
+            candidate.sneakyLocked === true ||
+            (candidate.cards || []).length > 0 ||
+            (candidate.mode != "Tilbud" && candidate.mode != "Velg")
+        )) {
+            throw ("Sneaky-samtykke kan ikke endres etter at kort er valgt.");
+        }
         var votes = (current.sneakyVotes || []).slice();
         var voteIndex = votes.indexOf(playerIndex);
         if (voteIndex >= 0) {
-            if (relatedExchanges.some(candidate => candidate.cards && candidate.cards.length > 0)) {
-                throw ("Sneaky-samtykke kan ikke trekkes tilbake etter at kort er valgt.");
-            }
             votes.splice(voteIndex, 1);
         } else {
             votes.push(playerIndex);
@@ -1472,11 +1477,22 @@ class PresidentGame extends Game {
                 this.roundStarterName = null;
                 this.setTurn(startIndex);
             }
-        } else if (this.piles.every(exchange => exchange.mode == "Gitt")) {
-            var completedExchanges = this.piles.slice();
-            completedExchanges.forEach(exchange => this.deliverExchangeCards(exchange));
-            this.piles = [];
-            this.advanceExchangeStage();
+        } else {
+            var exchangeGroups = new Map();
+            this.piles.filter(exchange => exchange.mode != "Tilbud").forEach(exchange => {
+                var groupId = exchange.tradeId != null ? `trade:${exchange.tradeId}` : "mandatory";
+                if (!exchangeGroups.has(groupId)) { exchangeGroups.set(groupId, []); }
+                exchangeGroups.get(groupId).push(exchange);
+            });
+            var completedExchanges = Array.from(exchangeGroups.values())
+                .filter(group => group.every(exchange => exchange.mode == "Gitt"))
+                .flat();
+            if (completedExchanges.length > 0) {
+                var completedExchangeSet = new Set(completedExchanges);
+                completedExchanges.forEach(exchange => this.deliverExchangeCards(exchange));
+                this.piles = this.piles.filter(exchange => !completedExchangeSet.has(exchange));
+                if (this.piles.length == 0) { this.advanceExchangeStage(); }
+            }
         }
     }
     deliverExchangeCards(exchange) {

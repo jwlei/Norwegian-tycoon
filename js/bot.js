@@ -367,6 +367,14 @@ class BotAI {
     }
 
     // Call once per offer/participant; "sneaky" is a consent vote, not permission to start alone.
+    static sneakyTradeChance(skill) {
+        return { bad: 0.08, good: 0.18, pro: 0.32, god: 0.48 }[BotAI.skill(skill)];
+    }
+
+    static chooseSneakyConsent(player, random = Math.random) {
+        return random() < BotAI.sneakyTradeChance(player.botSkill);
+    }
+
     static chooseOptionalTrade(game, player, offer, random = Math.random) {
         var seat = game.players.indexOf(player);
         if (game.status != "G" || game.players.length != 3 ||
@@ -375,12 +383,11 @@ class BotAI {
         var skill = BotAI.skill(player.botSkill || "good");
         var available = BotAI.tradeCards(game, player, offer);
         if (available.length == 0) { return "skip"; }
-        var chances = {
-            bad: [0.08, 0.45], good: [0.18, 0.65], pro: [0.32, 0.82], god: [0.48, 0.96]
-        }[skill];
+        var sneakyChance = BotAI.sneakyTradeChance(skill);
+        var normalChance = { bad: 0.45, good: 0.65, pro: 0.82, god: 0.96 }[skill];
         var roll = random();
-        if (roll < chances[0]) { return "sneaky"; }
-        if (seat != offer.from || roll >= chances[1]) { return "skip"; }
+        if (roll < sneakyChance) { return "sneaky"; }
+        if (seat != offer.from || roll >= normalChance) { return "skip"; }
         var legal = available.filter(card => card.strengthRank >= 7 && card.strengthRank <= 11);
         if (legal.length == 0) { return "skip"; }
         if (skill == "bad") { return "normal"; }

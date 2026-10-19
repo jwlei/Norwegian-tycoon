@@ -36,6 +36,37 @@ function playBotTurn(game, player, random = Math.random) {
         }
         if (game.status == "G") {
             game.piles.slice().filter(exchange =>
+                exchange.kind == "playerTrade" && exchange.mode == "Velg" &&
+                GamePresence.isBot(game, game.players[exchange.from]) &&
+                !exchange.sneakyLocked
+            ).forEach(exchange => {
+                var participants = game.piles.filter(candidate =>
+                    candidate.tradeId == exchange.tradeId
+                );
+                if (participants.some(candidate =>
+                    candidate.sneakyLocked || (candidate.cards || []).length > 0
+                )) { return; }
+                var botSeat = exchange.from;
+                var decisionKey = `sneaky:${botSeat}`;
+                var decision = exchange.botDecisions && exchange.botDecisions[decisionKey];
+                if (decision == null) {
+                    decision = BotAI.chooseSneakyConsent(game.players[botSeat], random)
+                        ? "sneaky"
+                        : "skip";
+                    participants.forEach(candidate => {
+                        if (!candidate.botDecisions) { candidate.botDecisions = {}; }
+                        candidate.botDecisions[decisionKey] = decision;
+                    });
+                    game.save();
+                }
+                if (decision == "sneaky" &&
+                    !(exchange.sneakyVotes || []).includes(botSeat)) {
+                    game.toggleSneakyTrade(exchange, botSeat);
+                }
+            });
+        }
+        if (game.status == "G") {
+            game.piles.slice().filter(exchange =>
                 exchange.mode == "Velg" && game.players[exchange.from] == player
             ).forEach(exchange => {
                 var availableCards = getAvailableExchangeCards(

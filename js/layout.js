@@ -1,3 +1,15 @@
+function chooseSuggestedPlayStrength(player, topPile, playableStrengths, requiredCardCount) {
+    var clubThreePower = PresidentCard.clubThreePower();
+    if (topPile.length == 1 && player.cards.length > 1 &&
+        playableStrengths.has(clubThreePower)) {
+        return clubThreePower;
+    }
+    var sortedPlayableStrengths = Array.from(playableStrengths).sort((a, b) => a - b);
+    return sortedPlayableStrengths.find(strengthRank =>
+        player.cards.filter(card => card.strengthRank == strengthRank).length == requiredCardCount
+    ) ?? sortedPlayableStrengths[0];
+}
+
 class GameLayout {
     static isShufflingExchange(game) {
         return game != null && game.status == "G" && game.shuffleStartedAt != null &&
@@ -1057,7 +1069,7 @@ class GameLayout {
                         if (canInitiate) {
                             var startButton = document.createElement("button");
                             startButton.type = "button";
-                            startButton.textContent = "Start tvunget bytte";
+                            startButton.textContent = "Start frivillig bytte";
                             startButton.disabled = !hasSneakyConsent(exchange) &&
                                 (!hasLegalTradeCard(game, exchange.from, exchange) ||
                                     !hasLegalTradeCard(game, exchange.to, exchange));
@@ -1103,6 +1115,28 @@ class GameLayout {
                                 ? "Sneaky bytte: alle kort kan brukes."
                                 : "Vanlig bytte: kort 7–J.";
                             exchangeStatus.appendChild(tradeStatus);
+                            var consentCanChange = game.piles
+                                .filter(candidate => candidate.tradeId == exchange.tradeId)
+                                .every(candidate =>
+                                    candidate.sneakyLocked !== true &&
+                                    (candidate.cards || []).length == 0 &&
+                                    candidate.mode == "Velg"
+                                );
+                            if (exchange.mode == "Velg" && isSender && consentCanChange) {
+                                var sneakyButton = document.createElement("button");
+                                var voters = exchange.sneakyVotes || [];
+                                sneakyButton.type = "button";
+                                sneakyButton.textContent = voters.includes(currentPlayerIndex)
+                                    ? "Trekk sneaky-samtykke"
+                                    : "Sneaky bytte";
+                                sneakyButton.setAttribute("aria-pressed", String(
+                                    voters.includes(currentPlayerIndex)
+                                ));
+                                sneakyButton.onclick = function () {
+                                    game.toggleSneakyTrade(exchange, currentPlayerIndex);
+                                };
+                                buttonSpan.appendChild(sneakyButton);
+                            }
                         }
                         if (isRecipient && exchange.mode == "Kan se") {
                             var receiveButton = document.createElement("button");
@@ -1160,12 +1194,12 @@ class GameLayout {
                         emptySelection.textContent = `Velg ${selectedExchange.count} kort i hånden, eller flick dem opp hit.`;
                         selectionContent.appendChild(emptySelection);
                     }
-                    if ((selectedExchange.mode == "Velg" || isBestExchange) &&
-                        selectedExchange.cards.length == selectedExchange.count) {
+                    if (selectedExchange.mode == "Velg" || isBestExchange) {
                         var confirmExchange = document.createElement("button");
                         confirmExchange.type = "button";
                         confirmExchange.className = "exchange-selection__confirm";
                         confirmExchange.textContent = `Bekreft kort til ${selectedRecipient.name}`;
+                        confirmExchange.disabled = selectedExchange.cards.length != selectedExchange.count;
                         confirmExchange.onclick = function () {
                             game.giveExchangeCards(selectedExchange);
                         };
@@ -1485,12 +1519,18 @@ class GameLayout {
             !pauseActive;
         if (player == null) {
             this.el("playerStatus").innerHTML = "";
+        } else if (game.status == "G") {
+            var playerIndex = game.players.indexOf(player);
+            var exchangeInProgress = game.piles.some(exchange =>
+                (exchange.from == playerIndex || exchange.to == playerIndex) &&
+                ["Velg", "Best", "Gitt", "Kan se", "Tilbud"].includes(exchange.mode)
+            );
+            this.el("playerStatus").textContent = exchangeInProgress
+                ? "Bytter..."
+                : (player.turn == 1 ? "Du skal gi kort." : "");
         } else {
             if (player.turn == 1) {
                 switch (game.status) {
-                    case "G":
-                        this.el("playerStatus").innerHTML = `Du skal gi kort.`;
-                        break;
                     case "S":
                         this.el("playerStatus").textContent =
                             showTurnHint ? "Det er din tur å legge ut" : "";
@@ -1887,15 +1927,9 @@ class GameLayout {
                     }
                 } else if (autoSuggestPlayableCards) {
                     var requiredCardCount = hasFourOfKindOnTop(game) ? 4 : topPile.length;
-                    var sortedPlayableStrengths = Array.from(playableStrengths)
-                        .sort((a, b) => a - b);
-                    var lowestPlayableStrength = sortedPlayableStrengths.find(strengthRank =>
-                        player.cards.filter(card => card.strengthRank == strengthRank).length ==
-                        requiredCardCount
+                    var lowestPlayableStrength = chooseSuggestedPlayStrength(
+                        player, topPile, playableStrengths, requiredCardCount
                     );
-                    if (lowestPlayableStrength == null) {
-                        lowestPlayableStrength = sortedPlayableStrengths[0];
-                    }
                     if (lowestPlayableStrength != null) {
                         var lowestPlay = {};
                         if (game.canPlayRank(player, lowestPlayableStrength, lowestPlay) && lowestPlay.pile) {
