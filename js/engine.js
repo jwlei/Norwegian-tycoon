@@ -1729,7 +1729,7 @@ class PresidentGame extends Game {
             }
         }
         if (hasBothNaturalThreesOnTop(this)) {
-            info.text = this.players.length == 2 ? "Hjerter 3, Spar 3 og Ruter 3" : "Hjerter 3 og Spar 3";
+            info.text = "Treere";
             return true;
         }
         var lastPlayer = this.getPlayer(topPile.name);

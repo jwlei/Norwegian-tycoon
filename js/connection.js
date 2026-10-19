@@ -839,7 +839,7 @@
                 pile.appendChild(image);
             });
             var message = document.createElement("p");
-            var names = receipt.cards.map(card => localizedMessage(card.getName()));
+            var names = receipt.cards.map(card => localizedMessage(card.getName(card.isClubThree())));
             var language = document.documentElement.lang;
             var cardList = new Intl.ListFormat(language, { style: "long", type: "conjunction" }).format(names);
             var text = language.startsWith("en")

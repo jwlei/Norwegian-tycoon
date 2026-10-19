@@ -142,12 +142,13 @@ test("received-card overlays filter recipients, queue receipts and honor every g
         listener({ detail: receipt });
         assert.equal(overlay.hidden, false);
         assert.equal(content.children[0].children.length, 2);
-        assert.match(content.children[1].textContent, /Du fikk .* og .* fra Sender\./);
+        assert.equal(content.children[1].textContent, "Du fikk 5 og Konge fra Sender.");
         assert.equal(timers[0].delay, duration);
-        listener({ detail: { ...receipt, cards: receipt.cards.slice(0, 1) } });
+        listener({ detail: { ...receipt, cards: [new PresidentCard(3, 3)] } });
         assert.equal(timers.length, 1);
         timers[0].callback();
         assert.equal(content.children[0].children.length, 1);
+        assert.equal(content.children[1].textContent, "Du fikk Kløver 3 fra Sender.");
         assert.equal(timers[1].delay, duration);
         overlay.click({ target: content, currentTarget: overlay });
         assert.equal(overlay.hidden, false);
@@ -2687,7 +2688,7 @@ test("all three natural threes clear with two players but only two do not", () =
     game.piles = [new CardPile(players[0].name, ...threes)];
     const info = {};
     assert.equal(game.pileCleared(info), true);
-    assert.equal(info.text, "Hjerter 3, Spar 3 og Ruter 3");
+    assert.equal(info.text, "Treere");
     game.piles = threes.map(card => new CardPile(players[0].name, card));
     assert.equal(game.pileCleared(), true);
 });
