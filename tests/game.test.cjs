@@ -2302,3 +2302,37 @@ test("natural-three clear remains restricted to the correct player count", () =>
     game.players.push(new PresidentPlayer("Fourth", "fourth-key"));
     assert.equal(game.pileCleared(), false);
 });
+
+test("clearing the table without a game keeps the turn timer controls in the page", () => {
+    const timer = { id: "turnTimer", parentElement: null };
+    const elements = new Map();
+    const table = {
+        dataset: {},
+        set innerHTML(value) { timer.parentElement = null; },
+        appendChild(child) { child.parentElement = this; }
+    };
+    timer.parentElement = table;
+    const element = id => {
+        if (id == "gameTable") { return table; }
+        if (id == "turnTimer") { return timer.parentElement ? timer : null; }
+        if (id == "turnCountdown" || id == "extendTurnButton") {
+            return timer.parentElement ? elements.get(id) || elements.set(id, {}).get(id) : null;
+        }
+        if (!elements.has(id)) {
+            elements.set(id, {
+                id, hidden: false, dataset: {}, style: {}, textContent: "", inert: false,
+                classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+                setAttribute() {}, removeAttribute() {}, querySelectorAll: () => []
+            });
+        }
+        return elements.get(id);
+    };
+    const { GameLayout } = loadGame(null, {
+        document: { getElementById: element, documentElement: { dataset: {} }, querySelectorAll: () => [] },
+        setClass() {}
+    });
+    GameLayout.updateMainMenu = () => {};
+    GameLayout.updateSharedView(null, null);
+    assert.equal(timer.parentElement, table);
+    assert.doesNotThrow(() => GameLayout.updatePlayerButtons(null, null));
+});

@@ -173,7 +173,12 @@ class GameLayout {
         if (game == null) {
             setClass(mainMenu, "is-hidden", false);
             this.updateMainMenu();
-            document.getElementById("gameTable").innerHTML = "";
+            var emptyTable = document.getElementById("gameTable");
+            if (this.turnTimerElement == null) {
+                this.turnTimerElement = document.getElementById("turnTimer");
+            }
+            emptyTable.innerHTML = "";
+            this.keepTurnTimer(emptyTable);
             delete document.getElementById("gameTable").dataset.gameId;
             delete document.getElementById("gameTable").dataset.gameStatus;
             delete document.getElementById("gameTable").dataset.gameRound;
@@ -1456,9 +1461,10 @@ class GameLayout {
     }
     static updatePlayerButtons(game, player) {
         if (game == null) {
-            this.el("reclaimSeatButton").hidden = true;
-            this.el("extendTurnButton").hidden = true;
-            this.el("turnCountdown").hidden = true;
+            ["reclaimSeatButton", "extendTurnButton", "turnCountdown"].forEach(id => {
+                var hiddenElement = this.el(id);
+                if (hiddenElement != null) { hiddenElement.hidden = true; }
+            });
             this.el("exchangePrompt").textContent = "";
             this.el("playerStatus").textContent = "";
             this.el("playerStatus").classList.remove("player-status--turn-hint");
@@ -1561,6 +1567,8 @@ class GameLayout {
         playButton.hidden = true;
         playButton.disabled = true;
         playButton.onclick = null;
+        var previousHandOwner = selectedCardOwner;
+        var previousCardBounds = this.captureHandCardBounds(element);
         element.innerHTML = "";
         if (player == null || game == null) {
             stopCardHandInertia();
@@ -2237,6 +2245,9 @@ class GameLayout {
             element.classList.add("hand-finished");
         }
         element.scrollLeft = previousScrollLeft;
+        if (previousHandOwner === ownerKey) {
+            this.animateHandReflow(element, previousCardBounds);
+        }
         element._handSignature = GameLayout.handSignature(game, player);
         element._rebindHand = function (newGame, newPlayer) {
             game = newGame;
@@ -2254,6 +2265,38 @@ class GameLayout {
                 lowestCardTurnKey
             );
         }
+    }
+    static captureHandCardBounds(element) {
+        var bounds = new Map();
+        if (typeof element.querySelectorAll != "function") { return bounds; }
+        element.querySelectorAll(".game-card[data-card-key]").forEach(card => {
+            bounds.set(card.dataset.cardKey, card.getBoundingClientRect());
+        });
+        return bounds;
+    }
+    // Slides the cards that stay in the hand from their old slots after others leave it.
+    static animateHandReflow(element, previousBounds) {
+        if (previousBounds.size == 0 ||
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            return;
+        }
+        var cards = Array.from(element.querySelectorAll(".game-card[data-card-key]"));
+        if (cards.length == 0 || cards.length >= previousBounds.size ||
+            cards.some(card => !previousBounds.has(card.dataset.cardKey))) {
+            return;
+        }
+        cards.forEach(card => {
+            if (typeof card.animate != "function") { return; }
+            var before = previousBounds.get(card.dataset.cardKey);
+            var after = card.getBoundingClientRect();
+            var dx = before.left - after.left;
+            var dy = before.top - after.top;
+            if (Math.abs(dx) < 1 && Math.abs(dy) < 1) { return; }
+            card.animate([
+                { translate: `${dx}px ${dy}px` },
+                { translate: "0px 0px" }
+            ], { duration: 320, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+        });
     }
     static scrollHandCardsIntoView(element, ownerKey, cardKeys, turnKey) {
         stopCardHandInertia();
