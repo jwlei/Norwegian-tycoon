@@ -89,6 +89,49 @@ test("discard animation restores the original easing and scales duration and sta
     }
 });
 
+test("giving exchange cards animates mixed ranks toward the recipient and cleans up the hidden target", () => {
+    const targets = [];
+    const target = {
+        getBoundingClientRect: () => ({ left: 500, top: 20, width: 120, height: 80 }),
+        dataset: { playerName: "Recipient" }
+    };
+    const element = () => ({
+        style: {}, dataset: {}, children: [], setAttribute() {},
+        appendChild(child) { this.children.push(child); },
+        remove() { this.removed = true; }
+    });
+    const context = load({
+        window: { matchMedia: () => ({ matches: false }) },
+        document: {
+            querySelectorAll: () => [target],
+            createElement: element,
+            body: { appendChild: node => targets.push(node) }
+        }
+    });
+    vm.runInContext(`
+        var game = { players: [{ name: "Sender" }, { name: "Recipient" }] };
+        var exchange = { from: 0, to: 1, cards: [
+            new PresidentCard(1, 12), new PresidentCard(2, 1)
+        ] };
+        var origins = { cardOrigins: new Map(), playerOrigins: new Map() };
+        GameLayout.styleForPlayer = () => "pixel";
+        GameLayout.animatePlayedCards = (destination, pile, captured, done) => {
+            if (pile.name != "Sender" || pile.length != 2 || captured != origins) {
+                throw new Error("Exchange flight lost its sender, mixed cards or captured hand origins");
+            }
+            done();
+        };
+        GameLayout.animateGivenExchangeCards(game, exchange, origins);
+    `, context);
+    assert.equal(targets.length, 1);
+    assert.equal(targets[0].removed, true);
+    assert.equal(targets[0].children.length, 2);
+    assert.equal(targets[0].children[0].dataset.cardKey, "1:12");
+    assert.equal(targets[0].children[1].dataset.cardKey, "2:1");
+    assert.equal(targets[0].children[0].style.top, "24px");
+    assert.equal(targets[0].children[0].style.left, "536px");
+});
+
 test("personal animation speeds scale original durations and stagger by exactly minus or plus 50 percent", () => {
     let speed = null;
     const context = load({ getCookie: () => speed });

@@ -2460,6 +2460,61 @@ select:focus-visible {
     max-height: calc(100% - 10px);
 }
 
+#gameToastRegion {
+    --board-toast-height: 40px;
+    position: absolute;
+    z-index: 65;
+    bottom: 30px;
+    left: 50%;
+    width: min(440px, calc(100% - 20px));
+    height: calc(var(--board-toast-height) * 2 + 6px);
+    overflow: hidden;
+    pointer-events: none;
+    transform: translateX(-50%);
+    border-radius: 10px;
+}
+
+#gameToastRegion[data-animation-speed="fast"] {
+    height: var(--board-toast-height);
+}
+
+#gameToastRegion > .game-toast {
+    position: absolute;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: var(--board-toast-height);
+    max-height: none;
+    margin: 0;
+    padding: 4px 10px;
+    border-radius: 10px;
+    font-size: clamp(0.7rem, 2.5vw, 0.85rem);
+    transform: none;
+    transform-origin: center bottom;
+    transition: opacity 120ms ease, visibility 120ms ease;
+    pointer-events: none;
+    cursor: default;
+}
+
+#gameToastRegion > .game-toast--archived {
+    bottom: calc(var(--board-toast-height) + 6px);
+}
+
+#gameToastRegion > #GameToast.is-visible {
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+#gameToastRegion[data-animation-speed="fast"] > .game-toast--archived {
+    bottom: 0;
+}
+
+.exchange-flight-target {
+    opacity: 0;
+    pointer-events: none;
+}
+
 .game-toast::after {
     position: absolute;
     right: 0;
@@ -4101,5 +4156,60 @@ select:focus-visible {
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #playerList .player-summary {
         padding: 6px 8px;
         gap: 4px;
+    }
+}
+
+#gameTable:has(#gameToastRegion) {
+    --toast-reserve: 124px;
+    container-type: size;
+}
+
+#gameTable:has(#gameToastRegion[data-animation-speed="fast"]) {
+    --toast-reserve: 78px;
+}
+
+#gameTable.table-deck:has(#gameToastRegion) {
+    padding: 8px 8px var(--toast-reserve);
+}
+
+#gameTable:has(#gameToastRegion) .table-card-pile {
+    --table-card-height: clamp(24px, calc(100cqh - var(--toast-reserve) - 34px), 190px);
+}
+
+#gameTable:has(#gameToastRegion) .table-pile-summary {
+    top: 4px;
+    bottom: auto;
+    max-width: calc(100% - 100px);
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    white-space: normal;
+}
+
+#gameTable.exchange-panel:has(#gameToastRegion) {
+    padding-bottom: var(--toast-reserve);
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+    #gameTable.table-deck:has(#gameToastRegion) {
+        padding: 4px 52% 4px 4px;
+    }
+
+    #gameTable:has(#gameToastRegion) #gameToastRegion {
+        --board-toast-height: 30px;
+        right: 5px;
+        left: auto;
+        bottom: 4px;
+        width: 48%;
+        transform: none;
+    }
+
+    #gameTable:has(#gameToastRegion) .table-card-pile {
+        --table-card-height: clamp(24px, calc(100cqh - 30px), 64px);
+    }
+
+    #gameTable:has(#gameToastRegion) .table-pile-summary {
+        left: 25%;
+        max-width: 46%;
+        font-size: 0.6rem;
     }
 }

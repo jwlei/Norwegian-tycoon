@@ -46,7 +46,13 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     let visible = true;
     let clones = 0;
+    let animationSpeed = "normal";
+    let reducedMotion = false;
+    const animations = [];
+    const timers = [];
     const toast = {
+        getAnimations: () => [],
+        animate(frames, timing) { animations.push({ frames, timing, incoming: true }); return {}; },
         textContent: "Previous",
         classList: {
             contains: () => visible,
@@ -61,17 +67,24 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
             return {
                 removeAttribute() {}, setAttribute() {}, classList: { add() {} },
                 remove() {},
+                animate(frames, timing) { animations.push({ frames, timing, incoming: false }); return {}; },
                 style: { setProperty() {} }, getBoundingClientRect: () => ({ height: 30 })
             };
         }
     };
+    const region = { dataset: { animationSpeed: "normal" }, appendChild() {}, querySelectorAll: () => [] };
     const context = vm.createContext({
+        currentGame: null, getCookie: () => animationSpeed,
+        getComputedStyle: () => ({ transform: "matrix(1, 0, 0, 1, 0, 23)" }),
+        window: { matchMedia: () => ({ matches: reducedMotion }) },
         Date: { now: () => 3000 }, gameToastExpiresAt: 3000,
         gameToastTimer: null, activeToastPauseId: null, archivedToasts: [],
         GAME_SPEED_MS: { fast: 3000 }, currentGameSpeed: () => "fast",
-        ensureGameLog() {}, clearTimeout() {}, setTimeout: () => 1,
+        ensureGameLog() {}, clearTimeout() {},
+        setTimeout: (callback, delay) => { timers.push({ callback, delay }); return timers.length; },
         document: {
-            getElementById: id => id === "GameToast" ? toast : { classList: { contains: () => false } },
+            getElementById: id => id === "GameToast" ? toast : id === "gameToastRegion"
+                ? region : { classList: { contains: () => false } },
             body: { appendChild() {} }
         },
         gameLogNeedsTrickHeader: false, gameLogEntries: [],
@@ -95,7 +108,32 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
         toast.textContent = message;
         vm.runInContext('showGameToast("New message", game)', context);
     }
-    assert.equal(context.archivedToasts.length, 2, "At most three messages including the current toast");
+    assert.equal(context.archivedToasts.length, 1, "At most two messages including the current toast");
+    const oldestExit = animations.filter(animation => !animation.incoming).at(-2);
+    assert.equal(oldestExit.frames[0].transform, "matrix(1, 0, 0, 1, 0, 23)",
+        "A message pushed out mid-animation must continue from its current position");
+    assert.equal(animations.filter(animation => !animation.incoming).at(-1).timing.duration, 320);
+    animationSpeed = "fast";
+    context.positionArchivedToasts();
+    assert.equal(context.archivedToasts.length, 0, "Switching to fast removes the older stacked message");
+    toast.textContent = "Current";
+    vm.runInContext('showGameToast("Fast replacement", game)', context);
+    assert.equal(context.archivedToasts.length, 1, "The outgoing layer exists only for the short transition");
+    assert.equal(timers.at(-2).delay, 180);
+    const outgoing = animations.filter(animation => !animation.incoming).at(-1);
+    assert.equal(outgoing.timing.duration, 180);
+    assert.equal(outgoing.frames[1].transform, "scale(1.12)");
+    assert.equal(outgoing.frames[1].opacity, 0);
+    assert.equal(outgoing.timing.fill, "forwards");
+    assert.equal(animations.at(-1).timing.duration, 180);
+    timers.at(-2).callback();
+    assert.equal(context.archivedToasts.length, 0);
+    reducedMotion = true;
+    toast.textContent = "Current";
+    const animationCount = animations.length;
+    vm.runInContext('showGameToast("Reduced replacement", game)', context);
+    assert.equal(context.archivedToasts.length, 0);
+    assert.equal(animations.length, animationCount);
 });
 
 test("received-card overlays filter recipients, queue receipts and honor every game speed", () => {
@@ -118,7 +156,7 @@ test("received-card overlays filter recipients, queue receipts and honor every g
         const game = { id: "room", players: [{ name: "Sender", displayColor: "#123456" }] };
         const context = vm.createContext({
             currentGame: game, currentPlayerName: "Recipient",
-            Card: PresidentCard,
+            PresidentCard,
             GAME_SPEED_MS: { fast: 3000, normal: 5000, slow: 8000 },
             currentGameSpeed: () => speed,
             localizedMessage: message => message,
@@ -205,6 +243,7 @@ test("receiving an exchange emits mixed-rank renderable cards before play starts
     assert.equal(events[0].detail.sender, "Sender");
     assert.deepEqual(Array.from(events[0].detail.cards, card => card.rank), [5, 13]);
     assert.ok(events[0].detail.cards.every(card => card.toImageDataUri("normal")));
+    assert.ok(events[0].detail.cards.every(card => typeof card.isClubThree == "function"));
 });
 
 test("confirmed outgoing exchanges automatically deliver cards and start the round", () => {
@@ -517,9 +556,19 @@ test("consent stays private and remains available after a trade starts until car
     assert.equal(giveButton.textContent, "Gi kort");
     assert.equal(giveButton.disabled, false);
     let given;
+    let animated;
+    const origins = {};
+    GameLayout.capturePlayOrigins = () => origins;
+    GameLayout.animateGivenExchangeCards = (current, exchange, captured) => {
+        assert.equal(given, exchange, "Only animate after the exchange action is accepted locally");
+        assert.equal(current, game);
+        assert.equal(captured, origins);
+        animated = exchange;
+    };
     game.giveExchangeCards = exchange => { given = exchange; };
     giveButton.onclick();
     assert.equal(given, bestExchange);
+    assert.equal(animated, bestExchange);
     bestExchange.count = 1;
     bestExchange.cards.pop();
     render(players[2]);
@@ -2588,7 +2637,8 @@ test("spectator join notices use the toast area with two lines for exactly three
 
 test("every card renders in each style with distinct artwork", () => {
     const { PresidentCard } = loadGame();
-    const styles = ["normal", "holo", "gold", "pixel", "parallax", "neon", "botanical"];
+    const styles = ["normal", "holo", "gold", "pixel", "parallax", "neon", "botanical",
+        "monochrome", "minimalist", "cyberpunk", "glitched", "cosmic", "origami", "gothic", "silver", "crystal"];
     for (let suit = 1; suit <= 4; suit++) {
         for (let rank = 1; rank <= 13; rank++) {
             const card = new PresidentCard(suit, rank);
@@ -2605,10 +2655,30 @@ test("every card renders in each style with distinct artwork", () => {
 });
 
 test("new card styles can be restored from local settings", () => {
-    for (const style of ["normal", "holo", "gold", "pixel", "parallax", "neon"]) {
+    for (const style of ["normal", "holo", "gold", "pixel", "parallax", "neon",
+        "monochrome", "minimalist", "cyberpunk", "glitched", "cosmic", "origami", "gothic", "silver", "crystal"]) {
         assert.equal(loadGame(style).GameLayout.cardStyle(), style);
     }
     assert.equal(loadGame("invalid").GameLayout.cardStyle(), "normal");
+});
+
+test("card style menu groups related styles and keeps secret styles first", () => {
+    const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    const styles = Array.from(html.matchAll(/class="card-style-option" data-card-style="([^"]+)"/g),
+        match => match[1]);
+    assert.deepEqual(styles, [
+        "botanical", "normal", "monochrome", "minimalist", "origami", "gothic",
+        "silver", "gold", "crystal", "holo", "parallax", "cosmic", "pixel", "neon", "cyberpunk", "glitched"
+    ]);
+    const { PresidentCard } = loadGame();
+    const monochrome = decodeURIComponent(new PresidentCard(2, 12).toImageDataUri("monochrome").split(",")[1]);
+    for (const hex of monochrome.match(/#[0-9a-f]{6}/gi)) {
+        assert.equal(hex.slice(1, 3), hex.slice(3, 5));
+        assert.equal(hex.slice(3, 5), hex.slice(5, 7));
+    }
+    const cyberpunk = decodeURIComponent(new PresidentCard(1, 7).toImageDataUri("cyberpunk").split(",")[1]);
+    assert.ok(cyberpunk.includes("#fff34d"));
+    assert.ok(cyberpunk.includes("#a3ff45"));
 });
 
 test("secret card style requires an exact case-insensitive eligible player name", () => {
@@ -3562,6 +3632,12 @@ test("publishing a card style changes only the current named seat and survives s
     assert.equal(record.cardStyles.another, "neon");
     game.save();
     assert.equal(record.cardStyles[id], "gold");
+    for (const style of ["monochrome", "minimalist", "cyberpunk", "glitched", "cosmic",
+        "origami", "gothic", "silver", "crystal"]) {
+        await game.setPlayerCardStyle(style);
+        assert.equal(record.cardStyles[id], style);
+        assert.equal(record.cardStyles.another, "neon");
+    }
     await assert.rejects(game.setPlayerCardStyle("botanical"), /kortstilen/);
     await assert.rejects(game.setPlayerCardStyle("unknown"), /kortstilen/);
     game.localPlayerName = players[1].name;

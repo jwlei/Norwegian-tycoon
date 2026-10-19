@@ -115,7 +115,9 @@ class Card {
             return ["mrhotbox", "tåkefyrsten", "bjørn"].includes(
                 playerName.trim().toLocaleLowerCase()) ? style : "normal";
         }
-        return ["normal", "holo", "gold", "pixel", "parallax", "neon"].includes(style)
+        return ["normal", "holo", "gold", "pixel", "parallax", "neon",
+            "monochrome", "minimalist", "cyberpunk", "glitched", "cosmic", "origami", "gothic",
+            "silver", "crystal"].includes(style)
             ? style : "normal";
     }
     toImageDataUri(style = "normal") {
@@ -129,6 +131,15 @@ class Card {
             pixel: { color: isRed ? "#ee5173" : "#7af2ce", paper: ["#24334d", "#111a2b"], edge: "#89a6cf", inner: "#435c80" },
             parallax: { color: isRed ? "#a73572" : "#203f86", paper: ["#edf6ff", "#c3c9ed"], edge: "#7e8cce", inner: "#a2b2e0" },
             neon: { color: isRed ? "#ff60c8" : "#55edff", paper: ["#170f2d", "#080e20"], edge: "#7657ff", inner: "#473b83" },
+            monochrome: { color: "#242424", paper: ["#fafafa", "#e6e6e6"], edge: "#555555", inner: "#aaaaaa" },
+            minimalist: { color: isRed ? "#b62b42" : "#22313b", paper: ["#ffffff", "#ffffff"], edge: "#c5cdd2", inner: "#ffffff" },
+            cyberpunk: { color: isRed ? "#fff34d" : "#a3ff45", paper: ["#17251a", "#080e0b"], edge: "#e8ef35", inner: "#4b7535" },
+            glitched: { color: isRed ? "#ff85ce" : "#7cf4ed", paper: ["#201d34", "#111423"], edge: "#d087e8", inner: "#4d4867" },
+            cosmic: { color: isRed ? "#ffb4d8" : "#c8d6ff", paper: ["#252251", "#0c142a"], edge: "#9d9bdf", inner: "#565b96" },
+            origami: { color: isRed ? "#ae3943" : "#245a63", paper: ["#fff7e9", "#e8dcc9"], edge: "#b9a88d", inner: "#d0bea2" },
+            gothic: { color: isRed ? "#f4a1ab" : "#e5ddd0", paper: ["#30232d", "#120f18"], edge: "#b69e78", inner: "#685565" },
+            silver: { color: isRed ? "#823447" : "#263346", paper: ["#f8fbff", "#aab8c8"], edge: "#65788d", inner: "#8fa0b3" },
+            crystal: { color: isRed ? "#8a2867" : "#1a427a", paper: ["#f0fdff", "#cad8f8"], edge: "#749cbf", inner: "#a5bde3" },
             botanical: { color: isRed ? "#c7a85e" : "#92d98c", paper: ["#143b2a", "#071c16"], edge: "#b8a15b", inner: "#3c7048" }
         }[style] || null;
         const palette = theme || { color: isRed ? "#ad3447" : "#193b35", paper: ["#fffdf6", "#f3ead8"], edge: "#cbbd9f", inner: "#d8cba9" };
@@ -136,7 +147,9 @@ class Card {
         const mark = (x, y, size, rotation = 0) => style === "pixel"
             ? Card.pixelSuitMark(code, x, y, size, color, rotation)
             : Card.suitMark(code, x, y, size, color, rotation);
-        const corner = `<g font-family="${style === "pixel" ? "monospace" : "Georgia,serif"}" font-size="12" font-weight="700" text-anchor="middle" fill="${color}"><text x="12" y="18">${rank}</text>${mark(12, 25, 7)}</g>`;
+        const font = ["pixel", "cyberpunk", "glitched"].includes(style) ? "monospace"
+            : ["minimalist", "cosmic", "origami"].includes(style) ? "Arial,sans-serif" : "Georgia,serif";
+        const corner = `<g font-family="${font}" font-size="12" font-weight="700" text-anchor="middle" fill="${color}"><text x="12" y="18">${rank}</text>${mark(12, 25, 7)}</g>`;
         const positions = {
             2: [[40, 38], [40, 82]],
             3: [[40, 34], [40, 60], [40, 86]],
@@ -149,7 +162,25 @@ class Card {
             10: [[27, 30], [53, 30], [40, 40], [27, 50], [53, 50], [27, 70], [53, 70], [40, 80], [27, 90], [53, 90]]
         };
         let illustration;
-        if (style === "pixel" && (this.rank === 1 || this.rank >= 11)) {
+        if (style === "minimalist") {
+            illustration = `<text x="40" y="66" text-anchor="middle" font-family="${font}" font-size="32" font-weight="400" fill="${color}">${rank}</text>
+                ${mark(40, 83, 12)}`;
+        } else if (["cyberpunk", "glitched", "cosmic", "origami", "gothic", "silver", "crystal"].includes(style)) {
+            illustration = `${mark(40, 56, 32)}
+                <text x="40" y="89" text-anchor="middle" font-family="${font}" font-size="20" font-weight="700" fill="${color}">${rank}</text>`;
+            if (style === "glitched") {
+                illustration = `<defs><clipPath id="glitch-band"><path d="M18 43h44v7H18zM18 59h44v5H18z"/></clipPath></defs>
+                    <g clip-path="url(#glitch-band)"><g transform="translate(-3 0)">${Card.suitMark(code, 40, 56, 34, "#ff55b8")}</g>
+                    <g transform="translate(3 0)">${Card.suitMark(code, 40, 56, 34, "#4ffff0")}</g></g>${illustration}
+                    <path d="M21 49h12m15 11h14M24 74h8" stroke="#a1fff5" stroke-width="2"/>`;
+            } else if (style === "origami") {
+                illustration += `<path d="m28 49 12 7 12-7M40 40v32m-12-9 12-7 12 7" fill="none" stroke="${palette.paper[0]}" stroke-width=".9" opacity=".7"/>`;
+            }
+        } else if (style === "monochrome") {
+            illustration = this.rank === 1 || this.rank >= 11
+                ? `${mark(40, 52, 34)}<text x="40" y="86" text-anchor="middle" font-family="${font}" font-size="20" fill="${color}">${rank}</text>`
+                : positions[this.rank].map(([x, y]) => mark(x, y, 13, y > 60 ? 180 : 0)).join("");
+        } else if (style === "pixel" && (this.rank === 1 || this.rank >= 11)) {
             illustration = `<path d="M22 28h36v4h4v56h-4v4H22v-4h-4V32h4Z" fill="none" stroke="${palette.inner}" stroke-width="2" shape-rendering="crispEdges"/>
                 ${mark(40, 53, 28)}
                 <text x="40" y="82" text-anchor="middle" font-family="monospace" font-size="16" font-weight="bold" fill="${color}">${rank}</text>`;
@@ -178,7 +209,13 @@ class Card {
                         <stop offset=".25" stop-color="#fff" stop-opacity="0"/><stop offset=".45" stop-color="#fff" stop-opacity=".45"/>
                         <stop offset=".6" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
                     <rect x="1.5" y="1.5" width="77" height="117" rx="8" fill="url(#sheen)"/>`
-                : "";
+                : style === "silver"
+                    ? `<defs><linearGradient id="silver-sheen" x1="0" y1="0" x2="1" y2=".4">
+                        <stop stop-color="#ffffff" stop-opacity="0"/><stop offset=".4" stop-color="#ffffff" stop-opacity=".55"/>
+                        <stop offset=".5" stop-color="#51657e" stop-opacity=".1"/><stop offset=".7" stop-color="#ffffff" stop-opacity=".4"/>
+                        <stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient></defs>
+                        <rect x="2" y="2" width="76" height="116" rx="8" fill="url(#silver-sheen)"/>`
+                    : "";
         const depth = style === "parallax"
             ? `<g fill="none" stroke="${palette.edge}" stroke-width="1">
                 <path d="M8 30 40 12 72 30 40 48Z M8 46 40 28 72 46 40 64Z M8 62 40 44 72 62 40 80Z" opacity=".3"/>
@@ -192,6 +229,42 @@ class Card {
                   </g>
                   <path d="M8 9Q40 32 72 9M8 111Q40 88 72 111" fill="none" stroke="#7ca379" stroke-width="1" opacity=".5"/>`
                 : "";
+        const ornament = {
+            cyberpunk: `<g fill="none" stroke="#a3ff45" stroke-width=".8">
+                <path d="M7 35v-4h11l6-6h32l6 6h11v8M7 85v4h11l6 6h32l6-6h11v-8"/>
+                <path d="M10 42v32m60-28v32" stroke-dasharray="7 3"/>
+                <path d="M22 12h13m10 96h13" stroke="#fff34d" stroke-width="2"/>
+                <circle cx="24" cy="25" r="1.5"/><circle cx="56" cy="95" r="1.5"/></g>
+                <path d="M6 100h10v3H6zm58-83h10v3H64z" fill="#fff34d"/>`,
+            glitched: `<g fill="#7cf4ed" opacity=".35"><path d="M7 34h15v2H7zm46 4h20v1H53zM9 92h17v2H9zm44-8h19v2H53z"/>
+                <path d="M6 29h68m-68 9h68m-68 17h68m-68 17h68m-68 20h68" fill="none" stroke="#a6a0cf" stroke-width=".4"/></g>`,
+            cosmic: `<g fill="#d2dcff">${Array.from({ length: 28 }, (_, index) =>
+                `<circle cx="${9 + index * 23 % 62}" cy="${10 + index * 37 % 99}" r="${index % 4 == 0 ? 0.8 : 0.4}" opacity="${index % 3 == 0 ? 0.8 : 0.35}"/>`).join("")}</g>
+                <g fill="none" stroke="#ad9ae0" opacity=".65"><ellipse cx="40" cy="56" rx="27" ry="13" transform="rotate(-32 40 56)"/>
+                <circle cx="40" cy="56" r="27" stroke-width=".5"/></g><circle cx="64" cy="43" r="2.5" fill="#f3c7dd"/>`,
+            origami: `<path d="M5 34 40 18 75 34 40 60Z" fill="#ffffff" opacity=".25"/>
+                <path d="M5 34 40 60 5 85Z" fill="#b9a88d" opacity=".15"/>
+                <path d="m75 34-35 26 35 25Z" fill="#8f7b64" opacity=".12"/>
+                <path d="M5 34 40 60 75 34M5 85l35-25 35 25M40 18v84" fill="none" stroke="#a99579" stroke-width=".5" opacity=".5"/>
+                <path d="M60 5h15v15Z" fill="#d0bea2"/><path d="m60 5 15 15H60Z" fill="#fffaf0"/>`,
+            gothic: `<g fill="none" stroke="#b69e78" stroke-width=".8">
+                <path d="M19 96V46Q19 31 40 20q21 11 21 26v50Z"/>
+                <path d="M23 92V46q0-12 17-22 17 10 17 22v46Z" opacity=".5"/>
+                <path d="M27 29q13 15 26 0M28 100h24m-19 4h14"/>
+                <circle cx="40" cy="32" r="4"/><path d="M40 28v8m-4-4h8"/>
+                <path d="m8 40 4 5-4 5-4-5Zm64 30 4 5-4 5-4-5Z"/></g>`,
+            silver: `<g fill="none" stroke="#718399">
+                <rect x="19" y="28" width="42" height="67" rx="16" stroke-width=".6"/>
+                <rect x="22" y="31" width="36" height="61" rx="13" stroke-width=".4"/>
+                <path d="m40 21 4 4-4 4-4-4Zm0 73 4 4-4 4-4-4Z" fill="#f8fbff"/>
+                <path d="M9 36v48m62-48v48" stroke-dasharray="1 2" opacity=".6"/></g>`,
+            crystal: `<g stroke="#8eaad6" stroke-width=".5" stroke-linejoin="round">
+                <path d="m40 20 25 21-6 44-19 18-19-18-6-44Z" fill="#ffffff" fill-opacity=".2"/>
+                <path d="M40 20 27 43l13 42 13-42Z" fill="#ffffff" fill-opacity=".45"/>
+                <path d="m15 41 12 2-6 42 19 18-13-60 13-23m25 21-12 2 6 42-19 18 13-60-13-23" fill="#a8b8ef" fill-opacity=".22"/>
+                <path d="m40 20 25 21-25 44-25-44Zm0 65v18" fill="none"/>
+                </g><path d="M64 23v10m-5-5h10M12 89v7m-3-3.5h6" stroke="#ffffff" stroke-width="1.5"/>`
+        }[style] || "";
         const glow = style === "neon"
             ? `<defs><filter id="neon" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`
             : "";
@@ -202,12 +275,14 @@ class Card {
             <rect x="5" y="5" width="70" height="110" rx="${style === "pixel" ? 0 : 5}" fill="none" stroke="${palette.inner}" stroke-width=".8"/>
             <path d="M23 10h34M23 110h34" stroke="${palette.inner}" stroke-width=".7"/>
             ${depth}
+            ${ornament}
+            ${style === "silver" ? foil : ""}
             <g${style === "neon" ? ' filter="url(#neon)"' : ""}>
             ${corner}
             <g transform="rotate(180 40 60)">${corner}</g>
             ${illustration}
             </g>
-            ${foil}
+            ${style === "silver" ? "" : foil}
         </svg>`;
         return Card.imageSource(svg);
     }

@@ -1619,7 +1619,7 @@ class PresidentGame extends Game {
         this.exchangeReceipts = [...(this.exchangeReceipts || []), receipt];
         document.dispatchEvent(new CustomEvent("exchange-cards-received", {
             detail: Object.assign({}, receipt, {
-                game: this, cards: exchange.cards.map(card => new Card(card.suit, card.rank))
+                game: this, cards: exchange.cards.map(card => new PresidentCard(card.suit, card.rank))
             })
         }));
     }

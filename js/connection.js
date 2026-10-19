@@ -639,6 +639,8 @@
             if (clearHistory) {
                 archivedToasts.forEach(entry => { clearTimeout(entry.timer); entry.node.remove(); });
                 archivedToasts = [];
+                document.querySelectorAll("#gameToastRegion .game-toast--exiting")
+                    .forEach(node => node.remove());
             }
             if (gameToastTimer != null) {
                 clearTimeout(gameToastTimer);
@@ -778,6 +780,7 @@
 
         function showGameToast(message, game, duration = game.fastForward === true ? 1000 : GAME_SPEED_MS[currentGameSpeed()], pauseId = null, endsTrick = false) {
             ensureGameLog(game);
+            positionArchivedToasts();
             var toast = document.getElementById("GameToast");
             if (toast.classList.contains("is-visible") && Date.now() >= gameToastExpiresAt) {
                 hideGameToast(false);
@@ -822,44 +825,86 @@
             activeToastPauseId = pauseId;
             appendColoredGameMessage(toast, localizedMessage(message), players, true);
             toast.classList.add("is-visible");
+            animateToastEntry(toast);
             gameToastExpiresAt = Date.now() + duration;
             if (gameToastTimer != null) {
                 clearTimeout(gameToastTimer);
             }
             gameToastTimer = setTimeout(() => hideGameToast(false), duration);
-            positionArchivedToasts();
         }
 
         function archiveGameToast(toast) {
+            var region = document.getElementById("gameToastRegion");
+            var fast = region.dataset.animationSpeed == "fast";
+            var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            region.querySelectorAll(".game-toast--exiting").forEach(node => node.remove());
+            archivedToasts.forEach(entry => {
+                clearTimeout(entry.timer);
+                if (fast || reduced) { entry.node.remove(); return; }
+                entry.node.classList.add("game-toast--exiting");
+                var exit = entry.node.animate([
+                    { transform: getComputedStyle(entry.node).transform, opacity: 1 },
+                    { transform: `translateY(-${toast.getBoundingClientRect().height + 6}px)`, opacity: 0 }
+                ], { duration: 320, easing: "cubic-bezier(.2,.8,.25,1)", fill: "forwards" });
+                exit.onfinish = () => entry.node.remove();
+                exit.oncancel = () => entry.node.remove();
+            });
+            archivedToasts = [];
             var node = toast.cloneNode(true);
             node.removeAttribute("id");
             node.classList.add("game-toast--archived");
             node.setAttribute("aria-hidden", "true");
             node.style.height = `${toast.getBoundingClientRect().height}px`;
             var entry = { node, expiresAt: gameToastExpiresAt, timer: null };
-            document.body.appendChild(node);
+            region.appendChild(node);
+            node.style.bottom = fast ? "0px" : "calc(var(--board-toast-height) + 6px)";
+            node.style.height = "";
+            node.style.width = "";
+            node.style.left = "";
+            node.style.top = "";
             entry.timer = setTimeout(() => {
                 node.remove();
                 archivedToasts = archivedToasts.filter(item => item != entry);
                 positionArchivedToasts();
-            }, Math.max(0, entry.expiresAt - Date.now()));
+            }, fast ? 180 : Math.max(0, entry.expiresAt - Date.now()));
             archivedToasts.push(entry);
-            while (archivedToasts.length > 2) {
-                var oldest = archivedToasts.shift();
-                clearTimeout(oldest.timer);
-                oldest.node.remove();
+            if (!reduced) {
+                var height = toast.getBoundingClientRect().height;
+                node.animate(fast ? [
+                    { transform: "scale(1)", opacity: 1 },
+                    { transform: "scale(1.12)", opacity: 0 }
+                ] : [
+                    { transform: `translateY(${height + 6}px)`, opacity: 1 },
+                    { transform: "translateY(0)", opacity: 1 }
+                ], { duration: fast ? 180 : 320, easing: "cubic-bezier(.2,.8,.25,1)", fill: "forwards" });
+            } else if (fast) {
+                clearTimeout(entry.timer);
+                node.remove();
+                archivedToasts = [];
             }
         }
 
         function positionArchivedToasts() {
-            var bounds = document.getElementById("GameToast").getBoundingClientRect();
-            var top = bounds.top;
-            archivedToasts.slice().reverse().forEach(entry => {
-                entry.node.style.width = `${bounds.width}px`;
-                entry.node.style.left = `${bounds.left}px`;
-                top -= entry.node.getBoundingClientRect().height + 6;
-                entry.node.style.top = `${top}px`;
-            });
+            var region = document.getElementById("gameToastRegion");
+            if (!region) { return; }
+            var previousSpeed = region.dataset.animationSpeed;
+            region.dataset.animationSpeed = currentGame?.fastForward
+                ? "fast" : getCookie("AnimationSpeed") || "normal";
+            if (region.dataset.animationSpeed == "fast" && previousSpeed != "fast") {
+                archivedToasts.forEach(entry => { clearTimeout(entry.timer); entry.node.remove(); });
+                archivedToasts = [];
+            }
+        }
+
+        function animateToastEntry(toast) {
+            if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { return; }
+            var fast = document.getElementById("gameToastRegion").dataset.animationSpeed == "fast";
+            toast.getAnimations().filter(animation => animation.effect.target == toast)
+                .forEach(animation => animation.cancel());
+            toast.animate([
+                { transform: "translateY(12px) scale(.92)", opacity: 0 },
+                { transform: "translateY(0) scale(1)", opacity: 1 }
+            ], { duration: fast ? 180 : 320, easing: "cubic-bezier(.2,.8,.25,1)" });
         }
 
         var receivedCardQueue = [];
@@ -879,7 +924,7 @@
                     seenReceivedCards.add(`${game.id}:${receipt.id}`);
                 } else {
                     queueReceivedCards(Object.assign({}, receipt, {
-                        game, cards: receipt.cards.map(card => new Card(card.suit, card.rank))
+                        game, cards: receipt.cards.map(card => new PresidentCard(card.suit, card.rank))
                     }));
                 }
             });
@@ -1876,6 +1921,7 @@
             });
         }
         function updateTurnSpeedButtons() {
+            positionArchivedToasts();
             var speed = currentGame?.fastForward ? "fast" : getCookie("AnimationSpeed") || "normal";
             document.querySelectorAll(".animation-speed-option").forEach(button => {
                 button.setAttribute("aria-pressed", String(button.dataset.animationSpeed == speed));

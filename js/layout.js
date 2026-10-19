@@ -683,6 +683,32 @@ class GameLayout {
             flight.remove();
         });
     }
+    static animateGivenExchangeCards(game, exchange, origins) {
+        if (document.hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { return; }
+        var recipient = game.players[exchange.to];
+        var target = Array.from(document.querySelectorAll("#playerList [data-player-name]"))
+            .find(element => element.dataset.playerName == recipient.name) ||
+            document.getElementById("gameTable");
+        var bounds = target.getBoundingClientRect();
+        var destination = document.createElement("div");
+        destination.className = "exchange-flight-target";
+        destination.setAttribute("aria-hidden", "true");
+        var pile = new CardDeck(...exchange.cards);
+        pile.name = game.players[exchange.from].name;
+        pile.forEach((card, index) => {
+            var image = GameLayout.createCardImage(card, null,
+                GameLayout.styleForPlayer(game, pile.name));
+            image.dataset.cardKey = `${card.suit}:${card.rank}`;
+            image.style.position = "fixed";
+            image.style.width = "48px";
+            image.style.height = "72px";
+            image.style.left = `${bounds.left + (bounds.width - 48) / 2 + index * 6}px`;
+            image.style.top = `${bounds.top + (bounds.height - 72) / 2}px`;
+            destination.appendChild(image);
+        });
+        document.body.appendChild(destination);
+        GameLayout.animatePlayedCards(destination, pile, origins, () => destination.remove());
+    }
     static flashClubThree(game, table, pauseId) {
         var played = game.turnPause && game.turnPause.playedPile;
         if (pauseId == null || table.dataset.clubThreeFlashId == pauseId ||
@@ -851,6 +877,9 @@ class GameLayout {
         return { element: tablePile, newlyPlayed: newlyPlayed };
     }
     static updateTable(game, player, existingPileSignatures = new Set(), playOrigins = null) {
+        if (this.toastRegion == null) {
+            this.toastRegion = document.getElementById("gameToastRegion");
+        }
         document.getElementById("exchangePrompt").textContent = "";
         var exchangeActions = document.getElementById("exchangeActions");
         if (exchangeActions) {
@@ -1244,7 +1273,9 @@ class GameLayout {
                         confirmExchange.setAttribute("aria-label", `Gi kort til ${selectedRecipient.name}`);
                         confirmExchange.disabled = selectedExchange.cards.length != selectedExchange.count;
                         confirmExchange.onclick = function () {
+                            var origins = GameLayout.capturePlayOrigins();
                             game.giveExchangeCards(selectedExchange);
+                            GameLayout.animateGivenExchangeCards(game, selectedExchange, origins);
                         };
                         if (exchangeActions && !confirmExchange.disabled) {
                             exchangeActions.hidden = false;
@@ -1499,6 +1530,10 @@ class GameLayout {
         this.keepTurnTimer(table);
     }
     static keepTurnTimer(table) {
+        if (this.toastRegion != null && this.toastRegion.parentElement != table &&
+            typeof table.appendChild == "function") {
+            table.appendChild(this.toastRegion);
+        }
         if (this.tableTurnHint != null && this.tableTurnHint.parentElement != table &&
             typeof table.appendChild == "function") {
             table.appendChild(this.tableTurnHint);
