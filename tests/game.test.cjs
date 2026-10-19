@@ -198,6 +198,24 @@ function loadGame(cardStyle = null, globals = {}) {
     return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, GamePresence, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage })", context);
 }
 
+test("clearing card flights cancels and removes overlays from the page", () => {
+    let cancelled = 0;
+    let removed = 0;
+    const flight = {
+        getAnimations: () => [{ cancel: () => cancelled++ }],
+        remove: () => removed++
+    };
+    const { GameLayout } = loadGame(null, {
+        document: { querySelectorAll: selector => {
+            assert.equal(selector, ".card-flight, .card-discard-flight");
+            return [flight];
+        } }
+    });
+    GameLayout.clearCardFlights();
+    assert.equal(cancelled, 1);
+    assert.equal(removed, 1);
+});
+
 test("consent is private to the two trade participants and disappears when a trade starts", () => {
     const element = () => {
         const classes = new Set();

@@ -1016,8 +1016,7 @@ select:focus-visible {
 }
 
 .game-card.is-selected {
-    z-index: 3;
-    transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-18px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
+    transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-19.8px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
 }
 
 @keyframes hand-card-rise {
@@ -1025,7 +1024,7 @@ select:focus-visible {
         transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(0) rotate(var(--card-rotation, 0deg));
     }
     to {
-        transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-18px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
+        transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-19.8px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
     }
 }
 
@@ -1035,7 +1034,7 @@ select:focus-visible {
 
 @keyframes hand-card-lower {
     from {
-        transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-18px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
+        transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-19.8px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
     }
     to {
         transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(0) rotate(var(--card-rotation, 0deg));
@@ -1052,8 +1051,7 @@ select:focus-visible {
 }
 
 .game-card.is-exchange-selected {
-    z-index: 3;
-    transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-14px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
+    transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-15.4px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
 }
 
 .game-card.is-unplayable {
@@ -1070,13 +1068,18 @@ select:focus-visible {
     outline-offset: 2px;
 }
 
+.game-card.is-selected:focus-visible,
+.game-card.is-exchange-selected:focus-visible {
+    z-index: 1;
+}
+
 .game-card:active {
     padding: 0;
     background: transparent;
 }
 
 .game-card.is-selected:active {
-    transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-18px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
+    transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-19.8px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
 }
 
 .game-card.is-dragging {

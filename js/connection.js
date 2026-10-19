@@ -108,6 +108,7 @@
             var deadline = player && (currentGame.actionDeadlines || {})[GamePresence.playerId(player)];
             var now = connection ? connection.now() : Date.now();
             var active = !!player && !!deadline && !controlled &&
+                GamePresence.activeHumanCount(currentGame) > 1 &&
                 (currentGame.status == "S" || currentGame.status == "G");
             var remaining = active ? Math.max(0, Math.ceil((deadline.until - now) / 1000)) : 0;
             var seconds = remaining % 60;
