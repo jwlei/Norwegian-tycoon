@@ -34,7 +34,8 @@ function getExchangeId(exchange) {
 function hasSneakyConsent(exchange) {
     return exchange.kind == "playerTrade" &&
         Array.isArray(exchange.sneakyVotes) &&
-        exchange.sneakyVotes.length >= 2;
+        exchange.sneakyVotes.includes(exchange.from) &&
+        exchange.sneakyVotes.includes(exchange.to);
 }
 
 function isCardAllowedForExchange(exchange, card) {

@@ -198,6 +198,117 @@ function loadGame(cardStyle = null, globals = {}) {
     return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, GamePresence, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage })", context);
 }
 
+test("consent is private to the two trade participants and disappears when a trade starts", () => {
+    const element = () => {
+        const classes = new Set();
+        return {
+            dataset: {}, children: [], textContent: "", className: "",
+            get childElementCount() { return this.children.length; },
+            classList: { add: name => classes.add(name), contains: name => classes.has(name) },
+            setAttribute() {},
+            set innerHTML(value) { this.children = []; },
+            append(...children) { this.children.push(...children); },
+            appendChild(child) { this.children.push(child); }
+        };
+    };
+    const elements = new Map();
+    const document = {
+        createElement: element,
+        getElementById(id) {
+            if (!elements.has(id)) { elements.set(id, element()); }
+            return elements.get(id);
+        }
+    };
+    const { GameLayout, PresidentGame, PresidentPlayer, PresidentCard } = loadGame(null, {
+        document, setClass() {}
+    });
+    const players = ["Sender", "Recipient", "Other"].map((name, index) => {
+        const player = new PresidentPlayer(name, `key-${index}`);
+        player.lastPlacement = index + 1;
+        player.cards.push(new PresidentCard(1, 14));
+        return player;
+    });
+    const game = Object.assign(Object.create(PresidentGame.prototype), {
+        id: "trade-ui", status: "G", round: 2, players,
+        piles: [{ id: "offer", tradeId: "trade", kind: "playerTrade", mode: "Tilbud",
+            from: 0, to: 1, count: 1, cards: [], sneakyVotes: [0, 1] }]
+    });
+    game.save = () => {};
+    const flatten = node => [node, ...node.children.flatMap(flatten)];
+    const render = player => {
+        GameLayout.updateTable(game, player);
+        return flatten(document.getElementById("gameTable"));
+    };
+    for (const player of [null, players[2]]) {
+        assert.equal(render(player).some(node => /samtykke|Sneaky/.test(node.textContent)), false);
+    }
+    for (const player of players.slice(0, 2)) {
+        assert.ok(render(player).some(node => /Trekk sneaky/.test(node.textContent)));
+    }
+    const start = render(players[0]).find(node => node.textContent === "Start tvunget bytte");
+    assert.equal(start.disabled, false);
+    start.onclick();
+    for (const player of players.slice(0, 2)) {
+        assert.equal(render(player).some(node => /Trekk sneaky|Sneaky bytte$/.test(node.textContent)), false);
+    }
+});
+
+test("trade start toasts report either outcome once and only to participants", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const start = source.indexOf("        function notifyStartedTrades(");
+    const end = source.indexOf("        function showGameToast(", start);
+    for (const consent of [false, true]) {
+        const messages = [];
+        const context = vm.createContext({
+            currentPlayerName: "Other", hasSneakyConsent: () => consent,
+            showGameToast: message => messages.push(message)
+        });
+        vm.runInContext(source.slice(start, end), context);
+        context.game = {
+            status: "G", round: 1, shuffleStartedAt: 100,
+            players: [{ name: "Sender" }, { name: "Recipient" }, { name: "Other" }],
+            piles: [{ kind: "playerTrade", tradeId: "trade", from: 0, to: 1, mode: "Tilbud" }]
+        };
+        vm.runInContext("notifyStartedTrades(game)", context);
+        context.game.piles[0].mode = "Velg";
+        context.game.piles.push({ ...context.game.piles[0], from: 1, to: 0 });
+        vm.runInContext("notifyStartedTrades(game)", context);
+        assert.equal(messages.length, 0);
+        context.currentPlayerName = "Recipient";
+        vm.runInContext("notifyStartedTrades(game); notifyStartedTrades(game)", context);
+        assert.equal(messages.length, 1);
+        assert.match(messages[0], consent ? /nådd.*alle kort/ : /ikke nådd.*7–J/);
+    }
+});
+
+test("normal exchange rendering fades illegal cards while sneaky exchanges allow them", () => {
+    const context = vm.createContext({
+        console, getCookie: () => null, getPlayerKey: () => "human-key",
+        setTimeout: () => 0, localStorage: { getItem: () => null }
+    });
+    for (const file of ["cards.js", "player.js", "game.js", "engine.js"]) {
+        vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context);
+    }
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    const start = source.indexOf("                                var isSelectedForExchange");
+    const end = source.indexOf("                                if (!elemKort.disabled)", start);
+    for (const sneaky of [false, true]) {
+        for (const rank of [6, 7, 11, 12, 14]) {
+            const classes = new Set();
+            vm.runInContext(`var k = new PresidentCard(1, ${rank});
+                var player = { cards: [k] };
+                var activeExchange = { id: "trade", kind: "playerTrade", from: 0, to: 1,
+                    cards: [], count: 1, mode: "Velg", sneakyVotes: ${sneaky ? "[0, 1]" : "[]"} };
+                var game = { players: [player], piles: [activeExchange] };`, context);
+            context.elemKort = { classList: { add: name => classes.add(name) } };
+            vm.runInContext(source.slice(start, end), context);
+            const illegal = !sneaky && (rank < 7 || rank > 11);
+            assert.equal(context.elemKort.disabled, illegal);
+            assert.equal(classes.has("is-unplayable"), illegal);
+        }
+    }
+});
+
 function playButtonContext(options = {}) {
     const { CardPile, PresidentCard, GamePresence } = loadGame();
     const cards = [new PresidentCard(1, 5), new PresidentCard(2, 5), new PresidentCard(3, 8)];

@@ -260,6 +260,47 @@ test("taking back a bot seat preserves cards, placement and identity and starts 
     assert.equal(fixture.stored.connectionNotices.length, 1);
 });
 
+test("one extension per round survives turns, pauses, exchange stages, reconnects and reclaiming", async () => {
+    const fixture = controlClient();
+    const id = Presence.playerId(fixture.stored.spillere[0]);
+    await fixture.client.changeControl();
+    assert.ok(Presence.hasExtendedThisRound(fixture.stored, fixture.stored.spillere[0]));
+    fixture.stored = Presence.reconcile({ ...fixture.stored, turnPause: { until: start + 1000 } }, start);
+    assert.equal(fixture.stored.actionDeadlines[id], undefined);
+    fixture.stored = Presence.reconcile({ ...fixture.stored, turnPause: null }, start + 1000);
+    assert.equal(fixture.stored.actionDeadlines[id].extended, true);
+    const until = fixture.stored.actionDeadlines[id].until;
+    await fixture.client.changeControl();
+    assert.equal(fixture.stored.actionDeadlines[id].until, until);
+    fixture.stored = Presence.reconcile({ ...fixture.stored, sinTur: 1 }, start + 2000);
+    fixture.stored = Presence.reconcile({ ...fixture.stored, sinTur: 0 }, start + 3000);
+    assert.equal(fixture.stored.actionDeadlines[id].extended, true);
+    fixture.stored = Presence.reconcile({ ...fixture.stored, status: "G",
+        spillBunke: [{ id: "trade", modus: "Velg", fra: 0, til: 1 }] }, start + 4000);
+    assert.equal(fixture.stored.actionDeadlines[id].extended, true);
+    fixture.stored = structuredClone(fixture.stored);
+    fixture.stored.controllers = { [id]: { since: start, reason: "idle" } };
+    await fixture.client.changeControl(true);
+    assert.equal(fixture.stored.actionDeadlines[id].extended, true);
+    await fixture.client.changeControl();
+    assert.equal(fixture.messages.length, 2);
+    fixture.stored = Presence.reconcile({ ...fixture.stored, status: "S", spillBunke: [],
+        runde: 2, shuffleStartedAt: start + 5000 }, start + 5000);
+    assert.equal(fixture.stored.actionDeadlines[id].extended, false);
+    await fixture.client.changeControl();
+    assert.equal(fixture.stored.actionDeadlines[id].extended, true);
+});
+
+test("a stale deadline cannot consume the extension for a new round or another player's turn", async () => {
+    for (const update of [{ runde: 2 }, { sinTur: 1 }, { status: "F" }]) {
+        const fixture = controlClient();
+        Object.assign(fixture.stored, update);
+        await fixture.client.changeControl();
+        assert.equal(fixture.stored.turnExtensions, undefined);
+        assert.equal(fixture.messages.length, 1);
+    }
+});
+
 test("bot control is independent of the retained human identity", () => {
     const player = { name: "Owner", playerKey: "owner" };
     assert.equal(Presence.isBot({}, player), false);
