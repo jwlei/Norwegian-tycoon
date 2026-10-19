@@ -217,8 +217,11 @@ class GameLayout {
         var readyButton = this.el("readyButton");
         var localPlayer = game.getPlayer(game.localPlayerName);
         readyButton.hidden = game.status != "O" || localPlayer == null || GamePresence.isBot(game, localPlayer);
-        readyButton.textContent = localPlayer && localPlayer.ready ? "Ikke klar" : "Klar";
-        readyButton.setAttribute("aria-pressed", String(localPlayer != null && localPlayer.ready === true));
+        readyButton.disabled = game.connectionOnline === false ||
+            (localPlayer != null && GamePresence.disconnectedAt(game.presence, localPlayer) != null);
+        var localPlayerReady = localPlayer != null && localPlayer.ready === true && !readyButton.disabled;
+        readyButton.textContent = localPlayerReady ? "Ikke klar" : "Klar";
+        readyButton.setAttribute("aria-pressed", String(localPlayerReady));
         startButton.classList.toggle("is-waiting",
             game.status == "O" && (waitingForPlayers || !game.allHumansReady()));
         startButton.disabled = waitingForPlayers;
@@ -326,8 +329,6 @@ class GameLayout {
             var isPassed = game.status == "S" && !isTurn &&
                 (player.lastPlay === "Pass" || passedNames.has(player.name));
             playerElement.classList.toggle("player-summary--self", isCurrentPlayer);
-            playerElement.classList.toggle("player-summary--ready",
-                game.status == "O" && (player.ready === true || GamePresence.isBot(game, player)));
             playerElement.classList.toggle("is-current-turn", isTurn && isActiveStatus);
             playerElement.classList.toggle("player-summary--passed", isPassed);
             var turnState = isTurn && isActiveStatus ? "turn" : (isPassed ? "passed" : "");
@@ -351,6 +352,9 @@ class GameLayout {
             var reconnecting = player.playerKey != "PC" &&
                 ((isCurrentPlayer && game.connectionOnline === false) ||
                     GamePresence.disconnectedAt(game.presence, player) != null);
+            playerElement.classList.toggle("player-summary--ready",
+                game.status == "O" && !reconnecting &&
+                (player.ready === true || GamePresence.isBot(game, player)));
             if (reconnecting) {
                 detailsText = "Kobler til igjen …";
             } else if (GamePresence.isBot(game, player) && player.playerKey != "PC") {

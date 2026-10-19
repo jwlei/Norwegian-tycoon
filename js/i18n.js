@@ -256,6 +256,7 @@
         "Bare verten kan legge til bots.": "Only the host can add bots.",
         "Kunne ikke legge til spilleren. Prøv igjen.": "Could not add the player. Please try again.",
         "Plass i lobbyen": "Lobby capacity",
+        "Ledig plass": "Empty seat",
         "Menneskespillere erstatter en bot hvis lobbyen er full. Boter erstatter aldri menneskespillere.": "Human players replace a bot if the lobby is full. Bots never replace human players.",
         "Klar": "Ready",
         "Ikke klar": "Not ready",

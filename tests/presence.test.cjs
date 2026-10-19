@@ -45,6 +45,45 @@ test("one connected tab keeps the player online and final disconnect starts the 
     assert.equal(Presence.disconnectedAt({}, record.spillere[0]), null);
 });
 
+test("a lobby disconnect clears readiness immediately without mutating the received record", () => {
+    const record = room();
+    record.status = "O";
+    record.spillere.forEach(player => { player.ready = true; });
+    session(record, 0, true);
+    session(record, 1, false);
+    const next = Presence.reconcile(record, start);
+    assert.equal(next.spillere[0].ready, true);
+    assert.equal(next.spillere[1].ready, false);
+    assert.equal(record.spillere[1].ready, true);
+    assert.equal(Presence.reconcile(next, start + 1), undefined);
+    session(next, 1, true, start + 2);
+    assert.equal(Presence.reconcile(next, start + 2), undefined);
+    assert.equal(next.spillere[1].ready, false);
+});
+
+test("lobby readiness remains set for online tabs, bots and players without presence data", () => {
+    const record = room();
+    record.status = "O";
+    record.spillere.push(human("Bot", "PC"));
+    record.spillere.forEach(player => { player.ready = true; });
+    session(record, 0, false);
+    record.presence[Presence.playerId(record.spillere[0])].other = { online: true, changedAt: start };
+    session(record, 2, false);
+    assert.equal(Presence.reconcile(record, start), undefined);
+    assert.ok(record.spillere.every(player => player.ready));
+});
+
+test("disconnects do not reset readiness outside the lobby", () => {
+    for (const status of ["S", "G", "F"]) {
+        const record = room();
+        record.status = status;
+        record.spillere[1].ready = true;
+        session(record, 1, false);
+        const next = Presence.reconcile(record, start) || record;
+        assert.equal(next.spillere[1].ready, true);
+    }
+});
+
 test("turns get exactly 120 seconds and expire at the precise deadline, not before", () => {
     const record = Presence.reconcile(room(), start);
     const id = Presence.playerId(record.spillere[0]);

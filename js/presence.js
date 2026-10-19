@@ -58,7 +58,7 @@ class GamePresence {
 
     static reconcile(record, now) {
         if (record == null) { return; }
-        var players = record.spillere || [];
+        var players = (record.spillere || []).slice();
         var controllers = Object.assign({}, record.controllers);
         var deadlines = Object.assign({}, record.actionDeadlines);
         var changed = false;
@@ -77,6 +77,10 @@ class GamePresence {
                 changed = true;
             }
             var offlineAt = this.disconnectedAt(record.presence, player);
+            if (record.status == "O" && offlineAt != null && player.ready === true) {
+                players[index] = Object.assign({}, player, { ready: false });
+                changed = true;
+            }
             var offlineExpired = offlineAt != null && now >= offlineAt + this.disconnectMs;
             var idleExpired = offlineAt == null && deadline && token != null && now >= deadline.until;
             if ((record.status == "S" || record.status == "G") &&
@@ -104,7 +108,7 @@ class GamePresence {
         }
         if (!changed) { return; }
         return Object.assign({}, record, {
-            controllers, actionDeadlines: deadlines, connectionNotices: notices.slice(-12)
+            spillere: players, controllers, actionDeadlines: deadlines, connectionNotices: notices.slice(-12)
         });
     }
 
