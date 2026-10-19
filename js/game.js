@@ -140,19 +140,19 @@ function assignPlayerColors(game) {
     game.players.filter(player => !player.displayColor)
         .sort((a, b) => a.name < b.name ? -1 : (a.name > b.name ? 1 : 0))
         .forEach(player => {
-        var key = `${game.id}:${player.name.toLowerCase()}`;
-        var hash = 2166136261;
-        for (var index = 0; index < key.length; index++) {
-            hash = Math.imul(hash ^ key.charCodeAt(index), 16777619) >>> 0;
-        }
-        var hue = hash % 360;
-        // With at most four players, a 60-degree gap always leaves an available hue.
-        while (usedHues.some(used => Math.min(Math.abs(hue - used), 360 - Math.abs(hue - used)) < 60)) {
-            hue = (hue + 137) % 360;
-        }
-        usedHues.push(hue);
-        player.displayColor = `hsl(${hue} 82% 70%)`;
-    });
+            var key = `${game.id}:${player.name.toLowerCase()}`;
+            var hash = 2166136261;
+            for (var index = 0; index < key.length; index++) {
+                hash = Math.imul(hash ^ key.charCodeAt(index), 16777619) >>> 0;
+            }
+            var hue = hash % 360;
+            // With at most four players, a 60-degree gap always leaves an available hue.
+            while (usedHues.some(used => Math.min(Math.abs(hue - used), 360 - Math.abs(hue - used)) < 60)) {
+                hue = (hue + 137) % 360;
+            }
+            usedHues.push(hue);
+            player.displayColor = `hsl(${hue} 82% 70%)`;
+        });
 }
 
 const BOT_NAMES = [
