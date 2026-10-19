@@ -839,7 +839,7 @@
                 pile.appendChild(image);
             });
             var message = document.createElement("p");
-            var names = receipt.cards.map(card => localizedMessage(card.getName()));
+            var names = receipt.cards.map(card => localizedMessage(card.getName(card.isClubThree())));
             var language = document.documentElement.lang;
             var cardList = new Intl.ListFormat(language, { style: "long", type: "conjunction" }).format(names);
             var text = language.startsWith("en")
@@ -1205,6 +1205,7 @@
             showPublicLobbyError("");
             try {
                 var game = new PresidentGame(null, false);
+                await game.creation;
                 var name = readLastUsedPlayerName() || localizedMessage("Spiller");
                 var human = new PresidentPlayer(name, getPlayerKey());
                 human.ready = true;
@@ -1220,7 +1221,7 @@
                     var botResult = await game.addPlayer(new PresidentPlayer(botName, "PC"));
                     if (!botResult.player) { throw new Error(botResult.text); }
                 }
-                game.startGame();
+                await game.startGame();
                 currentGame = game;
                 currentPlayerName = name;
                 saveLastUsedPlayerName(name);

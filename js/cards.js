@@ -56,7 +56,10 @@ class Card {
         this.rank = rank;
     }
     code() { return `${Card.suitInfo(this.suit).code}${Card.rankInfo(this.rank).code}`; }
-    getName() { return `${Card.suitInfo(this.suit).name} ${Card.rankInfo(this.rank).name}`; }
+    getName(includeSuit = true) {
+        var rank = Card.rankInfo(this.rank).name;
+        return includeSuit ? `${Card.suitInfo(this.suit).name} ${rank}` : rank;
+    }
     static suitPath(code) {
         return {
             S: '<path d="M50 8C39 22 10 38 10 57c0 17 18 25 31 16-2 10-8 18-15 24h48c-7-6-13-14-15-24 13 9 31 1 31-16C90 38 61 22 50 8Z"/>',

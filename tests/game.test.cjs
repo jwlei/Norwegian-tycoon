@@ -142,12 +142,13 @@ test("received-card overlays filter recipients, queue receipts and honor every g
         listener({ detail: receipt });
         assert.equal(overlay.hidden, false);
         assert.equal(content.children[0].children.length, 2);
-        assert.match(content.children[1].textContent, /Du fikk .* og .* fra Sender\./);
+        assert.equal(content.children[1].textContent, "Du fikk 5 og Konge fra Sender.");
         assert.equal(timers[0].delay, duration);
-        listener({ detail: { ...receipt, cards: receipt.cards.slice(0, 1) } });
+        listener({ detail: { ...receipt, cards: [new PresidentCard(3, 3)] } });
         assert.equal(timers.length, 1);
         timers[0].callback();
         assert.equal(content.children[0].children.length, 1);
+        assert.equal(content.children[1].textContent, "Du fikk Kløver 3 fra Sender.");
         assert.equal(timers[1].delay, duration);
         overlay.click({ target: content, currentTarget: overlay });
         assert.equal(overlay.hidden, false);
@@ -503,6 +504,27 @@ test("quick play requires a count, uses the saved or localized name and starts a
         const button = { disabled: true, addEventListener(type, handler) { this.click = handler; } };
         const menu = { inert: false };
         const games = [];
+        let stored = null;
+        const clone = value => JSON.parse(JSON.stringify(value));
+        const room = {
+            transaction(transform, complete) {
+                const next = transform(clone(stored));
+                return Promise.resolve().then(() => {
+                    if (next !== undefined) { stored = clone(next); }
+                    const result = {
+                        committed: next !== undefined,
+                        snapshot: { val: () => clone(stored) }
+                    };
+                    complete?.(null, result.committed, result.snapshot);
+                    return result;
+                });
+            }
+        };
+        const { PresidentGame, PresidentPlayer } = loadGame(null, {
+            firebase: { database: () => ({
+                ref: path => path.startsWith("boms_1/") ? room : { remove: () => Promise.resolve() }
+            }) }
+        });
         let connections = 0;
         const context = vm.createContext({
             currentGame: null, currentPlayerName: null, console,
@@ -510,35 +532,24 @@ test("quick play requires a count, uses the saved or localized name and starts a
                 getElementById: id => id === "mainMenu" ? menu : button,
                 querySelectorAll: () => options
             },
-            PresidentGame: class {
+            PresidentGame: class extends PresidentGame {
                 constructor(id, isPublic) {
-                    this.isPublic = isPublic;
-                    this.players = [];
+                    super(id, isPublic);
                     games.push(this);
                 }
-                async addPlayer(player) {
-                    await Promise.resolve();
-                    assert.ok(!this.players.some(existing => existing.name === player.name));
-                    this.players.push(player);
-                    return { player };
-                }
-                startGame() {
-                    assert.equal(this.players.length, count);
-                    assert.ok(this.players[0].ready);
-                    assert.equal(this.localPlayerName, savedName || fallback);
-                    this.started = true;
-                }
             },
-            PresidentPlayer: class {
-                constructor(name, playerKey) { Object.assign(this, { name, playerKey }); }
-            },
+            PresidentPlayer,
             BOT_NAMES: ["Ada", "Bot A", "Bot B", "Bot C"],
             getPlayerKey: () => "human-key",
             readLastUsedPlayerName: () => savedName,
             localizedMessage: message => message === "Spiller" ? fallback : message,
             showPublicLobbyError: text => { assert.equal(text, ""); },
             saveLastUsedPlayerName: name => { assert.equal(name, savedName || fallback); },
-            connectGame: () => { connections++; }
+            connectGame: () => {
+                assert.equal(stored.status, "S");
+                assert.equal(stored.spillere.length, count);
+                connections++;
+            }
         });
         vm.runInContext(source.slice(start, end), context);
         await button.click();
@@ -554,12 +565,69 @@ test("quick play requires a count, uses the saved or localized name and starts a
         await pending;
         assert.equal(games.length, 1);
         assert.equal(games[0].isPublic, false);
-        assert.equal(games[0].started, true);
-        assert.equal(games[0].players[0].playerKey, "human-key");
-        assert.ok(games[0].players.slice(1).every(player => player.playerKey === "PC"));
+        assert.equal(games[0].status, "S");
+        assert.equal(games[0].players.length, count);
+        const humans = games[0].players.filter(player => player.playerKey !== "PC");
+        assert.equal(humans.length, 1);
+        assert.equal(humans[0].playerKey, "human-key");
+        assert.equal(humans[0].ready, true);
+        assert.equal(humans[0].name, savedName || fallback);
+        assert.equal(games[0].localPlayerName, humans[0].name);
+        assert.equal(new Set(games[0].players.map(player => player.name)).size, count);
+        const cards = games[0].players.flatMap(player => Array.from(player.cards, card => card.code()));
+        assert.equal(cards.length, count === 2 ? 40 : count === 3 ? 51 : 52);
+        assert.equal(new Set(cards).size, cards.length);
         assert.equal(context.currentPlayerName, savedName || fallback);
         assert.equal(connections, 1);
         assert.equal(menu.inert, false);
+    }
+});
+
+test("quick play restores the menu after a creation or start write fails and allows retry", async () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const start = source.indexOf("        var quickPlayPlayerCount");
+    const end = source.indexOf("        var publicLobbies", start);
+    for (const stage of ["creation", "start"]) {
+        const button = { addEventListener(type, callback) { this.click = callback; } };
+        const menu = {};
+        const errors = [];
+        let fail = true;
+        let connections = 0;
+        const context = vm.createContext({
+            currentGame: null, currentPlayerName: null,
+            console: { error() {} },
+            document: { getElementById: id => id === "mainMenu" ? menu : button, querySelectorAll: () => [] },
+            PresidentGame: class {
+                constructor() {
+                    this.players = [];
+                    this.creation = fail && stage === "creation"
+                        ? Promise.reject(new Error("Creation failed")) : Promise.resolve();
+                }
+                async addPlayer(player) { this.players.push(player); return { player }; }
+                async startGame() {
+                    if (fail && stage === "start") { throw new Error("Start failed"); }
+                }
+            },
+            PresidentPlayer: class {
+                constructor(name, playerKey) { Object.assign(this, { name, playerKey }); }
+            },
+            BOT_NAMES: ["Bot"], getPlayerKey: () => "human-key",
+            readLastUsedPlayerName: () => "Ada", localizedMessage: text => text,
+            showPublicLobbyError: text => { if (text) { errors.push(text); } },
+            saveLastUsedPlayerName() {}, connectGame: () => { connections++; }
+        });
+        vm.runInContext(source.slice(start, end) + "\nquickPlayPlayerCount = 2;", context);
+        await button.click();
+        assert.equal(errors.length, 1);
+        assert.equal(context.currentGame, null);
+        assert.equal(connections, 0);
+        assert.equal(menu.inert, false);
+        assert.equal(button.disabled, false);
+        fail = false;
+        await button.click();
+        assert.equal(errors.length, 1);
+        assert.equal(connections, 1);
+        assert.equal(context.currentGame.players.length, 2);
     }
 });
 
@@ -2687,7 +2755,7 @@ test("all three natural threes clear with two players but only two do not", () =
     game.piles = [new CardPile(players[0].name, ...threes)];
     const info = {};
     assert.equal(game.pileCleared(info), true);
-    assert.equal(info.text, "Hjerter 3, Spar 3 og Ruter 3");
+    assert.equal(info.text, "Treere");
     game.piles = threes.map(card => new CardPile(players[0].name, card));
     assert.equal(game.pileCleared(), true);
 });
