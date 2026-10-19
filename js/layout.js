@@ -1421,6 +1421,8 @@ class GameLayout {
             player.placement,
             player.turn,
             game.isTurnPaused() ? 1 : 0,
+            game.connectionOnline === false ? 0 : 1,
+            GamePresence.isBot(game, player) ? 1 : 0,
             game.piles.map(pile => `${pile.strengthRank}/${pile.map(keyOf).join(",")}`).join("|"),
             player.cards.map(keyOf).join(","),
             Array.from(selectedCardKeys).join(","),
@@ -1533,6 +1535,10 @@ class GameLayout {
         );
         var selectionCount = document.getElementById("selectedCardCount");
         var passButton = document.getElementById("passButton");
+        var playButton = document.getElementById("playButton");
+        playButton.hidden = true;
+        playButton.disabled = true;
+        playButton.onclick = null;
         element.innerHTML = "";
         if (player == null || game == null) {
             stopCardHandInertia();
@@ -1887,6 +1893,11 @@ class GameLayout {
         }
         element.classList.toggle("HasHandSelection", isPlayingTurn && selectedCardKeys.size > 0);
         var playSelectedCards = function () {
+            if (game.status != "S" || player.turn != 1 || player.placement != 0 ||
+                game.isTurnPaused() || game.connectionOnline === false ||
+                GamePresence.isBot(game, player)) {
+                return false;
+            }
             var selectedCards = player.cards.filter(card =>
                 selectedCardKeys.has(`${card.suit}:${card.rank}`)
             );
@@ -1900,6 +1911,14 @@ class GameLayout {
             game.playCards(player, pile);
             return true;
         };
+        playButton.hidden = !isPlayingTurn || game.connectionOnline === false ||
+            GamePresence.isBot(game, player);
+        var selectedPile = new CardPile(player.name, ...player.cards.filter(card =>
+            selectedCardKeys.has(`${card.suit}:${card.rank}`)
+        ));
+        playButton.disabled = playButton.hidden || selectedPile.length == 0 ||
+            !game.canPlayPile(player, selectedPile);
+        playButton.onclick = playSelectedCards;
         var selectCardsForSwipe = function (card) {
             if (!playableStrengths.has(card.strengthRank)) { return false; }
             autoSuggestedCardKeys.clear();

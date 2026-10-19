@@ -3279,6 +3279,16 @@ select:focus-visible {
     justify-content: safe center;
 }
 
+#playerActions > #playButton {
+    display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    #playerActions > #playButton:not([hidden]) {
+        display: inline-block;
+    }
+}
+
 /* Desktop: a compact, centered play area instead of a stretched full-window layout. */
 @media (min-width: 900px) and (min-height: 560px) and (orientation: landscape) and (pointer: fine) {
     body {
@@ -3304,5 +3314,16 @@ select:focus-visible {
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnPGiOpp {
         min-height: 34px;
         font-size: 0.8rem;
+    }
+}
+
+@media (min-width: 900px) and (min-height: 560px) and (orientation: landscape) and (hover: hover) and (pointer: fine) {
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) {
+        grid-template-rows: 44px clamp(76px, 10dvh, 100px) minmax(0, 1fr) 48px calc(var(--shell-hand-card-height) + 34px);
+    }
+
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #playerList .player-summary {
+        padding: 6px 8px;
+        gap: 4px;
     }
 }
