@@ -151,11 +151,19 @@
             updateFastForwardButton();
             updateTurnTimer();
             updateTurnSpeedButtons();
+            document.querySelectorAll("[data-offer-until]").forEach(countdown => {
+                var remaining = Math.max(0, Math.ceil((Number(countdown.dataset.offerUntil) -
+                    (connection ? connection.now() : GamePresence.now())) / 1000));
+                countdown.textContent = `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`;
+            });
+            currentGame.expireOptionalTrades();
             var reclaim = document.getElementById("reclaimSeatButton");
             reclaim.hidden = !controlled || !player || player.playerKey == "PC";
             reclaim.disabled = !online;
             document.getElementById("playerHand").inert = !online || !!controlled;
             document.getElementById("gameTable").inert = !online || !!controlled;
+            document.getElementById("exchangeActions").inert = !online || !!controlled;
+            if (controlled) { document.getElementById("exchangeActions").hidden = true; }
             if (!online || controlled) {
                 document.getElementById("passButton").disabled = true;
             } else {
@@ -825,6 +833,27 @@
 
         var receivedCardQueue = [];
         var receivedCardTimer = null;
+        var seenReceivedCards = new Set();
+        function queueReceivedCards(receipt) {
+            if (currentGame != receipt.game || currentPlayerName != receipt.recipient) { return; }
+            var key = receipt.id == null ? null : `${receipt.game.id}:${receipt.id}`;
+            if (key != null && seenReceivedCards.has(key)) { return; }
+            if (key != null) { seenReceivedCards.add(key); }
+            receivedCardQueue.push(receipt);
+            if (receivedCardTimer == null) { showNextReceivedCards(); }
+        }
+        function receiveExchangeReceipts(game, receipts) {
+            receipts.forEach(receipt => {
+                if (game.exchangeReceipts == null) {
+                    seenReceivedCards.add(`${game.id}:${receipt.id}`);
+                } else {
+                    queueReceivedCards(Object.assign({}, receipt, {
+                        game, cards: receipt.cards.map(card => new Card(card.suit, card.rank))
+                    }));
+                }
+            });
+            game.exchangeReceipts = receipts;
+        }
         function showNextReceivedCards() {
             var overlay = document.getElementById("receivedCardsOverlay");
             var receipt = receivedCardQueue.shift();
@@ -842,7 +871,7 @@
             var pile = document.createElement("div");
             pile.className = "received-cards__pile";
             receipt.cards.forEach((card, index) => {
-                var image = GameLayout.createCardImage(card, null, GameLayout.cardStyle());
+                var image = GameLayout.createCardImage(card, null, GameLayout.styleForPlayer(receipt.game, receipt.sender));
                 image.style.setProperty("--received-angle", `${(index - (receipt.cards.length - 1) / 2) * 10}deg`);
                 image.style.setProperty("--received-index", String(index));
                 pile.appendChild(image);
@@ -861,10 +890,7 @@
                 { fast: 5000, normal: 10000, slow: 15000 }[currentGameSpeed()]);
         }
         document.addEventListener("exchange-cards-received", function (event) {
-            var receipt = event.detail;
-            if (currentGame != receipt.game || currentPlayerName != receipt.recipient) { return; }
-            receivedCardQueue.push(receipt);
-            if (receivedCardTimer == null) { showNextReceivedCards(); }
+            queueReceivedCards(event.detail);
         });
         document.getElementById("receivedCardsOverlay").addEventListener("click", function (event) {
             if (event.target != event.currentTarget) { return; }
@@ -962,6 +988,12 @@
             var pause = game.turnPause;
             if (pause == null) { return; }
             var delay = pause.until - Date.now();
+            if (game.fastForward === true && activeToastPauseId == pause.id &&
+                gameToastExpiresAt > pause.until) {
+                clearTimeout(gameToastTimer);
+                gameToastExpiresAt = pause.until;
+                gameToastTimer = setTimeout(hideGameToast, Math.max(0, delay));
+            }
             if (pause.id != lastShownTurnPauseId) {
                 lastShownTurnPauseId = pause.id;
                 if (delay > 0) {
@@ -1539,13 +1571,22 @@
                     connectingGame.preservePlayerOrderOnStart =
                         snapshotRecord["preservePlayerOrderOnStart"] === true;
                     connectingGame.players = PresidentPlayer.deserializePlayers(storedPlayers);
+                    connectingGame.cardStyles = snapshotRecord.cardStyles || {};
                     connectingGame.piles = ((connectingGame.status == "G") ? PresidentGame.deserializeExchanges(storedPiles) : PresidentCard.deserializePiles(storedPiles));
+                    if (connectingGame.status == "G") {
+                        connectingGame.piles.filter(exchange => exchange.mode == "Tilbud" &&
+                            exchange.offerUntil == null).forEach(exchange => {
+                            exchange.offerUntil = Number(connectingGame.shuffleStartedAt || Date.now()) +
+                                SHUFFLE_DURATION_MS + 120000;
+                        });
+                    }
                     connectingGame.turn = snapshotRecord["sinTur"];
                     connectingGame.turnPause = snapshotRecord["turnPause"] || null;
                     connectingGame.fastForward = snapshotRecord.fastForward === true;
                     connectingGame.turnSeconds = gameTurnSeconds(snapshotRecord.turnSeconds);
                     connectingGame.ts = snapshotRecord.ts;
                     connectingGame.lastHumanActionAt = snapshotRecord.lastHumanActionAt ?? null;
+                    receiveExchangeReceipts(connectingGame, snapshotRecord.exchangeReceipts || []);
                     connection.receive(snapshotRecord);
                     if (connectingGame.status == "F") {
                         var stillActivePlayers = connectingGame.players.filter(player =>
@@ -1564,6 +1605,7 @@
                     }
                     GameLayout.updateSharedView(connectingGame, connectingGame.getPlayer(currentPlayerName));
                     GameLayout.updatePlayerView(connectingGame, connectingGame.getPlayer(currentPlayerName));
+                    syncPlayerCardStyle(connectingGame);
                     notifyStartedTrades(connectingGame);
                     handleTurnPause(connectingGame);
                     handleRoundStartVote(connectingGame);
@@ -1648,6 +1690,7 @@
 
         var GAME_SPEED_MS = { fast: 3000, normal: 5000, slow: 8000 };
         function currentGameSpeed() {
+            if (currentGame && currentGame.fastForward === true) { return "fast"; }
             var stored = null;
             try { stored = localStorage.getItem("gameSpeed"); } catch (error) { }
             return GAME_SPEED_MS[stored] != null ? stored : "fast";
@@ -1656,16 +1699,18 @@
             var speed = currentGameSpeed();
             document.querySelectorAll(".speed-option").forEach(button => {
                 button.setAttribute("aria-pressed", String(button.dataset.speed == speed));
+                button.disabled = !!currentGame && currentGame.fastForward === true;
             });
         }
         function updateTurnSpeedButtons() {
-            var seconds = gameTurnSeconds(currentGame && currentGame.turnSeconds);
+            var seconds = currentGame && currentGame.fastForward === true
+                ? 1 : gameTurnSeconds(currentGame && currentGame.turnSeconds);
             var player = currentGame && currentGame.getPlayer(currentPlayerName);
             var canChange = currentGame != null && currentGame.connectionOnline !== false &&
                 isLobbyHost(currentGame) && !!player && !GamePresence.isBot(currentGame, player);
             document.querySelectorAll(".turn-speed-option").forEach(button => {
                 button.setAttribute("aria-pressed", String(Number(button.dataset.seconds) == seconds));
-                button.disabled = !canChange;
+                button.disabled = !canChange || currentGame.fastForward === true;
             });
         }
         function updatePlayInputButtons() {
@@ -1704,6 +1749,9 @@
             if (currentGame != null) { refreshAfterTurnPause(currentGame); }
         });
         function updateCardStyleButtons() {
+            document.querySelectorAll(".card-style-scope-option").forEach(button => {
+                button.setAttribute("aria-pressed", String(button.dataset.scope == GameLayout.cardStyleScope()));
+            });
             document.getElementById("secretStyleHeader").hidden = !GameLayout.canUseBotanicalStyle();
             var style = GameLayout.cardStyle();
             document.documentElement.dataset.cardStyle = style;
@@ -1739,6 +1787,45 @@
             showDialog("Innstillinger", false);
             showDialog("Korttype", true);
         });
+
+        function syncPlayerCardStyle(game) {
+            var player = game.getPlayer(currentPlayerName);
+            if (!player || player.playerKey != getPlayerKey() || game.connectionOnline === false) { return; }
+            var style = GameLayout.cardStyle();
+            var id = GamePresence.playerId(player);
+            var attempt = `${id}:${style}`;
+            if ((game.cardStyles || {})[id] == style || game.cardStyleSyncPending ||
+                game.cardStyleSyncFailed == attempt) { return; }
+            game.cardStyleSyncPending = true;
+            game.setPlayerCardStyle(style).catch(error => {
+                game.cardStyleSyncFailed = attempt;
+                console.error("Kunne ikke lagre kortstilen.", error);
+                if (currentGame == game) { showGameToast(error.message, game); }
+            }).finally(() => {
+                game.cardStyleSyncPending = false;
+                if (currentGame == game && game.cardStyleSyncFailed != attempt) {
+                    syncPlayerCardStyle(game);
+                }
+            });
+        }
+        document.querySelectorAll(".card-style-scope-option").forEach(button => {
+            button.addEventListener("click", function () {
+                setCookie("CardStyleScope", button.dataset.scope, 1000);
+                updateCardStyleButtons();
+                if (currentGame) { refreshAfterTurnPause(currentGame); }
+            });
+        });
+        window.addEventListener("storage", function (event) {
+            if (event.key != "cardStyle" && event.key != "norwegian-tycoon-cookie-CardStyleScope") { return; }
+            updateCardStyleButtons();
+            if (currentGame) {
+                if (event.key == "cardStyle") {
+                    currentGame.cardStyleSyncFailed = null;
+                    syncPlayerCardStyle(currentGame);
+                }
+                refreshAfterTurnPause(currentGame);
+            }
+        });
         document.getElementById("cardStyleCloseButton").addEventListener("click", function () {
             showDialog("Korttype", false);
             showDialog("Innstillinger", true);
@@ -1755,6 +1842,10 @@
             button.addEventListener("click", function () {
                 if (button.dataset.cardStyle == "botanical" && !GameLayout.canUseBotanicalStyle()) { return; }
                 try { localStorage.setItem("cardStyle", button.dataset.cardStyle); } catch (error) { }
+                if (currentGame) {
+                    currentGame.cardStyleSyncFailed = null;
+                    syncPlayerCardStyle(currentGame);
+                }
                 updateCardStyleButtons();
                 if (currentGame != null) { refreshAfterTurnPause(currentGame); }
                 showDialog("Korttype", false);
@@ -1864,6 +1955,8 @@
         });
 
         function updateFastForwardButton() {
+            updateSpeedButtons();
+            updateTurnSpeedButtons();
             var button = document.getElementById("fastForwardButton");
             if (!button) { return; }
             button.hidden = !GamePresence.onlyBotsRemain(currentGame);

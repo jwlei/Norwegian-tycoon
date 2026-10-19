@@ -110,6 +110,14 @@ class Card {
         ).join("")).join("");
         return `<g transform="translate(${x} ${y}) rotate(${rotation}) scale(${size / 7}) translate(-3.5 -3.5)" fill="${color}" shape-rendering="crispEdges">${blocks}</g>`;
     }
+    static normalizeStyle(style, playerName = "") {
+        if (style == "botanical") {
+            return ["mrhotbox", "tåkefyrsten", "bjørn"].includes(
+                playerName.trim().toLocaleLowerCase()) ? style : "normal";
+        }
+        return ["normal", "holo", "gold", "pixel", "parallax", "neon"].includes(style)
+            ? style : "normal";
+    }
     toImageDataUri(style = "normal") {
         const code = Card.suitInfo(this.suit).code;
         const rank = this.rank === 1 ? "A" : this.rank > 10 ? { 11: "J", 12: "Q", 13: "K" }[this.rank] : String(this.rank);

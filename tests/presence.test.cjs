@@ -139,13 +139,15 @@ test("exchange deadlines start with 120 seconds only after shuffling has finishe
     const record = room();
     record.status = "G";
     record.shuffleStartedAt = start;
-    record.spillBunke = [{ id: "offer", modus: "Tilbud", fra: 1, til: 0 }];
+    record.spillBunke = [{ id: "choose", modus: "Velg", fra: 1, til: 0 }];
     assert.equal(Presence.reconcile(record, start), undefined);
     assert.equal(Presence.reconcile(record, start + 3499), undefined);
     const next = Presence.reconcile(record, start + 3500);
     const guestId = Presence.playerId(record.spillere[1]);
     assert.equal(next.actionDeadlines[guestId].until, start + 3500 + 120000);
     assert.equal(Object.keys(next.actionDeadlines).length, 1);
+    record.spillBunke = [{ id: "offer", modus: "Tilbud", fra: 1, til: 0 }];
+    assert.equal(Presence.actionToken(record, record.spillere[1], 1, start + 3500), null);
     record.spillBunke = [{ id: "give", modus: "Gitt", fra: 1, til: 0 }];
     assert.equal(Presence.actionToken(record, record.spillere[1], 1), null);
 });

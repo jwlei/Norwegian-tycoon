@@ -111,10 +111,11 @@ test("received-card overlays filter recipients, queue receipts and honor every g
         const game = { id: "room", players: [{ name: "Sender", displayColor: "#123456" }] };
         const context = vm.createContext({
             currentGame: game, currentPlayerName: "Recipient",
+            Card: PresidentCard,
             GAME_SPEED_MS: { fast: 3000, normal: 5000, slow: 8000 },
             currentGameSpeed: () => speed,
             localizedMessage: message => message,
-            GameLayout: { cardStyle: () => "neon", createCardImage: card => {
+            GameLayout: { cardStyle: () => "neon", styleForPlayer: () => "neon", createCardImage: card => {
                 assert.ok(card.toImageDataUri("neon").startsWith("data:image/svg+xml"));
                 return element();
             } },
@@ -155,6 +156,18 @@ test("received-card overlays filter recipients, queue receipts and honor every g
         overlay.click({ target: overlay, currentTarget: overlay });
         assert.equal(timers[1].cleared, true);
         assert.equal(overlay.hidden, true);
+        context.receiveExchangeReceipts(game, []);
+        const remoteReceipt = {
+            id: "optional-trade:1", recipient: "Recipient", sender: "Sender",
+            cards: [{ suit: 2, rank: 9 }]
+        };
+        context.receiveExchangeReceipts(game, [remoteReceipt]);
+        assert.equal(overlay.hidden, false);
+        assert.equal(content.children[1].textContent, "Du fikk 9 fra Sender.");
+        context.receiveExchangeReceipts(game, [remoteReceipt]);
+        listener({ detail: { ...remoteReceipt, game, cards: [new PresidentCard(2, 9)] } });
+        overlay.click({ target: overlay, currentTarget: overlay });
+        assert.equal(overlay.hidden, true, "A receipt from a remote snapshot must only be shown once");
     }
 });
 
@@ -427,6 +440,7 @@ test("consent stays private and remains available after a trade starts until car
             classList: { add: name => classes.add(name), contains: name => classes.has(name) },
             setAttribute() {},
             set innerHTML(value) { this.children = []; },
+            replaceChildren(...children) { this.children = children; },
             append(...children) { this.children.push(...children); },
             appendChild(child) { this.children.push(child); }
         };
@@ -463,9 +477,9 @@ test("consent stays private and remains available after a trade starts until car
         assert.equal(render(player).some(node => /samtykke|Sneaky/.test(node.textContent)), false);
     }
     for (const player of players.slice(0, 2)) {
-        assert.ok(render(player).some(node => /Trekk sneaky/.test(node.textContent)));
+        assert.ok(render(player).some(node => node.textContent == "Sneaky?"));
     }
-    const start = render(players[0]).find(node => node.textContent === "Start frivillig bytte");
+    const start = render(players[0]).find(node => node.textContent === "Tving bytte");
     assert.equal(start.disabled, false);
     start.onclick();
     for (const player of players.slice(0, 2)) {
@@ -760,11 +774,11 @@ function colorThemeContext(storage = new Map(), storageBlocked = false) {
     return { context, options, elements, events, dialogs };
 }
 
-test("all sixteen color themes have previews and persist without cookies", () => {
+test("all seventeen color themes have previews and persist without cookies", () => {
     const storage = new Map();
     const { context, options, elements } = colorThemeContext(storage);
     assert.deepEqual(options.map(option => option.dataset.colorTheme),
-        ["blue", "forest", "teal", "amethyst", "burgundy", "amber", "gray", "amoled",
+        ["teal", "classic", "blue", "forest", "amethyst", "burgundy", "amber", "gray", "amoled",
             "solarized", "dark-modern", "material", "darcula", "one-dark", "nord", "monokai", "gradianto"]);
     assert.equal(context.document.documentElement.dataset.colorTheme, "teal");
     context.document.documentElement.dataset.theme = "light";
@@ -1079,6 +1093,124 @@ test("the play button plays exactly the selected cards and clears the selection"
     assert.equal(selectedCardKeys.size, 0);
     assert.equal(playButton.onclick(), false);
     assert.equal(played.length, 1);
+});
+
+test("tapping a selected group keeps only the tapped card, then allows adding cards individually", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    const start = source.indexOf("                                    if (!playableStrengths.has(k.strengthRank))");
+    const end = source.indexOf("                                    GameLayout.updateHand(", start);
+    const { PresidentCard } = loadGame();
+    const cards = [1, 2, 3, 4].map(suit => new PresidentCard(suit, 7));
+    for (const count of [null, 2, 3, 4]) {
+        const keys = new Set();
+        const context = vm.createContext({
+            PresidentCard, player: { cards }, selectedCardKeys: keys,
+            selectedCardStrength: null, autoSuggestedCardKeys: new Set(),
+            playableStrengths: new Set([7]), hasFourOfKindOnTop: () => count == 4,
+            game: { topPile: () => count == null ? null : Array(count) },
+            showInvalidCardWarning: () => assert.fail("Every test card is playable")
+        });
+        context.clearCardSelection = () => { keys.clear(); context.selectedCardStrength = null; };
+        vm.runInContext(`function select(k) { var cardKey = k.suit + ":" + k.rank;\n${source.slice(start, end)}\n}`, context);
+        context.select(cards[0]);
+        assert.equal(keys.size, count || 4);
+        context.select(cards[0]);
+        assert.deepEqual([...keys], ["1:7"]);
+        context.select(cards[1]);
+        assert.deepEqual([...keys], ["1:7", "2:7"]);
+        if (count == null || count > 2) {
+            context.select(cards[2]);
+            assert.deepEqual([...keys], ["1:7", "2:7", "3:7"]);
+        }
+    }
+});
+
+test("fast forward temporarily shows the fastest message speed without overwriting the saved preference", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const buttons = ["fast", "normal", "slow"].map(speed => ({
+        dataset: { speed }, setAttribute(name, value) { this[name] = value; }
+    }));
+    const context = vm.createContext({
+        currentGame: { fastForward: false },
+        localStorage: { getItem: () => "slow" },
+        document: { querySelectorAll: () => buttons }
+    });
+    vm.runInContext(source.slice(source.indexOf("        var GAME_SPEED_MS"),
+        source.indexOf("        function updateTurnSpeedButtons")), context);
+    for (const enabled of [false, true, false]) {
+        context.currentGame.fastForward = enabled;
+        context.updateSpeedButtons();
+        assert.equal(context.currentGameSpeed(), enabled ? "fast" : "slow");
+        assert.equal(buttons.find(button => button["aria-pressed"] == "true").dataset.speed,
+            enabled ? "fast" : "slow");
+        assert.ok(buttons.every(button => button.disabled == enabled));
+    }
+});
+
+test("forced exchange offers expire at 120 seconds without surrendering a human seat", () => {
+    const { game, players } = setupGame();
+    Object.assign(game, {
+        status: "G", localPlayerName: players[0].name, shuffleStartedAt: null,
+        piles: [{ id: "offer", mode: "Tilbud", from: 0, to: 1, offerUntil: 120000 }],
+        roundStarterName: players[0].name
+    });
+    let saves = 0;
+    game.save = () => saves++;
+    assert.equal(game.expireOptionalTrades(119999), false);
+    assert.equal(game.piles.length, 1);
+    assert.equal(game.expireOptionalTrades(120000), true);
+    assert.equal(game.status, "S");
+    assert.equal(game.piles.length, 0);
+    assert.equal(saves, 1);
+    assert.equal(game.controllers, undefined);
+});
+
+test("forced exchange offer deadlines survive serialization and reject late starts", () => {
+    const { game } = setupGame();
+    game.status = "G";
+    game.piles = [{
+        id: "offer", kind: "playerTrade", mode: "Tilbud", from: 0, to: 1,
+        count: 1, cards: [], offerUntil: 1
+    }];
+    const records = game.serializePiles();
+    const { PresidentGame } = loadGame();
+    assert.equal(PresidentGame.deserializeExchanges(records)[0].offerUntil, 1);
+    assert.throws(() => game.startOptionalTrade(game.piles[0]), /Tiden.*ute/);
+});
+
+test("offer expiry leaves active exchanges intact and only the online room driver may perform it", () => {
+    const { game, players } = setupGame();
+    const selection = { id: "selection", mode: "Velg", from: 0, to: 1, cards: [] };
+    Object.assign(game, {
+        status: "G", localPlayerName: players[0].name,
+        piles: [selection, { id: "offer", mode: "Tilbud", from: 0, to: 1, offerUntil: 120000 }]
+    });
+    game.save = () => {};
+    game.connectionOnline = false;
+    assert.equal(game.expireOptionalTrades(120000), false);
+    game.connectionOnline = true;
+    game.hostKey = "another-host";
+    assert.equal(game.expireOptionalTrades(120000), false);
+    game.hostKey = "human-key";
+    assert.equal(game.expireOptionalTrades(120000), true);
+    assert.equal(game.status, "G");
+    assert.deepEqual(game.piles, [selection]);
+});
+
+test("a stale room save cannot remove another client's exchange receipt within the same round", () => {
+    const { game } = setupGame();
+    const receipt = { id: "received", recipient: "Human", sender: "Bot 1", cards: [{ suit: 1, rank: 8 }] };
+    let record = {
+        status: "S", runde: game.round, shuffleStartedAt: null,
+        exchangeReceipts: [receipt]
+    };
+    game.databaseRef = { transaction(transform) { record = transform(record); } };
+    game.exchangeReceipts = [];
+    game.save();
+    assert.deepEqual(Array.from(record.exchangeReceipts), [receipt]);
+    game.shuffleStartedAt = Date.now();
+    game.save();
+    assert.equal(record.exchangeReceipts.length, 0);
 });
 
 test("the play button rejects empty and illegal selections without playing", () => {
@@ -3252,52 +3384,97 @@ test("personal play controls retain device defaults and honor explicit saved cho
                 window: { matchMedia: () => ({ matches: desktop }) }
             });
 
-            test("a stale save refreshes the local speed before republishing the lobby", () => {
-                const { game } = setupGame();
-                game.turnSeconds = 3;
-                const listedSpeeds = [];
-                game.updatePublicListing = () => listedSpeeds.push(game.turnSeconds);
-                game.databaseRef = {
-                    transaction(transform, complete) {
-                        const record = transform({ status: "S", turnSeconds: 1 });
-                        complete(null, true, { val: () => record });
-                    }
-                };
-                game.save();
-                assert.equal(game.turnSeconds, 1);
-                assert.ok(listedSpeeds.length > 0);
-                assert.ok(listedSpeeds.every(seconds => seconds == 1));
-            });
-
-            test("public lobby metadata publishes the shared turn speed, defaulting older rooms to two seconds", () => {
-                const listings = [];
-                const { PresidentGame, PresidentPlayer } = loadGame(null, {
-                    firebase: { database: () => ({
-                        ref: path => {
-                            assert.equal(path, "boms_public/test");
-                            return {
-                                set(record) { listings.push(record); return Promise.resolve(); },
-                                onDisconnect: () => ({ remove() {} })
-                            };
-                        }
-                    }) }
-                });
-                const game = Object.assign(Object.create(PresidentGame.prototype), {
-                    id: "test", status: "O", isPublic: true, hostKey: "human-key",
-                    localPlayerName: "Host", players: [new PresidentPlayer("Host", "human-key")]
-                });
-                for (const seconds of [undefined, 1, 2, 3]) {
-                    game.turnSeconds = seconds;
-                    game.updatePublicListing();
-                    assert.equal(listings.at(-1).turnSeconds, seconds || 2);
-                }
-            });
             assert.equal(GameLayout.playInputMode(),
                 saved == "flick" || saved == "button" ? saved : desktop ? "button" : "flick");
         }
     }
     assert.equal(playButtonContext({ playInput: "flick" }).playButton.hidden, true);
     assert.equal(playButtonContext({ playInput: "button" }).playButton.hidden, false);
+});
+
+test("card style display uses the viewer's style by default or the named player's published style", () => {
+    for (const scope of [null, "invalid", "own", "player"]) {
+        const { GameLayout, GamePresence, PresidentPlayer } = loadGame("gold", {
+            getCookie: key => key == "CardStyleScope" ? scope : null
+        });
+        const players = [new PresidentPlayer("Viewer", "human-key"), new PresidentPlayer("Guest", "guest-key")];
+        GameLayout.viewerName = "Viewer";
+        const guestId = GamePresence.playerId(players[1]);
+        const game = { players, cardStyles: { [guestId]: "pixel" } };
+        assert.equal(GameLayout.styleForPlayer(game, "Viewer"), "gold");
+        assert.equal(GameLayout.styleForPlayer(game, "Guest"), scope == "player" ? "pixel" : "gold");
+        for (const invalid of ["invalid", "botanical"]) {
+            game.cardStyles[guestId] = invalid;
+            assert.equal(GameLayout.styleForPlayer(game, "Guest"), scope == "player" ? "normal" : "gold");
+        }
+    }
+});
+
+test("publishing a card style changes only the current named seat and survives stale game saves", async () => {
+    const { game, players } = setupGame();
+    game.localPlayerName = players[0].name;
+    const { GamePresence } = loadGame();
+    const id = GamePresence.playerId(players[0]);
+    let record = {
+        status: "O", spillere: players.map(player => player.toRecord()),
+        cardStyles: { another: "neon" }
+    };
+    game.databaseRef = { async transaction(transform) {
+        const next = transform(record);
+        if (next) { record = next; }
+        return { committed: !!next, snapshot: { val: () => record } };
+    } };
+    await game.setPlayerCardStyle("gold");
+    assert.equal(record.cardStyles[id], "gold");
+    assert.equal(record.cardStyles.another, "neon");
+    game.save();
+    assert.equal(record.cardStyles[id], "gold");
+    await assert.rejects(game.setPlayerCardStyle("botanical"), /kortstilen/);
+    await assert.rejects(game.setPlayerCardStyle("unknown"), /kortstilen/);
+    game.localPlayerName = players[1].name;
+    await assert.rejects(game.setPlayerCardStyle("pixel"), /kortstilen/);
+    game.localPlayerName = players[0].name;
+    game.connectionOnline = false;
+    await assert.rejects(game.setPlayerCardStyle("pixel"), /kortstilen/);
+});
+
+test("a stale save refreshes the local speed before republishing the lobby", () => {
+    const { game } = setupGame();
+    game.turnSeconds = 3;
+    const listedSpeeds = [];
+    game.updatePublicListing = () => listedSpeeds.push(game.turnSeconds);
+    game.databaseRef = { transaction(transform, complete) {
+        const record = transform({ status: "S", turnSeconds: 1 });
+        complete(null, true, { val: () => record });
+    } };
+    game.save();
+    assert.equal(game.turnSeconds, 1);
+    assert.ok(listedSpeeds.length > 0);
+    assert.ok(listedSpeeds.every(seconds => seconds == 1));
+});
+
+test("public lobby metadata publishes the shared turn speed, defaulting older rooms to two seconds", () => {
+    const listings = [];
+    const { PresidentGame, PresidentPlayer } = loadGame(null, {
+        firebase: { database: () => ({
+            ref: path => {
+                assert.equal(path, "boms_public/test");
+                return {
+                    set(record) { listings.push(record); return Promise.resolve(); },
+                    onDisconnect: () => ({ remove() {} })
+                };
+            }
+        }) }
+    });
+    const game = Object.assign(Object.create(PresidentGame.prototype), {
+        id: "test", status: "O", isPublic: true, hostKey: "human-key",
+        localPlayerName: "Host", players: [new PresidentPlayer("Host", "human-key")]
+    });
+    for (const seconds of [undefined, 1, 2, 3]) {
+        game.turnSeconds = seconds;
+        game.updatePublicListing();
+        assert.equal(listings.at(-1).turnSeconds, seconds || 2);
+    }
 });
 
 test("settings have three log-style categories with game speed directly below message duration", () => {

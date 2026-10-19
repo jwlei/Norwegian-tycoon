@@ -327,6 +327,7 @@ class PresidentGame extends Game {
             "roundStarterName": this.roundStarterName,
             "shuffleStartedAt": this.shuffleStartedAt,
             "playedCards": this.playedCards || [],
+            "exchangeReceipts": this.exchangeReceipts || [],
             "dealTotal": this.dealTotal ?? null,
             "dealStarterStep": this.dealStarterStep ?? null,
             "hostKey": this.hostKey,
@@ -358,6 +359,11 @@ class PresidentGame extends Game {
                     ? (hasLastAction ? Math.max(Number(baseline), update.lastHumanActionAt) : Number(baseline))
                     : update.lastHumanActionAt;
                 var next = Object.assign({}, current, update, { lastHumanActionAt });
+                if (current.shuffleStartedAt == update.shuffleStartedAt && current.runde == update.runde) {
+                    var receipts = new Map((current.exchangeReceipts || []).map(receipt => [receipt.id, receipt]));
+                    update.exchangeReceipts.forEach(receipt => receipts.set(receipt.id, receipt));
+                    next.exchangeReceipts = Array.from(receipts.values());
+                }
                 next.turnSeconds = gameTurnSeconds(current.turnSeconds);
                 next.fastForward = current.fastForward === true &&
                     current.shuffleStartedAt == update.shuffleStartedAt &&
@@ -1121,7 +1127,7 @@ class PresidentGame extends Game {
                 "modus": exchange.mode,
                 "kort": PresidentCard.serializeDeck(exchange.cards || [])
             };
-            ["id", "kind", "tradeId", "sneakyVotes", "sneakyLocked", "botDecisions"].forEach(key => {
+            ["id", "kind", "tradeId", "sneakyVotes", "sneakyLocked", "botDecisions", "offerUntil"].forEach(key => {
                 if (exchange[key] != null) {
                     record[key] = exchange[key];
                 }
@@ -1145,6 +1151,7 @@ class PresidentGame extends Game {
                 sneakyLocked: record.sneakyLocked === true,
                 botDecisions: record.botDecisions || {}
             };
+            exchange.offerUntil = record.offerUntil ?? null;
             exchange.id = record.id || `exchange:${exchange.from}:${exchange.to}`;
             return exchange;
         });
@@ -1253,6 +1260,7 @@ class PresidentGame extends Game {
             });
             this.piles = [];
             this.status = "G"; // Exchange cards.
+            this.exchangeReceipts = [];
             this.setTurn(null);
             if (this.players.length >= 5) {
                 if (vicePresidentIndex < 0 || viceBomsIndex < 0) {
@@ -1311,6 +1319,7 @@ class PresidentGame extends Game {
                         to: neutralIndex,
                         count: 1,
                         mode: "Tilbud",
+                        offerUntil: GamePresence.now() + SHUFFLE_DURATION_MS + 120000,
                         cards: [],
                         sneakyVotes: []
                     }, {
@@ -1322,6 +1331,7 @@ class PresidentGame extends Game {
                         to: bomsIndex,
                         count: 1,
                         mode: "Tilbud",
+                        offerUntil: GamePresence.now() + SHUFFLE_DURATION_MS + 120000,
                         cards: [],
                         sneakyVotes: []
                     });
@@ -1369,6 +1379,9 @@ class PresidentGame extends Game {
         if (!currentOffer || currentOffer.kind != "playerTrade") {
             throw ("Dette byttet er ikke lenger tilgjengelig.");
         }
+        if (currentOffer.offerUntil != null && GamePresence.now() >= currentOffer.offerUntil) {
+            throw ("Tiden for å tvinge bytte er ute.");
+        }
         var fromPlacement = this.players[currentOffer.from].lastPlacement;
         var toPlacement = this.players[currentOffer.to].lastPlacement;
         var isAuthorizedPair =
@@ -1406,6 +1419,17 @@ class PresidentGame extends Game {
         this.players[currentOffer.to].turn = 1;
         this.recordHumanAction(this.players[currentOffer.from]);
         this.save();
+    }
+    expireOptionalTrades(now = GamePresence.now()) {
+        if (this.status != "G" || !GamePresence.canDrive(this, now) ||
+            GamePresence.isActionPaused(this, now)) { return false; }
+        var expired = this.piles.filter(exchange =>
+            exchange.mode == "Tilbud" && exchange.offerUntil != null && now >= exchange.offerUntil);
+        if (expired.length == 0) { return false; }
+        this.piles = this.piles.filter(exchange => !expired.includes(exchange));
+        this.advanceExchangeStage();
+        this.save();
+        return true;
     }
     skipOptionalTrade(offer, playerIndex) {
         this.assertSessionActive();
@@ -1534,12 +1558,17 @@ class PresidentGame extends Game {
         });
         this.players[exchange.to].cards.sortCards();
         markReceivedCards(`${this.id}:${this.players[exchange.to].name}`, exchange.cards);
+        var receipt = {
+            id: `${this.shuffleStartedAt}:${this.round}:${getExchangeId(exchange)}`,
+            recipient: this.players[exchange.to].name,
+            sender: this.players[exchange.from].name,
+            cards: exchange.cards.map(card => ({ suit: card.suit, rank: card.rank }))
+        };
+        this.exchangeReceipts = [...(this.exchangeReceipts || []), receipt];
         document.dispatchEvent(new CustomEvent("exchange-cards-received", {
-            detail: {
-                game: this, recipient: this.players[exchange.to].name,
-                sender: this.players[exchange.from].name,
-                cards: exchange.cards.map(card => new Card(card.suit, card.rank))
-            }
+            detail: Object.assign({}, receipt, {
+                game: this, cards: exchange.cards.map(card => new Card(card.suit, card.rank))
+            })
         }));
     }
     giveExchangeCards(exchange) {
@@ -1604,6 +1633,23 @@ class PresidentGame extends Game {
             (GamePresence.onlyBotsRemain(this) ||
                 (this.status == "S" && this.turnPause?.pendingGameEnd))
             ? 1000 : gameTurnSeconds(this.turnSeconds) * 1000;
+    }
+    async setPlayerCardStyle(style) {
+        var name = this.localPlayerName;
+        if (this.connectionOnline === false || Card.normalizeStyle(style, name || "") != style) {
+            throw new Error("Kan ikke lagre kortstilen nå.");
+        }
+        var result = await this.databaseRef.transaction(record => {
+            if (!record || GamePresence.isExpired(record)) { return; }
+            var player = (record.spillere || []).find(player =>
+                player.spillerKey == getPlayerKey() && player.nick == name);
+            if (!player) { return; }
+            return Object.assign({}, record, {
+                cardStyles: Object.assign({}, record.cardStyles, { [GamePresence.playerId(player)]: style })
+            });
+        }, undefined, false);
+        if (!result.committed) { throw new Error("Kan ikke lagre kortstilen nå."); }
+        this.cardStyles = result.snapshot.val().cardStyles;
     }
     async setTurnSeconds(seconds) {
         if (![1, 2, 3].includes(seconds)) {

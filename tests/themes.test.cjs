@@ -5,7 +5,7 @@ const path = require("node:path");
 
 const css = fs.readFileSync(path.join(__dirname, "..", "css", "theme.css"), "utf8");
 const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-const themes = ["blue", "forest", "teal", "amethyst", "burgundy", "amber", "gray", "amoled",
+const themes = ["teal", "classic", "blue", "forest", "amethyst", "burgundy", "amber", "gray", "amoled",
     "solarized", "dark-modern", "material", "darcula", "one-dark", "nord", "monokai", "gradianto"];
 
 function declarations(selector) {
@@ -50,7 +50,7 @@ function hue(color) {
     return (sector * 60 + 360) % 360;
 }
 
-test("all sixteen themes expose matching previews and complete semantic palettes", () => {
+test("all seventeen themes expose matching previews and complete semantic palettes", () => {
     const options = Array.from(html.matchAll(/class="color-theme-option" data-color-theme="([^"]+)"/g),
         match => match[1]);
     assert.deepEqual(options, themes);
@@ -118,10 +118,10 @@ test("status surfaces use theme tokens instead of legacy fixed green, gold and r
     assert.match(css, /\.color-theme-preview > span \+ span\s*\{[^}]*var\(--success\)[^}]*var\(--warning\)[^}]*var\(--danger\)/);
 });
 
-test("visible release and versioned local assets use version 0.8.1", () => {
-    assert.ok(html.includes('aria-label="Spillversjon 0.8.1">v0.8.1</span>'));
+test("visible release and versioned local assets use version 0.8.2", () => {
+    assert.ok(html.includes('aria-label="Spillversjon 0.8.2">v0.8.2</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"]+)"/g),
         match => match[1]);
     assert.ok(versions.length > 0);
-    assert.ok(versions.every(version => version === "0.8.1"));
+    assert.ok(versions.every(version => version === "0.8.2"));
 });

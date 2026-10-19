@@ -102,8 +102,6 @@ class GamePresence {
         }
         if (record.status == "G") {
             var exchanges = (record.spillBunke || []).filter(exchange =>
-                (exchange.modus == "Tilbud" && (exchange.fra == index ||
-                    (exchange.til == index && (exchange.sneakyVotes || []).includes(exchange.fra)))) ||
                 ((exchange.modus == "Velg" || exchange.modus == "Best") && exchange.fra == index) ||
                 (exchange.modus == "Kan se" && exchange.til == index));
             if (exchanges.length > 0) {

@@ -135,14 +135,20 @@ class GameLayout {
     static cardStyle() {
         var stored = null;
         try { stored = localStorage.getItem("cardStyle"); } catch (error) { }
-        if (stored == "botanical") {
-            return GameLayout.canUseBotanicalStyle() ? stored : "normal";
+        return Card.normalizeStyle(stored, GameLayout.cardStylePlayerName || "");
+    }
+    static cardStyleScope() {
+        return getCookie("CardStyleScope") == "player" ? "player" : "own";
+    }
+    static styleForPlayer(game, name) {
+        if (GameLayout.cardStyleScope() == "own" || name == GameLayout.viewerName) {
+            return GameLayout.cardStyle();
         }
-        return ["holo", "gold", "pixel", "parallax", "neon"].includes(stored) ? stored : "normal";
+        var player = game.players.find(player => player.name == name);
+        return player ? Card.normalizeStyle((game.cardStyles || {})[GamePresence.playerId(player)], name) : "normal";
     }
     static canUseBotanicalStyle() {
-        return ["mrhotbox", "tåkefyrsten", "bjørn"].includes(
-            (GameLayout.cardStylePlayerName || "").trim().toLocaleLowerCase());
+        return Card.normalizeStyle("botanical", GameLayout.cardStylePlayerName || "") == "botanical";
     }
     static cardImageHtml(K, width = null, rotering = null, style = "normal") {
         return `<img src='${K.toImageDataUri(style)}' ${((width != null) ? "width='" + width + "'" : "")} alt='${K.getName()}' ${((rotering != null) ? "transform: translateX(" + rotering + "px) rotate(" + rotering + "deg);" : "")} />`;
@@ -377,9 +383,18 @@ class GameLayout {
                 playerElement.classList.remove("player-summary--pulse-turn", "player-summary--pulse-passed");
                 void playerElement.offsetWidth;
                 playerElement.classList.add(`player-summary--pulse-${turnState}`);
-                playerElement.addEventListener("animationend", () => {
+                if (typeof playerElement.animate == "function" &&
+                    !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+                    playerElement.animate([
+                        { scale: "1" }, { scale: "1.035", offset: 0.45 }, { scale: "1" }
+                    ], { duration: 900, easing: "ease-in-out" });
+                }
+                var finishAttention = event => {
+                    if (event.target != playerElement || event.animationName != "attention-flash") { return; }
                     playerElement.classList.remove("player-summary--pulse-turn", "player-summary--pulse-passed");
-                }, { once: true });
+                    playerElement.removeEventListener("animationend", finishAttention);
+                };
+                playerElement.addEventListener("animationend", finishAttention);
             }
             playerElement.dataset.turnState = turnState;
             playerElement.style.setProperty("--player-color", player.displayColor);
@@ -787,7 +802,7 @@ class GameLayout {
             playElement.style.setProperty("--play-index", String(playIndex));
             var playOffset = Math.min(cardsOnTable * 2.5, compactStack ? 18 : 44);
             pile.forEach((card, cardIndex) => {
-                var image = GameLayout.createCardImage(card, null, pile.name != null && pile.name === GameLayout.viewerName ? GameLayout.cardStyle() : "normal");
+                var image = GameLayout.createCardImage(card, null, GameLayout.styleForPlayer(game, pile.name));
                 image.className = "table-play__card";
                 var cardKey = `${card.suit}:${card.rank}`;
                 image.dataset.cardKey = cardKey;
@@ -830,7 +845,20 @@ class GameLayout {
     }
     static updateTable(game, player, existingPileSignatures = new Set(), playOrigins = null) {
         document.getElementById("exchangePrompt").textContent = "";
+        var exchangeActions = document.getElementById("exchangeActions");
+        if (exchangeActions) {
+            exchangeActions.replaceChildren();
+            exchangeActions.hidden = true;
+        }
         var table = document.getElementById("gameTable");
+        if (this.tableTurnHint == null) {
+            this.tableTurnHint = document.getElementById("tableTurnHint");
+        }
+        if (this.tableTurnHint) {
+            this.tableTurnHint.hidden = !(player && game.status == "S" &&
+                player.placement == 0 && player.turn == 1 && game.piles.length == 0 &&
+                !game.isTurnPaused());
+        }
         if (this.fastForwardElement == null) {
             this.fastForwardElement = document.getElementById("fastForwardButton");
         }
@@ -966,7 +994,7 @@ class GameLayout {
                 } else if (game.piles.some(exchange => exchange.mode == "Kan se")) {
                     progress.textContent = "Motta kortene som venter";
                 } else if (game.piles.some(exchange => exchange.mode == "Tilbud")) {
-                    progress.textContent = "Valgfrie bytter gjenstår";
+                    progress.textContent = "Tving bytte eller velg Ingen bytte";
                 } else {
                     progress.textContent = "Venter på at byttene fullføres";
                 }
@@ -1040,7 +1068,9 @@ class GameLayout {
                                     : `Venter på at ${toPlayer.name} mottar kort fra ${fromPlayer.name}.`);
                             break;
                         case "Tilbud":
-                            title.textContent = `${fromPlayer.name} kan starte et frivillig bytte med ${toPlayer.name}.`;
+                            var fromRole = game.placementTitle(fromPlayer.lastPlacement).title;
+                            var toRole = game.placementTitle(toPlayer.lastPlacement).title;
+                            title.textContent = `Du som ${fromRole} kan tvinge bytte av kort mellom 7–J med ${toRole}. Om begge velger sneaky, kan alle kort byttes.`;
                             break;
                         default:
                             title.textContent = exchange.text;
@@ -1067,6 +1097,14 @@ class GameLayout {
                     }
                     var buttonSpan = document.createElement("span");
                     if (exchange.mode == "Tilbud") {
+                        element.classList.add("exchange--offer");
+                        var offerCountdown = document.createElement("small");
+                        offerCountdown.className = "exchange-offer__countdown";
+                        offerCountdown.dataset.offerUntil = String(exchange.offerUntil);
+                        var remaining = Math.max(0, Math.ceil((exchange.offerUntil - GamePresence.now()) / 1000));
+                        offerCountdown.textContent = `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`;
+                        element.appendChild(offerCountdown);
+                        buttonSpan.className = "exchange-offer__actions";
                         var voters = exchange.sneakyVotes || [];
                         var isParticipant = isSender || isRecipient;
                         var canInitiate = isSender;
@@ -1080,9 +1118,8 @@ class GameLayout {
                             exchangeStatus.appendChild(status);
                             var sneakyButton = document.createElement("button");
                             sneakyButton.type = "button";
-                            sneakyButton.textContent = voters.includes(participantIndex)
-                                ? "Trekk sneaky-samtykke"
-                                : "Sneaky bytte";
+                            sneakyButton.textContent = "Sneaky?";
+                            sneakyButton.className = "exchange-offer__sneaky";
                             sneakyButton.setAttribute("aria-pressed", String(voters.includes(participantIndex)));
                             sneakyButton.onclick = function () {
                                 game.toggleSneakyTrade(exchange, participantIndex);
@@ -1092,7 +1129,7 @@ class GameLayout {
                         if (canInitiate) {
                             var startButton = document.createElement("button");
                             startButton.type = "button";
-                            startButton.textContent = "Start frivillig bytte";
+                            startButton.textContent = "Tving bytte";
                             startButton.disabled = !hasSneakyConsent(exchange) &&
                                 (!hasLegalTradeCard(game, exchange.from, exchange) ||
                                     !hasLegalTradeCard(game, exchange.to, exchange));
@@ -1176,7 +1213,7 @@ class GameLayout {
                         previewCards.className = "exchange-preview";
                         exchange.cards.forEach(card => {
                             var previewModel = new Card(card.suit, card.rank);
-                            var previewImage = GameLayout.createCardImage(previewModel, null, GameLayout.cardStyle());
+                            var previewImage = GameLayout.createCardImage(previewModel, null, GameLayout.styleForPlayer(game, fromPlayer.name));
                             previewImage.className = "exchange-selection__card";
                             previewImage.alt = previewModel.getName();
                             previewCards.appendChild(previewImage);
@@ -1193,55 +1230,43 @@ class GameLayout {
                     table.appendChild(element);
                 });
 
-                var selectionPanel = document.createElement("div");
-                selectionPanel.className = "exchange-selection";
-                var selectionHeading = document.createElement("strong");
-                var selectionContent = document.createElement("div");
-                selectionContent.className = "exchange-selection__cards";
                 if (selectedExchange != null && player != null) {
                     var selectedRecipient = game.players[selectedExchange.to];
                     var isBestExchange = selectedExchange.mode == "Best";
-                    selectionHeading.textContent = isBestExchange
+                    document.getElementById("exchangePrompt").textContent = isBestExchange
                         ? `Dine beste kort til ${selectedRecipient.name}`
                         : `Kort til ${selectedRecipient.name} (${selectedExchange.cards.length}/${selectedExchange.count})`;
-                    selectedExchange.cards.forEach(card => {
-                        var selectedCardModel = new Card(card.suit, card.rank);
-                        var selectedCard = GameLayout.createCardImage(selectedCardModel, null, GameLayout.cardStyle());
-                        selectedCard.className = "exchange-selection__card";
-                        selectedCard.alt = selectedCardModel.getName();
-                        selectionContent.appendChild(selectedCard);
-                    });
-                    if (selectedExchange.cards.length == 0) {
-                        var emptySelection = document.createElement("span");
-                        emptySelection.className = "exchange-selection__empty";
-                        emptySelection.textContent = GameLayout.playInputMode() == "button"
-                            ? `Velg ${selectedExchange.count} kort i hånden.`
-                            : `Velg ${selectedExchange.count} kort i hånden, eller flick dem opp hit.`;
-                        selectionContent.appendChild(emptySelection);
-                    }
                     if (selectedExchange.mode == "Velg" || isBestExchange) {
                         var confirmExchange = document.createElement("button");
                         confirmExchange.type = "button";
                         confirmExchange.className = "exchange-selection__confirm";
-                        confirmExchange.textContent = `Bekreft kort til ${selectedRecipient.name}`;
+                        confirmExchange.textContent = "Bekreft";
+                        confirmExchange.setAttribute("aria-label", `Bekreft kort til ${selectedRecipient.name}`);
                         confirmExchange.disabled = selectedExchange.cards.length != selectedExchange.count;
                         confirmExchange.onclick = function () {
                             game.giveExchangeCards(selectedExchange);
                         };
-                        selectionPanel.append(selectionHeading, selectionContent, confirmExchange);
-                    } else {
-                        selectionPanel.append(selectionHeading, selectionContent);
+                        if (exchangeActions && !confirmExchange.disabled) {
+                            exchangeActions.hidden = false;
+                            exchangeActions.appendChild(confirmExchange);
+                            if (!isBestExchange) {
+                                var cancelExchange = document.createElement("button");
+                                cancelExchange.type = "button";
+                                cancelExchange.textContent = "Avbryt";
+                                cancelExchange.onclick = function () {
+                                    selectedExchange.cards = [];
+                                    game.save();
+                                    GameLayout.updateTable(game, player);
+                                    GameLayout.updateHand(game, player);
+                                };
+                                exchangeActions.appendChild(cancelExchange);
+                            }
+                        }
                     }
                 } else if (selectableOutgoing.length > 1) {
-                    selectionHeading.textContent = "Velg hvilket bytte du vil gjøre";
-                    selectionContent.textContent = "Trykk på bytteblokken over for å velge mottaker.";
-                    selectionPanel.append(selectionHeading, selectionContent);
+                    document.getElementById("exchangePrompt").textContent = "Velg hvilket bytte du vil gjøre";
                 } else {
-                    selectionPanel.classList.add("exchange-selection--waiting");
                     document.getElementById("exchangePrompt").textContent = progress.textContent;
-                }
-                if (!selectionPanel.classList.contains("exchange-selection--waiting")) {
-                    table.appendChild(selectionPanel);
                 }
                 break;
             }
@@ -1476,6 +1501,10 @@ class GameLayout {
         this.keepTurnTimer(table);
     }
     static keepTurnTimer(table) {
+        if (this.tableTurnHint != null && this.tableTurnHint.parentElement != table &&
+            typeof table.appendChild == "function") {
+            table.appendChild(this.tableTurnHint);
+        }
         if (this.fastForwardElement != null &&
             this.fastForwardElement.parentElement != table &&
             typeof table.appendChild == "function") {
@@ -1497,6 +1526,13 @@ class GameLayout {
             (game.connectionOnline === false || GamePresence.isBot(game, player));
         document.getElementById("playerHand").inert = blocked;
         document.getElementById("gameTable").inert = game == null || blocked;
+        var exchangeActions = document.getElementById("exchangeActions");
+        if (exchangeActions) {
+            exchangeActions.inert = game == null || blocked;
+            if (game == null || (player && GamePresence.isBot(game, player))) {
+                exchangeActions.hidden = true;
+            }
+        }
         if (blocked) { this.setVisible("passButton", false); }
     }
     // Describes everything the hand rendering depends on during play, so an
@@ -1526,6 +1562,10 @@ class GameLayout {
     }
     static updatePlayerButtons(game, player) {
         if (game == null) {
+            ["exchangeActions", "tableTurnHint"].forEach(id => {
+                var element = this.el(id);
+                if (element) { element.hidden = true; }
+            });
             ["reclaimSeatButton", "extendTurnButton", "turnCountdown"].forEach(id => {
                 var hiddenElement = this.el(id);
                 if (hiddenElement != null) { hiddenElement.hidden = true; }
@@ -1542,12 +1582,6 @@ class GameLayout {
         }
         if (game.status != "G") { this.el("exchangePrompt").textContent = ""; }
         var pauseActive = game.isTurnPaused();
-        var showTurnHint = player != null &&
-            game.status == "S" &&
-            player.placement == 0 &&
-            player.turn == 1 &&
-            game.piles.length == 0 &&
-            !pauseActive;
         if (player == null) {
             this.el("playerStatus").innerHTML = "";
         } else if (game.status == "G") {
@@ -1563,8 +1597,7 @@ class GameLayout {
             if (player.turn == 1) {
                 switch (game.status) {
                     case "S":
-                        this.el("playerStatus").textContent =
-                            showTurnHint ? "Det er din tur å legge ut" : "";
+                        this.el("playerStatus").textContent = "";
                         break;
                     default:
                         this.el("playerStatus").innerHTML = ``;
@@ -1574,7 +1607,7 @@ class GameLayout {
                 this.el("playerStatus").innerHTML = "";
             }
         }
-        this.el("playerStatus").classList.toggle("player-status--turn-hint", showTurnHint);
+        this.el("playerStatus").classList.remove("player-status--turn-hint");
         if (setClass(this.el("playerActions"), "is-my-turn", (player != null && player.turn))) {
             // Update turn-dependent controls when the state changes.
             setClass(this.el("playerHand"), "is-my-turn", (player != null && player.turn));
@@ -1720,7 +1753,6 @@ class GameLayout {
                 cardElement: cardElement,
                 card: card,
                 canSwipeToPlay: GameLayout.playInputMode() == "flick" && game.status == "S" && isPlayingTurn,
-                canSwipeToExchange: GameLayout.playInputMode() == "flick" && game.status == "G",
                 didMove: false,
                 didPlayDrag: false,
                 canPlay: false
@@ -1806,13 +1838,6 @@ class GameLayout {
             }
             var keepDragPosition = false;
             if (activeDrag.axis != "horizontal" &&
-                activeDrag.canSwipeToExchange &&
-                activeDrag.card != null &&
-                (swipeDistance >= swipeThreshold || isFlick) &&
-                selectExchangeCard != null) {
-                selectExchangeCard(activeDrag.card);
-            }
-            if (activeDrag.axis != "horizontal" &&
                 activeDrag.canSwipeToPlay &&
                 (swipeDistance >= swipeThreshold || isFlick)) {
                 if ((activeDrag.didPlayDrag && activeDrag.canPlay) ||
@@ -1871,6 +1896,10 @@ class GameLayout {
         var activeExchange = selectableExchanges.find(exchange =>
             getExchangeId(exchange) == activeExchangeId
         ) || null;
+        var displayedExchange = activeExchange || (game.status == "G"
+            ? game.piles.find(exchange => exchange.mode == "Best" &&
+                game.players[exchange.from] == player)
+            : null);
         if (activeExchange) {
             selectExchangeCard = function (card) {
                 var selectedIndex = activeExchange.cards.findIndex(selectedCard =>
@@ -2112,7 +2141,7 @@ class GameLayout {
                     } else if (previouslySelectedCardKeys.has(cardKey)) {
                         elemKort.classList.add("is-lowering");
                     }
-                    if (activeExchange && activeExchange.cards.some(card =>
+                    if (displayedExchange && displayedExchange.cards.some(card =>
                         card.suit == k.suit && card.rank == k.rank
                     )) {
                         elemKort.classList.add("is-exchange-selected");
@@ -2202,7 +2231,11 @@ class GameLayout {
                                         return;
                                     }
                                     autoSuggestedCardKeys.clear();
-                                    if (game.topPile() == null) {
+                                    if (selectedCardKeys.has(cardKey) && selectedCardKeys.size > 1) {
+                                        clearCardSelection();
+                                        selectedCardStrength = k.strengthRank;
+                                        selectedCardKeys.add(cardKey);
+                                    } else if (game.topPile() == null) {
                                         if (selectedCardStrength != null && selectedCardStrength != k.strengthRank) {
                                             clearCardSelection();
                                         }
