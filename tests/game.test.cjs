@@ -661,6 +661,38 @@ test("bot scheduling switches to one second and restores its original delay", ()
     assert.deepEqual(cleared, [1, 2]);
 });
 
+test("ordinary saves preserve concurrent fast-forward toggles and their pause deadlines", () => {
+    const { game, players } = setupGame();
+    players[0].placement = 1;
+    game.fastForward = false;
+    const now = Date.now();
+    game.turnPause = { id: "same", kind: "play", until: now + 3000 };
+    let record = {
+        status: "S", shuffleStartedAt: null, fastForward: true,
+        turnPause: { id: "same", kind: "play", until: now + 1000 }
+    };
+    game.databaseRef = { transaction: update => { record = update(record); } };
+    game.save();
+    assert.equal(record.fastForward, true);
+    assert.equal(record.turnPause.until, now + 1000);
+    game.turnPause = { id: "new", kind: "play", until: now + 3000 };
+    game.save();
+    assert.equal(record.fastForward, true);
+    assert.equal(record.turnPause.until, now + 1000);
+    game.fastForward = true;
+    record.fastForward = false;
+    record.turnPause = { id: "other", until: now };
+    game.turnPause = { id: "third", kind: "play", until: now + 1000 };
+    game.save();
+    assert.equal(record.fastForward, false);
+    assert.equal(record.turnPause.until, now + 3000);
+    game.status = "F";
+    record.fastForward = true;
+    game.turnPause = null;
+    game.save();
+    assert.equal(record.fastForward, false);
+});
+
 test("round start refreshes the local view after the state changes", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const start = source.indexOf("            connectingGame.onRoundStarted = function () {");

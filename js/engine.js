@@ -355,7 +355,25 @@ class PresidentGame extends Game {
                 var lastHumanActionAt = baseline != null
                     ? (hasLastAction ? Math.max(Number(baseline), update.lastHumanActionAt) : Number(baseline))
                     : update.lastHumanActionAt;
-                return Object.assign({}, current, update, { lastHumanActionAt });
+                var next = Object.assign({}, current, update, { lastHumanActionAt });
+                next.fastForward = current.fastForward === true &&
+                    current.shuffleStartedAt == update.shuffleStartedAt &&
+                    (GamePresence.onlyBotsRemain(next) ||
+                        (next.status == "S" && next.turnPause?.pendingGameEnd === true));
+                if (next.turnPause) {
+                    if (current.turnPause?.id == next.turnPause.id) {
+                        next.turnPause = Object.assign({}, next.turnPause, {
+                            until: current.turnPause.until
+                        });
+                    } else if (next.fastForward != update.fastForward) {
+                        var previousDelay = update.fastForward ? 1000 : TURN_ACTION_PAUSE_MS;
+                        var nextDelay = next.fastForward ? 1000 : TURN_ACTION_PAUSE_MS;
+                        next.turnPause = Object.assign({}, next.turnPause, {
+                            until: next.turnPause.until + nextDelay - previousDelay
+                        });
+                    }
+                }
+                return next;
             }, (error, committed, snapshot) => {
                 if (error) { failed(error); return; }
                 if (snapshot && snapshot.val()) {
