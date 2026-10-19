@@ -6,6 +6,10 @@
         var currentGameListener = null;
         var connection = null;
         var resumeStorageKey = "norwegian-tycoon-active-game";
+        var resumeSubscription = null;
+        var resumeListener = null;
+        var resumeSeat = null;
+        var resumeExpiryTimer = null;
         function readResumableGame() {
             try {
                 var saved = JSON.parse(localStorage.getItem(resumeStorageKey) || "null");
@@ -17,7 +21,60 @@
             }
         }
         function updateResumeButton() {
-            document.getElementById("resumeGameButton").hidden = readResumableGame() == null;
+            var saved = readResumableGame();
+            var seat = saved && JSON.stringify([saved.id, saved.name, saved.playerKey]);
+            if (seat != null && seat == resumeSeat) { return; }
+            if (resumeSubscription) { resumeSubscription.off("value", resumeListener); }
+            if (resumeExpiryTimer != null) { clearTimeout(resumeExpiryTimer); resumeExpiryTimer = null; }
+            resumeSubscription = null;
+            resumeListener = null;
+            resumeSeat = seat;
+            document.getElementById("resumeGameButton").hidden = true;
+            if (!saved) { return; }
+            var ref = firebase.database().ref(`boms_1/${saved.id}`);
+            resumeSubscription = ref;
+            resumeListener = function (snapshot) {
+                if (resumeSeat != seat) { return; }
+                var latest = readResumableGame();
+                if (!latest || JSON.stringify([latest.id, latest.name, latest.playerKey]) != seat) {
+                    updateResumeButton();
+                    return;
+                }
+                if (resumeExpiryTimer != null) { clearTimeout(resumeExpiryTimer); resumeExpiryTimer = null; }
+                var record = snapshot.val();
+                var player = record && (record.spillere || []).find(candidate =>
+                    candidate.nick == saved.name && candidate.spillerKey == saved.playerKey);
+                if (!record || GamePresence.isExpired(record) || !player || player.gaveUp) {
+                    if (record && record.status != "V" && GamePresence.isExpired(record)) {
+                        voidExpiredSession(ref);
+                    }
+                    forgetActiveGame();
+                    return;
+                }
+                document.getElementById("resumeGameButton").hidden = false;
+                var lastAction = GamePresence.lastActivityAt(record);
+                if (lastAction != null) {
+                    resumeExpiryTimer = setTimeout(() => {
+                        if (resumeSeat == seat) { resumeListener(snapshot); }
+                    },
+                        Math.max(1, lastAction + GamePresence.sessionMs + 1 - Date.now()));
+                }
+            };
+            ref.on("value", resumeListener, function (error) {
+                if (resumeSeat != seat) { return; }
+                document.getElementById("resumeGameButton").hidden = true;
+                console.warn("Kunne ikke kontrollere lagret spill.", error);
+            });
+        }
+        function voidExpiredSession(ref) {
+            ref.transaction(record => record && GamePresence.isExpired(record) && record.status != "V"
+                ? GamePresence.reconcile(record, Date.now()) : undefined, undefined, false)
+                .then(result => {
+                    if (result.committed) {
+                        return firebase.database().ref(`${PUBLIC_LOBBY_PATH}/${ref.key}`).remove();
+                    }
+                })
+                .catch(error => console.warn("Kunne ikke avslutte utløpt spill.", error));
         }
         function rememberActiveGame(player) {
             try {
@@ -1240,7 +1297,8 @@
             }
             // Check the target first so a failed attempt keeps the current game.
             firebase.database().ref(`boms_1/${targetId}`).once("value").then(function (snapshot) {
-                if (!snapshot.exists()) {
+                if (!snapshot.exists() || GamePresence.isExpired(snapshot.val())) {
+                    if (snapshot.exists()) { voidExpiredSession(firebase.database().ref(`boms_1/${targetId}`)); }
                     onFail("Kunne ikke koble til. Er spill-nummeret riktig?");
                     return;
                 }
@@ -1312,6 +1370,11 @@
             currentGameListener = function (snapshot) {
                 if (currentGame != connectingGame) { return; }
                 var snapshotRecord = snapshot.val();
+                if (snapshotRecord != null && GamePresence.isExpired(snapshotRecord,
+                    connection ? connection.now() : Date.now())) {
+                    voidExpiredSession(connectingGame.databaseRef);
+                    snapshotRecord = null;
+                }
                 if (snapshotRecord != null) {
                     var storedPlayers = snapshotRecord["spillere"] || [];
                     var storedPiles = snapshotRecord["spillBunke"] || [];
@@ -1350,6 +1413,7 @@
                     connectingGame.turn = snapshotRecord["sinTur"];
                     connectingGame.turnPause = snapshotRecord["turnPause"] || null;
                     connectingGame.ts = snapshotRecord.ts;
+                    connectingGame.lastHumanActionAt = snapshotRecord.lastHumanActionAt ?? null;
                     connection.receive(snapshotRecord);
                     if (connectingGame.status == "F") {
                         var stillActivePlayers = connectingGame.players.filter(player =>

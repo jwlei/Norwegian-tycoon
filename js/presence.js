@@ -2,6 +2,22 @@ class GamePresence {
     static actionMs = 120000;
     static disconnectMs = 120000;
     static hostMs = 240000;
+    static sessionMs = 600000;
+
+    static lastActivityAt(record) {
+        if (record == null) { return null; }
+        var lastAction = record.lastHumanActionAt;
+        if (lastAction == null) {
+            lastAction = typeof record.ts == "number" ? record.ts : Date.parse(record.ts);
+        }
+        return lastAction != null && Number.isFinite(Number(lastAction)) ? Number(lastAction) : null;
+    }
+
+    static isExpired(record, now = Date.now()) {
+        if (record == null) { return false; }
+        var lastAction = this.lastActivityAt(record);
+        return record.status == "V" || (lastAction != null && now - lastAction > this.sessionMs);
+    }
 
     static playerId(player) {
         return Array.from(JSON.stringify([player.playerKey || player.spillerKey, player.name || player.nick]))
@@ -24,7 +40,7 @@ class GamePresence {
     }
 
     static canDrive(game, now = Date.now()) {
-        if (game.connectionOnline === false) { return false; }
+        if (game.connectionOnline === false || this.isExpired(game, now)) { return false; }
         var host = game.players.find(player => player.playerKey == game.hostKey &&
             (!game.hostName || player.name == game.hostName));
         var offlineAt = host ? this.disconnectedAt(game.presence, host) : null;
@@ -56,8 +72,11 @@ class GamePresence {
         return null;
     }
 
-    static reconcile(record, now) {
-        if (record == null) { return; }
+    static reconcile(record, now = Date.now()) {
+        if (record == null || record.status == "V") { return; }
+        if (this.isExpired(record, now)) {
+            return Object.assign({}, record, { status: "V" });
+        }
         var players = (record.spillere || []).slice();
         var controllers = Object.assign({}, record.controllers);
         var deadlines = Object.assign({}, record.actionDeadlines);
@@ -142,7 +161,7 @@ class GamePresence {
     now() { return Date.now() + this.offset; }
 
     async register() {
-        if (!this.game.players) { return; }
+        if (!this.game.players || GamePresence.isExpired(this.game, this.now())) { return; }
         var player = this.game.getPlayer(this.playerName());
         if (!player || player.playerKey == "PC") { return; }
         var id = GamePresence.playerId(player);
@@ -176,6 +195,7 @@ class GamePresence {
             (record.connectionNotices || []).forEach(notice => this.seen.add(notice.id));
         }
         this.record = record;
+        this.game.lastHumanActionAt = GamePresence.lastActivityAt(record);
         this.game.presence = record.presence || {};
         this.game.controllers = record.controllers || {};
         this.game.actionDeadlines = record.actionDeadlines || {};
@@ -213,7 +233,7 @@ class GamePresence {
         this.pending = true;
         try {
             var result = await this.game.databaseRef.transaction(record => {
-                if (!record) { return; }
+                if (!record || GamePresence.isExpired(record, this.now())) { return; }
                 var owner = (record.spillere || []).find(candidate =>
                     candidate.spillerKey == player.playerKey && candidate.nick == player.name);
                 if (!owner || owner.spillerKey != getPlayerKey()) { return; }

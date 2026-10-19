@@ -228,12 +228,13 @@ class PresidentGame extends Game {
             this.rules = {
                 showCardsOnly: false
             };
-            this.status = 'O'; // O = waiting, G = exchanging cards, S = playing, F = finished.
+            this.status = 'O'; // O = waiting, G = exchanging cards, S = playing, F = finished, V = void.
+            this.lastHumanActionAt = Date.now();
             this.round = 0;
             this.players = [];
             this.piles = [];
             this.turn = -1;
-            this.save();
+            this.save(true);
         } else {
             this.id = id;
             this.databaseRef = firebase.database().ref(`boms_1/${this.id}`);
@@ -246,6 +247,7 @@ class PresidentGame extends Game {
         return shouldShuffle;
     }
     startGame() {
+        this.assertSessionActive();
         if (!isLobbyHost(this)) { throw ("Bare verten kan starte spillet."); }
         if (this.status == "O" && (this.players.length < 2 || !this.allHumansReady())) {
             throw ("Alle menneskespillere må være klare.");
@@ -261,6 +263,16 @@ class PresidentGame extends Game {
             this.gameEndVote = null;
         }
         super.startGame();
+    }
+    assertSessionActive() {
+        if (!GamePresence.isExpired(this)) { return; }
+        this.save();
+        throw ("Spilløkten er avsluttet.");
+    }
+    recordHumanAction(player) {
+        if (player && player.gaveUp !== true && !GamePresence.isBot(this, player)) {
+            this.lastHumanActionAt = Date.now();
+        }
     }
     allHumansReady() {
         var humans = this.players.filter(player => !GamePresence.isBot(this, player));
@@ -288,13 +300,19 @@ class PresidentGame extends Game {
             console.error("Kunne ikke fjerne avstemningen etter spillet.", error);
         });
     }
-    save() {
-        this.databaseRef.update({
+    save(allowCreate = false) {
+        var expiredLocally = this.status != "V" && GamePresence.isExpired(this);
+        if (GamePresence.isExpired(this)) { this.status = "V"; }
+        var lastAction = GamePresence.lastActivityAt(this);
+        var hasLastAction = lastAction != null;
+        this.lastHumanActionAt = hasLastAction ? Number(lastAction) : Date.now();
+        var update = {
             status: this.status,
+            lastHumanActionAt: this.lastHumanActionAt,
             "regler": { "VisKunKort": this.rules.showCardsOnly },
             "runde": this.round,
             "spillere": PresidentPlayer.serializePlayers(this.players),
-            "spillBunke": this.serializePiles(),
+            "spillBunke": this.status == "V" ? [] : this.serializePiles(),
             "sinTur": this.turn,
             "turnPause": this.turnPause,
             "roundStarterName": this.roundStarterName,
@@ -308,15 +326,44 @@ class PresidentGame extends Game {
             "preservePlayerOrderOnStart": this.preservePlayerOrderOnStart,
             ...(this.status != "F" ? { roundStartVote: null, gameEndVote: null } : {}),
             ts: new Date()
-        }).catch(error => {
+        };
+        var failed = error => {
             console.error("Kunne ikke lagre spillet.", error);
-        });
+        };
+        var write;
+        if (typeof this.databaseRef.transaction == "function") {
+            write = this.databaseRef.transaction(current => {
+                if (current == null) { return allowCreate ? update : undefined; }
+                if (GamePresence.isExpired(current)) {
+                    this.status = "V";
+                    return current.status == "V" ? undefined : Object.assign({}, current, { status: "V" });
+                }
+                if (expiredLocally) { return; }
+                var baseline = GamePresence.lastActivityAt(current);
+                var lastHumanActionAt = baseline != null
+                    ? (hasLastAction ? Math.max(Number(baseline), update.lastHumanActionAt) : Number(baseline))
+                    : update.lastHumanActionAt;
+                return Object.assign({}, current, update, { lastHumanActionAt });
+            }, (error, committed, snapshot) => {
+                if (error) { failed(error); return; }
+                if (snapshot && snapshot.val()) {
+                    this.lastHumanActionAt = GamePresence.lastActivityAt(snapshot.val());
+                    if (snapshot.val().status == "V" || expiredLocally) { this.status = snapshot.val().status; }
+                } else if (!allowCreate) {
+                    this.status = "V";
+                }
+                this.updatePublicListing();
+            }, false);
+        } else {
+            write = this.databaseRef.update(update);
+        }
+        if (write && typeof write.catch == "function") { write.catch(failed); }
         this.updatePublicListing();
     }
     updatePublicListing() {
         var listingRef = firebase.database().ref(`${PUBLIC_LOBBY_PATH}/${this.id}`);
         var humans = (this.players || []).filter(player => player.playerKey != "PC");
-        var listed = this.isPublic === true && humans.length > 0;
+        var listed = !GamePresence.isExpired(this) && this.isPublic === true && humans.length > 0;
         if (!listed) {
             listingRef.remove().catch(() => { });
             return;
@@ -336,6 +383,10 @@ class PresidentGame extends Game {
         }
     }
     finishGame() {
+        if (GamePresence.isExpired(this)) {
+            this.save();
+            return false;
+        }
         var finished = super.finishGame();
         if (finished) {
             this.save();
@@ -537,6 +588,7 @@ class PresidentGame extends Game {
         return finished;
     }
     resetForRound() {
+        this.assertSessionActive();
         super.resetForRound();
         this.playedCards = [];
         this.players.forEach(player => {
@@ -554,6 +606,7 @@ class PresidentGame extends Game {
         this.save();
     }
     returnToLobby() {
+        this.assertSessionActive();
         if (this.status != "F") {
             throw ("Bare et ferdig spill kan gå tilbake til lobbyen.");
         }
@@ -600,6 +653,10 @@ class PresidentGame extends Game {
                 assignedName = incomingPlayer.name;
                 if (current == null) {
                     failure = "Spillet er ikke tilkoblet.";
+                    return;
+                }
+                if (GamePresence.isExpired(current)) {
+                    failure = "Spilløkten er avsluttet.";
                     return;
                 }
                 var players = current.spillere || [];
@@ -674,6 +731,7 @@ class PresidentGame extends Game {
                 this.hostKey = record.hostKey || null;
                 this.hostName = record.hostName || null;
                 this.status = record.status;
+                this.lastHumanActionAt = GamePresence.lastActivityAt(record);
                 this.preservePlayerOrderOnStart = record.preservePlayerOrderOnStart === true;
                 this.updatePublicListing();
                 resolve({ player: this.getPlayer(assignedName) });
@@ -965,16 +1023,28 @@ class PresidentGame extends Game {
         if (player == null || !this.players.includes(player)) {
             throw ("Spilleren finnes ikke i dette spillet.");
         }
+        if (this.status == "V") { return player; }
+        if (GamePresence.isExpired(this) || (player.playerKey != "PC" &&
+            !this.players.some(candidate => candidate !== player && candidate.gaveUp !== true &&
+                !GamePresence.isBot(this, candidate)))) {
+            player.gaveUp = true;
+            this.status = "V";
+            this.turnPause = null;
+            this.setTurn(-1);
+            this.save();
+            return player;
+        }
         if (this.status == "O" && this.preservePlayerOrderOnStart &&
             this.players.includes(player)) {
             this.resetPreservedLobbyPlacements();
         }
         if (player.playerKey == this.hostKey && (this.hostName == null || player.name == this.hostName)) {
             var nextHost = this.players.find(candidate => candidate !== player &&
-                candidate.playerKey != "PC" && candidate.gaveUp !== true);
+                !GamePresence.isBot(this, candidate) && candidate.gaveUp !== true);
             this.hostKey = nextHost ? nextHost.playerKey : null;
             this.hostName = nextHost ? nextHost.name : null;
         }
+        if (this.status == "S") { player.gaveUp = true; }
         if (this.status != "G") {
             return super.leavePlayer(player);
         }
@@ -1238,6 +1308,7 @@ class PresidentGame extends Game {
         }
     }
     startOptionalTrade(offer, sneaky = false) {
+        this.assertSessionActive();
         if (this.status != "G") { throw ("Spillet er ikke i bytte-modus."); }
         var offerId = getExchangeId(offer);
         var currentOffer = this.piles.find(exchange =>
@@ -1284,9 +1355,11 @@ class PresidentGame extends Game {
         );
         this.players[currentOffer.from].turn = 1;
         this.players[currentOffer.to].turn = 1;
+        if (!sneaky) { this.recordHumanAction(this.players[currentOffer.from]); }
         this.save();
     }
     skipOptionalTrade(offer, playerIndex) {
+        this.assertSessionActive();
         if (this.status != "G") { throw ("Spillet er ikke i bytte-modus."); }
         var currentOffer = this.piles.find(exchange =>
             getExchangeId(exchange) == getExchangeId(offer) && exchange.mode == "Tilbud"
@@ -1299,10 +1372,12 @@ class PresidentGame extends Game {
             throw ("Du kan ikke avslå dette byttet.");
         }
         this.piles.splice(this.piles.indexOf(currentOffer), 1);
+        this.recordHumanAction(this.players[playerIndex]);
         this.advanceExchangeStage();
         this.save();
     }
     toggleSneakyTrade(exchange, playerIndex) {
+        this.assertSessionActive();
         if (this.status != "G") { throw ("Spillet er ikke i bytte-modus."); }
         var current = this.piles.find(candidate =>
             getExchangeId(candidate) == getExchangeId(exchange)
@@ -1330,6 +1405,7 @@ class PresidentGame extends Game {
         relatedExchanges.forEach(candidate => {
             candidate.sneakyVotes = votes.slice();
         });
+        this.recordHumanAction(this.players[playerIndex]);
         if (current.mode == "Tilbud" && hasSneakyConsent(current)) {
             this.startOptionalTrade(current, true);
         } else {
@@ -1392,6 +1468,7 @@ class PresidentGame extends Game {
         }
     }
     giveExchangeCards(exchange) {
+        this.assertSessionActive();
         if (this.status != "G") { throw ("Spillet er ikke i bytte-modus."); };
         if (exchange.mode != 'Velg' && exchange.mode != 'Best') { throw (`Kan ikke gi kort når modus er ${exchange.mode} (må være Velg eller Best).`); };
         if (exchange.cards.length != exchange.count) { throw ("Feil antall kort som byttes."); };
@@ -1421,10 +1498,12 @@ class PresidentGame extends Game {
             this.players[exchange.from].cards.splice(cardIndex, 1);
         });
         exchange.mode = "Gitt";
+        this.recordHumanAction(this.players[exchange.from]);
         this.advanceExchangeStage();
         this.save();
     }
     receiveExchangeCards(exchange) {
+        this.assertSessionActive();
         if (this.status != "G") { throw ("Spillet er ikke i bytte-modus."); };
         if (exchange.mode != 'Kan se') { throw (`Kan ikke gi kort når modus er ${exchange.mode} (må være Kan se).`); };
         if (exchange.cards.length != exchange.count) { throw ("Feil antall kort som byttes."); };
@@ -1441,6 +1520,7 @@ class PresidentGame extends Game {
             }
         }));
         this.piles.splice(this.piles.findIndex(b => (b == exchange)), 1);
+        this.recordHumanAction(this.players[exchange.to]);
         this.advanceExchangeStage();
         this.save();
     }
@@ -1577,6 +1657,7 @@ class PresidentGame extends Game {
         return false;
     }
     playCards(player, pile) {
+        this.assertSessionActive();
         if (!this.canPlayPile(player, pile)) { throw ("Kan ikke legge dette nå!"); };
         if (this.piles.length == 0) {
             this.players.filter(s => (s.placement > 0 && s.messages.length > 0)).forEach(s => {
@@ -1622,6 +1703,7 @@ class PresidentGame extends Game {
                 this.turnPause.message = this.turnPause.placementMessage;
             }
         }
+        this.recordHumanAction(player);
         this.advanceTurn();
     }
     canPass(player) {
@@ -1633,6 +1715,7 @@ class PresidentGame extends Game {
             !this.isTurnPaused();
     }
     passTurn(player) {
+        this.assertSessionActive();
         if (!this.canPass(player)) { throw ("Kan ikke passe nå."); }
         player.lastPlay = "Pass";
         var now = Date.now();
@@ -1642,6 +1725,7 @@ class PresidentGame extends Game {
             until: now + TURN_ACTION_PAUSE_MS,
             message: `${player.name}: pass.`
         };
+        this.recordHumanAction(player);
         this.advanceTurn();
     }
     nextTurnIndex(currentTurnPlayer) {
