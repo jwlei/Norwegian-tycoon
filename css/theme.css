@@ -1031,6 +1031,7 @@ select:focus-visible {
 }
 
 #tableTurnHint {
+    --guidance-opacity: 0.72;
     position: absolute;
     right: 48px;
     bottom: 12px;
@@ -1038,7 +1039,7 @@ select:focus-visible {
     color: var(--muted);
     font-size: 0.76rem;
     font-weight: 600;
-    opacity: 0.72;
+    opacity: var(--guidance-opacity);
     text-align: center;
     pointer-events: none;
 }
@@ -2338,9 +2339,9 @@ select:focus-visible {
     width: min(440px, calc(100% - 20px));
     height: 40px;
     padding: 10px;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: var(--surface);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
     color: var(--ink);
     font-size: clamp(0.7rem, 2.5vw, 0.85rem);
     font-weight: 750;
@@ -2348,29 +2349,23 @@ select:focus-visible {
     text-align: center;
     overflow: hidden;
     text-overflow: ellipsis;
-    box-shadow: 0 3px 10px rgb(0 0 0 / 22%);
+    box-shadow: none;
     transform: translateX(-50%);
     white-space: nowrap;
 }
 
-.table-pile-summary--required {
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-}
-
-#gameTable:has(#gameToastRegion:not([hidden]) > .game-toast.is-visible) > .table-pile-summary--required {
+#gameTable:has(#gameToastRegion:not([hidden]) > .game-toast.is-visible) > :is(.table-pile-summary, #tableTurnHint) {
     opacity: 0;
     animation: none;
 }
 
-#gameTable:not(:has(#gameToastRegion:not([hidden]) > .game-toast.is-visible)) > .table-pile-summary--required {
-    animation: table-pile-summary-fade-in 240ms ease 1s both;
+#gameTable:not(:has(#gameToastRegion:not([hidden]) > .game-toast.is-visible)) > :is(.table-pile-summary, #tableTurnHint) {
+    animation: table-guidance-fade-in 240ms ease 1s both;
 }
 
-@keyframes table-pile-summary-fade-in {
+@keyframes table-guidance-fade-in {
     from { opacity: 0; }
-    to { opacity: 1; }
+    to { opacity: var(--guidance-opacity, 1); }
 }
 
 .table-play {
@@ -3015,9 +3010,9 @@ select:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
     .received-cards__pile img { animation: none; }
-    #gameTable:not(:has(#gameToastRegion:not([hidden]) > .game-toast.is-visible)) > .table-pile-summary--required {
+    #gameTable:not(:has(#gameToastRegion:not([hidden]) > .game-toast.is-visible)) > :is(.table-pile-summary, #tableTurnHint) {
         animation: none;
-        opacity: 1;
+        opacity: var(--guidance-opacity, 1);
     }
 }
 

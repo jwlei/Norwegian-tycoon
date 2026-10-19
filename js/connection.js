@@ -853,7 +853,9 @@
                 hideGameToast(false);
             }
 
-            if (!gameToastsHidden() && toast.classList.contains("is-visible") && toast.textContent != "") {
+            if (!gameToastsHidden() &&
+                document.getElementById("gameToastRegion").dataset.animationSpeed != "fast" &&
+                toast.classList.contains("is-visible") && toast.textContent != "") {
                 archiveGameToast(toast);
             }
             toast.classList.remove("is-visible");
