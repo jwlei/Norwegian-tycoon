@@ -60,13 +60,14 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
             clones++;
             return {
                 removeAttribute() {}, setAttribute() {}, classList: { add() {} },
-                style: { setProperty() {} }, getBoundingClientRect() {}
+                remove() {},
+                style: { setProperty() {} }, getBoundingClientRect: () => ({ height: 30 })
             };
         }
     };
     const context = vm.createContext({
         Date: { now: () => 3000 }, gameToastExpiresAt: 3000,
-        gameToastTimer: null, activeToastPauseId: null,
+        gameToastTimer: null, activeToastPauseId: null, archivedToasts: [],
         GAME_SPEED_MS: { fast: 3000 }, currentGameSpeed: () => "fast",
         ensureGameLog() {}, clearTimeout() {}, setTimeout: () => 1,
         document: {
@@ -77,7 +78,7 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
         localizedMessage: message => message, appendColoredGameMessage() {},
         game: { players: [] }
     });
-    const hideStart = source.indexOf("        function hideGameToast()");
+    const hideStart = source.indexOf("        function hideGameToast(");
     const hideEnd = source.indexOf("        function resetGameLog", hideStart);
     const showStart = source.indexOf("        function showGameToast(");
     const showEnd = source.indexOf("        var receivedCardQueue", showStart);
@@ -89,6 +90,12 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
     toast.textContent = "Current";
     vm.runInContext('showGameToast("Early next", game)', context);
     assert.equal(clones, 1);
+    assert.equal(context.archivedToasts[0].expiresAt, 6000);
+    for (const message of ["Third", "Fourth"]) {
+        toast.textContent = message;
+        vm.runInContext('showGameToast("New message", game)', context);
+    }
+    assert.equal(context.archivedToasts.length, 2, "At most three messages including the current toast");
 });
 
 test("received-card overlays filter recipients, queue receipts and honor every game speed", () => {
@@ -435,10 +442,10 @@ test("consent stays private and remains available after a trade starts until car
     const element = () => {
         const classes = new Set();
         return {
-            dataset: {}, children: [], textContent: "", className: "",
+            dataset: {}, children: [], textContent: "", className: "", attributes: {},
             get childElementCount() { return this.children.length; },
             classList: { add: name => classes.add(name), contains: name => classes.has(name) },
-            setAttribute() {},
+            setAttribute(name, value) { this.attributes[name] = value; },
             set innerHTML(value) { this.children = []; },
             replaceChildren(...children) { this.children = children; },
             append(...children) { this.children.push(...children); },
@@ -477,8 +484,16 @@ test("consent stays private and remains available after a trade starts until car
         assert.equal(render(player).some(node => /samtykke|Sneaky/.test(node.textContent)), false);
     }
     for (const player of players.slice(0, 2)) {
-        assert.ok(render(player).some(node => node.textContent == "Sneaky?"));
+        const nodes = render(player);
+        const consentButton = nodes.find(node => node.textContent == "Sneaky?");
+        assert.ok(consentButton.className.includes("exchange-sneaky-toggle"));
+        assert.equal(consentButton.attributes["aria-pressed"], "true");
+        assert.equal(nodes.some(node => /samtykket|Sneaky-samtykke:/.test(node.textContent)), false);
     }
+    game.piles[0].sneakyVotes = [0];
+    assert.equal(render(players[1]).find(node => node.textContent == "Sneaky?")
+        .attributes["aria-pressed"], "false");
+    game.piles[0].sneakyVotes = [0, 1];
     const start = render(players[0]).find(node => node.textContent === "Tving bytte");
     assert.equal(start.disabled, false);
     start.onclick();
@@ -489,6 +504,27 @@ test("consent stays private and remains available after a trade starts until car
     for (const player of players.slice(0, 2)) {
         assert.equal(render(player).some(node => /Trekk sneaky|Sneaky bytte$/.test(node.textContent)), false);
     }
+    const bestExchange = {
+        id: "best", mode: "Best", from: 2, to: 0, count: 2,
+        cards: [new PresidentCard(1, 14), new PresidentCard(2, 14)]
+    };
+    game.piles = [bestExchange];
+    const nodes = render(players[2]);
+    assert.ok(nodes.some(node => node.textContent == "Du må gi dine to beste kort til Sender."));
+    assert.equal(document.getElementById("exchangePrompt").textContent,
+        "Du må gi dine to beste kort til Sender");
+    const giveButton = document.getElementById("exchangeActions").children[0];
+    assert.equal(giveButton.textContent, "Gi kort");
+    assert.equal(giveButton.disabled, false);
+    let given;
+    game.giveExchangeCards = exchange => { given = exchange; };
+    giveButton.onclick();
+    assert.equal(given, bestExchange);
+    bestExchange.count = 1;
+    bestExchange.cards.pop();
+    render(players[2]);
+    assert.equal(document.getElementById("exchangePrompt").textContent,
+        "Du må gi ditt beste kort til Sender");
 });
 
 test("the President can start a normal voluntary exchange without sneaky consent", () => {
@@ -1364,7 +1400,7 @@ test("fast-forward transactions recheck eligibility, reschedule pauses and prese
     await game.setFastForward(false);
     assert.equal(record.fastForward, false);
     assert.ok(record.turnPause.until - Date.now() > 1900);
-    assert.ok(record.turnPause.until - Date.now() <= 2000);
+    assert.ok(record.turnPause.until - Date.now() <= 5000);
     record.spillere[0].plassering = 0;
     await game.setFastForward(true);
     assert.equal(record.fastForward, false);
@@ -1407,8 +1443,9 @@ test("bot scheduling switches to one second and restores its original delay", ()
     const timers = [];
     const cleared = [];
     const context = vm.createContext({
-        currentGame: game, GamePresence: { ...GamePresence,
-            onlyBotsRemain: record => GamePresence.onlyBotsRemain(record), canDrive: () => true },
+        currentGame: game, GamePresence: {
+            onlyBotsRemain: record => GamePresence.onlyBotsRemain(record), canDrive: () => true,
+            isBot: (game, player) => GamePresence.isBot(game, player) },
         connection: null, BOT_ACTION_DELAY_MS: 3000,
         setTimeout: (callback, delay) => { timers.push(delay); return timers.length; },
         clearTimeout: id => cleared.push(id)
@@ -1416,13 +1453,13 @@ test("bot scheduling switches to one second and restores its original delay", ()
     vm.runInContext(source.slice(source.indexOf("        var botLoopTimer = null;"),
         source.indexOf("        document.getElementById('BnFHovedmeny')")), context);
     context.scheduleBotLoop();
-    assert.equal(timers.at(-1), 2000);
+    assert.ok(timers.at(-1) >= 2000 && timers.at(-1) <= 5000);
     game.fastForward = true;
     context.scheduleBotLoop();
     assert.equal(timers.at(-1), 1000);
     game.fastForward = false;
     context.scheduleBotLoop();
-    assert.equal(timers.at(-1), 2000);
+    assert.ok(timers.at(-1) >= 2000 && timers.at(-1) <= 5000);
     assert.deepEqual(cleared, [1, 2]);
 });
 
@@ -1620,23 +1657,36 @@ test("the log resets for a new deal, not for cleared tricks or repeated snapshot
     assert.equal(clears, 2);
 });
 
-test("the starter toast names Boms during exchange, including the local player", () => {
+test("the starter toast waits until exchange is complete and the starter can play", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const messages = [];
     const context = vm.createContext({
         currentGame: { status: "G", roundStarterName: "Bjørn" }, currentPlayerName: "Bjørn",
         starterFlashTimer: null, STARTER_FLASH_DURATION_MS: 1000,
+        announcedStarterRound: null,
+        GamePresence: { now: () => 1000, isActionPaused: game => game.paused === true },
         showGameToast: text => messages.push(text),
         document: { querySelectorAll: () => [] }, setTimeout: () => 1, clearTimeout() {}
     });
     vm.runInContext(source.slice(source.indexOf("        function flashRoundStarter()"),
         source.indexOf("        function dealCardsIntoHand()")), context);
     context.flashRoundStarter();
-    assert.equal(messages.pop(), "Bjørn er Boms og starter.");
+    assert.equal(messages.length, 0);
     context.currentPlayerName = "Guest";
     context.flashRoundStarter();
+    assert.equal(messages.length, 0);
+    context.currentGame = {
+        id: "test", round: 2, status: "S", turn: 0, paused: true,
+        players: [{ name: "Bjørn", lastPlacement: 3 }, { name: "Guest" }, { name: "Other" }]
+    };
+    context.flashRoundStarter();
+    assert.equal(messages.length, 0);
+    context.currentGame.paused = false;
+    context.flashRoundStarter();
     assert.equal(messages.pop(), "Bjørn er Boms og starter.");
-    context.currentGame = { status: "S", turn: 0, players: [{ name: "Guest" }] };
+    context.flashRoundStarter();
+    assert.equal(messages.length, 0, "Snapshots must not repeat the starter announcement");
+    context.currentGame = { id: "test", round: 3, status: "S", turn: 0, players: [{ name: "Guest" }] };
     context.flashRoundStarter();
     assert.equal(messages.pop(), "Du begynner");
 });
@@ -2160,6 +2210,7 @@ function publicLobbyContext() {
     const context = vm.createContext({
         console: { error: (...args) => state.errors.push(args) }, currentGame: null,
         PUBLIC_LOBBY_PATH: "boms_public", PUBLIC_LOBBY_MAX_AGE_MS: 7200000, MAX_PLAYERS: 4,
+        localizedMessage: message => message,
         gameTurnSeconds: value => [1, 2, 3].includes(Number(value)) ? Number(value) : 2,
         document: {
             hidden: false, createElement: element, getElementById: () => list,
@@ -2191,18 +2242,18 @@ test("public lobby rows remain clickable join buttons before and after refresh",
     assert.deepEqual(state.joins, ["123", "123"]);
 });
 
-test("public lobby rows show host-controlled shared speed and update it without replacing the row", () => {
+test("public lobby rows describe personal animation speed instead of a shared pause", () => {
     const { list, state } = publicLobbyContext();
     const lobby = { id: "123", host: "Host", players: 2, waiting: true, ts: Date.now() };
     state.update([lobby]);
     const button = list.querySelector(".public-lobby-entry");
-    assert.equal(button.children[1].textContent, "2 s turpause (verten styrer)");
+    assert.equal(button.children[1].textContent, "Personlig animasjonshastighet");
     assert.equal(button.children[1].className, "public-lobby-entry__speed");
     state.update([{ ...lobby, turnSeconds: 1 }]);
     assert.equal(list.querySelector(".public-lobby-entry"), button);
-    assert.equal(button.children[1].textContent, "1 s turpause (verten styrer)");
+    assert.equal(button.children[1].textContent, "Personlig animasjonshastighet");
     state.update([{ ...lobby, turnSeconds: 3 }]);
-    assert.equal(button.children[1].textContent, "3 s turpause (verten styrer)");
+    assert.equal(button.children[1].textContent, "Personlig animasjonshastighet");
 });
 
 test("public lobby refresh keeps existing buttons, order and scroll position", () => {
@@ -2372,12 +2423,12 @@ test("lobby capacity counts filled seats for every player count", () => {
     }
     for (let count = 1; count <= 4; count++) {
         GameLayout.updateSharedView({ id: "lobby", status: "O", players: Array(count) }, null);
-        assert.equal(elements.get("lobbyCapacity").textContent, `${count}/4 plasser fylt · 2 s turpause (verten styrer)`);
+        assert.equal(elements.get("lobbyCapacity").textContent, `${count}/4 plasser fylt`);
         assert.equal(elements.get("lobbyCapacity").hidden, false);
     }
     for (const seconds of [1, 3]) {
         GameLayout.updateSharedView({ id: "lobby", status: "O", players: Array(2), turnSeconds: seconds }, null);
-        assert.equal(elements.get("lobbyCapacity").textContent, `2/4 plasser fylt · ${seconds} s turpause (verten styrer)`);
+        assert.equal(elements.get("lobbyCapacity").textContent, "2/4 plasser fylt");
     }
     GameLayout.updateSharedView({ id: "lobby", status: "S", players: [] }, null);
     assert.equal(elements.get("lobbyCapacity").hidden, true);

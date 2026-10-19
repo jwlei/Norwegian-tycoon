@@ -308,6 +308,7 @@ class PresidentGame extends Game {
         });
     }
     save(allowCreate = false) {
+        if (this.status == "S") { preparePresentationPause(this); }
         if (this.status != "S" ||
             (!GamePresence.onlyBotsRemain(this) && !this.turnPause?.pendingGameEnd)) {
             this.fastForward = false;
@@ -394,10 +395,19 @@ class PresidentGame extends Game {
                 if (next.turnPause) {
                     if (current.turnPause?.id == next.turnPause.id) {
                         next.turnPause = Object.assign({}, next.turnPause, {
-                            until: current.turnPause.until
+                            until: current.turnPause.until,
+                            ...(current.turnPause.presentationVersion == 1 ? {
+                                botUntil: current.turnPause.botUntil,
+                                ...(current.turnPause.readyAt != null ? { readyAt: current.turnPause.readyAt } : {})
+                            } : {})
                         });
-                    } else if (next.fastForward != update.fastForward ||
-                        next.turnSeconds != gameTurnSeconds(update.turnSeconds)) {
+                    } else if (next.turnPause.presentationVersion == 1 &&
+                        next.fastForward != update.fastForward) {
+                        var botUntil = next.turnPause.startedAt +
+                            (next.fastForward ? 1000 : next.turnPause.botDelayMs);
+                        next.turnPause = Object.assign({}, next.turnPause, { botUntil, until: botUntil });
+                    } else if (next.turnPause.presentationVersion != 1 && (next.fastForward != update.fastForward ||
+                        next.turnSeconds != gameTurnSeconds(update.turnSeconds))) {
                         var previousDelay = update.fastForward ? 1000 : gameTurnSeconds(update.turnSeconds) * 1000;
                         var nextDelay = next.fastForward ? 1000 : next.turnSeconds * 1000;
                         next.turnPause = Object.assign({}, next.turnPause, {
@@ -1664,6 +1674,14 @@ class PresidentGame extends Game {
         return this.piles[this.piles.length - 1];
     }
     isTurnPaused() {
+        if (this.turnPause?.presentationVersion == 1) {
+            var next = this.players[this.turn];
+            if ((next && GamePresence.isBot(this, next)) || this.turnPause.pendingGameEnd) {
+                return GamePresence.now() < this.turnPause.botUntil;
+            }
+            return typeof window != "undefined" &&
+                this.presentationCompletedPauseId != this.turnPause.id;
+        }
         return this.turnPause != null &&
             (Date.now() < this.turnPause.until ||
                 (this.turnPause.kind == "clear" &&
@@ -1729,8 +1747,9 @@ class PresidentGame extends Game {
             var update = { fastForward: enabled === true };
             if (record.turnPause && record.turnPause.until > Date.now()) {
                 update.turnPause = Object.assign({}, record.turnPause, {
-                    until: Date.now() + (enabled ? 1000 : gameTurnSeconds(record.turnSeconds) * 1000)
+                    until: GamePresence.now() + (enabled ? 1000 : 2000 + Math.floor(Math.random() * 3001))
                 });
+                update.turnPause.botUntil = update.turnPause.until;
             }
             return Object.assign({}, record, update);
         }).catch(error => {
@@ -1887,6 +1906,7 @@ class PresidentGame extends Game {
         this.piles.push(pile);
         var now = Date.now();
         this.turnPause = {
+            presentationVersion: 1,
             id: `${now}-${Math.random().toString(36).slice(2)}`,
             kind: "play",
             until: now + this.actionPauseMs(),
@@ -1932,6 +1952,7 @@ class PresidentGame extends Game {
         player.lastPlay = "Pass";
         var now = Date.now();
         this.turnPause = {
+            presentationVersion: 1,
             id: `${now}-${Math.random().toString(36).slice(2)}`,
             kind: "pass",
             until: now + this.actionPauseMs(),
@@ -2005,6 +2026,7 @@ class PresidentGame extends Game {
             var placementMessage = this.turnPause && this.turnPause.placementMessage;
             var extraMessage = this.turnPause && this.turnPause.extraMessage;
             this.turnPause = {
+                presentationVersion: 1,
                 id: `${now}-${Math.random().toString(36).slice(2)}`,
                 kind: "clear",
                 until: now + this.actionPauseMs(),

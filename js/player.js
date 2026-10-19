@@ -213,6 +213,7 @@ class Game {
                 } else {
                     var now = Date.now();
                     this.turnPause = {
+                        presentationVersion: 1,
                         id: `${now}-${Math.random().toString(36).slice(2)}`,
                         kind: "finish",
                         until: now + (this.actionPauseMs ? this.actionPauseMs() : TURN_ACTION_PAUSE_MS),

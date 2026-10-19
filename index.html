@@ -44,9 +44,9 @@
     }
     </script>
     <link rel="stylesheet" href="css/common.css">
-    <link rel="stylesheet" href="css/game.css?v=0.8.4">
+    <link rel="stylesheet" href="css/game.css?v=0.8.5">
     <link rel="stylesheet" href="css/mobile.css">
-    <link rel="stylesheet" href="css/theme.css?v=0.8.4">
+    <link rel="stylesheet" href="css/theme.css?v=0.8.5">
 </head>
 
 <body>
@@ -90,7 +90,7 @@
             </div>
             <div id="publicLobbyList" class="public-lobby-list" aria-live="polite"></div>
             <div id="publicLobbyError" class="public-lobby-error" role="alert"></div>
-            <small class="app-version"><span aria-label="Spillversjon 0.8.4">v0.8.4</span> · <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://jleiros.com" target="_blank" rel="noopener noreferrer">jleiros.com</a></small>
+            <small class="app-version"><span aria-label="Spillversjon 0.8.5">v0.8.5</span> · <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://jleiros.com" target="_blank" rel="noopener noreferrer">jleiros.com</a></small>
         </div>
         <div id="gameMenu" role="group" aria-label="Spillkontroller" style="text-align: center; vertical-align: middle;">
             <button type="button" id="BnFInviterSpill" title="Inviter spiller" aria-label="Inviter spiller" style="float: left;">Inviter spiller</button>
@@ -221,19 +221,19 @@
                     <span class="setting-row__switch" aria-hidden="true"><span></span></span>
                 </button>
                 <div class="setting-row setting-speed" role="group" aria-label="Meldingsvarighet">
-                    <span class="setting-row__text"><strong>Meldingsvarighet</strong><small>Hvor lenge meldinger vises</small></span>
+                    <span class="setting-row__text"><strong>Meldingsvarighet</strong><small>Personlig lesetid. Inntil tre meldinger beholdes samtidig uten å stoppe spillet.</small></span>
                     <span class="speed-options">
                         <button type="button" class="speed-option" data-speed="fast" aria-pressed="true">Rask</button>
                         <button type="button" class="speed-option" data-speed="normal" aria-pressed="false">Vanlig</button>
                         <button type="button" class="speed-option" data-speed="slow" aria-pressed="false">Sakte</button>
                     </span>
                 </div>
-                <div class="setting-row setting-turn-speed" role="group" aria-label="Spillhastighet">
-                    <span class="setting-row__text"><strong>Spillhastighet</strong><small id="turnSpeedHelp">Kortene reagerer med en gang. Verten velger observasjonspausen for hele rommet, ikke tiden du har til å spille.</small></span>
+                <div class="setting-row setting-turn-speed" role="group" aria-label="Animasjonshastighet">
+                    <span class="setting-row__text"><strong>Animasjonshastighet</strong><small>Kortbevegelsene styrer når du kan spille. Valget gjelder bare din skjerm.</small></span>
                     <span class="turn-speed-options">
-                        <button type="button" class="turn-speed-option" data-seconds="1" aria-pressed="false">1 s</button>
-                        <button type="button" class="turn-speed-option" data-seconds="2" aria-pressed="true">2 s</button>
-                        <button type="button" class="turn-speed-option" data-seconds="3" aria-pressed="false">3 s</button>
+                        <button type="button" class="animation-speed-option" data-animation-speed="fast" aria-pressed="false">Rask</button>
+                        <button type="button" class="animation-speed-option" data-animation-speed="normal" aria-pressed="true">Vanlig</button>
+                        <button type="button" class="animation-speed-option" data-animation-speed="slow" aria-pressed="false">Sakte</button>
                     </span>
                 </div>
                 <div class="setting-row setting-play-input" role="group" aria-label="Kortstyring">
@@ -639,17 +639,17 @@
     </script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js"></script>
-    <script src="js/cards.js?v=0.8.4"></script>
-    <script src="js/player.js?v=0.8.4"></script>
-    <script src="js/shared.js?v=0.8.4"></script>
-    <script src="js/bot.js?v=0.8.4"></script>
-    <script src="js/presence.js?v=0.8.4"></script>
-    <script src="js/game.js?v=0.8.4"></script>
-    <script src="js/layout.js?v=0.8.4"></script>
-    <script src="js/engine.js?v=0.8.4"></script>
-    <script src="js/bot-turn.js?v=0.8.4"></script>
-    <script src="js/connection.js?v=0.8.4"></script>
-    <script src="js/i18n.js?v=0.8.4"></script>
+    <script src="js/cards.js?v=0.8.5"></script>
+    <script src="js/player.js?v=0.8.5"></script>
+    <script src="js/shared.js?v=0.8.5"></script>
+    <script src="js/bot.js?v=0.8.5"></script>
+    <script src="js/presence.js?v=0.8.5"></script>
+    <script src="js/game.js?v=0.8.5"></script>
+    <script src="js/layout.js?v=0.8.5"></script>
+    <script src="js/engine.js?v=0.8.5"></script>
+    <script src="js/bot-turn.js?v=0.8.5"></script>
+    <script src="js/connection.js?v=0.8.5"></script>
+    <script src="js/i18n.js?v=0.8.5"></script>
 </body>
 
 </html>

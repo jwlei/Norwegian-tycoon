@@ -161,6 +161,10 @@
             updateFastForwardButton();
             updateTurnTimer();
             updateTurnSpeedButtons();
+            if (currentGame.turnPause?.presentationVersion == 1 &&
+                currentGame.presentationCompletedPauseId == currentGame.turnPause.id) {
+                publishPresentationReady(currentGame, currentGame.turnPause);
+            }
             currentGame.expireOptionalTrades();
             var reclaim = document.getElementById("reclaimSeatButton");
             reclaim.hidden = !controlled || !player || player.playerKey == "PC";
@@ -180,6 +184,7 @@
         var roundVoteRefreshTimer = null;
         var gameEndVoteRefreshTimer = null;
         var gameToastTimer = null;
+        var archivedToasts = [];
         var gameToastExpiresAt = 0;
         var lastShownTurnPauseId = null;
         var activeToastPauseId = null;
@@ -387,6 +392,7 @@
         var shuffleTicker = null;
         var starterFlashTimer = null;
         var handDealTimer = null;
+        var announcedStarterRound = null;
 
         function clearShuffleAnimation(keepFlash = false) {
             if (shuffleTicker != null) {
@@ -411,15 +417,15 @@
 
         function flashRoundStarter() {
             var game = currentGame;
-            if (game == null) { return; }
-            var starterName = null;
-            if (game.status == "S" && game.turn >= 0 && game.players[game.turn] != null) {
-                starterName = game.players[game.turn].name;
-            } else if (game.status == "G") {
-                starterName = game.roundStarterName;
-            }
-            if (starterName == null) { return; }
-            showGameToast(game.status == "G"
+            if (game == null || game.status != "S" ||
+                GamePresence.isActionPaused(game, GamePresence.now()) ||
+                game.turn < 0 || game.players[game.turn] == null) { return; }
+            var roundKey = `${game.id}:${game.round}:${game.shuffleStartedAt}`;
+            if (announcedStarterRound == roundKey) { return; }
+            announcedStarterRound = roundKey;
+            var starter = game.players[game.turn];
+            var starterName = starter.name;
+            showGameToast(starter.lastPlacement == game.players.length
                 ? `${starterName} er Boms og starter.`
                 : (starterName == currentPlayerName ? "Du begynner" : `${starterName} begynner`), game);
             document.querySelectorAll("#playerList [data-player-name]").forEach(element => {
@@ -629,7 +635,11 @@
             leaveCurrentGame();
         }
 
-        function hideGameToast() {
+        function hideGameToast(clearHistory = true) {
+            if (clearHistory) {
+                archivedToasts.forEach(entry => { clearTimeout(entry.timer); entry.node.remove(); });
+                archivedToasts = [];
+            }
             if (gameToastTimer != null) {
                 clearTimeout(gameToastTimer);
                 gameToastTimer = null;
@@ -770,28 +780,11 @@
             ensureGameLog(game);
             var toast = document.getElementById("GameToast");
             if (toast.classList.contains("is-visible") && Date.now() >= gameToastExpiresAt) {
-                hideGameToast();
+                hideGameToast(false);
             }
 
             if (toast.classList.contains("is-visible") && toast.textContent != "") {
-                var rect = toast.getBoundingClientRect();
-                var leaving = toast.cloneNode(true);
-                leaving.removeAttribute("id");
-                leaving.classList.add("game-toast--leaving");
-                leaving.setAttribute("aria-hidden", "true");
-                leaving.style.left = `${rect.left}px`;
-                leaving.style.top = `${rect.top}px`;
-                leaving.style.width = `${rect.width}px`;
-                leaving.style.height = `${rect.height}px`;
-                leaving.style.setProperty("--toast-push", `${rect.height + 10}px`);
-                var leaveMs = { fast: 1000, normal: 2000, slow: 3000 }[currentGameSpeed()] || 1000;
-                leaving.style.setProperty("--toast-leave", `${leaveMs}ms`);
-                leaving.style.setProperty("--toast-leave-fade-delay", `${Math.round(leaveMs * 0.67)}ms`);
-                leaving.style.setProperty("--toast-leave-fade", `${Math.round(leaveMs * 0.33)}ms`);
-                document.body.appendChild(leaving);
-                leaving.getBoundingClientRect();
-                leaving.classList.add("is-leaving");
-                setTimeout(() => leaving.remove(), leaveMs + 50);
+                archiveGameToast(toast);
             }
             toast.classList.remove("is-visible");
             toast.getBoundingClientRect();
@@ -833,7 +826,40 @@
             if (gameToastTimer != null) {
                 clearTimeout(gameToastTimer);
             }
-            gameToastTimer = setTimeout(hideGameToast, duration);
+            gameToastTimer = setTimeout(() => hideGameToast(false), duration);
+            positionArchivedToasts();
+        }
+
+        function archiveGameToast(toast) {
+            var node = toast.cloneNode(true);
+            node.removeAttribute("id");
+            node.classList.add("game-toast--archived");
+            node.setAttribute("aria-hidden", "true");
+            node.style.height = `${toast.getBoundingClientRect().height}px`;
+            var entry = { node, expiresAt: gameToastExpiresAt, timer: null };
+            document.body.appendChild(node);
+            entry.timer = setTimeout(() => {
+                node.remove();
+                archivedToasts = archivedToasts.filter(item => item != entry);
+                positionArchivedToasts();
+            }, Math.max(0, entry.expiresAt - Date.now()));
+            archivedToasts.push(entry);
+            while (archivedToasts.length > 2) {
+                var oldest = archivedToasts.shift();
+                clearTimeout(oldest.timer);
+                oldest.node.remove();
+            }
+        }
+
+        function positionArchivedToasts() {
+            var bounds = document.getElementById("GameToast").getBoundingClientRect();
+            var top = bounds.top;
+            archivedToasts.slice().reverse().forEach(entry => {
+                entry.node.style.width = `${bounds.width}px`;
+                entry.node.style.left = `${bounds.left}px`;
+                top -= entry.node.getBoundingClientRect().height + 6;
+                entry.node.style.top = `${top}px`;
+            });
         }
 
         var receivedCardQueue = [];
@@ -934,7 +960,20 @@
             if (phase == "saved") { scheduleBotLoop(); }
         });
 
+        document.addEventListener("visibilitychange", function () {
+            if (!currentGame) { return; }
+            if (document.hidden) { GameLayout.clearCardFlights(); }
+            if (currentGame.turnPause?.presentationVersion == 1) {
+                completeLocalPresentation(currentGame, currentGame.turnPause);
+            }
+        });
+        window.addEventListener("resize", positionArchivedToasts);
+
         function completeTurnPause(game, pause) {
+            if (pause.presentationVersion == 1) {
+                completeLocalPresentation(game, pause);
+                return;
+            }
             if (currentGame != game || game.turnPause == null ||
                 game.turnPause.id != pause.id) {
                 return;
@@ -1022,6 +1061,15 @@
             }
             var pause = game.turnPause;
             if (pause == null) { return; }
+            if (pause.presentationVersion == 1) {
+                if (pause.id != lastShownTurnPauseId) {
+                    lastShownTurnPauseId = pause.id;
+                    showGameToast(pause.message, game, undefined, pause.id, pause.kind == "clear");
+                    if (pause.extraMessage) { showGameToast(pause.extraMessage, game, undefined, pause.id); }
+                }
+                completeLocalPresentation(game, pause);
+                return;
+            }
             var delay = pause.until - Date.now();
             if (game.fastForward === true && activeToastPauseId == pause.id &&
                 gameToastExpiresAt > pause.until) {
@@ -1056,6 +1104,85 @@
             } else {
                 completeTurnPause(game, pause);
             }
+        }
+
+        var presentationSnapshots = [];
+        var completingPresentationId = null;
+        var readinessInFlight = null;
+        function completeLocalPresentation(game, pause) {
+            if (currentGame != game || game.turnPause?.id != pause.id) { return; }
+            var table = document.getElementById("gameTable");
+            if (table.dataset.animatingPlayedPauseId == `${game.id}:${pause.id}`) {
+                table.dataset.pendingClearPauseId = `${game.id}:${pause.id}`;
+                return;
+            }
+            var finish = function () {
+                if (currentGame != game || game.turnPause?.id != pause.id) { return; }
+                completingPresentationId = null;
+                delete table.dataset.clearingPauseId;
+                game.presentationCompletedPauseId = pause.id;
+                refreshAfterTurnPause(game);
+                publishPresentationReady(game, pause);
+                if (presentationSnapshots.length > 0) {
+                    var snapshot = presentationSnapshots.shift();
+                    currentGameListener(snapshot);
+                }
+                scheduleBotLoop();
+            };
+            if (game.presentationCompletedPauseId == pause.id) {
+                publishPresentationReady(game, pause);
+                if (presentationSnapshots.length > 0) {
+                    currentGameListener(presentationSnapshots.shift());
+                }
+                return;
+            }
+            if (completingPresentationId == pause.id) { return; }
+            completingPresentationId = pause.id;
+            if (pause.kind == "clear") {
+                table.dataset.clearingPauseId = `${game.id}:${pause.id}`;
+                GameLayout.animateDiscardedCards(table, finish);
+            } else {
+                finish();
+            }
+        }
+
+        function publishPresentationReady(game, pause) {
+            if (currentGame != game || game.turnPause?.id != pause.id ||
+                game.presentationCompletedPauseId != pause.id ||
+                game.localWritePending || game.connectionOnline === false ||
+                readinessInFlight == pause.id) { return; }
+            var player = game.getPlayer(currentPlayerName);
+            var next = game.players[game.turn];
+            if (pause.pendingGameEnd) {
+                if (GamePresence.canDrive(game, GamePresence.now())) {
+                    var remaining = pause.botUntil - GamePresence.now();
+                    if (remaining > 0) {
+                        if (turnPauseRefreshTimer != null) { clearTimeout(turnPauseRefreshTimer); }
+                        turnPauseRefreshTimer = setTimeout(() => publishPresentationReady(game, pause), remaining);
+                    } else {
+                        game.finishGame();
+                        game.save();
+                    }
+                }
+                return;
+            }
+            if (!player || player != next || GamePresence.isBot(game, player) ||
+                player.playerKey != getPlayerKey() || pause.readyAt != null) { return; }
+            readinessInFlight = pause.id;
+            game.databaseRef.transaction(record => {
+                if (!record || record.turnPause?.id != pause.id || record.turnPause.readyAt != null ||
+                    record.status != "S") { return; }
+                var actor = record.spillere[record.sinTur];
+                if (!actor || actor.nick != player.name || actor.spillerKey != getPlayerKey() ||
+                    (record.controllers || {})[GamePresence.playerId(actor)]) { return; }
+                var now = GamePresence.now();
+                return Object.assign({}, record, {
+                    turnPause: Object.assign({}, record.turnPause, { readyAt: now, until: now })
+                });
+            }, undefined, false).catch(error => {
+                console.error("Kunne ikke melde at kortanimasjonen er ferdig.", error);
+                showGameToast("Kunne ikke oppdatere turen. Prøver igjen.", game);
+            }).finally(() => { readinessInFlight = null; });
         }
 
         function handleRoundStartVote(game) {
@@ -1408,7 +1535,7 @@
                 var lobby = available.get(id);
                 button.classList.toggle("is-running", !lobby.waiting);
                 var name = `${lobby.host} · ${lobby.players}/${MAX_PLAYERS}`;
-                var speed = `${gameTurnSeconds(lobby.turnSeconds)} s turpause (verten styrer)`;
+                var speed = localizedMessage("Personlig animasjonshastighet");
                 var status = lobby.waiting ? "Venter i lobby" : "Spill pågår";
                 if (button.children[0].textContent != name) { button.children[0].textContent = name; }
                 if (button.children[1].textContent != speed) { button.children[1].textContent = speed; }
@@ -1570,6 +1697,20 @@
             currentGameListener = function (snapshot) {
                 if (currentGame != connectingGame) { return; }
                 var snapshotRecord = snapshot.val();
+                if (snapshotRecord == null || snapshotRecord.status != "S" ||
+                    snapshotRecord.shuffleStartedAt != connectingGame.shuffleStartedAt) {
+                    presentationSnapshots = [];
+                    completingPresentationId = null;
+                }
+                var activePause = connectingGame.turnPause;
+                if (snapshotRecord && activePause?.presentationVersion == 1 &&
+                    connectingGame.presentationCompletedPauseId != activePause.id &&
+                    snapshotRecord.turnPause?.id != activePause.id &&
+                    snapshotRecord.status == "S" &&
+                    snapshotRecord.shuffleStartedAt == connectingGame.shuffleStartedAt) {
+                    presentationSnapshots.push(snapshot);
+                    return;
+                }
                 if (snapshotRecord != null && GamePresence.isExpired(snapshotRecord,
                     connection ? connection.now() : GamePresence.now())) {
                     voidExpiredSession(connectingGame.databaseRef);
@@ -1642,6 +1783,7 @@
                     handleRoundStartVote(connectingGame);
                     handleGameEndVote(connectingGame);
                     playShuffleIfNew(connectingGame);
+                    flashRoundStarter();
                     tryJoinWaitingSpectator(connectingGame);
                     updateFastForwardButton();
                     scheduleBotLoop();
@@ -1734,14 +1876,10 @@
             });
         }
         function updateTurnSpeedButtons() {
-            var seconds = currentGame && currentGame.fastForward === true
-                ? 1 : gameTurnSeconds(currentGame && currentGame.turnSeconds);
-            var player = currentGame && currentGame.getPlayer(currentPlayerName);
-            var canChange = currentGame != null && currentGame.connectionOnline !== false &&
-                isLobbyHost(currentGame) && !!player && !GamePresence.isBot(currentGame, player);
-            document.querySelectorAll(".turn-speed-option").forEach(button => {
-                button.setAttribute("aria-pressed", String(Number(button.dataset.seconds) == seconds));
-                button.disabled = !canChange || currentGame.fastForward === true;
+            var speed = currentGame?.fastForward ? "fast" : getCookie("AnimationSpeed") || "normal";
+            document.querySelectorAll(".animation-speed-option").forEach(button => {
+                button.setAttribute("aria-pressed", String(button.dataset.animationSpeed == speed));
+                button.disabled = currentGame?.fastForward === true;
             });
         }
         function updatePlayInputButtons() {
@@ -1750,16 +1888,9 @@
                 button.setAttribute("aria-pressed", String(button.dataset.playInput == mode));
             });
         }
-        document.querySelectorAll(".turn-speed-option").forEach(button => {
-            button.addEventListener("click", async function () {
-                if (currentGame == null) { return; }
-                var game = currentGame;
-                try {
-                    await game.setTurnSeconds(Number(button.dataset.seconds));
-                } catch (error) {
-                    console.error("Kunne ikke endre spillhastigheten.", error);
-                    if (currentGame == game) { showGameToast(error.message, game); }
-                }
+        document.querySelectorAll(".animation-speed-option").forEach(button => {
+            button.addEventListener("click", function () {
+                setCookie("AnimationSpeed", button.dataset.animationSpeed, 1000);
                 updateTurnSpeedButtons();
             });
         });
@@ -2019,14 +2150,20 @@
                 currentGame.localWritePending ||
                 !GamePresence.canDrive(currentGame, connection ? connection.now() : Date.now()) ||
                 (currentGame.status != "S" && currentGame.status != "G")) { return; }
-            var delay = fastForward ? 1000 :
-                (currentGame.actionPauseMs ? currentGame.actionPauseMs() : BOT_ACTION_DELAY_MS);
+            var delay = currentGame.turnPause?.presentationVersion == 1
+                ? Math.max(0, currentGame.turnPause.botUntil - GamePresence.now())
+                : (fastForward ? 1000 : 2000 + Math.floor(Math.random() * 3001));
             if (currentGame.turnPause != null) {
                 var pauseRemaining = currentGame.turnPause.until - Date.now();
                 if (pauseRemaining > 0) {
                     delay = Math.min(delay, pauseRemaining);
                 }
             }
+            if (currentGame.turnPause?.presentationVersion == 1 &&
+                currentGame.presentationCompletedPauseId != currentGame.turnPause.id) { return; }
+            if (currentGame.status == "S" &&
+                (currentGame.turn < 0 ||
+                    !GamePresence.isBot(currentGame, currentGame.players[currentGame.turn]))) { return; }
             botLoopTimer = setTimeout(runBotLoop, delay);
         }
 

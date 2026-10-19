@@ -34,6 +34,22 @@ test("presence IDs support Firebase keys, Unicode and shared-browser named seats
     assert.notEqual(first, Presence.playerId({ name: "Other", playerKey: "owner" }));
 });
 
+test("the human turn clock waits for animation readiness, with a ten-second fallback", () => {
+    const record = room();
+    record.turnPause = {
+        id: "action", presentationVersion: 1, kind: "clear", clearedPiles: [{ 0: {} }],
+        until: start + 10000
+    };
+    assert.equal(Presence.actionToken(record, record.spillere[0], 0, start + 500), null);
+    const ready = Object.assign({}, record, {
+        turnPause: Object.assign({}, record.turnPause, { until: start + 800, readyAt: start + 800 })
+    });
+    const next = Presence.reconcile(ready, start + 800);
+    assert.equal(next.actionDeadlines[Presence.playerId(record.spillere[0])].until,
+        start + 800 + Presence.actionMs);
+    assert.ok(Presence.actionToken(record, record.spillere[0], 0, start + 10000),
+        "A missing readiness message must not block idle detection forever");
+});
 test("one connected tab keeps the player online and final disconnect starts the grace period", () => {
     const record = room();
     session(record, 0, false, start);
@@ -663,7 +679,7 @@ test("normal and takeover bot turns and background saves cannot extend the sessi
         fixture.now += 1000;
         types.playBotTurn(game, player, () => 0);
         assert.equal(fixture.stored.lastHumanActionAt, start);
-        fixture.now += 4000;
+        fixture.now += 5001;
         game.passTurn(player);
         game.save();
         assert.equal(fixture.stored.lastHumanActionAt, start);

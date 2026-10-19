@@ -247,8 +247,25 @@ function clearCardSelection() {
     selectedCardStrength = null;
 }
 
-const PLAY_ANIMATION_MS = 420;
-const DISCARD_ANIMATION_MS = 300;
+const PLAY_ANIMATION_MS = 500;
+const DISCARD_ANIMATION_MS = 500;
+
+function animationDuration(game, normal = PLAY_ANIMATION_MS) {
+    if (game && game.fastForward === true) { return normal * 0.6; }
+    var speed = getCookie("AnimationSpeed");
+    return normal * ({ fast: 0.6, normal: 1, slow: 1.6 }[speed] || 1);
+}
+
+function preparePresentationPause(game) {
+    var pause = game.turnPause;
+    if (!pause || pause.presentationVersion != 1 || pause.startedAt != null) { return; }
+    pause.startedAt = GamePresence.now();
+    pause.botDelayMs = 2000 + Math.floor(Math.random() * 3001);
+    pause.botUntil = pause.startedAt + (game.fastForward ? 1000 : pause.botDelayMs);
+    var next = game.players[game.turn];
+    pause.until = (next && GamePresence.isBot(game, next)) || pause.pendingGameEnd
+        ? pause.botUntil : pause.startedAt + 10000;
+}
 
 function discardAnimationMs(cardCount) {
     return DISCARD_ANIMATION_MS + Math.min(Math.max(0, cardCount - 1) * 6, 120);

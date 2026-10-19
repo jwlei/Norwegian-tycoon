@@ -1065,6 +1065,16 @@ select:focus-visible {
     margin: 0 15%;
 }
 
+.exchange-sneaky-toggle[aria-pressed="true"] {
+    background: var(--success-fill);
+    border-color: var(--success);
+    color: var(--on-success);
+}
+
+.exchange-sneaky-toggle[aria-pressed="true"]:hover {
+    background: var(--success-hover);
+}
+
 #exchangeActions {
     position: relative;
     z-index: 40;
@@ -1592,7 +1602,7 @@ select:focus-visible {
 }
 
 .game-card.is-exchange-selected {
-    transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-15.4px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
+    transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-19.8px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -2513,6 +2523,19 @@ select:focus-visible {
     vertical-align: bottom;
 }
 
+.game-toast.game-toast--archived {
+    position: fixed;
+    z-index: 75;
+    margin: 0;
+    transform: none;
+    pointer-events: none;
+    animation: none;
+}
+
+.game-toast--archived::after {
+    display: none;
+}
+
 #gameShell.game-active:not(.Lobby):not(.GameFinished) > .game-menu-toggle {
     display: none;
 }
@@ -3074,10 +3097,10 @@ select:focus-visible {
 .speed-option:hover,
 .speed-option:active,
 .speed-option:focus,
-.turn-speed-option,
-.turn-speed-option:hover,
-.turn-speed-option:active,
-.turn-speed-option:focus,
+.animation-speed-option,
+.animation-speed-option:hover,
+.animation-speed-option:active,
+.animation-speed-option:focus,
 .play-input-option,
 .play-input-option:hover,
 .play-input-option:active,
@@ -3106,7 +3129,7 @@ select:focus-visible {
 }
 
 .speed-option + .speed-option,
-.turn-speed-option + .turn-speed-option,
+.animation-speed-option + .animation-speed-option,
 .play-input-option + .play-input-option,
 .card-style-scope-option + .card-style-scope-option,
 .quick-play-option + .quick-play-option,
@@ -3116,8 +3139,8 @@ select:focus-visible {
 
 .speed-option[aria-pressed="true"],
 .speed-option[aria-pressed="true"]:hover,
-.turn-speed-option[aria-pressed="true"],
-.turn-speed-option[aria-pressed="true"]:hover,
+.animation-speed-option[aria-pressed="true"],
+.animation-speed-option[aria-pressed="true"]:hover,
 .play-input-option[aria-pressed="true"],
 .play-input-option[aria-pressed="true"]:hover,
 .card-style-scope-option[aria-pressed="true"],

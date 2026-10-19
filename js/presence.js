@@ -89,6 +89,9 @@ class GamePresence {
                 now < Number(record.shuffleStartedAt) + SHUFFLE_DURATION_MS;
         }
         var pause = record.turnPause;
+        if (record.status == "S" && pause?.presentationVersion == 1) {
+            return now < pause.until;
+        }
         return record.status == "S" && pause != null &&
             (now < pause.until || (pause.kind == "clear" &&
                 Array.isArray(pause.clearedPiles) && pause.clearedPiles.length > 0));

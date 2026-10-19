@@ -168,7 +168,7 @@ class GameLayout {
         var capacity = document.getElementById("lobbyCapacity");
         capacity.hidden = game == null || game.status != "O";
         if (!capacity.hidden) {
-            capacity.textContent = `${game.players.length}/${MAX_PLAYERS} plasser fylt · ${gameTurnSeconds(game.turnSeconds)} s turpause (verten styrer)`;
+            capacity.textContent = `${game.players.length}/${MAX_PLAYERS} plasser fylt`;
         }
         var waitingCount = game == null ? 0 : Object.keys(game.waitingSpectators || {}).length;
         var waitingLabel = document.getElementById("waitingPlayers");
@@ -587,8 +587,11 @@ class GameLayout {
         return { cardOrigins: cardOrigins, playerOrigins: playerOrigins };
     }
     static animatePlayedCards(playElement, pile, origins, onComplete = null) {
-        if (playElement.isConnected === false) { return; }
-        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        if (playElement.isConnected === false) {
+            if (onComplete) { onComplete(); }
+            return;
+        }
+        if (document.hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
             if (onComplete) { onComplete(); }
             return;
         }
@@ -649,7 +652,7 @@ class GameLayout {
                     opacity: 1
                 }
             ], {
-                duration: PLAY_ANIMATION_MS,
+                duration: animationDuration(typeof currentGame != "undefined" ? currentGame : null),
                 delay: Math.min(cardIndex * 12, 36),
                 easing: "cubic-bezier(.16,1,.3,1)",
                 fill: "both"
@@ -705,7 +708,7 @@ class GameLayout {
                 });
             }
         };
-        if (table == null ||
+        if (table == null || document.hidden ||
             window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
             completeIfReady();
             return;
@@ -737,7 +740,7 @@ class GameLayout {
                     opacity: 0
                 }
             ], {
-                duration: DISCARD_ANIMATION_MS,
+                duration: animationDuration(typeof currentGame != "undefined" ? currentGame : null, DISCARD_ANIMATION_MS),
                 delay: Math.min(index * 6, 120),
                 easing: "cubic-bezier(.2,.8,.3,1)",
                 fill: "forwards"
@@ -887,6 +890,7 @@ class GameLayout {
         }
         var clearedPiles = game.turnPause &&
             game.turnPause.kind == "clear" &&
+            game.presentationCompletedPauseId != game.turnPause.id &&
             Array.isArray(game.turnPause.clearedPiles)
             ? PresidentCard.deserializePiles(game.turnPause.clearedPiles)
             : [];
@@ -912,7 +916,7 @@ class GameLayout {
             displayPiles.length > 0 &&
             table.dataset.completedPlayedPauseId != pauseId &&
             !isAnimatingPlayedPause &&
-            !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            !document.hidden && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         if (shouldAnimatePlayedPause) {
             table.dataset.animatingPlayedPauseId = pauseId;
         }
@@ -1046,7 +1050,7 @@ class GameLayout {
                                     : `${fromPlayer.name} velger ${countText} til ${toPlayer.name}.`);
                             break;
                         case "Best":
-                            var bestCardsText = exchange.count == 1 ? "ditt beste kort" : "dine beste kort";
+                            var bestCardsText = exchange.count == 1 ? "ditt beste kort" : "dine to beste kort";
                             title.textContent = fromPlayer.leaveAfterExchange === true
                                 ? `${fromPlayer.name} gir ${exchange.count == 1 ? "sitt beste kort" : "sine beste kort"} automatisk til ${toPlayer.name}.`
                                 : (isSender
@@ -1104,16 +1108,10 @@ class GameLayout {
                         var canInitiate = isSender;
                         var participantIndex = currentPlayerIndex;
                         if (isParticipant) {
-                            var status = document.createElement("span");
-                            status.className = "trade-status";
-                            status.textContent = hasSneakyConsent(exchange)
-                                ? "Begge har samtykket til sneaky bytte."
-                                : `Vanlig bytte bruker kort 7–J. Sneaky-samtykke: ${voters.length}/2.`;
-                            exchangeStatus.appendChild(status);
                             var sneakyButton = document.createElement("button");
                             sneakyButton.type = "button";
                             sneakyButton.textContent = "Sneaky?";
-                            sneakyButton.className = "exchange-offer__sneaky";
+                            sneakyButton.className = "exchange-offer__sneaky exchange-sneaky-toggle";
                             sneakyButton.setAttribute("aria-pressed", String(voters.includes(participantIndex)));
                             sneakyButton.onclick = function () {
                                 game.toggleSneakyTrade(exchange, participantIndex);
@@ -1180,6 +1178,7 @@ class GameLayout {
                                 var sneakyButton = document.createElement("button");
                                 var voters = exchange.sneakyVotes || [];
                                 sneakyButton.type = "button";
+                                sneakyButton.className = "exchange-sneaky-toggle";
                                 sneakyButton.textContent = voters.includes(currentPlayerIndex)
                                     ? "Trekk sneaky-samtykke"
                                     : "Sneaky bytte";
@@ -1228,14 +1227,16 @@ class GameLayout {
                     var selectedRecipient = game.players[selectedExchange.to];
                     var isBestExchange = selectedExchange.mode == "Best";
                     document.getElementById("exchangePrompt").textContent = isBestExchange
-                        ? `Dine beste kort til ${selectedRecipient.name}`
+                        ? (selectedExchange.count == 1
+                            ? `Du må gi ditt beste kort til ${selectedRecipient.name}`
+                            : `Du må gi dine to beste kort til ${selectedRecipient.name}`)
                         : `Kort til ${selectedRecipient.name} (${selectedExchange.cards.length}/${selectedExchange.count})`;
                     if (selectedExchange.mode == "Velg" || isBestExchange) {
                         var confirmExchange = document.createElement("button");
                         confirmExchange.type = "button";
                         confirmExchange.className = "exchange-selection__confirm";
-                        confirmExchange.textContent = "Bekreft";
-                        confirmExchange.setAttribute("aria-label", `Bekreft kort til ${selectedRecipient.name}`);
+                        confirmExchange.textContent = "Gi kort";
+                        confirmExchange.setAttribute("aria-label", `Gi kort til ${selectedRecipient.name}`);
                         confirmExchange.disabled = selectedExchange.cards.length != selectedExchange.count;
                         confirmExchange.onclick = function () {
                             game.giveExchangeCards(selectedExchange);
@@ -2363,7 +2364,11 @@ class GameLayout {
             game = newGame;
             player = newPlayer;
         };
-        if (shouldCenterAutoSelection) {
+        if (displayedExchange && displayedExchange.mode == "Best") {
+            this.centerHandSelection(element, ownerKey, displayedExchange.cards.map(card =>
+                `${card.suit}:${card.rank}`
+            ));
+        } else if (shouldCenterAutoSelection) {
             this.centerHandSelection(element, ownerKey, autoCenterCardKeys, autoCenterTurnKey);
         } else if (centerCardKey != null && selectedCardKeys.has(centerCardKey)) {
             this.centerHandSelection(element, ownerKey, Array.from(selectedCardKeys));
@@ -2405,7 +2410,8 @@ class GameLayout {
             card.animate([
                 { translate: `${dx}px ${dy}px` },
                 { translate: "0px 0px" }
-            ], { duration: 320, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+            ], { duration: animationDuration(typeof currentGame != "undefined" ? currentGame : null, 320),
+                easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
         });
     }
     static scrollHandCardsIntoView(element, ownerKey, cardKeys, turnKey) {
@@ -2450,13 +2456,14 @@ class GameLayout {
         window.requestAnimationFrame(function () {
             window.requestAnimationFrame(function () {
                 if (selectedCardOwner != ownerKey ||
-                    (turnKey != null && autoSelectedTurnKey != turnKey) ||
-                    selectedCardKeys.size != cardKeys.length ||
-                    !cardKeys.every(cardKey => selectedCardKeys.has(cardKey))) {
+                    (turnKey != null && autoSelectedTurnKey != turnKey)) {
                     return;
                 }
-                var selectedCards = Array.from(element.querySelectorAll(".game-card.is-selected"));
-                if (selectedCards.length == 0) { return; }
+                var selectedCards = Array.from(element.querySelectorAll(
+                    ".game-card.is-selected, .game-card.is-exchange-selected"
+                ));
+                if (selectedCards.length == 0 || selectedCards.length != cardKeys.length ||
+                    !selectedCards.every(card => cardKeys.includes(card.dataset.cardKey))) { return; }
                 var selectedBounds = selectedCards.map(card => card.getBoundingClientRect());
                 var selectedLeft = Math.min(...selectedBounds.map(bounds => bounds.left));
                 var selectedRight = Math.max(...selectedBounds.map(bounds => bounds.right));
