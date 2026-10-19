@@ -1886,6 +1886,7 @@
             var mode = GameLayout.playInputMode();
             document.querySelectorAll(".play-input-option").forEach(button => {
                 button.setAttribute("aria-pressed", String(button.dataset.playInput == mode));
+                button.disabled = button.dataset.playInput == "flick" && GameLayout.usesDesktopControls();
             });
         }
         document.querySelectorAll(".animation-speed-option").forEach(button => {
@@ -1896,6 +1897,7 @@
         });
         document.querySelectorAll(".play-input-option").forEach(button => {
             button.addEventListener("click", function () {
+                if (button.disabled) { return; }
                 setCookie("PlayInputMode", button.dataset.playInput, 1000);
                 updatePlayInputButtons();
                 if (currentGame != null) { refreshAfterTurnPause(currentGame); }
@@ -2021,7 +2023,7 @@
             updateCardStyleButtons();
             GameLayout.setVisible("BnPByttNavn", !inGame || currentGame.status == "O");
             document.getElementById("autoSuggestionToggleButton").hidden = !inGame;
-            document.querySelector(".setting-turn-speed").hidden = !inGame;
+            document.querySelector(".setting-turn-speed").hidden = false;
             document.getElementById("settingsGameId").hidden = !inGame;
             updateAutoSuggestionButton();
             updateSpeedButtons();

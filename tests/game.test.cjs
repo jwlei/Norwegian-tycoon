@@ -3473,7 +3473,7 @@ test("stale saves preserve host-selected speed and adjust new pause lengths, not
     assert.equal(record.turnPause.until, now + 1000);
 });
 
-test("personal play controls retain device defaults and honor explicit saved choices", () => {
+test("desktop always uses the Play button while mobile honors saved control choices", () => {
     for (const desktop of [false, true]) {
         for (const saved of [null, "invalid", "flick", "button"]) {
             const { GameLayout } = loadGame(null, {
@@ -3482,11 +3482,47 @@ test("personal play controls retain device defaults and honor explicit saved cho
             });
 
             assert.equal(GameLayout.playInputMode(),
-                saved == "flick" || saved == "button" ? saved : desktop ? "button" : "flick");
+                desktop ? "button" : saved == "button" ? "button" : "flick");
         }
     }
     assert.equal(playButtonContext({ playInput: "flick" }).playButton.hidden, true);
     assert.equal(playButtonContext({ playInput: "button" }).playButton.hidden, false);
+});
+
+test("settings expose animation speed from the main menu and disable Flick only on desktop", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    for (const desktop of [false, true]) {
+        const { GameLayout } = loadGame(null, {
+            window: { matchMedia: () => ({ matches: desktop }) }
+        });
+        const buttons = ["flick", "button"].map(mode => ({
+            dataset: { playInput: mode }, attributes: {},
+            setAttribute(name, value) { this.attributes[name] = value; }
+        }));
+        const setting = { hidden: true };
+        const context = vm.createContext({
+            currentGame: null, GameLayout,
+            document: {
+                querySelectorAll: () => buttons,
+                querySelector: () => setting,
+                getElementById: () => ({})
+            },
+            updateSavedPlayerName() {}, updateCardStyleButtons() {},
+            updateAutoSuggestionButton() {}, updateSpeedButtons() {},
+            updateTurnSpeedButtons() {}, showDialog() {}
+        });
+        GameLayout.setVisible = () => {};
+        const begin = source.indexOf("        function updatePlayInputButtons()");
+        vm.runInContext(source.slice(begin, source.indexOf('        document.querySelectorAll(".animation-speed-option")', begin)), context);
+        const settingsStart = source.indexOf("        function openSettings()");
+        vm.runInContext(source.slice(settingsStart,
+            source.indexOf('        document.getElementById("BnInnstillinger")', settingsStart)), context);
+        context.openSettings();
+        assert.equal(setting.hidden, false);
+        assert.equal(buttons[0].disabled, desktop);
+        assert.equal(buttons[1].disabled, false);
+        assert.equal(buttons[desktop ? 1 : 0].attributes["aria-pressed"], "true");
+    }
 });
 
 test("card style display defaults to player-specific styles and preserves the own-style preference", () => {

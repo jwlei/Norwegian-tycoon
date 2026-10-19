@@ -107,7 +107,7 @@
         "Kortstyring": "Card controls",
         "Flick": "Flick",
         "Kortene reagerer med en gang. Verten velger observasjonspausen for hele rommet, ikke tiden du har til å spille.": "Cards respond immediately. The host chooses the observation pause for the whole room, not your turn time limit.",
-        "Velg hvordan du legger ut kort. Standard er flick på mobil og Legg ut på PC.": "Choose how to play cards. The default is flick on mobile and the Play button on desktop.",
+        "På PC brukes Legg ut. På mobil kan du velge Flick eller Legg ut.": "Desktop uses the Play button. On mobile you can choose Flick or the Play button.",
         "Velg 1, 2 eller 3 sekunder.": "Choose 1, 2 or 3 seconds.",
         "Bare verten kan endre spillhastigheten.": "Only the host can change the game speed.",
         "Kunne ikke endre spillhastigheten.": "Could not change the game speed.",

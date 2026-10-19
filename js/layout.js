@@ -22,11 +22,15 @@ function chooseSuggestedPlayStrength(player, topPile, playableStrengths, require
 }
 
 class GameLayout {
+    static usesDesktopControls() {
+        return typeof window == "undefined" ||
+            window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    }
     static playInputMode() {
+        if (GameLayout.usesDesktopControls()) { return "button"; }
         var stored = getCookie("PlayInputMode");
         if (stored == "flick" || stored == "button") { return stored; }
-        return typeof window == "undefined" ||
-            window.matchMedia("(hover: hover) and (pointer: fine)").matches ? "button" : "flick";
+        return "flick";
     }
     static isShufflingExchange(game) {
         return game != null && game.status == "G" && game.shuffleStartedAt != null &&
