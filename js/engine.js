@@ -702,6 +702,21 @@ class PresidentGame extends Game {
                 var incomingRecord = incomingPlayer.toRecord();
                 incomingRecord.nick = assignedName;
                 next.spillere = players.slice();
+                var colorPlayers = players.map(player => ({
+                    name: player.nick,
+                    displayColor: player.displayColor
+                }));
+                assignPlayerColors({ id: this.id, players: colorPlayers });
+                next.spillere = next.spillere.map((player, index) => Object.assign({}, player, {
+                    displayColor: colorPlayers[index].displayColor
+                }));
+                var existingColors = colorPlayers.filter((player, index) => index != botIndex);
+                var incomingColorPlayer = { name: assignedName };
+                assignPlayerColors({
+                    id: this.id,
+                    players: existingColors.concat([incomingColorPlayer])
+                });
+                incomingRecord.displayColor = incomingColorPlayer.displayColor;
                 if (players.length >= MAX_PLAYERS) {
                     next.spillere[botIndex] = incomingRecord;
                 } else {

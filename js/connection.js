@@ -98,6 +98,28 @@
             catch (error) { console.warn("Kunne ikke fjerne lagret spill.", error); }
             updateResumeButton();
         }
+        function updateTurnTimer() {
+            var timer = document.getElementById("turnTimer");
+            var countdown = document.getElementById("turnCountdown");
+            var extend = document.getElementById("extendTurnButton");
+            if (!timer || !countdown || !extend) { return; }
+            var player = currentGame && currentGame.getPlayer(currentPlayerName);
+            var controlled = player && GamePresence.isBot(currentGame, player);
+            var deadline = player && (currentGame.actionDeadlines || {})[GamePresence.playerId(player)];
+            var now = connection ? connection.now() : Date.now();
+            var active = !!player && !!deadline && !controlled &&
+                (currentGame.status == "S" || currentGame.status == "G");
+            var remaining = active ? Math.max(0, Math.ceil((deadline.until - now) / 1000)) : 0;
+            var seconds = remaining % 60;
+            var text = active
+                ? `${Math.floor(remaining / 60)}:${seconds < 10 ? "0" : ""}${seconds}`
+                : "";
+            if (countdown.textContent != text) { countdown.textContent = text; }
+            timer.hidden = !active;
+            extend.hidden = !active || remaining == 0 || remaining > 30 ||
+                deadline.extended || GamePresence.hasExtendedThisRound(currentGame, player);
+            extend.disabled = !currentGame || currentGame.connectionOnline === false;
+        }
         function refreshConnectionView() {
             if (!currentGame || !currentGame.players) { return; }
             var player = currentGame.getPlayer(currentPlayerName);
@@ -112,17 +134,7 @@
                 connection.listingHost = false;
             }
             GameLayout.updatePlayers(currentGame, player);
-            var deadline = player && (currentGame.actionDeadlines || {})[GamePresence.playerId(player)];
-            var now = connection ? connection.now() : Date.now();
-            var active = player && deadline && !controlled && (currentGame.status == "S" || currentGame.status == "G");
-            var countdown = document.getElementById("turnCountdown");
-            var text = active ? localizedMessage(`Tid igjen: ${Math.max(0, Math.ceil((deadline.until - now) / 1000))} s`) : "";
-            if (countdown.textContent != text) { countdown.textContent = text; }
-            countdown.hidden = !active;
-            var extend = document.getElementById("extendTurnButton");
-            extend.hidden = !active || deadline.extended ||
-                GamePresence.hasExtendedThisRound(currentGame, player) || now >= deadline.until;
-            extend.disabled = !online;
+            updateTurnTimer();
             var reclaim = document.getElementById("reclaimSeatButton");
             reclaim.hidden = !controlled || !player || player.playerKey == "PC";
             reclaim.disabled = !online;
@@ -1876,6 +1888,7 @@
         document.getElementById('BnFSpillogg').addEventListener('click', showGameLog);
 
         setInterval(() => {
+            updateTurnTimer();
             function formatTime(minutes) {
                 const hours = Math.floor(minutes / 60);
                 const remainingMinutes = minutes % 60;

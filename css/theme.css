@@ -1538,13 +1538,31 @@ select:focus-visible {
 }
 
 #gameMenu #readyButton[aria-pressed="true"] {
-    border-color: var(--control-border);
-    background: var(--surface-soft);
-    color: var(--ink);
+    border-color: color-mix(in srgb, var(--danger) 48%, var(--control-border));
+    background: color-mix(in srgb, var(--danger) 16%, var(--surface-soft));
+    color: var(--danger);
 }
 
 #gameMenu #readyButton[aria-pressed="true"]:hover {
-    background: var(--line);
+    background: color-mix(in srgb, var(--danger) 23%, var(--surface-soft));
+}
+
+#gameShell.game-active.Lobby .lobby-primary-action:first-child {
+    margin-bottom: 14px;
+}
+
+#BnFNyAutoSpiller {
+    -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: none) {
+    #gameMenu #BnFNyAutoSpiller:hover,
+    #gameMenu #BnFNyAutoSpiller:active {
+        padding: 8px 12px;
+        transform: none;
+        background: var(--surface-soft);
+        box-shadow: 0 3px 10px rgb(0 0 0 / 18%);
+    }
 }
 
 .round-start-vote__choices button[aria-pressed="true"] {
@@ -2109,16 +2127,65 @@ select:focus-visible {
     pointer-events: none;
 }
 
+.turn-timer {
+    position: absolute;
+    z-index: 70;
+    bottom: 8px;
+    left: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 6px;
+    border: 1px solid rgb(255 255 255 / 12%);
+    border-radius: 8px;
+    background: rgb(0 0 0 / 28%);
+    color: var(--muted);
+}
+
+.turn-timer[hidden] {
+    display: none;
+}
+
+.turn-timer > svg {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.5;
+}
+
 .turn-countdown {
     color: var(--muted);
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-variant-numeric: tabular-nums;
 }
 
-#playerActions > #extendTurnButton {
-    padding: 6px 8px;
-    font-size: 0.75rem;
+#gameTable .turn-timer > #extendTurnButton {
+    min-width: 0;
+    min-height: 24px;
+    margin: 0 0 0 2px;
+    padding: 2px 5px;
+    border-color: color-mix(in srgb, var(--danger) 35%, var(--control-border));
+    background: color-mix(in srgb, var(--danger) 12%, var(--surface-soft));
+    color: var(--muted);
+    box-shadow: none;
+    font-size: 0.65rem;
     white-space: nowrap;
+    animation: turn-extension-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes turn-extension-pulse {
+    0%, 100% { opacity: 0.62; }
+    50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #gameTable .turn-timer > #extendTurnButton {
+        animation: none;
+    }
 }
 
 #reclaimSeatButton {
@@ -2131,6 +2198,7 @@ select:focus-visible {
 }
 
 #resumeGameButton[hidden],
+#turnTimer[hidden],
 #turnCountdown[hidden],
 #extendTurnButton[hidden],
 #reclaimSeatButton[hidden] {

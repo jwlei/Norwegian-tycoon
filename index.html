@@ -110,7 +110,15 @@
         </div>
         <small id="lobbyCapacity" role="status" aria-live="polite" hidden></small>
         <div id="gameTable">
-
+            <div id="turnTimer" class="turn-timer" hidden>
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                    <circle cx="8" cy="8" r="6.5"></circle>
+                    <path d="M8 4.5V8l2.5 1.5"></path>
+                </svg>
+                <span id="turnCountdown"></span>
+                <button type="button" id="extendTurnButton" title="Utsett 120 sekunder"
+                    aria-label="Utsett 120 sekunder" hidden>+120 s</button>
+            </div>
         </div>
         <div id="playerActions" style="text-align: center; vertical-align: middle;">
             <div id="GameToast" class="game-toast" role="status" aria-live="polite" aria-atomic="true" data-i18n-skip></div>
@@ -119,8 +127,6 @@
             <button type="button" id="passButton" title="Pass" aria-label="Pass" style="float: left;">Pass</button>
             <button type="button" id="passButton_Off" title="Pass (ikke tillatt nå)" aria-label="Pass (ikke tillatt nå)" style="float: left;">Pass utilgjengelig</button>
             <span id="exchangePrompt"></span>
-            <span id="turnCountdown" class="turn-countdown" hidden></span>
-            <button type="button" id="extendTurnButton" title="Utsett 120 sekunder" aria-label="Utsett 120 sekunder" hidden>Utsett +120 s</button>
             <br/>
             <span id="playerStatus"></span>
         </div>
