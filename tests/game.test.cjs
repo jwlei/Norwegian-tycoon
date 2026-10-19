@@ -158,6 +158,68 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
     assert.equal(timers.length, timerCount + 1);
 });
 
+test("toast expiry fades from top to bottom and cancels safely when a new message arrives", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    let reducedMotion = false;
+    let speed = "normal";
+    let visible = true;
+    let active = [];
+    const archived = { removed: false, remove() { this.removed = true; } };
+    const toast = {
+        textContent: "Message",
+        classList: { contains: () => visible, remove: () => { visible = false; } },
+        getAnimations: () => active,
+        animate(frames, timing) {
+            const animation = { effect: { target: this }, frames, timing,
+                cancel() { this.cancelled = true; } };
+            active.push(animation);
+            return animation;
+        }
+    };
+    const context = vm.createContext({
+        window: { matchMedia: () => ({ matches: reducedMotion }) },
+        archivedToasts: [], gameToastTimer: 1, activeToastPauseId: "pause", gameToastExpiresAt: 5000,
+        clearTimeout() {},
+        document: {
+            getElementById: id => id == "GameToast" ? toast : { dataset: { animationSpeed: speed } },
+            querySelectorAll: () => [archived]
+        }
+    });
+    const start = source.indexOf("        function toastExitFrames(");
+    vm.runInContext(source.slice(start, source.indexOf("        function resetGameLog(", start)), context);
+    for (const preference of ["normal", "fast", "slow"]) {
+        speed = preference;
+        visible = true;
+        toast.textContent = "Message";
+        active = [];
+        context.hideGameToast(false, true);
+        assert.equal(visible, true, "Text must remain while the mask reveals the backup behind it");
+        assert.equal(toast.textContent, "Message");
+        const animation = active[0];
+        assert.equal(animation.timing.duration, preference == "fast" ? 180 : 320);
+        assert.equal(animation.frames[0].maskPosition, "0% 100%");
+        assert.equal(animation.frames[1].maskPosition, "0% 0%");
+        assert.equal(animation.frames[0].maskSize, "100% 300%");
+        assert.equal(animation.timing.fill, "forwards");
+        animation.onfinish();
+        assert.equal(visible, false);
+        assert.equal(toast.textContent, "");
+    }
+    visible = true;
+    active = [];
+    context.hideGameToast(false, true);
+    const pendingExit = active[0];
+    context.hideGameToast();
+    assert.equal(pendingExit.cancelled, true, "Clearing before replacement must cancel the old fade");
+    assert.equal(archived.removed, true);
+    visible = true;
+    active = [];
+    reducedMotion = true;
+    context.hideGameToast(false, true);
+    assert.equal(active.length, 0);
+    assert.equal(visible, false);
+});
+
 test("hiding toasts persists locally, clears the stack and hides only message speed settings", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const saved = new Map();
@@ -711,6 +773,35 @@ test("a playable club three is suggested to clear a single-card trick before the
     );
 });
 
+test("club three is suggested before the only other combination on empty, single and grouped tables", () => {
+    const { PresidentCard, chooseSuggestedPlayStrength } = loadGame();
+    const club = new PresidentCard(3, 3);
+    for (const rank of [3, 5, 2]) {
+        for (const count of [1, 2, 3, 4]) {
+            const suits = rank == 3 ? [1, 2, 4] : [1, 2, 3, 4];
+            if (count > suits.length) { continue; }
+            const rest = suits.slice(0, count).map(suit => new PresidentCard(suit, rank));
+            const strength = rest[0].strengthRank;
+            for (const top of [null, [new PresidentCard(1, 4)],
+                [new PresidentCard(1, 4), new PresidentCard(2, 4)],
+                [1, 2, 3, 4].map(suit => new PresidentCard(suit, 4))]) {
+                const required = top?.length || 1;
+                const player = { cards: [club, ...rest] };
+                assert.equal(chooseSuggestedPlayStrength(player, top, new Set([strength, 16]), required), 16);
+                assert.equal(chooseSuggestedPlayStrength(player, top, new Set([strength]), required), strength,
+                    "An unavailable club three must never be suggested");
+                assert.equal(chooseSuggestedPlayStrength(player, top, new Set(), required), undefined);
+            }
+        }
+    }
+    assert.equal(chooseSuggestedPlayStrength({
+        cards: [club, new PresidentCard(1, 5), new PresidentCard(2, 6)]
+    }, null, new Set([5, 6, 16]), 1), 5, "Multiple remaining combinations retain the normal suggestion");
+    assert.equal(chooseSuggestedPlayStrength({
+        cards: [new PresidentCard(1, 5), new PresidentCard(2, 5)]
+    }, null, new Set([5]), 1), 5);
+});
+
 test("single threes favor ordinary singles, then the lowest legal triple over club three", () => {
     const { PresidentCard, chooseSuggestedPlayStrength } = loadGame();
     const top = [new PresidentCard(1, 3)];
@@ -729,6 +820,40 @@ test("single threes favor ordinary singles, then the lowest legal triple over cl
     assert.equal(chooseSuggestedPlayStrength(
         { cards: triple(5) }, top, new Set(), 1
     ), undefined);
+});
+
+test("skipped extra trades notify only the recipient once without being replaced by the starter notice", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const start = source.indexOf("        function receiveSkippedTrades(");
+    const end = source.indexOf("        function notifyStartedTrades(", start);
+    for (const recipient of ["Neutral", "Boms"]) {
+        const messages = [];
+        const context = vm.createContext({
+            currentPlayerName: recipient,
+            showGameToast: (message, game) => messages.push({ message, status: game.status })
+        });
+        vm.runInContext(source.slice(start, end), context);
+        const game = { status: "G" };
+        const previous = { id: "old", sender: "Previous", recipient };
+        context.receiveSkippedTrades(game, [previous]);
+        assert.equal(messages.length, 0, "Opening an existing game must not replay old decisions");
+        const trade = { id: "new", sender: recipient == "Neutral" ? "President" : "Neutral", recipient };
+        const unrelated = { id: "other", sender: "Other", recipient: "Spectator" };
+        game.status = recipient == "Boms" ? "S" : "G";
+        context.receiveSkippedTrades(game, [previous, trade, unrelated]);
+        assert.equal(messages.length, 1);
+        assert.equal(messages[0].message, `${trade.sender} valgte å ikke gjennomføre ekstra bytte med deg.`);
+        assert.equal(messages[0].status, game.status, "The final skip must notify even after exchange status ends");
+        context.receiveSkippedTrades(game, [previous, trade, unrelated]);
+        assert.equal(messages.length, 1);
+        assert.equal(game.skippedTrades.length, 3);
+    }
+    const receive = source.indexOf("receiveSkippedTrades(connectingGame, snapshotRecord.skippedTrades");
+    assert.ok(receive >= 0);
+    const listener = source.slice(source.indexOf("currentGameListener = function (snapshot)"));
+    assert.ok(listener.indexOf("flashRoundStarter();") < listener.indexOf("receiveSkippedTrades(connectingGame"),
+        "The skip feedback must stay visible even with fast animations when play starts");
+    assert.ok(listener.indexOf("receiveSkippedTrades(connectingGame") < listener.indexOf("scheduleBotLoop();"));
 });
 
 test("trade start toasts report either outcome once and only to participants", () => {
@@ -1424,15 +1549,18 @@ test("a stale room save cannot remove another client's exchange receipt within t
     const receipt = { id: "received", recipient: "Human", sender: "Bot 1", cards: [{ suit: 1, rank: 8 }] };
     let record = {
         status: "S", runde: game.round, shuffleStartedAt: null,
-        exchangeReceipts: [receipt]
+        exchangeReceipts: [receipt],
+        skippedTrades: [{ id: "skip", sender: "Human", recipient: "Bot 1" }]
     };
     game.databaseRef = { transaction(transform) { record = transform(record); } };
     game.exchangeReceipts = [];
     game.save();
     assert.deepEqual(Array.from(record.exchangeReceipts), [receipt]);
+    assert.equal(record.skippedTrades[0].id, "skip");
     game.shuffleStartedAt = Date.now();
     game.save();
     assert.equal(record.exchangeReceipts.length, 0);
+    assert.equal(record.skippedTrades.length, 0);
 });
 
 test("the play button rejects empty and illegal selections without playing", () => {

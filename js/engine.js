@@ -333,6 +333,7 @@ class PresidentGame extends Game {
             "shuffleStartedAt": this.shuffleStartedAt,
             "playedCards": this.playedCards || [],
             "exchangeReceipts": this.exchangeReceipts || [],
+            "skippedTrades": this.skippedTrades || [],
             "dealTotal": this.dealTotal ?? null,
             "dealStarterStep": this.dealStarterStep ?? null,
             "hostKey": this.hostKey,
@@ -386,6 +387,9 @@ class PresidentGame extends Game {
                     var receipts = new Map((current.exchangeReceipts || []).map(receipt => [receipt.id, receipt]));
                     update.exchangeReceipts.forEach(receipt => receipts.set(receipt.id, receipt));
                     next.exchangeReceipts = Array.from(receipts.values());
+                    var skippedTrades = new Map((current.skippedTrades || []).map(trade => [trade.id, trade]));
+                    update.skippedTrades.forEach(trade => skippedTrades.set(trade.id, trade));
+                    next.skippedTrades = Array.from(skippedTrades.values());
                 }
                 next.turnSeconds = gameTurnSeconds(current.turnSeconds);
                 next.fastForward = current.fastForward === true &&
@@ -1301,6 +1305,7 @@ class PresidentGame extends Game {
             this.piles = [];
             this.status = "G"; // Exchange cards.
             this.exchangeReceipts = [];
+            this.skippedTrades = [];
             this.setTurn(null);
             if (this.players.length >= 5) {
                 if (vicePresidentIndex < 0 || viceBomsIndex < 0) {
@@ -1488,6 +1493,11 @@ class PresidentGame extends Game {
         if (currentOffer.from != playerIndex) {
             throw ("Du kan ikke avslå dette byttet.");
         }
+        this.skippedTrades = [...(this.skippedTrades || []), {
+            id: `${this.shuffleStartedAt}:${this.round}:${getExchangeId(currentOffer)}`,
+            sender: this.players[currentOffer.from].name,
+            recipient: this.players[currentOffer.to].name
+        }];
         this.piles.splice(this.piles.indexOf(currentOffer), 1);
         this.recordHumanAction(this.players[playerIndex]);
         this.advanceExchangeStage();

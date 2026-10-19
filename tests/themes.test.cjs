@@ -130,6 +130,15 @@ test("board toasts anchor four pixels above the bottom and keep turn controls cl
     assert.doesNotMatch(css, /#gameTable[^{}]*:has\(#gameToastRegion[^{}]*\)[^{}]*\{[^}]*--table-card-height:/);
 });
 
+test("table summary is a single-line backup aligned behind board toasts", () => {
+    assert.match(css, /\.table-pile-summary\s*\{[^}]*z-index:\s*60;[^}]*bottom:\s*4px;[^}]*width:\s*min\(440px, calc\(100% - 20px\)\);[^}]*height:\s*40px;[^}]*white-space:\s*nowrap;/);
+    assert.match(css, /#gameToastRegion\s*\{[^}]*z-index:\s*65;/);
+    const layout = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    assert.ok(layout.includes('`På bordet ligger: ${describeRequiredPlay(game)}`'));
+    assert.ok(layout.includes('`Du må slå: ${describeRequiredPlay(game)}`'));
+    assert.match(layout, /tableSummary\.title = tableSummary\.textContent;/);
+});
+
 test("fast-forward controls live outside the board at the top-right of the actions area", () => {
     assert.match(html, /id="playerActions"[^>]*>\s*<div id="playbackControls">\s*<button[^>]*id="fastForwardButton"/);
     assert.match(css, /#playbackControls\s*\{[^}]*position:\s*absolute;[^}]*top:\s*4px;[^}]*right:\s*8px;/);
@@ -137,10 +146,10 @@ test("fast-forward controls live outside the board at the top-right of the actio
     assert.ok(!layout.includes("fastForwardElement"), "Table redraws must not reparent playback controls");
 });
 
-test("visible release and versioned local assets use version 0.8.10", () => {
-    assert.ok(html.includes('aria-label="Spillversjon 0.8.10">v0.8.10</span>'));
+test("visible release and versioned local assets use version 0.8.11", () => {
+    assert.ok(html.includes('aria-label="Spillversjon 0.8.11">v0.8.11</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"]+)"/g),
         match => match[1]);
     assert.ok(versions.length > 0);
-    assert.ok(versions.every(version => version === "0.8.10"));
+    assert.ok(versions.every(version => version === "0.8.11"));
 });

@@ -153,9 +153,13 @@ test("only the initiator may decline an optional trade, regardless of role or bo
             assert.throws(() => game.skipOptionalTrade(offer, (from + 2) % 3), /kan ikke avslå/);
             assert.equal(game.status, "G");
             assert.equal(game.piles[0], offer);
+            assert.equal(game.skippedTrades, undefined);
             game.skipOptionalTrade(offer, from);
             assert.equal(game.status, "S");
             assert.equal(game.piles.length, 0);
+            assert.equal(game.skippedTrades.length, 1);
+            assert.equal(game.skippedTrades[0].sender, game.players[from].name);
+            assert.equal(game.skippedTrades[0].recipient, game.players[from + 1].name);
         }
     }
 });

@@ -3,11 +3,12 @@ function chooseSuggestedPlayStrength(player, topPile, playableStrengths, require
     var otherTricks = new Set(player.cards
         .filter(card => !card.isClubThree())
         .map(card => card.strengthRank));
-    if (topPile.length == 1 && player.cards.length > 1 &&
+    if (player.cards.length > 1 &&
         otherTricks.size == 1 && playableStrengths.has(clubThreePower)) {
         return clubThreePower;
     }
     var sortedPlayableStrengths = Array.from(playableStrengths).sort((a, b) => a - b);
+    if (topPile == null) { return sortedPlayableStrengths[0]; }
     if (topPile.length == 1) {
         sortedPlayableStrengths = sortedPlayableStrengths.filter(strength => strength != clubThreePower);
         if (sortedPlayableStrengths.length == 0) {
@@ -1329,8 +1330,9 @@ class GameLayout {
                     var tableSummary = document.createElement("div");
                     tableSummary.className = "table-pile-summary";
                     tableSummary.textContent = player != null && player.turn == 1
-                        ? `Du må slå:\n${describeRequiredPlay(game)}`
-                        : `På bordet ligger:\n${describeRequiredPlay(game)}`;
+                        ? `Du må slå: ${describeRequiredPlay(game)}`
+                        : `På bordet ligger: ${describeRequiredPlay(game)}`;
+                    tableSummary.title = tableSummary.textContent;
                     table.appendChild(tableSummary);
                 }
                 if (isNewPause && !shouldAnimatePlayedPause && !isAnimatingPlayedPause) {
@@ -2003,7 +2005,9 @@ class GameLayout {
                 autoSelectedTurnKey = turnKey;
                 var suggestionApplied = false;
                 if (topPile == null) {
-                    var lowestHandStrength = Math.min(...player.cards.map(card => card.strengthRank));
+                    var lowestHandStrength = autoSuggestPlayableCards
+                        ? chooseSuggestedPlayStrength(player, null, playableStrengths, 1)
+                        : Math.min(...player.cards.map(card => card.strengthRank));
                     lowestCardKeys = player.cards
                         .filter(card => card.strengthRank == lowestHandStrength)
                         .map(card => `${card.suit}:${card.rank}`);

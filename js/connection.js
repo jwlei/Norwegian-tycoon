@@ -655,7 +655,27 @@
             }
         }
 
-        function hideGameToast(clearHistory = true) {
+        function toastExitFrames() {
+            var mask = "linear-gradient(to bottom, transparent 33.333%, black 66.667%)";
+            return [
+                { maskImage: mask, maskSize: "100% 300%", maskPosition: "0% 100%" },
+                { maskImage: mask, maskSize: "100% 300%", maskPosition: "0% 0%" }
+            ];
+        }
+
+        function fadeOutToast(node, onComplete) {
+            if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+                onComplete();
+                return;
+            }
+            var fast = document.getElementById("gameToastRegion").dataset.animationSpeed == "fast";
+            var animation = node.animate(toastExitFrames(), {
+                duration: fast ? 180 : 320, easing: "ease-in-out", fill: "forwards"
+            });
+            animation.onfinish = onComplete;
+        }
+
+        function hideGameToast(clearHistory = true, animate = false) {
             if (clearHistory) {
                 archivedToasts.forEach(entry => { clearTimeout(entry.timer); entry.node.remove(); });
                 archivedToasts = [];
@@ -667,6 +687,12 @@
                 gameToastTimer = null;
             }
             var toast = document.getElementById("GameToast");
+            toast.getAnimations().filter(animation => animation.effect.target == toast)
+                .forEach(animation => animation.cancel());
+            if (animate && toast.classList.contains("is-visible")) {
+                fadeOutToast(toast, () => hideGameToast(clearHistory));
+                return;
+            }
             toast.classList.remove("is-visible");
             toast.textContent = "";
             activeToastPauseId = null;
@@ -777,6 +803,18 @@
             log.scrollTop = log.scrollHeight;
         }
 
+        function receiveSkippedTrades(game, trades) {
+            if (!game.notifiedSkippedTrades) { game.notifiedSkippedTrades = new Set(); }
+            trades.forEach(trade => {
+                if (game.notifiedSkippedTrades.has(trade.id)) { return; }
+                game.notifiedSkippedTrades.add(trade.id);
+                if (game.skippedTrades != null && trade.recipient == currentPlayerName) {
+                    showGameToast(`${trade.sender} valgte å ikke gjennomføre ekstra bytte med deg.`, game);
+                }
+            });
+            game.skippedTrades = trades;
+        }
+
         function notifyStartedTrades(game) {
             if (game.status != "G") { return; }
             if (!game.notifiedTrades) { game.notifiedTrades = new Set(); }
@@ -854,7 +892,7 @@
             if (gameToastTimer != null) {
                 clearTimeout(gameToastTimer);
             }
-            gameToastTimer = setTimeout(() => hideGameToast(false), duration);
+            gameToastTimer = setTimeout(() => hideGameToast(false, true), duration);
         }
 
         function archiveGameToast(toast) {
@@ -866,9 +904,10 @@
                 clearTimeout(entry.timer);
                 if (fast || reduced) { entry.node.remove(); return; }
                 entry.node.classList.add("game-toast--exiting");
+                var frames = toastExitFrames();
                 var exit = entry.node.animate([
-                    { transform: getComputedStyle(entry.node).transform, opacity: 1 },
-                    { transform: `translateY(-${toast.getBoundingClientRect().height + 6}px)`, opacity: 0 }
+                    { ...frames[0], transform: getComputedStyle(entry.node).transform, opacity: 1 },
+                    { ...frames[1], transform: `translateY(-${toast.getBoundingClientRect().height + 6}px)`, opacity: 0 }
                 ], { duration: 320, easing: "cubic-bezier(.2,.8,.25,1)", fill: "forwards" });
                 exit.onfinish = () => entry.node.remove();
                 exit.oncancel = () => entry.node.remove();
@@ -887,16 +926,22 @@
             node.style.left = "";
             node.style.top = "";
             entry.timer = setTimeout(() => {
-                node.remove();
                 archivedToasts = archivedToasts.filter(item => item != entry);
+                if (fast) {
+                    node.remove();
+                } else {
+                    node.classList.add("game-toast--exiting");
+                    fadeOutToast(node, () => node.remove());
+                }
                 positionArchivedToasts();
             }, fast ? 180 : Math.max(0, entry.expiresAt - Date.now()));
             archivedToasts.push(entry);
             if (!reduced) {
                 var height = toast.getBoundingClientRect().height;
+                var frames = toastExitFrames();
                 node.animate(fast ? [
-                    { transform: "scale(1)", opacity: 1 },
-                    { transform: "scale(1.12)", opacity: 0 }
+                    { ...frames[0], transform: "scale(1)", opacity: 1 },
+                    { ...frames[1], transform: "scale(1.12)", opacity: 0 }
                 ] : [
                     { transform: `translateY(${height + 6}px)`, opacity: 1 },
                     { transform: "translateY(0)", opacity: 1 }
@@ -1355,7 +1400,7 @@
         }
 
         function dismissGameToast() {
-            hideGameToast();
+            hideGameToast(true, true);
         }
 
         function clearSelectedCardsFromBackground(event) {
@@ -1853,6 +1898,7 @@
                     handleGameEndVote(connectingGame);
                     playShuffleIfNew(connectingGame);
                     flashRoundStarter();
+                    receiveSkippedTrades(connectingGame, snapshotRecord.skippedTrades || []);
                     tryJoinWaitingSpectator(connectingGame);
                     updateFastForwardButton();
                     scheduleBotLoop();
