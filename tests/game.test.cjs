@@ -264,39 +264,116 @@ test("clearing card flights cancels and removes overlays from the page", () => {
     assert.equal(removed, 1);
 });
 
-test("turn timer is hidden for a solo human and shown once another human is active", () => {
+function turnTimerFixture() {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const start = source.indexOf("        function updateTurnTimer()");
     const end = source.indexOf("        function refreshConnectionView()", start);
-    const render = activeHumanCount => {
-        const elements = {
-            turnTimer: { hidden: true },
-            turnCountdown: { textContent: "" },
-            extendTurnButton: { hidden: true, disabled: false }
-        };
-        const player = { name: "Owner", playerKey: "owner" };
-        const context = vm.createContext({
-            currentGame: {
-                status: "S", getPlayer: () => player,
-                actionDeadlines: { owner: { until: 200000, extended: false } }
-            },
-            currentPlayerName: "Owner",
-            connection: { now: () => 80000 },
-            GamePresence: {
-                isBot: () => false, playerId: () => "owner",
-                activeHumanCount: () => activeHumanCount,
-                hasExtendedThisRound: () => false
-            },
-            document: { getElementById: id => elements[id] }
-        });
-        vm.runInContext(source.slice(start, end), context);
-        vm.runInContext("updateTurnTimer()", context);
-        return elements;
+    const { GamePresence } = loadGame();
+    const elements = {
+        turnTimer: { hidden: true },
+        turnCountdown: { textContent: "" },
+        extendTurnButton: { hidden: true, disabled: false }
     };
-    assert.equal(render(1).turnTimer.hidden, true);
-    const multiplayer = render(2);
-    assert.equal(multiplayer.turnTimer.hidden, false);
-    assert.equal(multiplayer.turnCountdown.textContent, "2:00");
+    const players = ["Owner", "Guest", "Third"].map(name => ({ name, playerKey: name }));
+    const id = GamePresence.playerId(players[0]);
+    let now = 80000;
+    const game = {
+        status: "S", turn: 0, players, getPlayer: name => players.find(player => player.name == name),
+        actionDeadlines: { [id]: { until: 200000, extended: false } }
+    };
+    const context = vm.createContext({
+        currentGame: game, currentPlayerName: "Owner",
+        connection: { now: () => now }, GamePresence,
+        document: { getElementById: id => elements[id] }
+    });
+    vm.runInContext(source.slice(start, end), context);
+    return {
+        game, players, elements, id, GamePresence, context,
+        set now(value) { now = value; },
+        render(name = "Owner") {
+            context.currentPlayerName = name;
+            vm.runInContext("updateTurnTimer()", context);
+            return elements;
+        }
+    };
+}
+
+test("all players and spectators see the active human's full 2:00 to 0:00 countdown", () => {
+    const fixture = turnTimerFixture();
+    for (let elapsed = 0; elapsed <= 120; elapsed++) {
+        fixture.now = 80000 + elapsed * 1000;
+        for (const name of ["Owner", "Guest", "Third", "Spectator"]) {
+            const elements = fixture.render(name);
+            const remaining = 120 - elapsed;
+            assert.equal(elements.turnTimer.hidden, false);
+            assert.equal(elements.turnCountdown.textContent,
+                `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`);
+            assert.equal(elements.extendTurnButton.hidden,
+                name != "Owner" || remaining == 0 || remaining > 30);
+        }
+    }
+    fixture.now = 201000;
+    assert.equal(fixture.render().turnCountdown.textContent, "0:00");
+});
+
+test("turn timers require at least three active humans, not bots or abandoned seats", () => {
+    for (const update of [
+        fixture => { fixture.game.players = fixture.players.slice(0, 1); },
+        fixture => { fixture.game.players = fixture.players.slice(0, 2); },
+        fixture => { fixture.players[2].playerKey = "PC"; },
+        fixture => { fixture.players[2].gaveUp = true; },
+        fixture => {
+            fixture.game.controllers = {
+                [fixture.GamePresence.playerId(fixture.players[2])]: { reason: "idle" }
+            };
+        }
+    ]) {
+        const fixture = turnTimerFixture();
+        update(fixture);
+        assert.equal(fixture.render().turnTimer.hidden, true);
+    }
+});
+
+test("turn timers hide during pauses, inactive states and bot turns and follow turn changes", () => {
+    const fixture = turnTimerFixture();
+    const { game, players, GamePresence } = fixture;
+    game.turnPause = { until: 90000 };
+    assert.equal(fixture.render().turnTimer.hidden, true);
+    game.turnPause = null;
+    for (const status of ["O", "F", "V"]) {
+        game.status = status;
+        assert.equal(fixture.render().turnTimer.hidden, true);
+    }
+    game.status = "S";
+    game.turn = 1;
+    assert.equal(fixture.render().turnTimer.hidden, true);
+    game.actionDeadlines[GamePresence.playerId(players[1])] = { until: 180000 };
+    assert.equal(fixture.render().turnCountdown.textContent, "1:40");
+    game.players.push({ name: "Bot", playerKey: "PC" });
+    game.turn = 3;
+    game.actionDeadlines[GamePresence.playerId(game.players[3])] = { until: 200000 };
+    assert.equal(fixture.render().turnTimer.hidden, true);
+});
+
+test("exchange timers prefer the viewer's own deadline and only offer their own extension", () => {
+    const fixture = turnTimerFixture();
+    fixture.game.status = "G";
+    fixture.now = 180000;
+    assert.equal(fixture.render("Guest").turnCountdown.textContent, "0:20");
+    assert.equal(fixture.elements.extendTurnButton.hidden, true);
+    const guestId = fixture.GamePresence.playerId(fixture.players[1]);
+    fixture.game.actionDeadlines[guestId] = { until: 205000 };
+    assert.equal(fixture.render("Guest").turnCountdown.textContent, "0:25");
+    assert.equal(fixture.elements.extendTurnButton.hidden, false);
+    fixture.game.actionDeadlines[guestId].extended = true;
+    assert.equal(fixture.render("Guest").extendTurnButton.hidden, true);
+    fixture.game.actionDeadlines[guestId].extended = false;
+    fixture.game.turnExtensions = { [guestId]: fixture.GamePresence.roundToken(fixture.game) };
+    assert.equal(fixture.render("Guest").extendTurnButton.hidden, true);
+    fixture.game.connectionOnline = false;
+    assert.equal(fixture.render("Guest").extendTurnButton.disabled, true);
+    fixture.context.currentGame = null;
+    assert.equal(fixture.render().turnTimer.hidden, true);
 });
 
 test("consent stays private and remains available after a trade starts until cards are given", () => {

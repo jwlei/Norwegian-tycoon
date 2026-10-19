@@ -100,7 +100,7 @@
         "Kunne ikke registrere tilkoblingen. Prøver igjen.": "Could not register the connection. Retrying.",
         "Kunne ikke oppdatere spillerstatus. Prøver igjen.": "Could not update player status. Retrying.",
         "Kunne ikke oppdatere tidsfristen. Prøv igjen.": "Could not update the deadline. Try again.",
-        "Du har 120 sekunder per trekk og kan utsette én gang per runde med 120 sekunder. Ved tidsavbrudd eller 120 sekunders frakobling overtar en bot. Trykk «Ta tilbake plassen» når du er tilbake. En frakoblet vert erstattes etter 240 sekunder.": "You have 120 seconds per turn and may extend once per round by 120 seconds. After a timeout or 120 seconds disconnected, a bot takes over. Press “Take back your seat” when you return. A disconnected host is replaced after 240 seconds.",
+        "Med minst tre aktive menneskespillere vises nedtellingen for alle. Du har 120 sekunder per trekk og kan utsette én gang per runde med 120 sekunder. Ved tidsavbrudd eller 120 sekunders frakobling overtar en bot. Trykk «Ta tilbake plassen» når du er tilbake. En frakoblet vert erstattes etter 240 sekunder.": "With at least three active human players, everyone can see the countdown. You have 120 seconds per turn and may extend once per round by 120 seconds. After a timeout or 120 seconds disconnected, a bot takes over. Press “Take back your seat” when you return. A disconnected host is replaced after 240 seconds.",
         "Sneaky-samtykke ikke nådd. Byttet starter med kort 7–J.": "Sneaky consent not reached. The trade starts with cards 7–J.",
         "Vanlig bytte: kort 7–J.": "Normal trade: cards 7–J.",
         "Hvor lenge meldinger vises": "How long messages are shown",

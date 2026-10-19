@@ -103,12 +103,19 @@
             var countdown = document.getElementById("turnCountdown");
             var extend = document.getElementById("extendTurnButton");
             if (!timer || !countdown || !extend) { return; }
-            var player = currentGame && currentGame.getPlayer(currentPlayerName);
+            var localPlayer = currentGame && currentGame.getPlayer(currentPlayerName);
+            var deadlines = currentGame && currentGame.actionDeadlines || {};
+            var player = currentGame && (currentGame.status == "S"
+                ? (currentGame.turnPause == null ? currentGame.players[currentGame.turn] : null)
+                : currentGame.players.find(candidate => candidate == localPlayer &&
+                    deadlines[GamePresence.playerId(candidate)] && !GamePresence.isBot(currentGame, candidate)) ||
+                    currentGame.players.find(candidate =>
+                        deadlines[GamePresence.playerId(candidate)] && !GamePresence.isBot(currentGame, candidate)));
             var controlled = player && GamePresence.isBot(currentGame, player);
-            var deadline = player && (currentGame.actionDeadlines || {})[GamePresence.playerId(player)];
+            var deadline = player && deadlines[GamePresence.playerId(player)];
             var now = connection ? connection.now() : Date.now();
             var active = !!player && !!deadline && !controlled &&
-                GamePresence.activeHumanCount(currentGame) > 1 &&
+                GamePresence.activeHumanCount(currentGame) > 2 &&
                 (currentGame.status == "S" || currentGame.status == "G");
             var remaining = active ? Math.max(0, Math.ceil((deadline.until - now) / 1000)) : 0;
             var seconds = remaining % 60;
@@ -117,7 +124,7 @@
                 : "";
             if (countdown.textContent != text) { countdown.textContent = text; }
             timer.hidden = !active;
-            extend.hidden = !active || remaining == 0 || remaining > 30 ||
+            extend.hidden = !active || player != localPlayer || remaining == 0 || remaining > 30 ||
                 deadline.extended || GamePresence.hasExtendedThisRound(currentGame, player);
             extend.disabled = !currentGame || currentGame.connectionOnline === false;
         }
