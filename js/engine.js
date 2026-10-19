@@ -1364,7 +1364,7 @@ class PresidentGame extends Game {
             mode: "Velg",
             cards: [],
             sneakyVotes: votes.slice(),
-            sneakyLocked: true
+            sneakyLocked: false
         });
         this.piles.push(
             createExchange(currentOffer.from, currentOffer.to),
@@ -1399,7 +1399,8 @@ class PresidentGame extends Game {
         var current = this.piles.find(candidate =>
             getExchangeId(candidate) == getExchangeId(exchange)
         );
-        if (!current || current.kind != "playerTrade" || current.mode != "Tilbud") {
+        if (!current || current.kind != "playerTrade" ||
+            (current.mode != "Tilbud" && current.mode != "Velg")) {
             throw ("Sneaky-samtykke kan ikke endres nå.");
         }
         if (playerIndex != current.from && playerIndex != current.to) {
@@ -1408,12 +1409,16 @@ class PresidentGame extends Game {
         var relatedExchanges = this.piles.filter(candidate =>
             candidate.tradeId != null && candidate.tradeId == current.tradeId
         );
+        if (relatedExchanges.some(candidate =>
+            candidate.sneakyLocked === true ||
+            (candidate.cards || []).length > 0 ||
+            (candidate.mode != "Tilbud" && candidate.mode != "Velg")
+        )) {
+            throw ("Sneaky-samtykke kan ikke endres etter at kort er valgt.");
+        }
         var votes = (current.sneakyVotes || []).slice();
         var voteIndex = votes.indexOf(playerIndex);
         if (voteIndex >= 0) {
-            if (relatedExchanges.some(candidate => candidate.cards && candidate.cards.length > 0)) {
-                throw ("Sneaky-samtykke kan ikke trekkes tilbake etter at kort er valgt.");
-            }
             votes.splice(voteIndex, 1);
         } else {
             votes.push(playerIndex);
@@ -1472,12 +1477,38 @@ class PresidentGame extends Game {
                 this.roundStarterName = null;
                 this.setTurn(startIndex);
             }
-        } else if (this.piles.every(exchange => exchange.mode == "Gitt")) {
-            this.piles.forEach(exchange => {
-                exchange.mode = "Kan se";
+        } else {
+            var exchangeGroups = new Map();
+            this.piles.filter(exchange => exchange.mode != "Tilbud").forEach(exchange => {
+                var groupId = exchange.tradeId != null ? `trade:${exchange.tradeId}` : "mandatory";
+                if (!exchangeGroups.has(groupId)) { exchangeGroups.set(groupId, []); }
+                exchangeGroups.get(groupId).push(exchange);
             });
-            this.setTurn(-1);
+            var completedExchanges = Array.from(exchangeGroups.values())
+                .filter(group => group.every(exchange => exchange.mode == "Gitt"))
+                .flat();
+            if (completedExchanges.length > 0) {
+                var completedExchangeSet = new Set(completedExchanges);
+                completedExchanges.forEach(exchange => this.deliverExchangeCards(exchange));
+                this.piles = this.piles.filter(exchange => !completedExchangeSet.has(exchange));
+                if (this.piles.length == 0) { this.advanceExchangeStage(); }
+            }
         }
+    }
+    deliverExchangeCards(exchange) {
+        if (exchange.cards.length != exchange.count) { throw ("Feil antall kort som byttes."); };
+        exchange.cards.forEach(k => {
+            this.players[exchange.to].cards.push(new PresidentCard(k.suit, k.rank));
+        });
+        this.players[exchange.to].cards.sortCards();
+        markReceivedCards(`${this.id}:${this.players[exchange.to].name}`, exchange.cards);
+        document.dispatchEvent(new CustomEvent("exchange-cards-received", {
+            detail: {
+                game: this, recipient: this.players[exchange.to].name,
+                sender: this.players[exchange.from].name,
+                cards: exchange.cards.map(card => new Card(card.suit, card.rank))
+            }
+        }));
     }
     giveExchangeCards(exchange) {
         this.assertSessionActive();
@@ -1518,20 +1549,9 @@ class PresidentGame extends Game {
         this.assertSessionActive();
         if (this.status != "G") { throw ("Spillet er ikke i bytte-modus."); };
         if (exchange.mode != 'Kan se') { throw (`Kan ikke gi kort når modus er ${exchange.mode} (må være Kan se).`); };
-        if (exchange.cards.length != exchange.count) { throw ("Feil antall kort som byttes."); };
-        exchange.cards.forEach(k => {
-            this.players[exchange.to].cards.push(new PresidentCard(k.suit, k.rank));
-        });
-        this.players[exchange.to].cards.sortCards();
-        markReceivedCards(`${this.id}:${this.players[exchange.to].name}`, exchange.cards);
-        document.dispatchEvent(new CustomEvent("exchange-cards-received", {
-            detail: {
-                game: this, recipient: this.players[exchange.to].name,
-                sender: this.players[exchange.from].name,
-                cards: exchange.cards.map(card => new Card(card.suit, card.rank))
-            }
-        }));
-        this.piles.splice(this.piles.findIndex(b => (b == exchange)), 1);
+        this.deliverExchangeCards(exchange);
+        var exchangeIndex = this.piles.findIndex(b => b == exchange);
+        if (exchangeIndex >= 0) { this.piles.splice(exchangeIndex, 1); }
         this.recordHumanAction(this.players[exchange.to]);
         this.advanceExchangeStage();
         this.save();

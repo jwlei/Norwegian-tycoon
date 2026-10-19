@@ -186,6 +186,53 @@ test("receiving an exchange emits mixed-rank renderable cards before play starts
     assert.ok(events[0].detail.cards.every(card => card.toImageDataUri("normal")));
 });
 
+test("confirmed outgoing exchanges automatically deliver cards and start the round", () => {
+    const events = [];
+    const { PresidentGame, PresidentPlayer, PresidentCard } = loadGame(null, {
+        document: { dispatchEvent: event => events.push(event) },
+        clearTimeout() {},
+        CustomEvent: class {
+            constructor(type, options) { this.type = type; this.detail = options.detail; }
+        }
+    });
+    const players = ["Sender", "Recipient"].map(name => new PresidentPlayer(name, "human-key"));
+    players.forEach(player => { player.cards.sortCards = () => {}; });
+    players[0].cards.push(new PresidentCard(1, 7));
+    players[1].cards.push(new PresidentCard(2, 8));
+    const exchanges = [{
+        from: 0, to: 1, mode: "Velg", count: 1, cards: [players[0].cards[0]]
+    }, {
+        from: 1, to: 0, mode: "Velg", count: 1, cards: [players[1].cards[0]]
+    }];
+    const optionalOffer = {
+        id: "optional", tradeId: "optional-trade", kind: "playerTrade",
+        from: 0, to: 1, mode: "Tilbud", count: 1, cards: [], sneakyVotes: []
+    };
+    const game = Object.assign(Object.create(PresidentGame.prototype), {
+        id: "auto-exchange", status: "G", round: 2, roundStarterName: null,
+        players, piles: exchanges.concat(optionalOffer)
+    });
+    game.assertSessionActive = () => {};
+    game.recordHumanAction = () => {};
+    game.save = () => {};
+
+    game.giveExchangeCards(exchanges[0]);
+    assert.equal(game.piles[0].mode, "Gitt");
+    assert.deepEqual(Array.from(players[1].cards, card => card.rank), [8]);
+    game.giveExchangeCards(exchanges[1]);
+
+    assert.equal(game.status, "G");
+    assert.deepEqual(game.piles, [optionalOffer]);
+    assert.deepEqual(Array.from(players[0].cards, card => card.rank), [8]);
+    assert.deepEqual(Array.from(players[1].cards, card => card.rank), [7]);
+    assert.deepEqual(events.map(event => event.type), [
+        "exchange-cards-received", "exchange-cards-received"
+    ]);
+    game.skipOptionalTrade(optionalOffer, 0);
+    assert.equal(game.status, "S");
+    assert.equal(game.piles.length, 0);
+});
+
 function loadGame(cardStyle = null, globals = {}) {
     const context = vm.createContext({
         console, getCookie: () => null, getPlayerKey: () => "human-key", setTimeout: () => 0,
@@ -195,7 +242,7 @@ function loadGame(cardStyle = null, globals = {}) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(source, context);
     }
-    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, GamePresence, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage })", context);
+    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, GamePresence, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage, isCardAllowedForExchange, chooseSuggestedPlayStrength })", context);
 }
 
 test("clearing card flights cancels and removes overlays from the page", () => {
@@ -298,12 +345,57 @@ test("consent is private to the two trade participants and disappears when a tra
     for (const player of players.slice(0, 2)) {
         assert.ok(render(player).some(node => /Trekk sneaky/.test(node.textContent)));
     }
-    const start = render(players[0]).find(node => node.textContent === "Start tvunget bytte");
+    const start = render(players[0]).find(node => node.textContent === "Start frivillig bytte");
     assert.equal(start.disabled, false);
     start.onclick();
     for (const player of players.slice(0, 2)) {
         assert.equal(render(player).some(node => /Trekk sneaky|Sneaky bytte$/.test(node.textContent)), false);
     }
+});
+
+test("the President can start a normal voluntary exchange without sneaky consent", () => {
+    const {
+        PresidentGame, PresidentPlayer, PresidentCard, isCardAllowedForExchange
+    } = loadGame();
+    const players = ["President", "Neutral", "Boms"].map((name, index) => {
+        const player = new PresidentPlayer(name, `key-${index}`);
+        player.lastPlacement = index + 1;
+        player.cards.push(new PresidentCard(index + 1, index + 7));
+        return player;
+    });
+    const offer = {
+        id: "ordinary-offer", tradeId: "ordinary-trade", kind: "playerTrade",
+        from: 0, to: 1, count: 1, mode: "Tilbud", cards: [], sneakyVotes: []
+    };
+    const game = Object.assign(Object.create(PresidentGame.prototype), {
+        status: "G", round: 2, players, piles: [offer]
+    });
+    game.assertSessionActive = () => {};
+    game.recordHumanAction = () => {};
+    game.save = () => {};
+    game.update = () => {};
+
+    game.startOptionalTrade(offer);
+
+    assert.equal(game.piles.length, 2);
+    assert.ok(game.piles.every(exchange => exchange.mode === "Velg"));
+    assert.ok(game.piles.every(exchange => exchange.sneakyVotes.length === 0));
+    assert.ok(game.piles.every(exchange => isCardAllowedForExchange(exchange, new PresidentCard(1, 7))));
+    assert.ok(game.piles.every(exchange => !isCardAllowedForExchange(exchange, new PresidentCard(1, 14))));
+    game.toggleSneakyTrade(game.piles.find(exchange => exchange.from === 0), 0);
+    game.toggleSneakyTrade(game.piles.find(exchange => exchange.from === 1), 1);
+    assert.ok(game.piles.every(exchange => isCardAllowedForExchange(exchange, new PresidentCard(1, 14))));
+});
+
+test("a playable club three is suggested to clear a single-card trick before the final card", () => {
+    const { PresidentCard, chooseSuggestedPlayStrength } = loadGame();
+    const clubThree = new PresidentCard(3, 3);
+    const player = { cards: [clubThree, new PresidentCard(1, 12)] };
+
+    assert.equal(
+        chooseSuggestedPlayStrength(player, [new PresidentCard(1, 8)], new Set([12, 16]), 1),
+        PresidentCard.clubThreePower()
+    );
 });
 
 test("trade start toasts report either outcome once and only to participants", () => {
