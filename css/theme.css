@@ -7,13 +7,13 @@
     --ink: #f3f3f3;
     --muted: #c4c4c4;
     --line: #7f8792;
-    --accent: #075a9e;
-    --accent-hover: #0b6fb8;
-    --accent-soft: rgb(55 148 255 / 20%);
-    --focus: #4fc1ff;
+    --accent: #0f766e;
+    --accent-hover: #0c6962;
+    --accent-soft: rgb(15 118 110 / 18%);
+    --focus: #48cfc2;
     --menu-start: #292a2c;
     --menu-end: #1e1e1e;
-    --menu-glow: rgb(55 148 255 / 18%);
+    --menu-glow: rgb(15 118 110 / 18%);
     --control-border: rgb(255 255 255 / 30%);
     --success: #61cba5;
     --warning: #d5b875;
@@ -34,10 +34,10 @@
     --ink: #17212b;
     --muted: #465564;
     --line: #788896;
-    --accent: #005a9e;
-    --accent-hover: #004778;
-    --accent-soft: rgb(0 90 158 / 12%);
-    --focus: #005a9e;
+    --accent: #0f766e;
+    --accent-hover: #0c6962;
+    --accent-soft: rgb(15 118 110 / 12%);
+    --focus: #0f766e;
     --menu-start: #f8fbfd;
     --menu-end: #e3edf4;
     --menu-glow: rgb(55 148 255 / 14%);
@@ -46,6 +46,7 @@
     --shadow: 0 12px 32px rgb(22 45 66 / 14%);
 }
 
+:root[data-color-theme="blue"],
 [data-color-preview="blue"] {
     --accent: #075a9e;
     --accent-hover: #0b6fb8;
@@ -59,6 +60,7 @@
     --danger-light: #a1283b;
 }
 
+:root[data-theme="light"][data-color-theme="blue"],
 [data-theme="light"] [data-color-preview="blue"] {
     --accent: #005a9e;
     --accent-hover: #004778;
@@ -629,6 +631,20 @@ button {
     justify-content: space-between;
     align-items: center;
     gap: 12px;
+}
+
+.public-lobby-entry__speed {
+    margin-right: auto;
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 400;
+}
+
+@media (max-width: 600px) {
+    #mainMenu button.public-lobby-entry {
+        flex-wrap: wrap;
+        gap: 4px 10px;
+    }
 }
 
 .public-lobby-entry__status {
@@ -2128,7 +2144,8 @@ select:focus-visible {
     animation: game-log-entry-enter 260ms cubic-bezier(.2,.8,.25,1) both;
 }
 
-.game-log__trick {
+.game-log__trick,
+.settings-category {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
@@ -2141,7 +2158,8 @@ select:focus-visible {
     text-transform: uppercase;
 }
 
-.game-log__trick::after {
+.game-log__trick::after,
+.settings-category::after {
     height: 1px;
     flex: 1 1 auto;
     background: var(--surface-hover);
@@ -2838,6 +2856,10 @@ select:focus-visible {
     gap: 8px;
 }
 
+.settings-category {
+    margin: 12px 0 4px;
+}
+
 .settings-game-id {
     margin: 0 0 8px;
     color: var(--muted);
@@ -2930,6 +2952,8 @@ select:focus-visible {
 }
 
 .setting-speed,
+.setting-turn-speed,
+.setting-play-input,
 .setting-language {
     flex-direction: column;
     align-items: stretch;
@@ -2938,6 +2962,8 @@ select:focus-visible {
 }
 
 .speed-options,
+.turn-speed-options,
+.play-input-options,
 .quick-play-options,
 .language-options {
     display: flex;
@@ -2951,6 +2977,14 @@ select:focus-visible {
 .speed-option:hover,
 .speed-option:active,
 .speed-option:focus,
+.turn-speed-option,
+.turn-speed-option:hover,
+.turn-speed-option:active,
+.turn-speed-option:focus,
+.play-input-option,
+.play-input-option:hover,
+.play-input-option:active,
+.play-input-option:focus,
 #mainMenu .quick-play-option,
 .language-option,
 .language-option:hover,
@@ -2971,6 +3005,8 @@ select:focus-visible {
 }
 
 .speed-option + .speed-option,
+.turn-speed-option + .turn-speed-option,
+.play-input-option + .play-input-option,
 .quick-play-option + .quick-play-option,
 .language-option + .language-option {
     border-left: 1px solid var(--line);
@@ -2978,6 +3014,10 @@ select:focus-visible {
 
 .speed-option[aria-pressed="true"],
 .speed-option[aria-pressed="true"]:hover,
+.turn-speed-option[aria-pressed="true"],
+.turn-speed-option[aria-pressed="true"]:hover,
+.play-input-option[aria-pressed="true"],
+.play-input-option[aria-pressed="true"]:hover,
 #mainMenu .quick-play-option[aria-pressed="true"],
 .language-option[aria-pressed="true"],
 .language-option[aria-pressed="true"]:hover {
@@ -3847,14 +3887,19 @@ select:focus-visible {
 }
 
 #playerActions > #playButton {
+    order: -1;
+}
+
+#playerActions > #playButton:not([hidden]) {
+    display: inline-flex;
+}
+
+#playerActions > #playButton[hidden],
+.setting-row[hidden] {
     display: none;
 }
 
 @media (hover: hover) and (pointer: fine) {
-    #playerActions > #playButton:not([hidden]) {
-        display: inline-block;
-    }
-
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #playerActions > #playerStatus {
         flex: 0 0 100%;
     }

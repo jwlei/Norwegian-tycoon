@@ -22,6 +22,12 @@ function chooseSuggestedPlayStrength(player, topPile, playableStrengths, require
 }
 
 class GameLayout {
+    static playInputMode() {
+        var stored = getCookie("PlayInputMode");
+        if (stored == "flick" || stored == "button") { return stored; }
+        return typeof window == "undefined" ||
+            window.matchMedia("(hover: hover) and (pointer: fine)").matches ? "button" : "flick";
+    }
     static isShufflingExchange(game) {
         return game != null && game.status == "G" && game.shuffleStartedAt != null &&
             Date.now() < game.shuffleStartedAt + SHUFFLE_DURATION_MS;
@@ -156,7 +162,7 @@ class GameLayout {
         var capacity = document.getElementById("lobbyCapacity");
         capacity.hidden = game == null || game.status != "O";
         if (!capacity.hidden) {
-            capacity.textContent = `${game.players.length}/${MAX_PLAYERS} plasser fylt`;
+            capacity.textContent = `${game.players.length}/${MAX_PLAYERS} plasser fylt · ${gameTurnSeconds(game.turnSeconds)} s turpause (verten styrer)`;
         }
         var waitingCount = game == null ? 0 : Object.keys(game.waitingSpectators || {}).length;
         var waitingLabel = document.getElementById("waitingPlayers");
@@ -1208,7 +1214,9 @@ class GameLayout {
                     if (selectedExchange.cards.length == 0) {
                         var emptySelection = document.createElement("span");
                         emptySelection.className = "exchange-selection__empty";
-                        emptySelection.textContent = `Velg ${selectedExchange.count} kort i hånden, eller flick dem opp hit.`;
+                        emptySelection.textContent = GameLayout.playInputMode() == "button"
+                            ? `Velg ${selectedExchange.count} kort i hånden.`
+                            : `Velg ${selectedExchange.count} kort i hånden, eller flick dem opp hit.`;
                         selectionContent.appendChild(emptySelection);
                     }
                     if (selectedExchange.mode == "Velg" || isBestExchange) {
@@ -1512,7 +1520,8 @@ class GameLayout {
             selectedCardStrength,
             Array.from(autoSuggestedCardKeys).join(","),
             autoSuggestPlayableCards ? 1 : 0,
-            GameLayout.cardStyle()
+            GameLayout.cardStyle(),
+            GameLayout.playInputMode()
         ].join(";");
     }
     static updatePlayerButtons(game, player) {
@@ -1710,8 +1719,8 @@ class GameLayout {
                 axis: null,
                 cardElement: cardElement,
                 card: card,
-                canSwipeToPlay: game.status == "S" && isPlayingTurn,
-                canSwipeToExchange: game.status == "G",
+                canSwipeToPlay: GameLayout.playInputMode() == "flick" && game.status == "S" && isPlayingTurn,
+                canSwipeToExchange: GameLayout.playInputMode() == "flick" && game.status == "G",
                 didMove: false,
                 didPlayDrag: false,
                 canPlay: false
@@ -1999,7 +2008,8 @@ class GameLayout {
             game.playCards(player, pile);
             return true;
         };
-        playButton.hidden = game.status != "S" || player.placement != 0 ||
+        playButton.hidden = GameLayout.playInputMode() != "button" ||
+            game.status != "S" || player.placement != 0 ||
             GamePresence.isBot(game, player);
         var selectedPile = new CardPile(player.name, ...player.cards.filter(card =>
             selectedCardKeys.has(`${card.suit}:${card.rank}`)
@@ -2059,6 +2069,11 @@ class GameLayout {
                 selectionCount.textContent = (requiredCount == null)
                     ? `${selectedCards.length} kort valgt. Sveip sidelengs for å bla. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.`
                     : `${selectedCards.length} av ${requiredCount} kort valgt. Sveip sidelengs for å bla. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.`;
+                if (GameLayout.playInputMode() == "button") {
+                    selectionCount.textContent = requiredCount == null
+                        ? `${selectedCards.length} kort valgt. Trykk Legg ut eller Enter for å spille.`
+                        : `${selectedCards.length} av ${requiredCount} kort valgt. Trykk Legg ut eller Enter for å spille.`;
+                }
                 selectionCount.setAttribute("aria-label", selectionCount.textContent);
             } else {
                 selectionCount.textContent = "";
@@ -2172,7 +2187,9 @@ class GameLayout {
                                     `${k.getName()}${isPlayable ? ", kan spilles" : ", kan ikke spilles nå"}`
                                 );
                                 elemKort.title = isPlayable
-                                    ? "Klikk for å velge. Trykk Enter eller mellomrom for å legge ut; på mobil kan du flicke kortet opp."
+                                    ? (GameLayout.playInputMode() == "button"
+                                        ? "Klikk for å velge. Trykk Legg ut, Enter eller mellomrom for å spille."
+                                        : "Klikk for å velge. Trykk Enter eller mellomrom for å legge ut; på mobil kan du flicke kortet opp.")
                                     : "Dette kortet kan ikke spilles nå";
                                 elemKort.setAttribute("aria-pressed", String(isSelected));
                                 elemKort.onclick = function () {

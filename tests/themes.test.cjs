@@ -118,10 +118,10 @@ test("status surfaces use theme tokens instead of legacy fixed green, gold and r
     assert.match(css, /\.color-theme-preview > span \+ span\s*\{[^}]*var\(--success\)[^}]*var\(--warning\)[^}]*var\(--danger\)/);
 });
 
-test("visible release and versioned local assets use version 0.8.0", () => {
-    assert.ok(html.includes('aria-label="Spillversjon 0.8.0">v0.8.0</span>'));
+test("visible release and versioned local assets use version 0.8.1", () => {
+    assert.ok(html.includes('aria-label="Spillversjon 0.8.1">v0.8.1</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"]+)"/g),
         match => match[1]);
     assert.ok(versions.length > 0);
-    assert.ok(versions.every(version => version === "0.8.0"));
+    assert.ok(versions.every(version => version === "0.8.1"));
 });

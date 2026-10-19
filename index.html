@@ -44,9 +44,9 @@
     }
     </script>
     <link rel="stylesheet" href="css/common.css">
-    <link rel="stylesheet" href="css/game.css?v=0.8.0">
+    <link rel="stylesheet" href="css/game.css?v=0.8.1">
     <link rel="stylesheet" href="css/mobile.css">
-    <link rel="stylesheet" href="css/theme.css?v=0.8.0">
+    <link rel="stylesheet" href="css/theme.css?v=0.8.1">
 </head>
 
 <body>
@@ -90,7 +90,7 @@
             </div>
             <div id="publicLobbyList" class="public-lobby-list" aria-live="polite"></div>
             <div id="publicLobbyError" class="public-lobby-error" role="alert"></div>
-            <small class="app-version"><span aria-label="Spillversjon 0.8.0">v0.8.0</span> · <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://jleiros.com" target="_blank" rel="noopener noreferrer">jleiros.com</a></small>
+            <small class="app-version"><span aria-label="Spillversjon 0.8.1">v0.8.1</span> · <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://jleiros.com" target="_blank" rel="noopener noreferrer">jleiros.com</a></small>
         </div>
         <div id="gameMenu" role="group" aria-label="Spillkontroller" style="text-align: center; vertical-align: middle;">
             <button type="button" id="BnFInviterSpill" title="Inviter spiller" aria-label="Inviter spiller" style="float: left;">Inviter spiller</button>
@@ -176,7 +176,7 @@
     </div>
     <div id="DivKort_Kortforklaring" style="display: none;">
         <div id="Kortforklaring1" class="tips">
-            <div>Trykk på et kort for å velge det; like kort velges sammen. Sveip sidelengs for å bla i hånden. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.</div>
+            <div>Trykk på et kort for å velge det; like kort velges sammen. Sveip sidelengs for å bla i hånden. Bruk flick eller Legg ut, avhengig av valgt kortstyring, eller trykk Enter.</div>
             <button type="button" onclick="document.getElementById('Kortforklaring1').style.display='none';">Lukk tips</button>
         </div>
     </div>
@@ -189,6 +189,7 @@
             <div class="dialog-title">Innstillinger</div>
             <div class="settings-game-id" id="settingsGameId" hidden>Spill-ID <strong id="settingsGameIdValue" class="copyable-game-id" role="button" tabindex="0" title="Trykk for å kopiere spill-ID"></strong></div>
             <div class="dialogBody settings-list">
+                <h3 class="settings-category">Profil og språk</h3>
                 <button type="button" id="BnPByttNavn" class="setting-row" aria-label="Bytt spillernavn">
                     <span class="setting-row__text"><strong>Bytt navn</strong><small id="settingsPlayerName" data-i18n-skip></small></span>
                 </button>
@@ -199,6 +200,7 @@
                         <button type="button" class="language-option" data-lang="en" lang="en" aria-pressed="false">English</button>
                     </span>
                 </div>
+                <h3 class="settings-category">Utseende</h3>
                 <button type="button" class="theme-toggle setting-row" aria-label="Mørk modus. Bytt til lys modus" aria-pressed="true">
                     <span class="setting-row__text"><strong>Mørk modus</strong><small>Bytt mellom mørkt og lyst tema</small></span>
                     <span class="setting-row__switch" aria-hidden="true"><span></span></span>
@@ -207,13 +209,14 @@
                     <span class="setting-row__text"><strong>Fargetema</strong><small id="colorThemeCurrentName" data-i18n-skip></small></span>
                     <span id="colorThemeCurrent" aria-hidden="true"></span>
                 </button>
-                <button type="button" id="autoSuggestionToggleButton" class="setting-row" title="Automatisk kortforslag er på" aria-label="Slå av automatisk kortforslag" aria-pressed="true">
-                    <span class="setting-row__text"><strong>Auto-forslag</strong><small>Velger laveste lovlige kort for deg når det er din tur</small></span>
-                    <span class="setting-row__switch" aria-hidden="true"><span></span></span>
-                </button>
                 <button type="button" id="cardStyleOpenButton" class="setting-row" aria-haspopup="dialog">
                     <span class="setting-row__text"><strong>Kortstil</strong><small id="cardStyleCurrentName" data-i18n-skip></small></span>
                     <span id="cardStyleCurrent" class="card-style-current" aria-hidden="true"></span>
+                </button>
+                <h3 class="settings-category">Spill og styring</h3>
+                <button type="button" id="autoSuggestionToggleButton" class="setting-row" title="Automatisk kortforslag er på" aria-label="Slå av automatisk kortforslag" aria-pressed="true">
+                    <span class="setting-row__text"><strong>Auto-forslag</strong><small>Velger laveste lovlige kort for deg når det er din tur</small></span>
+                    <span class="setting-row__switch" aria-hidden="true"><span></span></span>
                 </button>
                 <div class="setting-row setting-speed" role="group" aria-label="Meldingsvarighet">
                     <span class="setting-row__text"><strong>Meldingsvarighet</strong><small>Hvor lenge meldinger vises</small></span>
@@ -221,6 +224,21 @@
                         <button type="button" class="speed-option" data-speed="fast" aria-pressed="true">Rask</button>
                         <button type="button" class="speed-option" data-speed="normal" aria-pressed="false">Vanlig</button>
                         <button type="button" class="speed-option" data-speed="slow" aria-pressed="false">Sakte</button>
+                    </span>
+                </div>
+                <div class="setting-row setting-turn-speed" role="group" aria-label="Spillhastighet">
+                    <span class="setting-row__text"><strong>Spillhastighet</strong><small id="turnSpeedHelp">Verten velger for hele rommet. Gjelder pausen etter neste trekk, ikke tiden du har til å spille.</small></span>
+                    <span class="turn-speed-options">
+                        <button type="button" class="turn-speed-option" data-seconds="1" aria-pressed="false">1 s</button>
+                        <button type="button" class="turn-speed-option" data-seconds="2" aria-pressed="true">2 s</button>
+                        <button type="button" class="turn-speed-option" data-seconds="3" aria-pressed="false">3 s</button>
+                    </span>
+                </div>
+                <div class="setting-row setting-play-input" role="group" aria-label="Kortstyring">
+                    <span class="setting-row__text"><strong>Kortstyring</strong><small>Velg hvordan du legger ut kort. Standard er flick på mobil og Legg ut på PC.</small></span>
+                    <span class="play-input-options">
+                        <button type="button" class="play-input-option" data-play-input="flick" aria-pressed="false">Flick</button>
+                        <button type="button" class="play-input-option" data-play-input="button" aria-pressed="false">Legg ut</button>
                     </span>
                 </div>
             </div>
@@ -234,9 +252,9 @@
             <div class="dialog-title">Velg fargetema</div>
             <p class="color-theme-description">Temaet tilpasser også aktiv tur, pass og feil. Forhåndsvisningen viser temafarge, positiv, pass og negativ. Kort- og spillerfarger beholdes.</p>
             <div class="dialogBody color-theme-list">
-                <button type="button" class="color-theme-option" data-color-theme="blue" aria-pressed="true"><span class="color-theme-preview" data-color-preview="blue" aria-hidden="true"><span></span><span></span></span><strong>Blå</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="blue" aria-pressed="false"><span class="color-theme-preview" data-color-preview="blue" aria-hidden="true"><span></span><span></span></span><strong>Blå</strong></button>
                 <button type="button" class="color-theme-option" data-color-theme="forest" aria-pressed="false"><span class="color-theme-preview" data-color-preview="forest" aria-hidden="true"><span></span><span></span></span><strong>Skoggrønn</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="teal" aria-pressed="false"><span class="color-theme-preview" data-color-preview="teal" aria-hidden="true"><span></span><span></span></span><strong>Dyp turkis</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="teal" aria-pressed="true"><span class="color-theme-preview" data-color-preview="teal" aria-hidden="true"><span></span><span></span></span><strong>Dyp turkis</strong></button>
                 <button type="button" class="color-theme-option" data-color-theme="amethyst" aria-pressed="false"><span class="color-theme-preview" data-color-preview="amethyst" aria-hidden="true"><span></span><span></span></span><strong>Ametyst</strong></button>
                 <button type="button" class="color-theme-option" data-color-theme="burgundy" aria-pressed="false"><span class="color-theme-preview" data-color-preview="burgundy" aria-hidden="true"><span></span><span></span></span><strong>Burgunder</strong></button>
                 <button type="button" class="color-theme-option" data-color-theme="amber" aria-pressed="false"><span class="color-theme-preview" data-color-preview="amber" aria-hidden="true"><span></span><span></span></span><strong>Rav</strong></button>
@@ -465,7 +483,8 @@
     <div id="dialogKanIkkeLeggeKort" class="dialog-container">
         <div class="dialog-window">
             <div class="dialog-title">Du kan ikke legge på det kortet nå.</div>
-            <div class="dialogBody">Legg på like mange kort med samme eller høyere verdi: singel på singel, par på par, tress på tress og fire like på fire like. Kløver 3 er jokeren og kan legges på alt. Fire like kan slås av høyere fire like; ellers ryddes bunken.</div>
+            <div class="dialogBody">Legg på like mange kort med samme eller høyere verdi: singel på singel, par på par, tress på tress og fire like på fire like. Kløver 3 er jokeren og kan legges på alt. Fire like lagt samlet kan slås av høyere fire like; ellers ryddes bunken.</div>
+            <p class="dialogBody">Fire like fra singler eller to par rydder bunken og kan ikke slås.</p>
             <div class="dialog-footer"><button type="button" onclick="showDialog('KanIkkeLeggeKort', false);">Lukk</button></div>
         </div>
     </div>
@@ -487,7 +506,7 @@
                     <h3>Spesialkort</h3>
                     <ul>
                         <li><strong>Kløver 3:</strong> <span>Slår alt og rydder. Taper som siste kort.</span></li>
-                        <li><strong>Fire like:</strong> <span>Rydder hvis ingen aktive motspillere har høyere fire like.</span></li>
+                        <li><strong>Fire like:</strong> <span>Fire like lagt samlet kan slås av høyere fire like. Fire like fra singler eller to par rydder bunken og kan ikke slås.</span></li>
                     </ul>
                 </section>
                 <section>
@@ -610,17 +629,17 @@
     </script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js"></script>
-    <script src="js/cards.js?v=0.8.0"></script>
-    <script src="js/player.js?v=0.8.0"></script>
-    <script src="js/shared.js?v=0.8.0"></script>
-    <script src="js/bot.js?v=0.8.0"></script>
-    <script src="js/presence.js?v=0.8.0"></script>
-    <script src="js/game.js?v=0.8.0"></script>
-    <script src="js/layout.js?v=0.8.0"></script>
-    <script src="js/engine.js?v=0.8.0"></script>
-    <script src="js/bot-turn.js?v=0.8.0"></script>
-    <script src="js/connection.js?v=0.8.0"></script>
-    <script src="js/i18n.js?v=0.8.0"></script>
+    <script src="js/cards.js?v=0.8.1"></script>
+    <script src="js/player.js?v=0.8.1"></script>
+    <script src="js/shared.js?v=0.8.1"></script>
+    <script src="js/bot.js?v=0.8.1"></script>
+    <script src="js/presence.js?v=0.8.1"></script>
+    <script src="js/game.js?v=0.8.1"></script>
+    <script src="js/layout.js?v=0.8.1"></script>
+    <script src="js/engine.js?v=0.8.1"></script>
+    <script src="js/bot-turn.js?v=0.8.1"></script>
+    <script src="js/connection.js?v=0.8.1"></script>
+    <script src="js/i18n.js?v=0.8.1"></script>
 </body>
 
 </html>

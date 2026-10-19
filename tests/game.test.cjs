@@ -766,7 +766,7 @@ test("all sixteen color themes have previews and persist without cookies", () =>
     assert.deepEqual(options.map(option => option.dataset.colorTheme),
         ["blue", "forest", "teal", "amethyst", "burgundy", "amber", "gray", "amoled",
             "solarized", "dark-modern", "material", "darcula", "one-dark", "nord", "monokai", "gradianto"]);
-    assert.equal(context.document.documentElement.dataset.colorTheme, "blue");
+    assert.equal(context.document.documentElement.dataset.colorTheme, "teal");
     context.document.documentElement.dataset.theme = "light";
     for (const option of options) {
         option.click();
@@ -798,9 +798,9 @@ test("color themes remain usable with blocked storage, validate saved values and
     events.storage({ key: "unrelated", newValue: "amber" });
     assert.equal(context.document.documentElement.dataset.colorTheme, "gray");
     events.storage({ key: "norwegian-tycoon-cookie-ColorTheme", newValue: "invalid" });
-    assert.equal(context.document.documentElement.dataset.colorTheme, "blue");
+    assert.equal(context.document.documentElement.dataset.colorTheme, "teal");
     const invalid = new Map([["norwegian-tycoon-cookie-ColorTheme", "invalid"]]);
-    assert.equal(colorThemeContext(invalid).context.document.documentElement.dataset.colorTheme, "blue");
+    assert.equal(colorThemeContext(invalid).context.document.documentElement.dataset.colorTheme, "teal");
 });
 
 test("AMOLED forces dark mode and a black browser bar, then restores the preferred appearance", () => {
@@ -1040,7 +1040,8 @@ test("normal exchange rendering fades illegal cards while sneaky exchanges allow
 });
 
 function playButtonContext(options = {}) {
-    const { CardPile, PresidentCard, GamePresence } = loadGame();
+    const { CardPile, PresidentCard, GamePresence, GameLayout } = loadGame();
+    GameLayout.playInputMode = () => options.playInput || "button";
     const cards = [new PresidentCard(1, 5), new PresidentCard(2, 5), new PresidentCard(3, 8)];
     const selectedCardKeys = new Set(options.selection || ["1:5", "2:5"]);
     const player = { name: "Player", playerKey: "human-key", turn: 1, placement: 0, cards, ...options.player };
@@ -1054,7 +1055,7 @@ function playButtonContext(options = {}) {
     };
     const playButton = {};
     const context = vm.createContext({
-        CardPile, GamePresence, game, player, playButton, selectedCardKeys,
+        CardPile, GamePresence, GameLayout, game, player, playButton, selectedCardKeys,
         isPlayingTurn: game.status == "S" && player.turn == 1 &&
             player.placement == 0 && !game.isTurnPaused(),
         clearCardSelection: () => selectedCardKeys.clear(),
@@ -1184,7 +1185,8 @@ test("fast-forward transactions recheck eligibility, reschedule pauses and prese
     assert.equal(record.turnPause.id, "pause");
     await game.setFastForward(false);
     assert.equal(record.fastForward, false);
-    assert.ok(record.turnPause.until - Date.now() > 2000);
+    assert.ok(record.turnPause.until - Date.now() > 1900);
+    assert.ok(record.turnPause.until - Date.now() <= 2000);
     record.spillere[0].plassering = 0;
     await game.setFastForward(true);
     assert.equal(record.fastForward, false);
@@ -1216,7 +1218,7 @@ test("fast forward shortens bot actions and final pauses, then resets when the g
     game.beginGameEndVote = () => {};
     game.finishGame();
     assert.equal(game.fastForward, false);
-    assert.equal(game.actionPauseMs(), 3000);
+    assert.equal(game.actionPauseMs(), 2000);
 });
 
 test("bot scheduling switches to one second and restores its original delay", () => {
@@ -1236,13 +1238,13 @@ test("bot scheduling switches to one second and restores its original delay", ()
     vm.runInContext(source.slice(source.indexOf("        var botLoopTimer = null;"),
         source.indexOf("        document.getElementById('BnFHovedmeny')")), context);
     context.scheduleBotLoop();
-    assert.equal(timers.at(-1), 3000);
+    assert.equal(timers.at(-1), 2000);
     game.fastForward = true;
     context.scheduleBotLoop();
     assert.equal(timers.at(-1), 1000);
     game.fastForward = false;
     context.scheduleBotLoop();
-    assert.equal(timers.at(-1), 3000);
+    assert.equal(timers.at(-1), 2000);
     assert.deepEqual(cleared, [1, 2]);
 });
 
@@ -1251,7 +1253,7 @@ test("ordinary saves preserve concurrent fast-forward toggles and their pause de
     players[0].placement = 1;
     game.fastForward = false;
     const now = Date.now();
-    game.turnPause = { id: "same", kind: "play", until: now + 3000 };
+    game.turnPause = { id: "same", kind: "play", until: now + 2000 };
     let record = {
         status: "S", shuffleStartedAt: null, fastForward: true,
         turnPause: { id: "same", kind: "play", until: now + 1000 }
@@ -1260,7 +1262,7 @@ test("ordinary saves preserve concurrent fast-forward toggles and their pause de
     game.save();
     assert.equal(record.fastForward, true);
     assert.equal(record.turnPause.until, now + 1000);
-    game.turnPause = { id: "new", kind: "play", until: now + 3000 };
+    game.turnPause = { id: "new", kind: "play", until: now + 2000 };
     game.save();
     assert.equal(record.fastForward, true);
     assert.equal(record.turnPause.until, now + 1000);
@@ -1270,7 +1272,7 @@ test("ordinary saves preserve concurrent fast-forward toggles and their pause de
     game.turnPause = { id: "third", kind: "play", until: now + 1000 };
     game.save();
     assert.equal(record.fastForward, false);
-    assert.equal(record.turnPause.until, now + 3000);
+    assert.equal(record.turnPause.until, now + 2000);
     game.status = "F";
     record.fastForward = true;
     game.turnPause = null;
@@ -1980,6 +1982,7 @@ function publicLobbyContext() {
     const context = vm.createContext({
         console: { error: (...args) => state.errors.push(args) }, currentGame: null,
         PUBLIC_LOBBY_PATH: "boms_public", PUBLIC_LOBBY_MAX_AGE_MS: 7200000, MAX_PLAYERS: 4,
+        gameTurnSeconds: value => [1, 2, 3].includes(Number(value)) ? Number(value) : 2,
         document: {
             hidden: false, createElement: element, getElementById: () => list,
             addEventListener: (type, callback) => { state.listener = callback; }
@@ -2008,6 +2011,20 @@ test("public lobby rows remain clickable join buttons before and after refresh",
     assert.equal(list.querySelector(".public-lobby-entry"), button);
     button.click();
     assert.deepEqual(state.joins, ["123", "123"]);
+});
+
+test("public lobby rows show host-controlled shared speed and update it without replacing the row", () => {
+    const { list, state } = publicLobbyContext();
+    const lobby = { id: "123", host: "Host", players: 2, waiting: true, ts: Date.now() };
+    state.update([lobby]);
+    const button = list.querySelector(".public-lobby-entry");
+    assert.equal(button.children[1].textContent, "2 s turpause (verten styrer)");
+    assert.equal(button.children[1].className, "public-lobby-entry__speed");
+    state.update([{ ...lobby, turnSeconds: 1 }]);
+    assert.equal(list.querySelector(".public-lobby-entry"), button);
+    assert.equal(button.children[1].textContent, "1 s turpause (verten styrer)");
+    state.update([{ ...lobby, turnSeconds: 3 }]);
+    assert.equal(button.children[1].textContent, "3 s turpause (verten styrer)");
 });
 
 test("public lobby refresh keeps existing buttons, order and scroll position", () => {
@@ -2177,8 +2194,12 @@ test("lobby capacity counts filled seats for every player count", () => {
     }
     for (let count = 1; count <= 4; count++) {
         GameLayout.updateSharedView({ id: "lobby", status: "O", players: Array(count) }, null);
-        assert.equal(elements.get("lobbyCapacity").textContent, `${count}/4 plasser fylt`);
+        assert.equal(elements.get("lobbyCapacity").textContent, `${count}/4 plasser fylt · 2 s turpause (verten styrer)`);
         assert.equal(elements.get("lobbyCapacity").hidden, false);
+    }
+    for (const seconds of [1, 3]) {
+        GameLayout.updateSharedView({ id: "lobby", status: "O", players: Array(2), turnSeconds: seconds }, null);
+        assert.equal(elements.get("lobbyCapacity").textContent, `2/4 plasser fylt · ${seconds} s turpause (verten styrer)`);
     }
     GameLayout.updateSharedView({ id: "lobby", status: "S", players: [] }, null);
     assert.equal(elements.get("lobbyCapacity").hidden, true);
@@ -3095,16 +3116,199 @@ test("opening four fives stays on the table in a two-human game after serializat
     assert.equal(game.piles[0].strengthRank, 5);
 });
 
-test("four accumulated equal cards can be beaten only by four higher cards", () => {
-    const { game, players, pile } = setupGame();
-    game.piles = [pile(players[0], 7, 2), pile(players[2], 7, 2)];
-    const response = pile(players[1], 9);
-    players[1].cards = Array.from(response);
-    players[1].turn = 1;
-    assert.equal(game.pileCleared(), false);
-    const pair = new response.constructor(players[1].name, response[0], response[1]);
-    assert.equal(game.canPlayPile(players[1], pair), false);
-    assert.equal(game.canPlayPile(players[1], response), true);
+test("four accumulated equal cards from singles or two pairs clear and cannot be beaten", () => {
+    for (const count of [1, 2]) {
+        const { game, players, pile } = setupGame();
+        game.piles = Array.from({ length: 4 / count }, (_, index) =>
+            pile(players[index % players.length], 7, count));
+        const response = pile(players[1], 9);
+        players[1].cards = Array.from(response);
+        players[1].turn = 1;
+        assert.equal(game.pileCleared(), true);
+        assert.equal(game.canPlayPile(players[1], response), false);
+        assert.equal(game.canPlayRank(players[1], 9, {}), false);
+    }
+});
+
+test("accumulated fours clear through actual play even if an opponent holds higher fours", () => {
+    for (const count of [1, 2]) {
+        const { game, players, pile } = setupGame();
+        game.piles = Array.from({ length: 4 / count - 1 }, () => pile(players[0], 7, count));
+        const completing = pile(players[1], 7, count);
+        players[1].cards = [...completing, ...pile(players[1], 5, 1)];
+        players[2].cards = Array.from(pile(players[2], 9));
+        game.save = () => {};
+        game.setTurn(1);
+        assert.equal(game.canPlayPile(players[1], completing), true);
+        game.playCards(players[1], completing);
+        assert.equal(game.turnPause.kind, "clear");
+        assert.equal(game.piles.length, 0);
+        assert.equal(game.turn, 1);
+    }
+});
+
+test("normal turn pauses support 1, 2 and 3 seconds, defaulting to 2", () => {
+    const { game } = setupGame();
+    assert.equal(game.actionPauseMs(), 2000);
+    for (const seconds of [1, 2, 3]) {
+        game.turnSeconds = seconds;
+        assert.equal(game.actionPauseMs(), seconds * 1000);
+    }
+    game.turnSeconds = 9;
+    assert.equal(game.actionPauseMs(), 2000);
+});
+
+test("host-controlled speed is stored for the room without shortening an active pause", async () => {
+    const { game, players } = setupGame();
+    game.hostName = game.localPlayerName = players[0].name;
+    let record = {
+        status: "S", hostKey: game.hostKey, hostName: game.hostName, turnSeconds: 3,
+        spillere: players.map(player => player.toRecord()),
+        turnPause: { id: "existing", until: Date.now() + 3000 }
+    };
+    const until = record.turnPause.until;
+    let listings = 0;
+    game.updatePublicListing = () => { listings++; };
+    game.databaseRef = {
+        async transaction(transform) {
+            const next = transform(structuredClone(record));
+            if (next) { record = next; }
+            return { committed: !!next, snapshot: { val: () => record } };
+        }
+    };
+    for (const seconds of [1, 2, 3]) {
+        await game.setTurnSeconds(seconds);
+        assert.equal(game.turnSeconds, seconds);
+        assert.equal(record.turnSeconds, seconds);
+        assert.equal(record.turnPause.until, until);
+    }
+    assert.equal(listings, 3);
+    for (const invalid of [0, 4, "2", null, NaN]) {
+        await assert.rejects(game.setTurnSeconds(invalid), /1, 2 eller 3/);
+    }
+    const before = structuredClone(record);
+    record.hostKey = "new-host";
+    await assert.rejects(game.setTurnSeconds(1), /Bare verten/);
+    assert.equal(record.turnSeconds, before.turnSeconds);
+    game.connectionOnline = false;
+    await assert.rejects(game.setTurnSeconds(1), /Bare verten/);
+});
+
+test("only the current named human host may change the shared speed", async () => {
+    for (const change of [
+        { hostName: "Other seat" },
+        { hostKey: "guest-key" },
+        { status: "V" },
+        { controllers: "host-bot" },
+        { spillere: [] },
+        { gaveUp: true }
+    ]) {
+        const { game, players } = setupGame();
+        const { GamePresence } = loadGame();
+        game.hostName = game.localPlayerName = players[0].name;
+        let record = {
+            status: "O", hostKey: game.hostKey, hostName: game.hostName,
+            spillere: players.map(player => player.toRecord()), turnSeconds: 2
+        };
+        if (change.controllers) {
+            record.controllers = { [GamePresence.playerId(record.spillere[0])]: { reason: "idle" } };
+        } else if (change.gaveUp) {
+            record.spillere[0].gaveUp = true;
+        } else {
+            Object.assign(record, change);
+        }
+        game.databaseRef = { async transaction(transform) {
+            const next = transform(structuredClone(record));
+            return { committed: !!next, snapshot: { val: () => next } };
+        } };
+        await assert.rejects(game.setTurnSeconds(1), /Bare verten/);
+    }
+});
+
+test("stale saves preserve host-selected speed and adjust new pause lengths, not existing pauses", () => {
+    const { game } = setupGame();
+    const now = Date.now();
+    game.turnSeconds = 3;
+    game.turnPause = { id: "existing", kind: "play", until: now + 3000 };
+    let record = {
+        status: "S", turnSeconds: 1,
+        turnPause: { id: "existing", kind: "play", until: now + 1000 }
+    };
+    game.databaseRef = { transaction(transform) { record = transform(record); } };
+    game.save();
+    assert.equal(record.turnSeconds, 1);
+    assert.equal(record.turnPause.until, now + 1000);
+    game.turnPause = { id: "new", kind: "play", until: now + 3000 };
+    game.save();
+    assert.equal(record.turnSeconds, 1);
+    assert.equal(record.turnPause.until, now + 1000);
+});
+
+test("personal play controls retain device defaults and honor explicit saved choices", () => {
+    for (const desktop of [false, true]) {
+        for (const saved of [null, "invalid", "flick", "button"]) {
+            const { GameLayout } = loadGame(null, {
+                getCookie: () => saved,
+                window: { matchMedia: () => ({ matches: desktop }) }
+            });
+
+            test("a stale save refreshes the local speed before republishing the lobby", () => {
+                const { game } = setupGame();
+                game.turnSeconds = 3;
+                const listedSpeeds = [];
+                game.updatePublicListing = () => listedSpeeds.push(game.turnSeconds);
+                game.databaseRef = {
+                    transaction(transform, complete) {
+                        const record = transform({ status: "S", turnSeconds: 1 });
+                        complete(null, true, { val: () => record });
+                    }
+                };
+                game.save();
+                assert.equal(game.turnSeconds, 1);
+                assert.ok(listedSpeeds.length > 0);
+                assert.ok(listedSpeeds.every(seconds => seconds == 1));
+            });
+
+            test("public lobby metadata publishes the shared turn speed, defaulting older rooms to two seconds", () => {
+                const listings = [];
+                const { PresidentGame, PresidentPlayer } = loadGame(null, {
+                    firebase: { database: () => ({
+                        ref: path => {
+                            assert.equal(path, "boms_public/test");
+                            return {
+                                set(record) { listings.push(record); return Promise.resolve(); },
+                                onDisconnect: () => ({ remove() {} })
+                            };
+                        }
+                    }) }
+                });
+                const game = Object.assign(Object.create(PresidentGame.prototype), {
+                    id: "test", status: "O", isPublic: true, hostKey: "human-key",
+                    localPlayerName: "Host", players: [new PresidentPlayer("Host", "human-key")]
+                });
+                for (const seconds of [undefined, 1, 2, 3]) {
+                    game.turnSeconds = seconds;
+                    game.updatePublicListing();
+                    assert.equal(listings.at(-1).turnSeconds, seconds || 2);
+                }
+            });
+            assert.equal(GameLayout.playInputMode(),
+                saved == "flick" || saved == "button" ? saved : desktop ? "button" : "flick");
+        }
+    }
+    assert.equal(playButtonContext({ playInput: "flick" }).playButton.hidden, true);
+    assert.equal(playButtonContext({ playInput: "button" }).playButton.hidden, false);
+});
+
+test("settings have three log-style categories with game speed directly below message duration", () => {
+    const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    const css = fs.readFileSync(path.join(__dirname, "..", "css", "theme.css"), "utf8");
+    const settings = html.slice(html.indexOf('id="dialogInnstillinger"'), html.indexOf('id="dialogFargetema"'));
+    assert.equal((settings.match(/class="settings-category"/g) || []).length, 3);
+    assert.match(settings, /data-speed="slow"[\s\S]*?<\/div>\s*<div class="setting-row setting-turn-speed"/);
+    assert.match(css, /\.game-log__trick,\s*\.settings-category\s*\{/);
+    assert.match(css, /\.game-log__trick::after,\s*\.settings-category::after\s*\{/);
+    assert.match(css, /#playerActions > #playButton\s*\{\s*order: -1/);
 });
 
 test("lower four of a kind cannot beat the top pile", () => {

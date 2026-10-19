@@ -212,6 +212,7 @@ class PresidentGame extends Game {
         this.isPublic = isPublic === true;
         this.turnPause = null;
         this.fastForward = false;
+        this.turnSeconds = gameTurnSeconds();
         this.roundStartVote = null;
         this.gameEndVote = null;
         this.roundStarterName = null;
@@ -322,6 +323,7 @@ class PresidentGame extends Game {
             "sinTur": this.turn,
             "turnPause": this.turnPause,
             "fastForward": this.fastForward === true,
+            "turnSeconds": gameTurnSeconds(this.turnSeconds),
             "roundStarterName": this.roundStarterName,
             "shuffleStartedAt": this.shuffleStartedAt,
             "playedCards": this.playedCards || [],
@@ -356,6 +358,7 @@ class PresidentGame extends Game {
                     ? (hasLastAction ? Math.max(Number(baseline), update.lastHumanActionAt) : Number(baseline))
                     : update.lastHumanActionAt;
                 var next = Object.assign({}, current, update, { lastHumanActionAt });
+                next.turnSeconds = gameTurnSeconds(current.turnSeconds);
                 next.fastForward = current.fastForward === true &&
                     current.shuffleStartedAt == update.shuffleStartedAt &&
                     (GamePresence.onlyBotsRemain(next) ||
@@ -365,9 +368,10 @@ class PresidentGame extends Game {
                         next.turnPause = Object.assign({}, next.turnPause, {
                             until: current.turnPause.until
                         });
-                    } else if (next.fastForward != update.fastForward) {
-                        var previousDelay = update.fastForward ? 1000 : TURN_ACTION_PAUSE_MS;
-                        var nextDelay = next.fastForward ? 1000 : TURN_ACTION_PAUSE_MS;
+                    } else if (next.fastForward != update.fastForward ||
+                        next.turnSeconds != gameTurnSeconds(update.turnSeconds)) {
+                        var previousDelay = update.fastForward ? 1000 : gameTurnSeconds(update.turnSeconds) * 1000;
+                        var nextDelay = next.fastForward ? 1000 : next.turnSeconds * 1000;
                         next.turnPause = Object.assign({}, next.turnPause, {
                             until: next.turnPause.until + nextDelay - previousDelay
                         });
@@ -378,6 +382,7 @@ class PresidentGame extends Game {
                 if (error) { failed(error); return; }
                 if (snapshot && snapshot.val()) {
                     this.lastHumanActionAt = GamePresence.lastActivityAt(snapshot.val());
+                    this.turnSeconds = gameTurnSeconds(snapshot.val().turnSeconds);
                     if (snapshot.val().status == "V" || expiredLocally) { this.status = snapshot.val().status; }
                 } else if (!allowCreate) {
                     this.status = "V";
@@ -404,6 +409,7 @@ class PresidentGame extends Game {
             host: humans[0].name,
             players: this.players.length,
             bots: this.players.filter(player => player.playerKey == "PC").length,
+            turnSeconds: gameTurnSeconds(this.turnSeconds),
             waiting: this.status == "O",
             ts: Date.now()
         }).catch(error => {
@@ -1597,7 +1603,27 @@ class PresidentGame extends Game {
         return this.fastForward === true &&
             (GamePresence.onlyBotsRemain(this) ||
                 (this.status == "S" && this.turnPause?.pendingGameEnd))
-            ? 1000 : TURN_ACTION_PAUSE_MS;
+            ? 1000 : gameTurnSeconds(this.turnSeconds) * 1000;
+    }
+    async setTurnSeconds(seconds) {
+        if (![1, 2, 3].includes(seconds)) {
+            throw new Error("Velg 1, 2 eller 3 sekunder.");
+        }
+        if (this.connectionOnline === false || !isLobbyHost(this)) {
+            throw new Error("Bare verten kan endre spillhastigheten.");
+        }
+        var result = await this.databaseRef.transaction(record => {
+            if (!record || GamePresence.isExpired(record) ||
+                record.hostKey != getPlayerKey() ||
+                (record.hostName && record.hostName != this.localPlayerName)) { return; }
+            var host = (record.spillere || []).find(player =>
+                player.spillerKey == getPlayerKey() && player.nick == this.localPlayerName);
+            if (!host || host.gaveUp || (record.controllers || {})[GamePresence.playerId(host)]) { return; }
+            return Object.assign({}, record, { turnSeconds: seconds });
+        }, undefined, false);
+        if (!result.committed) { throw new Error("Bare verten kan endre spillhastigheten."); }
+        this.turnSeconds = gameTurnSeconds(result.snapshot.val().turnSeconds);
+        this.updatePublicListing();
     }
     setFastForward(enabled) {
         var player = this.getPlayer(this.localPlayerName);
@@ -1615,7 +1641,7 @@ class PresidentGame extends Game {
             var update = { fastForward: enabled === true };
             if (record.turnPause && record.turnPause.until > Date.now()) {
                 update.turnPause = Object.assign({}, record.turnPause, {
-                    until: Date.now() + (enabled ? 1000 : TURN_ACTION_PAUSE_MS)
+                    until: Date.now() + (enabled ? 1000 : gameTurnSeconds(record.turnSeconds) * 1000)
                 });
             }
             return Object.assign({}, record, update);
@@ -1658,6 +1684,11 @@ class PresidentGame extends Game {
         var topPile = this.topPile();
         var fourOfKindOnTop = hasFourOfKindOnTop(this);
         var isClubThree = strengthRank == PresidentCard.clubThreePower();
+        if (fourOfKindOnTop && topPile.length < 4 && !isClubThree) {
+            resultInfo.svar = false;
+            resultInfo.text = "Fire like fra singler eller to par rydder bunken og kan ikke slås.";
+            return false;
+        }
         if (!isClubThree && strengthRank < topPile.strengthRank) {
             resultInfo.svar = false;
             resultInfo.text = `Må legge på samme eller høyere enn ${topPile.strengthRank}.`;
@@ -1692,6 +1723,7 @@ class PresidentGame extends Game {
         var isClubThreePlay = pile != null && pile.length == 1 && pile[0].isClubThree();
         var canBeatCurrentPile = isClubThreePlay || (fourOfKindOnTop
             ? pile != null &&
+                topPile.length == 4 &&
                 pile.length == 4 &&
                 pile.every(card => card.strengthRank == pile[0].strengthRank) &&
                 pile.strengthRank >= topPile.strengthRank
@@ -1713,6 +1745,10 @@ class PresidentGame extends Game {
             return true;
         }
         if (hasFourOfKindOnTop(this)) {
+            if (topPile.length < 4) {
+                info.text = "Fire like";
+                return true;
+            }
             var canBeBeaten = this.players.some(player => {
                 if (player.placement != 0 || player.name == topPile.name ||
                     player.lastPlay == "Pass") { return false; }

@@ -196,7 +196,7 @@ function initializeColorTheme() {
 
     function applyColorTheme(theme) {
         const selected = options.find(button => button.dataset.colorTheme === theme) ||
-            options.find(button => button.dataset.colorTheme === "blue");
+            options.find(button => button.dataset.colorTheme === "teal");
         root.dataset.colorTheme = selected.dataset.colorTheme;
         options.forEach(button => {
             button.setAttribute("aria-pressed", String(button === selected));

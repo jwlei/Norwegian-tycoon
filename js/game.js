@@ -162,9 +162,13 @@ const BOT_NAMES = [
     "Fetter Anton", "DeepSeek", "GPT6", "Jompa", "Sjefen_Over_Alle_Sjefer",
     "Mysil Bergsprekken", "RNGesus", "Tante_Pose", "BobRoss", "IlIllIlIIl", "ギフテッド"
 ];
-const TURN_ACTION_PAUSE_MS = 3000;
+const TURN_ACTION_PAUSE_MS = 2000;
 const BOT_ACTION_DELAY_MS = TURN_ACTION_PAUSE_MS;
 const SHUFFLE_DURATION_MS = 3500;
+
+function gameTurnSeconds(value) {
+    return [1, 2, 3].includes(Number(value)) ? Number(value) : TURN_ACTION_PAUSE_MS / 1000;
+}
 
 function isGiftPackage(piles) {
     if (piles.length < 4) { return false; }

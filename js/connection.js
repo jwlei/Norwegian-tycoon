@@ -150,6 +150,7 @@
             GameLayout.updatePlayers(currentGame, player);
             updateFastForwardButton();
             updateTurnTimer();
+            updateTurnSpeedButtons();
             var reclaim = document.getElementById("reclaimSeatButton");
             reclaim.hidden = !controlled || !player || player.playerKey == "PC";
             reclaim.disabled = !online;
@@ -1322,9 +1323,11 @@
                 button.className = "public-lobby-entry";
                 button.dataset.lobbyId = lobby.id;
                 var name = document.createElement("span");
+                var speed = document.createElement("small");
+                speed.className = "public-lobby-entry__speed";
                 var status = document.createElement("span");
                 status.className = "public-lobby-entry__status";
-                button.append(name, status);
+                button.append(name, speed, status);
                 button.addEventListener("click", function () {
                     joinGameById(lobby.id, showPublicLobbyError);
                 });
@@ -1335,9 +1338,11 @@
                 var lobby = available.get(id);
                 button.classList.toggle("is-running", !lobby.waiting);
                 var name = `${lobby.host} · ${lobby.players}/${MAX_PLAYERS}`;
+                var speed = `${gameTurnSeconds(lobby.turnSeconds)} s turpause (verten styrer)`;
                 var status = lobby.waiting ? "Venter i lobby" : "Spill pågår";
                 if (button.children[0].textContent != name) { button.children[0].textContent = name; }
-                if (button.children[1].textContent != status) { button.children[1].textContent = status; }
+                if (button.children[1].textContent != speed) { button.children[1].textContent = speed; }
+                if (button.children[2].textContent != status) { button.children[2].textContent = status; }
             });
         }
 
@@ -1357,6 +1362,7 @@
                         players: Number(lobby.players) || 0,
                         bots: Number(lobby.bots) || 0,
                         waiting: lobby.waiting !== false,
+                        turnSeconds: gameTurnSeconds(lobby.turnSeconds),
                         ts: Number(lobby.ts) || 0
                     });
                 }
@@ -1537,6 +1543,7 @@
                     connectingGame.turn = snapshotRecord["sinTur"];
                     connectingGame.turnPause = snapshotRecord["turnPause"] || null;
                     connectingGame.fastForward = snapshotRecord.fastForward === true;
+                    connectingGame.turnSeconds = gameTurnSeconds(snapshotRecord.turnSeconds);
                     connectingGame.ts = snapshotRecord.ts;
                     connectingGame.lastHumanActionAt = snapshotRecord.lastHumanActionAt ?? null;
                     connection.receive(snapshotRecord);
@@ -1639,7 +1646,7 @@
             showInviteLink(currentGame.id, inviteUrl.href);
         });
 
-        var GAME_SPEED_MS = { fast: TURN_ACTION_PAUSE_MS, normal: 5000, slow: 8000 };
+        var GAME_SPEED_MS = { fast: 3000, normal: 5000, slow: 8000 };
         function currentGameSpeed() {
             var stored = null;
             try { stored = localStorage.getItem("gameSpeed"); } catch (error) { }
@@ -1651,6 +1658,51 @@
                 button.setAttribute("aria-pressed", String(button.dataset.speed == speed));
             });
         }
+        function updateTurnSpeedButtons() {
+            var seconds = gameTurnSeconds(currentGame && currentGame.turnSeconds);
+            var player = currentGame && currentGame.getPlayer(currentPlayerName);
+            var canChange = currentGame != null && currentGame.connectionOnline !== false &&
+                isLobbyHost(currentGame) && !!player && !GamePresence.isBot(currentGame, player);
+            document.querySelectorAll(".turn-speed-option").forEach(button => {
+                button.setAttribute("aria-pressed", String(Number(button.dataset.seconds) == seconds));
+                button.disabled = !canChange;
+            });
+        }
+        function updatePlayInputButtons() {
+            var mode = GameLayout.playInputMode();
+            document.querySelectorAll(".play-input-option").forEach(button => {
+                button.setAttribute("aria-pressed", String(button.dataset.playInput == mode));
+            });
+        }
+        document.querySelectorAll(".turn-speed-option").forEach(button => {
+            button.addEventListener("click", async function () {
+                if (currentGame == null) { return; }
+                var game = currentGame;
+                try {
+                    await game.setTurnSeconds(Number(button.dataset.seconds));
+                } catch (error) {
+                    console.error("Kunne ikke endre spillhastigheten.", error);
+                    if (currentGame == game) { showGameToast(error.message, game); }
+                }
+                updateTurnSpeedButtons();
+            });
+        });
+        document.querySelectorAll(".play-input-option").forEach(button => {
+            button.addEventListener("click", function () {
+                setCookie("PlayInputMode", button.dataset.playInput, 1000);
+                updatePlayInputButtons();
+                if (currentGame != null) { refreshAfterTurnPause(currentGame); }
+            });
+        });
+        window.addEventListener("storage", function (event) {
+            if (event.key != "norwegian-tycoon-cookie-PlayInputMode") { return; }
+            updatePlayInputButtons();
+            if (currentGame != null) { refreshAfterTurnPause(currentGame); }
+        });
+        window.matchMedia("(hover: hover) and (pointer: fine)").addEventListener("change", function () {
+            updatePlayInputButtons();
+            if (currentGame != null) { refreshAfterTurnPause(currentGame); }
+        });
         function updateCardStyleButtons() {
             document.getElementById("secretStyleHeader").hidden = !GameLayout.canUseBotanicalStyle();
             var style = GameLayout.cardStyle();
@@ -1716,10 +1768,12 @@
             updateCardStyleButtons();
             GameLayout.setVisible("BnPByttNavn", !inGame || currentGame.status == "O");
             document.getElementById("autoSuggestionToggleButton").hidden = !inGame;
-            document.querySelector(".setting-speed").hidden = !inGame;
+            document.querySelector(".setting-turn-speed").hidden = !inGame;
             document.getElementById("settingsGameId").hidden = !inGame;
             updateAutoSuggestionButton();
             updateSpeedButtons();
+            updateTurnSpeedButtons();
+            updatePlayInputButtons();
             showDialog("Innstillinger", true);
         }
 
@@ -1840,7 +1894,8 @@
             if (botLoopTimer != null || currentGame == null ||
                 !GamePresence.canDrive(currentGame, connection ? connection.now() : Date.now()) ||
                 (currentGame.status != "S" && currentGame.status != "G")) { return; }
-            var delay = fastForward ? 1000 : BOT_ACTION_DELAY_MS;
+            var delay = fastForward ? 1000 :
+                (currentGame.actionPauseMs ? currentGame.actionPauseMs() : BOT_ACTION_DELAY_MS);
             if (currentGame.turnPause != null) {
                 var pauseRemaining = currentGame.turnPause.until - Date.now();
                 if (pauseRemaining > 0) {
