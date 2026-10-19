@@ -1000,6 +1000,7 @@ class GameLayout {
                 exchangeHeading.append(heading);
                 table.appendChild(exchangeHeading);
                 game.piles.forEach(exchange => {
+                    if (exchange.mode == "Tilbud" && exchange != activeTradeOffer(game)) { return; }
                     if (!exchange.cards) { exchange.cards = [] };
                     var fromPlayer = game.players[exchange.from];
                     var toPlayer = game.players[exchange.to];
@@ -1097,12 +1098,6 @@ class GameLayout {
                     var buttonSpan = document.createElement("span");
                     if (exchange.mode == "Tilbud") {
                         element.classList.add("exchange--offer");
-                        var offerCountdown = document.createElement("small");
-                        offerCountdown.className = "exchange-offer__countdown";
-                        offerCountdown.dataset.offerUntil = String(exchange.offerUntil);
-                        var remaining = Math.max(0, Math.ceil((exchange.offerUntil - GamePresence.now()) / 1000));
-                        offerCountdown.textContent = `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`;
-                        element.appendChild(offerCountdown);
                         buttonSpan.className = "exchange-offer__actions";
                         var voters = exchange.sneakyVotes || [];
                         var isParticipant = isSender || isRecipient;
@@ -1900,6 +1895,13 @@ class GameLayout {
         if (activeExchange) {
             selectExchangeCard = function (card) {
                 if (game.localWritePending) { return; }
+                if (activeExchange.cards.length == activeExchange.count) {
+                    activeExchange.cards = [];
+                    game.save();
+                    GameLayout.updateTable(game, player);
+                    GameLayout.updateHand(game, player);
+                    return;
+                }
                 var selectedIndex = activeExchange.cards.findIndex(selectedCard =>
                     selectedCard.suit == card.suit && selectedCard.rank == card.rank
                 );
@@ -2185,7 +2187,8 @@ class GameLayout {
                                 ) &&
                                     isCardAllowedForExchange(activeExchange, k) &&
                                     activeExchange.cards.length < activeExchange.count;
-                                elemKort.disabled = !isSelectedForExchange && !canSelectForExchange;
+                                elemKort.disabled = activeExchange.cards.length != activeExchange.count &&
+                                    !isSelectedForExchange && !canSelectForExchange;
                                 if (elemKort.disabled) {
                                     elemKort.classList.add("is-unplayable");
                                 }

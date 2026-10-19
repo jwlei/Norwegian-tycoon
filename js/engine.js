@@ -1349,7 +1349,6 @@ class PresidentGame extends Game {
                         to: neutralIndex,
                         count: 1,
                         mode: "Tilbud",
-                        offerUntil: GamePresence.now() + SHUFFLE_DURATION_MS + 120000,
                         cards: [],
                         sneakyVotes: []
                     }, {
@@ -1361,7 +1360,6 @@ class PresidentGame extends Game {
                         to: bomsIndex,
                         count: 1,
                         mode: "Tilbud",
-                        offerUntil: GamePresence.now() + SHUFFLE_DURATION_MS + 120000,
                         cards: [],
                         sneakyVotes: []
                     });
@@ -1406,7 +1404,8 @@ class PresidentGame extends Game {
         var currentOffer = this.piles.find(exchange =>
             getExchangeId(exchange) == offerId && exchange.mode == "Tilbud"
         );
-        if (!currentOffer || currentOffer.kind != "playerTrade") {
+        if (!currentOffer || currentOffer.kind != "playerTrade" ||
+            currentOffer != activeTradeOffer(this)) {
             throw ("Dette byttet er ikke lenger tilgjengelig.");
         }
         if (currentOffer.offerUntil != null && GamePresence.now() >= currentOffer.offerUntil) {
@@ -1453,10 +1452,15 @@ class PresidentGame extends Game {
     expireOptionalTrades(now = GamePresence.now()) {
         if (this.status != "G" || !GamePresence.canDrive(this, now) ||
             GamePresence.isActionPaused(this, now)) { return false; }
-        var expired = this.piles.filter(exchange =>
-            exchange.mode == "Tilbud" && exchange.offerUntil != null && now >= exchange.offerUntil);
-        if (expired.length == 0) { return false; }
-        this.piles = this.piles.filter(exchange => !expired.includes(exchange));
+        var offer = activeTradeOffer(this);
+        if (!offer) { return false; }
+        if (offer.offerUntil == null) {
+            offer.offerUntil = now + 120000;
+            this.save();
+            return true;
+        }
+        if (now < offer.offerUntil) { return false; }
+        this.piles = this.piles.filter(exchange => exchange != offer);
         this.advanceExchangeStage();
         this.save();
         return true;
@@ -1467,7 +1471,8 @@ class PresidentGame extends Game {
         var currentOffer = this.piles.find(exchange =>
             getExchangeId(exchange) == getExchangeId(offer) && exchange.mode == "Tilbud"
         );
-        if (!currentOffer || currentOffer.kind != "playerTrade") {
+        if (!currentOffer || currentOffer.kind != "playerTrade" ||
+            currentOffer != activeTradeOffer(this)) {
             throw ("Dette byttet er ikke lenger tilgjengelig.");
         }
         if (currentOffer.from != playerIndex &&
@@ -1488,6 +1493,9 @@ class PresidentGame extends Game {
         if (!current || current.kind != "playerTrade" ||
             (current.mode != "Tilbud" && current.mode != "Velg")) {
             throw ("Sneaky-samtykke kan ikke endres nå.");
+        }
+        if (current.mode == "Tilbud" && current != activeTradeOffer(this)) {
+            throw ("Dette byttet er ikke lenger tilgjengelig.");
         }
         if (playerIndex != current.from && playerIndex != current.to) {
             throw ("Bare deltakerne i byttet kan gi sneaky-samtykke.");
@@ -1578,6 +1586,10 @@ class PresidentGame extends Game {
                 completedExchanges.forEach(exchange => this.deliverExchangeCards(exchange));
                 this.piles = this.piles.filter(exchange => !completedExchangeSet.has(exchange));
                 if (this.piles.length == 0) { this.advanceExchangeStage(); }
+            }
+            var offer = activeTradeOffer(this);
+            if (offer && offer.offerUntil == null) {
+                offer.offerUntil = GamePresence.now() + 120000;
             }
         }
     }

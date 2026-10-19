@@ -256,7 +256,7 @@ function loadGame(cardStyle = null, globals = {}) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(source, context);
     }
-    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, GamePresence, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage, isCardAllowedForExchange, chooseSuggestedPlayStrength })", context);
+    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, GamePresence, activeTradeOffer, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage, isCardAllowedForExchange, chooseSuggestedPlayStrength })", context);
 }
 
 test("clearing card flights cancels and removes overlays from the page", () => {
@@ -281,7 +281,7 @@ function turnTimerFixture() {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const start = source.indexOf("        function updateTurnTimer()");
     const end = source.indexOf("        function refreshConnectionView()", start);
-    const { GamePresence } = loadGame();
+    const { GamePresence, activeTradeOffer } = loadGame();
     const elements = {
         turnTimer: { hidden: true },
         turnCountdown: { hidden: true, textContent: "" },
@@ -296,7 +296,7 @@ function turnTimerFixture() {
     };
     const context = vm.createContext({
         currentGame: game, currentPlayerName: "Owner",
-        connection: { now: () => now }, GamePresence,
+        connection: { now: () => now }, GamePresence, activeTradeOffer,
         document: { getElementById: id => elements[id] }
     });
     vm.runInContext(source.slice(start, end), context);
@@ -1178,6 +1178,52 @@ test("forced exchange offer deadlines survive serialization and reject late star
     assert.throws(() => game.startOptionalTrade(game.piles[0]), /Tiden.*ute/);
 });
 
+test("extra exchanges wait for mandatory cards and receive separate 120-second deadlines", () => {
+    const { game, players } = setupGame();
+    game.status = "G";
+    const mandatory = { id: "mandatory", mode: "Velg", from: 0, to: 2, count: 2, cards: [] };
+    const offers = [1, 2].map((to, index) => ({
+        id: `offer-${index}`, mode: "Tilbud", kind: "playerTrade",
+        from: index, to, count: 1, cards: []
+    }));
+    game.piles = [mandatory, ...offers];
+    game.save = () => {};
+    game.localPlayerName = players[0].name;
+    const { activeTradeOffer } = loadGame();
+    assert.equal(activeTradeOffer(game), null);
+    assert.equal(game.expireOptionalTrades(Date.now() + 200000), false);
+    assert.throws(() => game.startOptionalTrade(offers[0]), /ikke lenger/);
+    assert.throws(() => game.toggleSneakyTrade(offers[0], 0), /ikke lenger/);
+    game.piles.shift();
+    game.advanceExchangeStage();
+    assert.equal(activeTradeOffer(game), offers[0]);
+    assert.ok(Math.abs(offers[0].offerUntil - Date.now() - 120000) < 100);
+    const firstDeadline = offers[0].offerUntil;
+    game.advanceExchangeStage();
+    assert.equal(offers[0].offerUntil, firstDeadline, "Refreshing the stage must not reset the active offer");
+    assert.equal(offers[1].offerUntil, undefined);
+    assert.throws(() => game.startOptionalTrade(offers[1]), /ikke lenger/);
+    assert.throws(() => game.skipOptionalTrade(offers[1], 1), /ikke lenger/);
+    game.skipOptionalTrade(offers[0], 0);
+    assert.equal(activeTradeOffer(game), offers[1]);
+    assert.ok(Math.abs(offers[1].offerUntil - Date.now() - 120000) < 100);
+});
+
+test("offer countdown uses the board timer even with one human and never permits extension", () => {
+    const fixture = turnTimerFixture();
+    fixture.game.status = "G";
+    fixture.game.piles = [{ id: "offer", mode: "Tilbud", offerUntil: 200000 }];
+    fixture.game.players = [fixture.players[0]];
+    fixture.now = 80000;
+    assert.equal(fixture.render().turnCountdown.textContent, "2:00");
+    assert.equal(fixture.elements.turnTimer.hidden, false);
+    assert.equal(fixture.elements.extendTurnButton.hidden, true);
+    fixture.now = 81500;
+    assert.equal(fixture.render().turnCountdown.textContent, "1:59");
+    fixture.now = 200000;
+    assert.equal(fixture.render().turnCountdown.textContent, "0:00");
+});
+
 test("offer expiry leaves active exchanges intact and only the online room driver may perform it", () => {
     const { game, players } = setupGame();
     const selection = { id: "selection", mode: "Velg", from: 0, to: 1, cards: [] };
@@ -1192,9 +1238,9 @@ test("offer expiry leaves active exchanges intact and only the online room drive
     game.hostKey = "another-host";
     assert.equal(game.expireOptionalTrades(120000), false);
     game.hostKey = "human-key";
-    assert.equal(game.expireOptionalTrades(120000), true);
+    assert.equal(game.expireOptionalTrades(120000), false);
     assert.equal(game.status, "G");
-    assert.deepEqual(game.piles, [selection]);
+    assert.equal(game.piles.length, 2, "Hidden offers cannot expire while an earlier exchange is active");
 });
 
 test("a stale room save cannot remove another client's exchange receipt within the same round", () => {

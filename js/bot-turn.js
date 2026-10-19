@@ -9,7 +9,7 @@ function playBotTurn(game, player, random = Math.random) {
         if (game.status == "G") {
             var seat = game.players.indexOf(player);
             game.piles.slice().filter(exchange =>
-                exchange.mode == "Tilbud" && (exchange.from == seat || exchange.to == seat)
+                exchange == activeTradeOffer(game) && (exchange.from == seat || exchange.to == seat)
             ).forEach(exchange => {
                 if (!game.piles.includes(exchange) || exchange.mode != "Tilbud") { return; }
                 if (!exchange.botDecisions) { exchange.botDecisions = {}; }

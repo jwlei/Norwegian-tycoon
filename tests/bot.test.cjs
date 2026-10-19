@@ -335,6 +335,21 @@ function optionalOffer(game, from = 0, to = 1) {
     return offer;
 }
 
+test("bots leave queued optional offers untouched until the mandatory exchange completes", () => {
+    const game = gameWithHands([[card(7)], [card(8)], [card(9), card(10)]]);
+    const offer = optionalOffer(game);
+    const mandatory = {
+        id: "mandatory", from: 2, to: 0, mode: "Velg", count: 2, cards: []
+    };
+    game.piles.unshift(mandatory);
+    playBotTurn(game, game.players[0], () => {
+        throw new Error("A hidden offer must not trigger a bot decision");
+    });
+    assert.deepEqual(game.piles, [mandatory, offer]);
+    assert.equal(offer.botDecisions, undefined);
+    assert.equal(offer.offerUntil, undefined);
+});
+
 test("optional trade chances are seeded, skill-dependent, and use one roll per decision", () => {
     const frequencies = [];
     for (const skill of BotAI.skills) {

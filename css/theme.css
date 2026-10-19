@@ -1050,15 +1050,6 @@ select:focus-visible {
 
 .exchange--offer {
     position: relative;
-    padding-bottom: 28px;
-}
-
-.exchange-offer__countdown {
-    position: absolute;
-    right: 10px;
-    bottom: 6px;
-    color: var(--muted);
-    font-variant-numeric: tabular-nums;
 }
 
 .exchange-offer__actions {
@@ -1085,9 +1076,14 @@ select:focus-visible {
     justify-content: center;
     gap: 8px;
     max-width: 95%;
+    width: min(90%, 480px);
+    pointer-events: none;
 }
 
 #exchangeActions > button {
+    pointer-events: auto;
+    flex: 1 1 0;
+    min-width: 0;
     min-height: 48px;
     box-shadow: var(--shadow);
 }
@@ -2695,7 +2691,7 @@ select:focus-visible {
     position: absolute;
     z-index: 70;
     bottom: 8px;
-    left: 8px;
+    right: 8px;
     display: inline-flex;
     align-items: center;
     gap: 5px;

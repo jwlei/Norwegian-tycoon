@@ -95,7 +95,7 @@
         "Sneaky?": "Sneaky?",
         "Tving bytte eller velg Ingen bytte": "Force an exchange or choose No exchange",
         "Tiden for å tvinge bytte er ute.": "The time to force an exchange has expired.",
-        "Med tre spillere kan President tvinge bytte med Nøytral, og Nøytral med Boms. Bytt ett kort mellom 7–J, eller alle kortverdier om begge velger Sneaky. Velg innen 120 sekunder, ellers blir det ingen bytte. Botter kan også delta.": "With three players, the President can force an exchange with Neutral, and Neutral with Boms. Exchange one card from 7–J, or any card rank if both choose Sneaky. Decide within 120 seconds or there is no exchange. Bots can also participate.",
+        "Med tre spillere kan President tvinge bytte med Nøytral, og Nøytral med Boms. Boms/President-byttet fullføres først, deretter vises ett ekstra bytte om gangen. Bytt ett kort mellom 7–J, eller alle kortverdier om begge velger Sneaky. Hvert tilbud har 120 sekunder, ellers blir det ingen bytte. Botter kan også delta.": "With three players, the President can force an exchange with Neutral, and Neutral with Boms. The Boms/President exchange completes first, then one extra exchange is offered at a time. Exchange one card from 7–J, or any card rank if both choose Sneaky. Each offer has 120 seconds or there is no exchange. Bots can also participate.",
         "Profil og språk": "Profile and language",
         "Utseende": "Appearance",
         "Spill og styring": "Gameplay and controls",

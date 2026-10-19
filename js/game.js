@@ -31,6 +31,12 @@ function getExchangeId(exchange) {
     return exchange.id || `${exchange.tradeId || "exchange"}:${exchange.from}:${exchange.to}`;
 }
 
+function activeTradeOffer(game) {
+    if (!game || game.status != "G" ||
+        (game.piles || []).some(exchange => exchange.mode != "Tilbud")) { return null; }
+    return (game.piles || []).find(exchange => exchange.mode == "Tilbud") || null;
+}
+
 function hasSneakyConsent(exchange) {
     return exchange.kind == "playerTrade" &&
         Array.isArray(exchange.sneakyVotes) &&

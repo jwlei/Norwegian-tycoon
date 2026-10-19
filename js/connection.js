@@ -110,6 +110,16 @@
                 GamePresence.activeHumanCount(currentGame) > 1 &&
                 (currentGame.status == "S" || currentGame.status == "G");
             var now = connection ? connection.now() : Date.now();
+            var offer = activeTradeOffer(currentGame);
+            if (offer) {
+                var offerRemaining = offer.offerUntil == null ? 120 :
+                    Math.max(0, Math.ceil((offer.offerUntil - now) / 1000));
+                countdown.textContent = `${Math.floor(offerRemaining / 60)}:${String(offerRemaining % 60).padStart(2, "0")}`;
+                timer.hidden = false;
+                countdown.hidden = false;
+                extend.hidden = true;
+                return;
+            }
             var canAct = timerActive && !GamePresence.isActionPaused(currentGame, now);
             var timerDeadline = canAct && (currentGame.players || [])
                 .filter(candidate => !candidate.gaveUp && !GamePresence.isBot(currentGame, candidate))
@@ -151,11 +161,6 @@
             updateFastForwardButton();
             updateTurnTimer();
             updateTurnSpeedButtons();
-            document.querySelectorAll("[data-offer-until]").forEach(countdown => {
-                var remaining = Math.max(0, Math.ceil((Number(countdown.dataset.offerUntil) -
-                    (connection ? connection.now() : GamePresence.now())) / 1000));
-                countdown.textContent = `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`;
-            });
             currentGame.expireOptionalTrades();
             var reclaim = document.getElementById("reclaimSeatButton");
             reclaim.hidden = !controlled || !player || player.playerKey == "PC";
@@ -1606,13 +1611,6 @@
                     connectingGame.players = PresidentPlayer.deserializePlayers(storedPlayers);
                     connectingGame.cardStyles = snapshotRecord.cardStyles || {};
                     connectingGame.piles = ((connectingGame.status == "G") ? PresidentGame.deserializeExchanges(storedPiles) : PresidentCard.deserializePiles(storedPiles));
-                    if (connectingGame.status == "G") {
-                        connectingGame.piles.filter(exchange => exchange.mode == "Tilbud" &&
-                            exchange.offerUntil == null).forEach(exchange => {
-                            exchange.offerUntil = Number(connectingGame.shuffleStartedAt || Date.now()) +
-                                SHUFFLE_DURATION_MS + 120000;
-                        });
-                    }
                     connectingGame.turn = snapshotRecord["sinTur"];
                     connectingGame.turnPause = snapshotRecord["turnPause"] || null;
                     connectingGame.fastForward = snapshotRecord.fastForward === true;
