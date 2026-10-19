@@ -148,14 +148,33 @@ button {
 }
 
 #mainMenu button.public-lobby-random {
-    width: auto;
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
     min-width: 0;
+    min-height: 36px;
     margin: 0;
-    padding: 3px 9px;
-    border-radius: 999px;
-    font-size: 0.95rem;
-    line-height: 1.2;
-    letter-spacing: 0;
+    padding: 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    opacity: 0.65;
+}
+
+#mainMenu button.public-lobby-random:hover {
+    background: var(--line);
+    opacity: 1;
+}
+
+#mainMenu .public-lobby-random > img {
+    width: 20px;
+    height: 20px;
+}
+
+[data-theme="dark"] .public-lobby-random > img {
+    filter: invert(1);
 }
 
 #mainMenu .public-lobby-empty {
@@ -416,6 +435,17 @@ select:focus-visible {
     background: #17803d;
     border-color: #39a95f;
     color: #fff;
+}
+
+#playerActions > button {
+    min-width: clamp(112px, 26vw, 180px);
+    max-width: 46%;
+}
+
+#playerActions > button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: none;
 }
 
 #playerActions > #passButton.pass-needs-action,
@@ -1860,16 +1890,20 @@ select:focus-visible {
     z-index: 200;
     top: 50%;
     left: 50%;
-    width: min(420px, calc(100vw - 24px));
-    padding: 12px 18px;
+    width: min(520px, calc(100vw - 24px));
+    height: clamp(50px, 9dvh, 76px);
+    box-sizing: border-box;
+    align-content: center;
+    padding: 4px 14px;
     border: 1px solid var(--line);
     border-radius: 14px;
     background: var(--surface);
     color: var(--ink);
-    font-size: clamp(0.9rem, 2.5vw, 1.05rem);
+    font-size: clamp(0.78rem, 2.5vw, 0.95rem);
     font-weight: 750;
-    line-height: 1.3;
+    line-height: 1.2;
     text-align: center;
+    white-space: pre-line;
     overflow-wrap: anywhere;
     overflow: hidden;
     box-shadow: var(--shadow);
@@ -1880,6 +1914,10 @@ select:focus-visible {
     pointer-events: auto;
     cursor: pointer;
     touch-action: manipulation;
+}
+
+#playerActions > .game-toast {
+    max-height: calc(100% - 10px);
 }
 
 .game-toast::after {
@@ -1912,7 +1950,7 @@ select:focus-visible {
 
 .game-toast.game-toast--leaving {
     position: fixed;
-    z-index: 199;
+    z-index: 0;
     margin: 0;
     pointer-events: none;
     transform: none;
@@ -1925,7 +1963,7 @@ select:focus-visible {
 
 .game-toast.game-toast--leaving.is-leaving {
     opacity: 0;
-    transform: translateY(calc(-1 * var(--toast-push, 60px)));
+    transform: none;
     transition:
         opacity var(--toast-leave-fade, 330ms) linear var(--toast-leave-fade-delay, 670ms),
         transform var(--toast-leave, 1000ms) ease-out;
@@ -1933,13 +1971,16 @@ select:focus-visible {
 
 .game-toast__player {
     display: inline-block;
-    max-width: 100%;
+    max-width: min(55vw, 260px);
     margin: 0 0.08em;
     padding: 0.04em 0.34em;
     border-radius: 0.4em;
     background: var(--player-color);
     color: #17191d;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
 }
 
 #gameShell.game-active:not(.Lobby):not(.GameFinished) > .game-menu-toggle {
@@ -2078,8 +2119,6 @@ select:focus-visible {
 .settings-list #BnPByttNavn { width: 100%; }
 
 #spectatorJoinToast {
-    position: fixed;
-    transform: translateX(-50%);
     pointer-events: none;
     cursor: default;
 }
@@ -2180,12 +2219,55 @@ select:focus-visible {
 }
 
 #reclaimSeatButton {
-    position: fixed;
+    position: relative;
     z-index: 40;
-    bottom: calc(env(safe-area-inset-bottom) + 12px);
-    left: 50%;
-    padding: 10px 16px;
-    transform: translateX(-50%);
+    grid-column: 1 / -1;
+    grid-row: 5 / 6;
+    align-self: center;
+    justify-self: center;
+    width: min(80%, 320px);
+    min-height: 56px;
+    margin: 0;
+    padding: 14px 24px;
+    font-size: 1.1rem;
+    box-shadow: var(--shadow);
+}
+
+#fastForwardButton {
+    position: absolute;
+    z-index: 70;
+    right: 8px;
+    bottom: 8px;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    margin: 0;
+    padding: 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    box-shadow: none;
+    opacity: 0.65;
+}
+
+#fastForwardButton:hover {
+    background: var(--line);
+    opacity: 1;
+}
+
+#fastForwardButton > svg {
+    width: 20px;
+    height: 20px;
+}
+
+#fastForwardButton[hidden],
+#fastForwardButton[aria-pressed="false"] > .normal-play-icon,
+#fastForwardButton[aria-pressed="true"] > .fast-forward-icon {
+    display: none;
 }
 
 #resumeGameButton[hidden],
@@ -2552,7 +2634,7 @@ select:focus-visible {
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);
         --shell-hand-card-height: clamp(72px, 23dvh, 116px);
-        grid-template-rows: 56px 52px minmax(0, 1fr) 52px calc(var(--shell-hand-card-height) + 34px);
+        grid-template-rows: 56px 52px minmax(0, 1fr) 60px calc(var(--shell-hand-card-height) + 34px);
     }
 
     #gameShell.game-active > #playerList {
@@ -2580,7 +2662,7 @@ select:focus-visible {
 @media (orientation: landscape) and (max-height: 500px) {
     #gameShell.game-active {
         --shell-hand-card-height: clamp(54px, 18vh, 76px);
-        grid-template-rows: 40px 36px minmax(58px, 1fr) 44px calc(var(--shell-hand-card-height) + 24px);
+        grid-template-rows: 40px 36px minmax(58px, 1fr) 60px calc(var(--shell-hand-card-height) + 24px);
     }
 
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInviterSpill,
@@ -3364,6 +3446,19 @@ select:focus-visible {
         --shell-hand-card-height: clamp(96px, 17dvh, 132px);
         grid-template-rows: 44px 56px minmax(0, 1fr) 84px calc(var(--shell-hand-card-height) + 34px);
         box-shadow: 0 0 0 1px rgb(255 255 255 / 6%), 0 0 60px rgb(0 0 0 / 35%);
+    }
+
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #BnInnstillinger {
+        left: calc(max(0px, (100vw - 980px) / 2) + 8px);
+    }
+
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > .topbar-actions {
+        right: calc(max(0px, (100vw - 980px) / 2) + 8px);
+    }
+
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #waitingPlayers {
+        left: calc(max(0px, (100vw - 980px) / 2) + 60px);
+        max-width: 750px;
     }
 
     #gameShell.game-active #playerHand.card-hand > .game-card > img,

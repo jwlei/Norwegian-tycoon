@@ -505,7 +505,7 @@ test("the play button rejects empty and illegal selections without playing", () 
     }
 });
 
-test("the play button is hidden outside an active human turn and guards stale clicks", () => {
+test("the play button stays dimmed while waiting, hides when inapplicable and guards stale clicks", () => {
     const blockedStates = [
         { game: { status: "G" } },
         { game: { isTurnPaused: () => true } },
@@ -519,7 +519,9 @@ test("the play button is hidden outside an active human turn and guards stale cl
     ];
     for (const options of blockedStates) {
         const state = playButtonContext(options);
-        assert.equal(state.playButton.hidden, true);
+        assert.equal(state.playButton.hidden,
+            state.game.status != "S" || state.player.placement != 0 ||
+            loadGame().GamePresence.isBot(state.game, state.player));
         assert.equal(state.playButton.disabled, true);
         assert.equal(state.playButton.onclick(), false);
         assert.equal(state.played.length, 0);
@@ -530,6 +532,165 @@ test("the play button is hidden outside an active human turn and guards stale cl
         assert.equal(stale.playButton.onclick(), false);
         assert.equal(stale.played.length, 0);
     }
+});
+
+test("toast notices get separate lines without splitting punctuation inside player names", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const context = vm.createContext({
+        document: {
+            createTextNode: text => ({ textContent: text }),
+            createElement: () => ({ style: { setProperty() {} } })
+        }
+    });
+    vm.runInContext(source.slice(source.indexOf("        function appendColoredGameMessage("),
+        source.indexOf("        function localizedMessage(")), context);
+    const players = [{ name: "Dr. Bot", displayColor: "#123456" }];
+    for (const [message, expected] of [
+        ["Alle passet. Dr. Bot starter.", "Alle passet.\nDr. Bot starter."],
+        ["Dr. Bot: Fire like! Starter igjen.", "Dr. Bot: Fire like!\nStarter igjen."],
+        ["Dr. Bot ble President! Someone ble Boms!", "Dr. Bot ble President!\nSomeone ble Boms!"],
+        ["Spillet pågår. Du ser på til neste runde.", "Spillet pågår.\nDu ser på til neste runde."]
+    ]) {
+        const nodes = [];
+        context.appendColoredGameMessage({ appendChild: node => nodes.push(node) }, message, players, true);
+        assert.equal(nodes.map(node => node.textContent).join(""), expected);
+    }
+});
+
+test("only remaining active bots allow fast forward, including temporary bot control", () => {
+    const { GamePresence } = loadGame();
+    const { game, players } = setupGame();
+    assert.equal(GamePresence.onlyBotsRemain(game), false);
+    players[0].placement = 1;
+    assert.equal(GamePresence.onlyBotsRemain(game), true);
+    assert.equal(GamePresence.onlyBotsRemain({
+        status: game.status, spillere: players.map(player => player.toRecord())
+    }), true);
+    players[0].placement = 0;
+    game.controllers = { [GamePresence.playerId(players[0])]: { since: Date.now() } };
+    assert.equal(GamePresence.onlyBotsRemain(game), true);
+    delete game.controllers[GamePresence.playerId(players[0])];
+    assert.equal(GamePresence.onlyBotsRemain(game), false);
+    players[0].placement = 1;
+    players[1].placement = 2;
+    assert.equal(GamePresence.onlyBotsRemain(game), false);
+    game.status = "F";
+    assert.equal(GamePresence.onlyBotsRemain(game), false);
+});
+
+test("fast-forward transactions recheck eligibility, reschedule pauses and preserve message speed", async () => {
+    const { game, players } = setupGame();
+    players[0].placement = 1;
+    game.localPlayerName = players[0].name;
+    let record = {
+        status: "S", spillere: players.map(player => player.toRecord()),
+        turnPause: { id: "pause", until: Date.now() + 10000 },
+        fastForward: false
+    };
+    let transactions = 0;
+    game.databaseRef = { transaction: async update => {
+        transactions++;
+        const next = update(record);
+        if (next) { record = next; }
+    } };
+    await game.setFastForward(true);
+    assert.equal(record.fastForward, true);
+    assert.ok(record.turnPause.until - Date.now() <= 1000);
+    assert.equal(record.turnPause.id, "pause");
+    await game.setFastForward(false);
+    assert.equal(record.fastForward, false);
+    assert.ok(record.turnPause.until - Date.now() > 2000);
+    record.spillere[0].plassering = 0;
+    await game.setFastForward(true);
+    assert.equal(record.fastForward, false);
+    game.connectionOnline = false;
+    await game.setFastForward(true);
+    assert.equal(transactions, 3);
+});
+
+test("fast forward shortens bot actions and final pauses, then resets when the game finishes", () => {
+    const { game, players, pile } = setupGame();
+    players[0].placement = 1;
+    players[1].cards = [...pile(players[1], 7, 2)];
+    players[2].cards = [...pile(players[2], 8, 2)];
+    game.fastForward = true;
+    game.databaseRef = { update: () => Promise.resolve() };
+    game.setTurn(1);
+    assert.equal(game.actionPauseMs(), 1000);
+    const { CardPile } = loadGame();
+    game.playCards(players[1], new CardPile(players[1].name, players[1].cards[0]));
+    assert.ok(game.turnPause.until - Date.now() <= 1000);
+    game.turnPause = null;
+    game.passTurn(players[2]);
+    assert.equal(game.turnPause.kind, "clear");
+    assert.ok(game.turnPause.until - Date.now() <= 1000);
+    game.turnPause = null;
+    game.playCards(players[1], new CardPile(players[1].name, ...players[1].cards));
+    assert.equal(game.turnPause.pendingGameEnd, true);
+    assert.ok(game.turnPause.until - Date.now() <= 1000);
+    game.beginGameEndVote = () => {};
+    game.finishGame();
+    assert.equal(game.fastForward, false);
+    assert.equal(game.actionPauseMs(), 3000);
+});
+
+test("bot scheduling switches to one second and restores its original delay", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const { game, players } = setupGame();
+    const { GamePresence } = loadGame();
+    players[0].placement = 1;
+    const timers = [];
+    const cleared = [];
+    const context = vm.createContext({
+        currentGame: game, GamePresence: { ...GamePresence,
+            onlyBotsRemain: record => GamePresence.onlyBotsRemain(record), canDrive: () => true },
+        connection: null, BOT_ACTION_DELAY_MS: 3000,
+        setTimeout: (callback, delay) => { timers.push(delay); return timers.length; },
+        clearTimeout: id => cleared.push(id)
+    });
+    vm.runInContext(source.slice(source.indexOf("        var botLoopTimer = null;"),
+        source.indexOf("        document.getElementById('BnFHovedmeny')")), context);
+    context.scheduleBotLoop();
+    assert.equal(timers.at(-1), 3000);
+    game.fastForward = true;
+    context.scheduleBotLoop();
+    assert.equal(timers.at(-1), 1000);
+    game.fastForward = false;
+    context.scheduleBotLoop();
+    assert.equal(timers.at(-1), 3000);
+    assert.deepEqual(cleared, [1, 2]);
+});
+
+test("ordinary saves preserve concurrent fast-forward toggles and their pause deadlines", () => {
+    const { game, players } = setupGame();
+    players[0].placement = 1;
+    game.fastForward = false;
+    const now = Date.now();
+    game.turnPause = { id: "same", kind: "play", until: now + 3000 };
+    let record = {
+        status: "S", shuffleStartedAt: null, fastForward: true,
+        turnPause: { id: "same", kind: "play", until: now + 1000 }
+    };
+    game.databaseRef = { transaction: update => { record = update(record); } };
+    game.save();
+    assert.equal(record.fastForward, true);
+    assert.equal(record.turnPause.until, now + 1000);
+    game.turnPause = { id: "new", kind: "play", until: now + 3000 };
+    game.save();
+    assert.equal(record.fastForward, true);
+    assert.equal(record.turnPause.until, now + 1000);
+    game.fastForward = true;
+    record.fastForward = false;
+    record.turnPause = { id: "other", until: now };
+    game.turnPause = { id: "third", kind: "play", until: now + 1000 };
+    game.save();
+    assert.equal(record.fastForward, false);
+    assert.equal(record.turnPause.until, now + 3000);
+    game.status = "F";
+    record.fastForward = true;
+    game.turnPause = null;
+    game.save();
+    assert.equal(record.fastForward, false);
 });
 
 test("round start refreshes the local view after the state changes", () => {
@@ -1545,15 +1706,20 @@ test("a spectator who leaves during registration is never added after leaving", 
     assert.equal(writes, 0);
 });
 
-test("spectator join notices sit above the board for exactly three seconds", () => {
+test("spectator join notices use the toast area with two lines for exactly three seconds", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const toast = {
-        style: {}, classList: { add() {}, remove() { toast.closed = true; } }
+        style: {}, classList: { add() {}, remove() { toast.closed = true; } },
+        replaceChildren() {}
     };
     let callback;
     let duration;
     const context = vm.createContext({
         spectatorJoinToastTimer: null, localizedMessage: text => text,
+        appendColoredGameMessage: (element, text, players, separateNotices) => {
+            element.textContent = text;
+            assert.equal(separateNotices, true);
+        },
         document: { getElementById: id => id == "spectatorJoinToast" ? toast :
             { offsetTop: 116, offsetParent: null } },
         setTimeout: (fn, delay) => { callback = fn; duration = delay; return 1; }
@@ -1562,7 +1728,10 @@ test("spectator join notices sit above the board for exactly three seconds", () 
     const end = source.indexOf("        async function clearWaitingSpectator()", start);
     vm.runInContext(source.slice(start, end), context);
     context.showSpectatorJoinToast();
-    assert.equal(toast.style.top, "124px");
+    assert.equal(toast.style.top, undefined);
+    assert.equal(toast.textContent, "Spillet pågår. Du ser på til neste runde.");
+    const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    assert.match(html, /id="playerActions"[\s\S]*?id="spectatorJoinToast"[\s\S]*?id="playerHand"/);
     assert.equal(duration, 3000);
     callback();
     assert.equal(toast.closed, true);

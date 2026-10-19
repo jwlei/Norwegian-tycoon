@@ -135,6 +135,7 @@
                 connection.listingHost = false;
             }
             GameLayout.updatePlayers(currentGame, player);
+            updateFastForwardButton();
             updateTurnTimer();
             var reclaim = document.getElementById("reclaimSeatButton");
             reclaim.hidden = !controlled || !player || player.playerKey == "PC";
@@ -262,12 +263,8 @@
         function showSpectatorJoinToast() {
             var toast = document.getElementById("spectatorJoinToast");
             if (spectatorJoinToastTimer != null) { clearTimeout(spectatorJoinToastTimer); }
-            toast.textContent = localizedMessage("Spillet pågår. Du ser på til neste runde.");
-            var top = 8;
-            for (var element = document.getElementById("gameTable"); element != null; element = element.offsetParent) {
-                top += element.offsetTop;
-            }
-            toast.style.top = `${top}px`;
+            toast.replaceChildren();
+            appendColoredGameMessage(toast, localizedMessage("Spillet pågår. Du ser på til neste runde."), [], true);
             toast.classList.add("is-visible");
             spectatorJoinToastTimer = setTimeout(function () {
                 toast.classList.remove("is-visible");
@@ -645,7 +642,10 @@
             }
         }
 
-        function appendColoredGameMessage(container, message, players) {
+        function appendColoredGameMessage(container, message, players, separateNotices = false) {
+            var appendText = text => container.appendChild(document.createTextNode(
+                separateNotices ? text.replace(/([.!?]) +(?=\p{Lu}|$)/gu, "$1\n") : text
+            ));
             var position = 0;
             while (position < message.length) {
                 var match = null;
@@ -667,11 +667,11 @@
                     }
                 });
                 if (match == null) {
-                    container.appendChild(document.createTextNode(message.slice(position)));
+                    appendText(message.slice(position));
                     break;
                 }
                 if (matchIndex > position) {
-                    container.appendChild(document.createTextNode(message.slice(position, matchIndex)));
+                    appendText(message.slice(position, matchIndex));
                 }
                 var name = document.createElement("span");
                 name.className = "game-toast__player";
@@ -740,7 +740,7 @@
             });
         }
 
-        function showGameToast(message, game, duration = GAME_SPEED_MS[currentGameSpeed()], pauseId = null, endsTrick = false) {
+        function showGameToast(message, game, duration = game.fastForward === true ? 1000 : GAME_SPEED_MS[currentGameSpeed()], pauseId = null, endsTrick = false) {
             ensureGameLog(game);
             var toast = document.getElementById("GameToast");
             if (toast.classList.contains("is-visible") && Date.now() >= gameToastExpiresAt) {
@@ -756,6 +756,7 @@
                 leaving.style.left = `${rect.left}px`;
                 leaving.style.top = `${rect.top}px`;
                 leaving.style.width = `${rect.width}px`;
+                leaving.style.height = `${rect.height}px`;
                 leaving.style.setProperty("--toast-push", `${rect.height + 10}px`);
                 var leaveMs = { fast: 1000, normal: 2000, slow: 3000 }[currentGameSpeed()] || 1000;
                 leaving.style.setProperty("--toast-leave", `${leaveMs}ms`);
@@ -800,7 +801,7 @@
                     : "linear-gradient(90deg, #17803d, #39a95f, #f4cf43)"
             );
             activeToastPauseId = pauseId;
-            appendColoredGameMessage(toast, localizedMessage(message), players);
+            appendColoredGameMessage(toast, localizedMessage(message), players, true);
             toast.classList.add("is-visible");
             gameToastExpiresAt = Date.now() + duration;
             if (gameToastTimer != null) {
@@ -951,14 +952,14 @@
             if (pause.id != lastShownTurnPauseId) {
                 lastShownTurnPauseId = pause.id;
                 if (delay > 0) {
-                    var duration = currentGameSpeed() == "fast"
+                    var duration = game.fastForward === true ? Math.min(delay, 1000) : currentGameSpeed() == "fast"
                         ? Math.min(delay, GAME_SPEED_MS.fast)
                         : GAME_SPEED_MS[currentGameSpeed()];
                     showGameToast(pause.message, game, duration, pause.id, pause.kind == "clear");
                     if (pause.extraMessage) {
                         showGameToast(pause.extraMessage, game, duration, pause.id);
                     }
-                    if (currentGameSpeed() == "fast") {
+                    if (game.fastForward === true || currentGameSpeed() == "fast") {
                         gameToastExpiresAt = Math.min(gameToastExpiresAt, pause.until);
                     }
                 }
@@ -1205,7 +1206,11 @@
                 var randomButton = document.createElement("button");
                 randomButton.type = "button";
                 randomButton.className = "public-lobby-random";
-                randomButton.textContent = "🔀";
+                var randomIcon = document.createElement("img");
+                randomIcon.src = "icons/shuffle.svg";
+                randomIcon.alt = "";
+                randomIcon.setAttribute("aria-hidden", "true");
+                randomButton.appendChild(randomIcon);
                 randomButton.title = "Bli med i en tilfeldig åpen lobby";
                 randomButton.setAttribute("aria-label", "Bli med i en tilfeldig åpen lobby");
                 randomButton.addEventListener("click", joinRandomPublicLobby);
@@ -1452,6 +1457,7 @@
                     connectingGame.piles = ((connectingGame.status == "G") ? PresidentGame.deserializeExchanges(storedPiles) : PresidentCard.deserializePiles(storedPiles));
                     connectingGame.turn = snapshotRecord["sinTur"];
                     connectingGame.turnPause = snapshotRecord["turnPause"] || null;
+                    connectingGame.fastForward = snapshotRecord.fastForward === true;
                     connectingGame.ts = snapshotRecord.ts;
                     connectingGame.lastHumanActionAt = snapshotRecord.lastHumanActionAt ?? null;
                     connection.receive(snapshotRecord);
@@ -1478,6 +1484,7 @@
                     handleGameEndVote(connectingGame);
                     playShuffleIfNew(connectingGame);
                     tryJoinWaitingSpectator(connectingGame);
+                    updateFastForwardButton();
                     scheduleBotLoop();
                 } else {
                     disconnectGameListener();
@@ -1723,12 +1730,38 @@
             currentGame.setReady(player, !player.ready);
         });
 
+        function updateFastForwardButton() {
+            var button = document.getElementById("fastForwardButton");
+            if (!button) { return; }
+            button.hidden = !GamePresence.onlyBotsRemain(currentGame);
+            var player = currentGame && currentGame.getPlayer(currentPlayerName);
+            button.disabled = !player || currentGame.connectionOnline === false ||
+                GamePresence.isBot(currentGame, player);
+            button.setAttribute("aria-pressed", String(!!currentGame && currentGame.fastForward === true));
+            var label = localizedMessage(currentGame?.fastForward ? "Vanlig avspilling" : "Spol frem");
+            button.title = label;
+            button.setAttribute("aria-label", label);
+        }
+        document.getElementById("fastForwardButton").addEventListener("click", function (event) {
+            event.stopPropagation();
+            if (currentGame) { currentGame.setFastForward(!currentGame.fastForward); }
+        });
+        document.addEventListener("languagechange", updateFastForwardButton);
+
         var botLoopTimer = null;
+        var botLoopFastForward = false;
         function scheduleBotLoop() {
+            var fastForward = !!currentGame && currentGame.fastForward === true &&
+                (GamePresence.onlyBotsRemain(currentGame) || currentGame.turnPause?.pendingGameEnd === true);
+            if (fastForward != botLoopFastForward) {
+                if (botLoopTimer != null) { clearTimeout(botLoopTimer); }
+                botLoopTimer = null;
+                botLoopFastForward = fastForward;
+            }
             if (botLoopTimer != null || currentGame == null ||
                 !GamePresence.canDrive(currentGame, connection ? connection.now() : Date.now()) ||
                 (currentGame.status != "S" && currentGame.status != "G")) { return; }
-            var delay = BOT_ACTION_DELAY_MS;
+            var delay = fastForward ? 1000 : BOT_ACTION_DELAY_MS;
             if (currentGame.turnPause != null) {
                 var pauseRemaining = currentGame.turnPause.until - Date.now();
                 if (pauseRemaining > 0) {

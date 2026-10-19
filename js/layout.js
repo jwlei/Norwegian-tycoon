@@ -186,6 +186,9 @@ class GameLayout {
             setClass(mainMenu, "is-hidden", false);
             this.updateMainMenu();
             var emptyTable = document.getElementById("gameTable");
+            if (this.fastForwardElement == null) {
+                this.fastForwardElement = document.getElementById("fastForwardButton");
+            }
             if (this.turnTimerElement == null) {
                 this.turnTimerElement = document.getElementById("turnTimer");
             }
@@ -811,6 +814,9 @@ class GameLayout {
     static updateTable(game, player, existingPileSignatures = new Set(), playOrigins = null) {
         document.getElementById("exchangePrompt").textContent = "";
         var table = document.getElementById("gameTable");
+        if (this.fastForwardElement == null) {
+            this.fastForwardElement = document.getElementById("fastForwardButton");
+        }
         if (this.turnTimerElement == null) {
             this.turnTimerElement = document.getElementById("turnTimer");
         }
@@ -1451,6 +1457,11 @@ class GameLayout {
         this.keepTurnTimer(table);
     }
     static keepTurnTimer(table) {
+        if (this.fastForwardElement != null &&
+            this.fastForwardElement.parentElement != table &&
+            typeof table.appendChild == "function") {
+            table.appendChild(this.fastForwardElement);
+        }
         if (this.turnTimerElement != null &&
             this.turnTimerElement.parentElement != table &&
             typeof table.appendChild == "function") {
@@ -1572,7 +1583,9 @@ class GameLayout {
         this.setVisible("passButton", canPass);
         this.setVisible(
             "passButton_Off",
-            isPassTurn && !pauseActive && !canPass
+            player != null && game.status == "S" && player.placement == 0 &&
+            !GamePresence.isBot(game, player) && !canPass &&
+            (game.topPile() != null || player.turn != 1 || pauseActive)
         );
         this.setVisible("BnPGiOpp", false);
         this.setVisible(
@@ -1975,12 +1988,13 @@ class GameLayout {
             game.playCards(player, pile);
             return true;
         };
-        playButton.hidden = !isPlayingTurn || game.connectionOnline === false ||
+        playButton.hidden = game.status != "S" || player.placement != 0 ||
             GamePresence.isBot(game, player);
         var selectedPile = new CardPile(player.name, ...player.cards.filter(card =>
             selectedCardKeys.has(`${card.suit}:${card.rank}`)
         ));
-        playButton.disabled = playButton.hidden || selectedPile.length == 0 ||
+        playButton.disabled = playButton.hidden || !isPlayingTurn ||
+            game.connectionOnline === false || selectedPile.length == 0 ||
             !game.canPlayPile(player, selectedPile);
         playButton.onclick = playSelectedCards;
         var selectCardsForSwipe = function (card) {

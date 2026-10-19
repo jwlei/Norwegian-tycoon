@@ -42,6 +42,17 @@ class GamePresence {
         return player.playerKey == "PC" || !!(game.controllers || {})[this.playerId(player)];
     }
 
+    static onlyBotsRemain(record) {
+        if (record == null || record.status != "S") { return false; }
+        var active = (record.players || record.spillere || []).filter(player =>
+            (player.placement ?? player.plassering) == 0
+        );
+        return active.length > 1 && active.every(player =>
+            (player.playerKey || player.spillerKey) == "PC" ||
+            !!(record.controllers || {})[this.playerId(player)]
+        );
+    }
+
     static activeHumanCount(record) {
         return (record.spillere || record.players || []).filter(player =>
             player.playerKey != "PC" && player.spillerKey != "PC" &&
