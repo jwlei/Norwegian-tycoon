@@ -198,6 +198,84 @@ function loadGame(cardStyle = null, globals = {}) {
     return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, GamePresence, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage })", context);
 }
 
+function playButtonContext(options = {}) {
+    const { CardPile, PresidentCard, GamePresence } = loadGame();
+    const cards = [new PresidentCard(1, 5), new PresidentCard(2, 5), new PresidentCard(3, 8)];
+    const selectedCardKeys = new Set(options.selection || ["1:5", "2:5"]);
+    const player = { name: "Player", playerKey: "human-key", turn: 1, placement: 0, cards, ...options.player };
+    const played = [];
+    let warnings = 0;
+    const game = {
+        status: "S", isTurnPaused: () => false,
+        canPlayPile: () => options.valid !== false,
+        playCards: (owner, pile) => played.push({ owner, pile }),
+        ...options.game
+    };
+    const playButton = {};
+    const context = vm.createContext({
+        CardPile, GamePresence, game, player, playButton, selectedCardKeys,
+        isPlayingTurn: game.status == "S" && player.turn == 1 &&
+            player.placement == 0 && !game.isTurnPaused(),
+        clearCardSelection: () => selectedCardKeys.clear(),
+        showInvalidCardWarning: () => { warnings++; }
+    });
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    const start = source.indexOf("        var playSelectedCards = function ()");
+    const end = source.indexOf("        var selectCardsForSwipe", start);
+    vm.runInContext(source.slice(start, end), context);
+    return { game, player, playButton, played, selectedCardKeys, warnings: () => warnings };
+}
+
+test("the play button plays exactly the selected cards and clears the selection", () => {
+    const { player, playButton, played, selectedCardKeys } = playButtonContext();
+    assert.equal(playButton.hidden, false);
+    assert.equal(playButton.disabled, false);
+    assert.equal(playButton.onclick(), true);
+    assert.equal(played.length, 1);
+    assert.equal(played[0].owner, player);
+    assert.deepEqual(Array.from(played[0].pile, card => `${card.suit}:${card.rank}`), ["1:5", "2:5"]);
+    assert.equal(selectedCardKeys.size, 0);
+    assert.equal(playButton.onclick(), false);
+    assert.equal(played.length, 1);
+});
+
+test("the play button rejects empty and illegal selections without playing", () => {
+    for (const options of [{ selection: [] }, { valid: false }]) {
+        const state = playButtonContext(options);
+        assert.equal(state.playButton.disabled, true);
+        assert.equal(state.playButton.onclick(), false);
+        assert.equal(state.played.length, 0);
+        assert.equal(state.warnings(), options.valid === false ? 1 : 0);
+    }
+});
+
+test("the play button is hidden outside an active human turn and guards stale clicks", () => {
+    const blockedStates = [
+        { game: { status: "G" } },
+        { game: { isTurnPaused: () => true } },
+        { game: { connectionOnline: false } },
+        { player: { turn: 0 } },
+        { player: { placement: 1 } },
+        { player: { playerKey: "PC" } },
+        { game: { controllers: { [loadGame().GamePresence.playerId({
+            name: "Player", playerKey: "human-key"
+        })]: {} } } }
+    ];
+    for (const options of blockedStates) {
+        const state = playButtonContext(options);
+        assert.equal(state.playButton.hidden, true);
+        assert.equal(state.playButton.disabled, true);
+        assert.equal(state.playButton.onclick(), false);
+        assert.equal(state.played.length, 0);
+
+        const stale = playButtonContext();
+        Object.assign(stale.game, options.game);
+        Object.assign(stale.player, options.player);
+        assert.equal(stale.playButton.onclick(), false);
+        assert.equal(stale.played.length, 0);
+    }
+});
+
 test("a gift requires the same owner on the first and fourth consecutive singles", () => {
     const { CardPile, PresidentCard, isGiftPackage } = loadGame();
     const single = (name, suit) => new CardPile(name, new PresidentCard(suit, 5));

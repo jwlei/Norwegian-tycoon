@@ -40,6 +40,8 @@
         "Pass": "Pass",
         "Pass (ikke tillatt nå)": "Pass (not allowed now)",
         "Pass utilgjengelig": "Pass unavailable",
+        "Legg ut": "Play cards",
+        "Legg ut valgte kort": "Play selected cards",
         "Velkommen til": "Welcome to",
         "Det er enkelt å invitere venner til spillet:": "Inviting friends to the game is easy:",
         "- Trykk på «Del invitasjon», og del invitasjonen eller kopier lenken.": "- Tap “Share invitation”, then share the invitation or copy the link.",
