@@ -1425,6 +1425,54 @@ function setupGame() {
     return { game, players, pile };
 }
 
+test("passing and clearing a pile preserve every displayed card's position and render identity", () => {
+    const element = () => ({
+        children: [], dataset: {}, style: { setProperty(name, value) { this[name] = value; } },
+        setAttribute() {},
+        appendChild(child) { this.children.push(child); }
+    });
+    const { GameLayout, PresidentCard } = loadGame(null, {
+        document: { createElement: element },
+        window: { matchMedia: () => ({ matches: false }) }
+    });
+    GameLayout.createCardImage = element;
+    const { game, players, pile } = setupGame();
+    game.shuffleStartedAt = 123456;
+    players.forEach(player => {
+        player.cards.push(new PresidentCard(1, 12));
+    });
+    game.piles = [pile(players[0], 7, 2), pile(players[0], 8, 2)];
+    game.save = () => {};
+    game.setTurn(1);
+    const render = (piles, signatures = new Set()) =>
+        GameLayout.createTablePile(game, piles, signatures);
+    const positions = view => view.element.children.map(play => ({
+        signature: play.dataset.playSignature,
+        cards: play.children.map(card => ({
+            left: card.style.left, top: card.style.top,
+            rotation: card.style["--pile-rotation"]
+        }))
+    }));
+    const before = render(game.piles);
+    const signatures = new Set(before.element.children.map(play => play.dataset.playSignature));
+    game.passTurn(players[1]);
+    assert.equal(game.turnPause.kind, "pass");
+    let after = render(game.piles, signatures);
+    assert.deepEqual(positions(after), positions(before));
+    assert.equal(after.newlyPlayed.length, 0);
+    game.turnPause = null;
+    game.passTurn(players[2]);
+    assert.equal(game.turnPause.kind, "clear");
+    assert.equal(game.round, 2);
+    const clearedPiles = PresidentCard.deserializePiles(game.turnPause.clearedPiles);
+    after = render(clearedPiles, signatures);
+    assert.deepEqual(positions(after), positions(before));
+    assert.equal(after.newlyPlayed.length, 0);
+    for (const property of ["--pile-depth", "--pile-fan-count"]) {
+        assert.equal(after.element.style[property], before.element.style[property]);
+    }
+});
+
 test("lobby start stays neutral until enough players are present and every human is ready", () => {
     const elements = new Map();
     const getElement = id => {

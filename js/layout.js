@@ -701,7 +701,7 @@ class GameLayout {
     static pileCardJitter(game, pile, card, stackIndex, cardIndex = 0) {
         var seed = 2166136261;
         var first = pile[0];
-        var text = `${game.round}:${pile.name}:${first.suit}:${first.rank}:${stackIndex - cardIndex}`;
+        var text = `${game.shuffleStartedAt || ""}:${pile.name}:${first.suit}:${first.rank}:${stackIndex - cardIndex}`;
         for (var i = 0; i < text.length; i++) {
             seed = Math.imul(seed ^ text.charCodeAt(i), 16777619) >>> 0;
         }
@@ -733,7 +733,7 @@ class GameLayout {
         tablePile.style.setProperty("--pile-fan-count", String(Math.max(0, maxCardsPerPlay - 1)));
         tablePile.style.setProperty("--pile-depth", `${Math.min(totalCardCount * 2.5, compactStack ? 18 : 44)}px`);
         piles.forEach((pile, playIndex) => {
-            var signature = `${game.round}:${pile.name}:${pile.map(card => `${card.suit}:${card.rank}`).join(",")}`;
+            var signature = `${game.shuffleStartedAt || ""}:${pile.name}:${pile.map(card => `${card.suit}:${card.rank}`).join(",")}`;
             var playElement = document.createElement("div");
             playElement.className = "table-play";
             playElement.dataset.playSignature = signature;
