@@ -183,7 +183,7 @@ const BOT_NAMES = [
 ];
 const TURN_ACTION_PAUSE_MS = 2000;
 const BOT_ACTION_DELAY_MS = TURN_ACTION_PAUSE_MS;
-const SHUFFLE_DURATION_MS = 3500;
+const SHUFFLE_DURATION_MS = 3000;
 
 function gameTurnSeconds(value) {
     return [1, 2, 3].includes(Number(value)) ? Number(value) : TURN_ACTION_PAUSE_MS / 1000;

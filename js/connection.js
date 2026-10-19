@@ -394,6 +394,7 @@
         var starterFlashTimer = null;
         var handDealTimer = null;
         var announcedStarterRound = null;
+        var announcedBomsStarterGame = null;
 
         function clearShuffleAnimation(keepFlash = false) {
             if (shuffleTicker != null) {
@@ -426,7 +427,10 @@
             announcedStarterRound = roundKey;
             var starter = game.players[game.turn];
             var starterName = starter.name;
-            showGameToast(starter.lastPlacement == game.players.length
+            var isFirstBomsStart = starter.lastPlacement == game.players.length &&
+                announcedBomsStarterGame != game.id;
+            if (isFirstBomsStart) { announcedBomsStarterGame = game.id; }
+            showGameToast(isFirstBomsStart
                 ? `${starterName} er Boms og starter.`
                 : (starterName == currentPlayerName ? "Du begynner" : `${starterName} begynner`), game);
             document.querySelectorAll("#playerList [data-player-name]").forEach(element => {
@@ -669,8 +673,13 @@
                 return;
             }
             var fast = document.getElementById("gameToastRegion").dataset.animationSpeed == "fast";
-            var animation = node.animate(toastExitFrames(), {
-                duration: fast ? 180 : 320, easing: "ease-in-out", fill: "forwards"
+            var animation = node.animate(fast ? [
+                { opacity: 1 },
+                { opacity: 0 }
+            ] : toastExitFrames(), {
+                duration: fast ? 180 : 320,
+                easing: fast ? "ease-out" : "ease-in-out",
+                fill: "forwards"
             });
             animation.onfinish = onComplete;
         }

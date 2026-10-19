@@ -1329,7 +1329,9 @@ class GameLayout {
                 if (game.topPile() != null) {
                     var tableSummary = document.createElement("div");
                     tableSummary.className = "table-pile-summary";
-                    tableSummary.textContent = player != null && player.turn == 1
+                    var mustBeatPile = player != null && player.turn == 1;
+                    tableSummary.classList.toggle("table-pile-summary--required", mustBeatPile);
+                    tableSummary.textContent = mustBeatPile
                         ? `Du må slå: ${describeRequiredPlay(game)}`
                         : `På bordet ligger: ${describeRequiredPlay(game)}`;
                     tableSummary.title = tableSummary.textContent;
