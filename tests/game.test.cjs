@@ -440,6 +440,36 @@ test("the play button is hidden outside an active human turn and guards stale cl
     }
 });
 
+test("round start refreshes the local view after the state changes", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const start = source.indexOf("            connectingGame.onRoundStarted = function () {");
+    const end = source.indexOf("\n            };", start) + "\n            };".length;
+    const game = {};
+    const events = [];
+    const context = vm.createContext({
+        currentGame: game,
+        connectingGame: game,
+        roundVoteRefreshTimer: null,
+        gameEndVoteRefreshTimer: null,
+        clearTimeout() {},
+        refreshAfterTurnPause: refreshedGame => events.push(["refresh", refreshedGame]),
+        scheduleBotLoop: () => events.push(["bots"])
+    });
+    vm.runInContext(source.slice(start, end), context);
+    game.onRoundStarted();
+    assert.deepEqual(events, [["refresh", game], ["bots"]]);
+});
+
+test("hand hover and mixable states do not lift or reorder cards", () => {
+    const styles = fs.readFileSync(path.join(__dirname, "..", "css", "theme.css"), "utf8");
+    const hoverRule = styles.match(/\.game-card:hover:not\(\.is-selected\)\s*\{([^}]+)\}/);
+    assert.ok(hoverRule);
+    assert.doesNotMatch(hoverRule[1], /transform|z-index/);
+    assert.doesNotMatch(styles, /\.game-card\.is-mixable\s*\{[^}]*?(?:transform|z-index)/);
+    assert.match(styles, /\.game-card\.is-selected\s*\{[^}]*translateY\(-19\.8px\)/);
+    assert.match(styles, /@keyframes hand-card-lower\s*\{[\s\S]*?to\s*\{[^}]*translateY\(0\)/);
+});
+
 test("connection and seat-control changes invalidate the hand's play-button state", () => {
     const { GameLayout, GamePresence } = loadGame();
     const player = { name: "Player", playerKey: "human-key", turn: 1, placement: 0, cards: [] };

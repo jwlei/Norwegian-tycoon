@@ -1003,9 +1003,6 @@ select:focus-visible {
     box-shadow: 0 4px 12px rgb(0 0 0 / 26%);
 }
 
-.game-card.is-mixable {
-}
-
 .game-card:hover:not(.is-selected) {
     background: transparent;
     box-shadow: none;
