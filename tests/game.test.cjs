@@ -268,7 +268,7 @@ test("turn timer is hidden for a solo human and shown once another human is acti
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const start = source.indexOf("        function updateTurnTimer()");
     const end = source.indexOf("        function refreshConnectionView()", start);
-    const render = activeHumanCount => {
+    const render = (activeHumanCount, currentPlayerName = "Owner") => {
         const elements = {
             turnTimer: { hidden: true },
             turnCountdown: { hidden: true, textContent: "" },
@@ -277,10 +277,10 @@ test("turn timer is hidden for a solo human and shown once another human is acti
         const player = { name: "Owner", playerKey: "owner" };
         const context = vm.createContext({
             currentGame: {
-                status: "S", getPlayer: () => player,
+                status: "S", players: [player], getPlayer: name => name == "Owner" ? player : null,
                 actionDeadlines: { owner: { until: 200000, extended: false } }
             },
-            currentPlayerName: "Owner",
+            currentPlayerName,
             connection: { now: () => 80000 },
             GamePresence: {
                 isBot: () => false, playerId: () => "owner",
@@ -300,6 +300,11 @@ test("turn timer is hidden for a solo human and shown once another human is acti
     assert.equal(multiplayer.turnTimer.hidden, false);
     assert.equal(multiplayer.turnCountdown.hidden, false);
     assert.equal(multiplayer.turnCountdown.textContent, "2:00");
+    const spectator = render(2, "Spectator");
+    assert.equal(spectator.turnTimer.hidden, false);
+    assert.equal(spectator.turnCountdown.hidden, false);
+    assert.equal(spectator.turnCountdown.textContent, "2:00");
+    assert.equal(spectator.extendTurnButton.hidden, true);
 });
 
 test("consent stays private and remains available after a trade starts until cards are given", () => {

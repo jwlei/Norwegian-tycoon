@@ -106,18 +106,28 @@
             var player = currentGame && currentGame.getPlayer(currentPlayerName);
             var controlled = player && GamePresence.isBot(currentGame, player);
             var deadline = player && (currentGame.actionDeadlines || {})[GamePresence.playerId(player)];
-            var now = connection ? connection.now() : Date.now();
-            var active = !!player && !!deadline && !controlled &&
+            var timerActive = !!currentGame &&
                 GamePresence.activeHumanCount(currentGame) > 1 &&
                 (currentGame.status == "S" || currentGame.status == "G");
-            var remaining = active ? Math.max(0, Math.ceil((deadline.until - now) / 1000)) : 0;
+            var timerDeadline = timerActive && (currentGame.players || [])
+                .filter(candidate => !candidate.gaveUp && !GamePresence.isBot(currentGame, candidate))
+                .map(candidate => (currentGame.actionDeadlines || {})[GamePresence.playerId(candidate)])
+                .filter(candidateDeadline => !!candidateDeadline)
+                .sort((first, second) => first.until - second.until)[0];
+            var now = connection ? connection.now() : Date.now();
+            var active = !!player && !!deadline && !controlled && timerActive;
+            var remaining = timerActive && timerDeadline
+                ? Math.max(0, Math.ceil((timerDeadline.until - now) / 1000))
+                : 0;
             var seconds = remaining % 60;
-            var text = active
-                ? `${Math.floor(remaining / 60)}:${seconds < 10 ? "0" : ""}${seconds}`
+            var text = timerActive
+                ? (timerDeadline
+                    ? `${Math.floor(remaining / 60)}:${seconds < 10 ? "0" : ""}${seconds}`
+                    : "–:–")
                 : "";
             if (countdown.textContent != text) { countdown.textContent = text; }
-            countdown.hidden = !active;
-            timer.hidden = !active;
+            countdown.hidden = !timerActive;
+            timer.hidden = !timerActive;
             extend.hidden = !active || remaining == 0 || remaining > 30 ||
                 deadline.extended || GamePresence.hasExtendedThisRound(currentGame, player);
             extend.disabled = !currentGame || currentGame.connectionOnline === false;
