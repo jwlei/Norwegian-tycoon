@@ -42,6 +42,14 @@ class GamePresence {
         return player.playerKey == "PC" || !!(game.controllers || {})[this.playerId(player)];
     }
 
+    static activeHumanCount(record) {
+        return (record.spillere || record.players || []).filter(player =>
+            player.playerKey != "PC" && player.spillerKey != "PC" &&
+            player.gaveUp !== true &&
+            !(record.controllers || {})[this.playerId(player)]
+        ).length;
+    }
+
     static roundToken(record) {
         return JSON.stringify([record.shuffleStartedAt || null, record.runde ?? record.round]);
     }
@@ -95,10 +103,11 @@ class GamePresence {
         var controllers = Object.assign({}, record.controllers);
         var deadlines = Object.assign({}, record.actionDeadlines);
         var notices = (record.connectionNotices || []).slice();
+        var timersEnabled = this.activeHumanCount(record) > 1;
         players.forEach((player, index) => {
             if (player.spillerKey == "PC" || player.gaveUp === true) { return; }
             var id = this.playerId(player);
-            var token = this.actionToken(record, player, index);
+            var token = timersEnabled ? this.actionToken(record, player, index) : null;
             var deadline = deadlines[id];
             if (token != null && !controllers[id] && (!deadline || deadline.token != token)) {
                 deadlines[id] = { token, until: Math.max(now, Number(record.shuffleStartedAt || 0) + SHUFFLE_DURATION_MS) + this.actionMs, extended: this.hasExtendedThisRound(record, player) };

@@ -93,8 +93,35 @@ test("turns get exactly 120 seconds and expire at the precise deadline, not befo
     const expired = Presence.reconcile(record, start + 120000);
     assert.equal(expired.controllers[id].reason, "idle");
     assert.match(expired.connectionNotices[0].message, /brukte opp tiden/);
-    assert.equal(Presence.reconcile(expired, start + 121000), undefined);
+    const clearedDeadline = Presence.reconcile(expired, start + 121000);
+    assert.equal(Object.keys(clearedDeadline.actionDeadlines).length, 0);
+    assert.equal(Presence.reconcile(clearedDeadline, start + 122000), undefined);
     assert.equal(expired.spillere[0].spillerKey, "owner");
+});
+
+test("action deadlines require two active human players and stop when only one remains", () => {
+    const owner = human("Owner", "owner");
+    const bots = [human("Bot 1", "PC"), human("Bot 2", "PC"), human("Bot 3", "PC")];
+    const solo = { ...room(), spillere: [owner, ...bots] };
+    assert.equal(Presence.activeHumanCount(solo), 1);
+    assert.equal(Presence.reconcile(solo, start), undefined);
+    assert.equal(Object.keys(solo.actionDeadlines || {}).length, 0);
+
+    const multiplayer = { ...solo, spillere: [...solo.spillere, human("Guest", "guest")] };
+    assert.equal(Presence.activeHumanCount(multiplayer), 2);
+    const timed = Presence.reconcile(multiplayer, start);
+    const ownerId = Presence.playerId(owner);
+    assert.equal(timed.actionDeadlines[ownerId].until, start + 120000);
+
+    const guestLeft = {
+        ...timed,
+        spillere: timed.spillere.map(player =>
+            player.spillerKey == "guest" ? { ...player, gaveUp: true } : player
+        )
+    };
+    const untimed = Presence.reconcile(guestLeft, start + 1000);
+    assert.equal(Presence.activeHumanCount(guestLeft), 1);
+    assert.equal(untimed.actionDeadlines[ownerId], undefined);
 });
 
 test("turn changes reset the deadline and gameplay pauses do not consume thinking time", () => {

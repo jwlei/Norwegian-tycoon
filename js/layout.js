@@ -126,6 +126,7 @@ class GameLayout {
         return e;
     }
     static updateSharedView(game, player) {
+        if (game == null || game.status == "O") { this.clearCardFlights(); }
         document.getElementById("homeButton").hidden = game == null;
         document.getElementById("BnFRegler").hidden = false;
         document.getElementById("BnFSpillogg").hidden = game == null || game.status == "O";
@@ -534,6 +535,7 @@ class GameLayout {
         return { cardOrigins: cardOrigins, playerOrigins: playerOrigins };
     }
     static animatePlayedCards(playElement, pile, origins, onComplete = null) {
+        if (playElement.isConnected === false) { return; }
         if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
             if (onComplete) { onComplete(); }
             return;
@@ -613,6 +615,14 @@ class GameLayout {
             animation.oncancel = finishAnimation;
         });
         if (pendingAnimations == 0 && onComplete) { onComplete(); }
+    }
+    static clearCardFlights() {
+        document.querySelectorAll(".card-flight, .card-discard-flight").forEach(flight => {
+            if (typeof flight.getAnimations == "function") {
+                flight.getAnimations().forEach(animation => animation.cancel());
+            }
+            flight.remove();
+        });
     }
     static flashClubThree(game, table, pauseId) {
         var played = game.turnPause && game.turnPause.playedPile;
