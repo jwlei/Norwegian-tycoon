@@ -220,7 +220,7 @@ class GameLayout {
         readyButton.disabled = game.connectionOnline === false ||
             (localPlayer != null && GamePresence.disconnectedAt(game.presence, localPlayer) != null);
         var localPlayerReady = localPlayer != null && localPlayer.ready === true && !readyButton.disabled;
-        readyButton.textContent = localPlayerReady ? "Ikke klar" : "Klar";
+        readyButton.textContent = localPlayerReady ? "Fjern klar" : "Klar";
         readyButton.setAttribute("aria-pressed", String(localPlayerReady));
         startButton.classList.toggle("is-waiting",
             game.status == "O" && (waitingForPlayers || !game.allHumansReady()));
@@ -783,14 +783,17 @@ class GameLayout {
     }
     static updateTable(game, player, existingPileSignatures = new Set(), playOrigins = null) {
         document.getElementById("exchangePrompt").textContent = "";
+        var table = document.getElementById("gameTable");
+        if (this.turnTimerElement == null) {
+            this.turnTimerElement = document.getElementById("turnTimer");
+        }
         if (this.isShufflingExchange(game)) {
-            var waitingTable = document.getElementById("gameTable");
-            waitingTable.className = "table-explanation";
-            waitingTable.replaceChildren();
+            table.className = "table-explanation";
+            table.replaceChildren();
+            this.keepTurnTimer(table);
             return;
         }
         GameLayout.viewerName = player != null ? player.name : null;
-        var table = document.getElementById("gameTable");
         var pauseId = game.turnPause ? `${game.id}:${game.turnPause.id}` : null;
         if (pauseId != null && table.dataset.clearingPauseId == pauseId) { return; }
         var isNewPause = pauseId != null && table.dataset.turnPauseId != pauseId;
@@ -1395,6 +1398,14 @@ class GameLayout {
             default:
                 throw ("Ukent status.");
                 break;
+        }
+        this.keepTurnTimer(table);
+    }
+    static keepTurnTimer(table) {
+        if (this.turnTimerElement != null &&
+            this.turnTimerElement.parentElement != table &&
+            typeof table.appendChild == "function") {
+            table.appendChild(this.turnTimerElement);
         }
     }
     static updatePlayerView(game, player) {

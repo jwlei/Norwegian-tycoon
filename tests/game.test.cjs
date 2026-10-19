@@ -575,6 +575,35 @@ test("lobby colors stay distinct and at least 60 degrees apart for humans and bo
     }
 });
 
+test("assigned lobby colors persist across serialization and roster changes", () => {
+    const { assignPlayerColors, PresidentPlayer } = loadGame();
+    const game = {
+        id: "stable-colors",
+        players: [
+            new PresidentPlayer("Alice", "alice-key"),
+            new PresidentPlayer("Bob", "bob-key")
+        ]
+    };
+    assignPlayerColors(game);
+    const initialColors = Object.fromEntries(
+        game.players.map(player => [player.name, player.displayColor])
+    );
+    game.players = PresidentPlayer.deserializePlayers(game.players.map(player => player.toRecord()));
+    game.players.push(new PresidentPlayer("Casey", "casey-key"));
+    assignPlayerColors(game);
+    assert.deepEqual(
+        Object.fromEntries(game.players.slice(0, 2).map(player => [player.name, player.displayColor])),
+        initialColors
+    );
+    game.players.pop();
+    game.players.push(new PresidentPlayer("Dana", "dana-key"));
+    assignPlayerColors(game);
+    assert.deepEqual(
+        Object.fromEntries(game.players.slice(0, 2).map(player => [player.name, player.displayColor])),
+        initialColors
+    );
+});
+
 test("club three glints once per played pause, with a muted loss color and no movement", () => {
     const { GameLayout, PresidentCard } = loadGame();
     const classes = new Set();
