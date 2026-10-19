@@ -93,7 +93,9 @@ test("turns get exactly 120 seconds and expire at the precise deadline, not befo
     const expired = Presence.reconcile(record, start + 120000);
     assert.equal(expired.controllers[id].reason, "idle");
     assert.match(expired.connectionNotices[0].message, /brukte opp tiden/);
-    assert.equal(Presence.reconcile(expired, start + 121000), undefined);
+    const clearedDeadline = Presence.reconcile(expired, start + 121000);
+    assert.equal(Object.keys(clearedDeadline.actionDeadlines).length, 0);
+    assert.equal(Presence.reconcile(clearedDeadline, start + 122000), undefined);
     assert.equal(expired.spillere[0].spillerKey, "owner");
 });
 

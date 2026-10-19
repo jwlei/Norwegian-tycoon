@@ -216,6 +216,41 @@ test("clearing card flights cancels and removes overlays from the page", () => {
     assert.equal(removed, 1);
 });
 
+test("turn timer is hidden for a solo human and shown once another human is active", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const start = source.indexOf("        function updateTurnTimer()");
+    const end = source.indexOf("        function refreshConnectionView()", start);
+    const render = activeHumanCount => {
+        const elements = {
+            turnTimer: { hidden: true },
+            turnCountdown: { textContent: "" },
+            extendTurnButton: { hidden: true, disabled: false }
+        };
+        const player = { name: "Owner", playerKey: "owner" };
+        const context = vm.createContext({
+            currentGame: {
+                status: "S", getPlayer: () => player,
+                actionDeadlines: { owner: { until: 200000, extended: false } }
+            },
+            currentPlayerName: "Owner",
+            connection: { now: () => 80000 },
+            GamePresence: {
+                isBot: () => false, playerId: () => "owner",
+                activeHumanCount: () => activeHumanCount,
+                hasExtendedThisRound: () => false
+            },
+            document: { getElementById: id => elements[id] }
+        });
+        vm.runInContext(source.slice(start, end), context);
+        vm.runInContext("updateTurnTimer()", context);
+        return elements;
+    };
+    assert.equal(render(1).turnTimer.hidden, true);
+    const multiplayer = render(2);
+    assert.equal(multiplayer.turnTimer.hidden, false);
+    assert.equal(multiplayer.turnCountdown.textContent, "2:00");
+});
+
 test("consent is private to the two trade participants and disappears when a trade starts", () => {
     const element = () => {
         const classes = new Set();
@@ -1673,6 +1708,30 @@ test("two-player rounds deal exactly 40 unique cards, without changing three- or
         assert.equal(new Set(dealt).size, expected);
         assert.equal(game.players.filter(player => player.turn == 1).length, 1);
     }
+});
+
+test("starting a later round deals cards and enters the exchange stage", () => {
+    const { PresidentGame, PresidentPlayer } = loadGame();
+    const players = ["Owner", "Bot 1", "Bot 2", "Bot 3"].map((name, index) => {
+        const player = new PresidentPlayer(name, index == 0 ? "human-key" : "PC");
+        player.placement = index + 1;
+        return player;
+    });
+    const game = Object.assign(Object.create(PresidentGame.prototype), {
+        id: "next-round", hostKey: "human-key", hostName: "Owner", localPlayerName: "Owner",
+        status: "F", round: 1, players, piles: [], lastHumanActionAt: Date.now(),
+        rules: {}, gameEndVote: null
+    });
+    game.save = () => {};
+
+    game.startGame();
+
+    assert.equal(game.status, "G");
+    assert.equal(game.dealTotal, 52);
+    assert.ok(players.every(player => player.cards.length == 13));
+    assert.equal(game.piles.length, 2);
+    assert.equal(game.piles[0].mode, "Velg");
+    assert.equal(game.piles[1].mode, "Best");
 });
 
 test("a random player starts if heart three is among the twelve discarded cards", () => {
