@@ -1,13 +1,24 @@
 function chooseSuggestedPlayStrength(player, topPile, playableStrengths, requiredCardCount) {
     var clubThreePower = PresidentCard.clubThreePower();
+    var otherTricks = new Set(player.cards
+        .filter(card => !card.isClubThree())
+        .map(card => card.strengthRank));
     if (topPile.length == 1 && player.cards.length > 1 &&
-        playableStrengths.has(clubThreePower)) {
+        otherTricks.size == 1 && playableStrengths.has(clubThreePower)) {
         return clubThreePower;
     }
     var sortedPlayableStrengths = Array.from(playableStrengths).sort((a, b) => a - b);
+    if (topPile.length == 1) {
+        sortedPlayableStrengths = sortedPlayableStrengths.filter(strength => strength != clubThreePower);
+        if (sortedPlayableStrengths.length == 0) {
+            return playableStrengths.has(clubThreePower) ? clubThreePower : undefined;
+        }
+    }
     return sortedPlayableStrengths.find(strengthRank =>
         player.cards.filter(card => card.strengthRank == strengthRank).length == requiredCardCount
-    ) ?? sortedPlayableStrengths[0];
+    ) ?? (requiredCardCount == 1 ? sortedPlayableStrengths.find(strengthRank =>
+        player.cards.filter(card => card.strengthRank == strengthRank).length == 3
+    ) : undefined) ?? sortedPlayableStrengths[0];
 }
 
 class GameLayout {

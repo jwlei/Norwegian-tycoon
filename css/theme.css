@@ -60,7 +60,7 @@ body {
     justify-items: center;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto auto auto;
-    gap: 14px;
+    gap: 10px;
     padding: clamp(18px, 5vw, 56px);
     background:
         radial-gradient(ellipse at 50% 35%, var(--menu-glow), transparent 62%),
@@ -100,7 +100,32 @@ button {
     grid-column: 1 / -1 !important;
     grid-row: auto !important;
     width: min(100%, 430px);
-    padding: 12px 22px;
+    min-height: 44px;
+    padding: 10px 18px;
+    font-size: 1rem;
+}
+
+#mainMenu .quick-play {
+    display: grid;
+    gap: 8px;
+    width: min(100%, 430px);
+    text-align: center;
+}
+
+.quick-play > strong {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+#mainMenu #quickPlayButton {
+    width: 100%;
+    margin: 0;
+}
+
+#mainMenu #quickPlayButton:disabled {
+    background: #666;
+    box-shadow: none;
+    transform: none;
 }
 
 .app-version {
@@ -166,6 +191,10 @@ button {
 #mainMenu button.public-lobby-random:hover {
     background: var(--line);
     opacity: 1;
+}
+
+#mainMenu button.public-lobby-random[hidden] {
+    display: none;
 }
 
 #mainMenu .public-lobby-random > img {
@@ -2517,6 +2546,7 @@ select:focus-visible {
 }
 
 .speed-options,
+.quick-play-options,
 .language-options {
     display: flex;
     width: 100%;
@@ -2529,6 +2559,7 @@ select:focus-visible {
 .speed-option:hover,
 .speed-option:active,
 .speed-option:focus,
+#mainMenu .quick-play-option,
 .language-option,
 .language-option:hover,
 .language-option:active,
@@ -2548,12 +2579,14 @@ select:focus-visible {
 }
 
 .speed-option + .speed-option,
+.quick-play-option + .quick-play-option,
 .language-option + .language-option {
     border-left: 1px solid var(--line);
 }
 
 .speed-option[aria-pressed="true"],
 .speed-option[aria-pressed="true"]:hover,
+#mainMenu .quick-play-option[aria-pressed="true"],
 .language-option[aria-pressed="true"],
 .language-option[aria-pressed="true"]:hover {
     background: rgb(53 196 106 / 18%);

@@ -298,7 +298,7 @@ test("turn timer is hidden for a solo human and shown once another human is acti
     assert.equal(multiplayer.turnCountdown.textContent, "2:00");
 });
 
-test("consent is private to the two trade participants and disappears when a trade starts", () => {
+test("consent stays private and remains available after a trade starts until cards are given", () => {
     const element = () => {
         const classes = new Set();
         return {
@@ -349,6 +349,10 @@ test("consent is private to the two trade participants and disappears when a tra
     assert.equal(start.disabled, false);
     start.onclick();
     for (const player of players.slice(0, 2)) {
+        assert.ok(render(player).some(node => /Trekk sneaky/.test(node.textContent)));
+    }
+    game.piles.forEach(exchange => { exchange.sneakyLocked = true; });
+    for (const player of players.slice(0, 2)) {
         assert.equal(render(player).some(node => /Trekk sneaky|Sneaky bytte$/.test(node.textContent)), false);
     }
 });
@@ -398,6 +402,26 @@ test("a playable club three is suggested to clear a single-card trick before the
     );
 });
 
+test("single threes favor ordinary singles, then the lowest legal triple over club three", () => {
+    const { PresidentCard, chooseSuggestedPlayStrength } = loadGame();
+    const top = [new PresidentCard(1, 3)];
+    const club = new PresidentCard(3, 3);
+    const triple = rank => [1, 2, 4].map(suit => new PresidentCard(suit, rank));
+    const suggest = (cards, ranks) =>
+        chooseSuggestedPlayStrength({ cards: [club, ...cards] }, top, new Set([16, ...ranks]), 1);
+
+    assert.equal(suggest([new PresidentCard(1, 4), new PresidentCard(1, 8)], [4, 8]), 4);
+    assert.equal(suggest([...triple(4), new PresidentCard(1, 8)], [4, 8]), 8);
+    assert.equal(suggest([...triple(5), ...triple(7)], [5, 7]), 5);
+    assert.equal(suggest([...triple(5), ...triple(7)], [7]), 7);
+    assert.equal(suggest([new PresidentCard(1, 4), new PresidentCard(2, 4), ...triple(5)], [4, 5]), 5);
+    assert.equal(suggest(triple(5), [5]), 16);
+    assert.equal(suggest([], []), 16);
+    assert.equal(chooseSuggestedPlayStrength(
+        { cards: triple(5) }, top, new Set(), 1
+    ), undefined);
+});
+
 test("trade start toasts report either outcome once and only to participants", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const start = source.indexOf("        function notifyStartedTrades(");
@@ -422,7 +446,120 @@ test("trade start toasts report either outcome once and only to participants", (
         context.currentPlayerName = "Recipient";
         vm.runInContext("notifyStartedTrades(game); notifyStartedTrades(game)", context);
         assert.equal(messages.length, 1);
-        assert.match(messages[0], consent ? /nådd.*alle kort/ : /ikke nådd.*7–J/);
+        if (consent) {
+            assert.equal(messages[0], "Oooh.. Sneaky..");
+        } else {
+            assert.match(messages[0], /ikke nådd.*7–J/);
+        }
+    }
+});
+
+test("mutual sneaky consent after trade initiation produces one additional participant toast", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const start = source.indexOf("        function notifyStartedTrades(");
+    const end = source.indexOf("        function showGameToast(", start);
+    const messages = [];
+    const context = vm.createContext({
+        currentPlayerName: "Sender",
+        hasSneakyConsent: exchange => exchange.sneakyVotes.length === 2,
+        showGameToast: message => messages.push(message),
+        game: {
+            status: "G", round: 1, shuffleStartedAt: 100,
+            players: [{ name: "Sender" }, { name: "Recipient" }, { name: "Other" }],
+            piles: [0, 1].map(from => ({
+                kind: "playerTrade", tradeId: "trade", from, to: 1 - from,
+                mode: "Velg", sneakyVotes: []
+            }))
+        }
+    });
+    vm.runInContext(source.slice(start, end), context);
+    const notify = () => vm.runInContext("notifyStartedTrades(game)", context);
+    notify();
+    assert.equal(messages.length, 1);
+    context.game.piles.forEach(exchange => { exchange.sneakyVotes = [0]; });
+    notify();
+    assert.equal(messages.length, 1);
+    context.currentPlayerName = "Other";
+    context.game.piles.forEach(exchange => { exchange.sneakyVotes = [0, 1]; });
+    notify();
+    assert.equal(messages.length, 1);
+    context.currentPlayerName = "Sender";
+    notify();
+    notify();
+    assert.equal(messages.length, 2);
+    assert.equal(messages[1], "Oooh.. Sneaky..");
+});
+
+test("quick play requires a count, uses the saved or localized name and starts a private bot game", async () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const start = source.indexOf("        var quickPlayPlayerCount");
+    const end = source.indexOf("        var publicLobbies", start);
+    for (const [count, savedName, fallback] of [[2, "Ada", "Spiller"], [3, "", "Spiller"], [4, "", "Player"]]) {
+        const options = [2, 3, 4].map(players => ({
+            dataset: { players: String(players) },
+            setAttribute(key, value) { this[key] = value; },
+            addEventListener(type, handler) { this.click = handler; }
+        }));
+        const button = { disabled: true, addEventListener(type, handler) { this.click = handler; } };
+        const menu = { inert: false };
+        const games = [];
+        let connections = 0;
+        const context = vm.createContext({
+            currentGame: null, currentPlayerName: null, console,
+            document: {
+                getElementById: id => id === "mainMenu" ? menu : button,
+                querySelectorAll: () => options
+            },
+            PresidentGame: class {
+                constructor(id, isPublic) {
+                    this.isPublic = isPublic;
+                    this.players = [];
+                    games.push(this);
+                }
+                async addPlayer(player) {
+                    await Promise.resolve();
+                    assert.ok(!this.players.some(existing => existing.name === player.name));
+                    this.players.push(player);
+                    return { player };
+                }
+                startGame() {
+                    assert.equal(this.players.length, count);
+                    assert.ok(this.players[0].ready);
+                    assert.equal(this.localPlayerName, savedName || fallback);
+                    this.started = true;
+                }
+            },
+            PresidentPlayer: class {
+                constructor(name, playerKey) { Object.assign(this, { name, playerKey }); }
+            },
+            BOT_NAMES: ["Ada", "Bot A", "Bot B", "Bot C"],
+            getPlayerKey: () => "human-key",
+            readLastUsedPlayerName: () => savedName,
+            localizedMessage: message => message === "Spiller" ? fallback : message,
+            showPublicLobbyError: text => { assert.equal(text, ""); },
+            saveLastUsedPlayerName: name => { assert.equal(name, savedName || fallback); },
+            connectGame: () => { connections++; }
+        });
+        vm.runInContext(source.slice(start, end), context);
+        await button.click();
+        assert.equal(games.length, 0);
+        options[count - 2].click();
+        assert.equal(button.disabled, false);
+        assert.deepEqual(options.map(option => option["aria-pressed"]),
+            [2, 3, 4].map(players => String(players === count)));
+        const pending = button.click();
+        assert.equal(menu.inert, true);
+        assert.equal(button.disabled, true);
+        await button.click();
+        await pending;
+        assert.equal(games.length, 1);
+        assert.equal(games[0].isPublic, false);
+        assert.equal(games[0].started, true);
+        assert.equal(games[0].players[0].playerKey, "human-key");
+        assert.ok(games[0].players.slice(1).every(player => player.playerKey === "PC"));
+        assert.equal(context.currentPlayerName, savedName || fallback);
+        assert.equal(connections, 1);
+        assert.equal(menu.inert, false);
     }
 });
 
