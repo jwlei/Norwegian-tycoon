@@ -3392,7 +3392,7 @@ test("personal play controls retain device defaults and honor explicit saved cho
     assert.equal(playButtonContext({ playInput: "button" }).playButton.hidden, false);
 });
 
-test("card style display uses the viewer's style by default or the named player's published style", () => {
+test("card style display defaults to player-specific styles and preserves the own-style preference", () => {
     for (const scope of [null, "invalid", "own", "player"]) {
         const { GameLayout, GamePresence, PresidentPlayer } = loadGame("gold", {
             getCookie: key => key == "CardStyleScope" ? scope : null
@@ -3402,10 +3402,10 @@ test("card style display uses the viewer's style by default or the named player'
         const guestId = GamePresence.playerId(players[1]);
         const game = { players, cardStyles: { [guestId]: "pixel" } };
         assert.equal(GameLayout.styleForPlayer(game, "Viewer"), "gold");
-        assert.equal(GameLayout.styleForPlayer(game, "Guest"), scope == "player" ? "pixel" : "gold");
+        assert.equal(GameLayout.styleForPlayer(game, "Guest"), scope == "own" ? "gold" : "pixel");
         for (const invalid of ["invalid", "botanical"]) {
             game.cardStyles[guestId] = invalid;
-            assert.equal(GameLayout.styleForPlayer(game, "Guest"), scope == "player" ? "normal" : "gold");
+            assert.equal(GameLayout.styleForPlayer(game, "Guest"), scope == "own" ? "gold" : "normal");
         }
     }
 });

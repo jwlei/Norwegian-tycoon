@@ -699,6 +699,22 @@ button:disabled {
     opacity: 0.6;
 }
 
+#playButton:active:not(:disabled),
+#passButton:active:not(:disabled),
+#exchangeActions > button:active:not(:disabled) {
+    scale: 0.96;
+    filter: brightness(1.12);
+    transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #playButton:active:not(:disabled),
+    #passButton:active:not(:disabled),
+    #exchangeActions > button:active:not(:disabled) {
+        scale: 1;
+    }
+}
+
 @keyframes settle-in {
     from {
         opacity: 0;
@@ -3123,7 +3139,7 @@ select:focus-visible {
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);
         --shell-hand-card-height: clamp(88px, 21dvh, 156px);
-        grid-template-rows: 60px 64px minmax(0, 1fr) 64px calc(var(--shell-hand-card-height) + 34px);
+        grid-template-rows: 60px 64px minmax(0, 1fr) 64px calc(var(--shell-hand-card-height) + 98px);
     }
 
     #gameShell.game-active > #playerList {
@@ -3157,7 +3173,7 @@ select:focus-visible {
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);
         --shell-hand-card-height: clamp(82px, 17dvh, 128px);
-        grid-template-rows: 56px 60px minmax(0, 1fr) 60px calc(var(--shell-hand-card-height) + 34px);
+        grid-template-rows: 56px 60px minmax(0, 1fr) 60px calc(var(--shell-hand-card-height) + 62px);
     }
 
     #gameShell.game-active > #playerList {
@@ -3191,7 +3207,7 @@ select:focus-visible {
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);
         --shell-hand-card-height: clamp(72px, 23dvh, 116px);
-        grid-template-rows: 56px 52px minmax(0, 1fr) 60px calc(var(--shell-hand-card-height) + 34px);
+        grid-template-rows: 56px 52px minmax(0, 1fr) 60px calc(var(--shell-hand-card-height) + 46px);
     }
 
     #gameShell.game-active > #playerList {
@@ -3219,7 +3235,7 @@ select:focus-visible {
 @media (orientation: landscape) and (max-height: 500px) {
     #gameShell.game-active {
         --shell-hand-card-height: clamp(54px, 18vh, 76px);
-        grid-template-rows: 40px 36px minmax(58px, 1fr) 60px calc(var(--shell-hand-card-height) + 24px);
+        grid-template-rows: 40px 36px minmax(58px, 1fr) 60px calc(var(--shell-hand-card-height) + 32px);
     }
 
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInviterSpill,
@@ -4027,7 +4043,7 @@ select:focus-visible {
         width: min(100%, 980px);
         margin: 0 auto;
         --shell-hand-card-height: clamp(96px, 17dvh, 132px);
-        grid-template-rows: 60px 56px minmax(0, 1fr) 84px calc(var(--shell-hand-card-height) + 34px);
+        grid-template-rows: 60px 56px minmax(0, 1fr) 84px calc(var(--shell-hand-card-height) + 98px);
         box-shadow: 0 0 0 1px rgb(255 255 255 / 6%), 0 0 60px rgb(0 0 0 / 35%);
     }
 
@@ -4060,7 +4076,7 @@ select:focus-visible {
 
 @media (min-width: 900px) and (min-height: 560px) and (orientation: landscape) and (hover: hover) and (pointer: fine) {
     #gameShell.game-active:not(.Lobby):not(.GameFinished) {
-        grid-template-rows: 60px clamp(76px, 10dvh, 100px) minmax(0, 1fr) 84px calc(var(--shell-hand-card-height) + 34px);
+        grid-template-rows: 60px clamp(76px, 10dvh, 100px) minmax(0, 1fr) 84px calc(var(--shell-hand-card-height) + 98px);
     }
 
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #playerList .player-summary {

@@ -162,9 +162,9 @@
             reclaim.disabled = !online;
             document.getElementById("playerHand").inert = !online || !!controlled;
             document.getElementById("gameTable").inert = !online || !!controlled;
-            document.getElementById("exchangeActions").inert = !online || !!controlled;
+            document.getElementById("exchangeActions").inert = !online || !!controlled || currentGame.localWritePending === true;
             if (controlled) { document.getElementById("exchangeActions").hidden = true; }
-            if (!online || controlled) {
+            if (!online || controlled || currentGame.localWritePending) {
                 document.getElementById("passButton").disabled = true;
             } else {
                 document.getElementById("passButton").disabled = false;
@@ -905,15 +905,45 @@
             GameLayout.updatePlayerView(game, player);
         }
 
+        document.addEventListener("local-game-action", function (event) {
+            var { game, phase } = event.detail;
+            if (currentGame != game) { return; }
+            if (phase == "failed" || phase == "rejected") {
+                showGameToast("Kunne ikke lagre handlingen. Henter spillet på nytt.", game);
+                game.connectionOnline = false;
+                GameLayout.clearCardFlights();
+                refreshConnectionView();
+                game.databaseRef.once("value").then(snapshot => {
+                    if (currentGame != game) { return; }
+                    game.connectionOnline = connection ? connection.online : true;
+                    currentGameListener(snapshot);
+                }).catch(error => {
+                    console.error("Kunne ikke hente spillet etter lagringsfeil.", error);
+                    showGameToast("Kunne ikke hente spillet. Koble til på nytt.", game);
+                });
+                return;
+            }
+            refreshAfterTurnPause(game);
+            handleTurnPause(game);
+            updateTurnTimer();
+            if (phase == "saved") { scheduleBotLoop(); }
+        });
+
         function completeTurnPause(game, pause) {
             if (currentGame != game || game.turnPause == null ||
                 game.turnPause.id != pause.id) {
                 return;
             }
+            if (game.localWritePending) { return; }
             var hasClearedPiles = pause.kind == "clear" &&
                 Array.isArray(game.turnPause.clearedPiles) &&
                 game.turnPause.clearedPiles.length > 0;
             if (!hasClearedPiles) {
+                if (Date.now() < pause.until) {
+                    turnPauseRefreshTimer = setTimeout(() => completeTurnPause(game, pause),
+                        pause.until - Date.now());
+                    return;
+                }
                 if (pause.pendingGameEnd === true) {
                     if (!GamePresence.canDrive(game, connection ? connection.now() : Date.now())) {
                         refreshAfterTurnPause(game);
@@ -953,11 +983,12 @@
                     delete table.dataset.clearingPauseId;
                     var pendingGameEnd = game.turnPause.pendingGameEnd === true;
                     if (GamePresence.canDrive(game, connection ? connection.now() : Date.now())) {
-                        if (pendingGameEnd) { game.finishGame(); }
+                        if (pendingGameEnd && Date.now() >= pause.until) { game.finishGame(); }
                         game.save();
                     }
                     refreshAfterTurnPause(game);
-                    if (pendingGameEnd) { handleGameEndVote(game); }
+                    if (pendingGameEnd && Date.now() >= pause.until) { handleGameEndVote(game); }
+                    if (Date.now() < pause.until) { handleTurnPause(game); }
                 }
             );
         }
@@ -973,8 +1004,7 @@
                 delete table.dataset.pendingClearPauseId;
                 var game = currentGame;
                 if (game != null && game.turnPause != null &&
-                    `${game.id}:${game.turnPause.id}` == pauseId &&
-                    game.turnPause.until <= Date.now()) {
+                    `${game.id}:${game.turnPause.id}` == pauseId) {
                     completeTurnPause(game, game.turnPause);
                 }
             }
@@ -1009,12 +1039,15 @@
                     }
                 }
             }
-            if (delay > 0) {
+            var clearStartsAt = pause.kind == "clear" && (pause.clearedPiles || []).length > 0
+                ? clearAnimationStartsAt(pause) : pause.until;
+            var nextDelay = Math.max(0, clearStartsAt - Date.now());
+            if (nextDelay > 0) {
                 turnPauseRefreshTimer = setTimeout(function () {
                     turnPauseRefreshTimer = null;
                     if (currentGame != game || game.turnPause == null || game.turnPause.id != pause.id) { return; }
                     completeTurnPause(game, pause);
-                }, delay + 20);
+                }, nextDelay);
             } else {
                 completeTurnPause(game, pause);
             }
@@ -1985,6 +2018,7 @@
                 botLoopFastForward = fastForward;
             }
             if (botLoopTimer != null || currentGame == null ||
+                currentGame.localWritePending ||
                 !GamePresence.canDrive(currentGame, connection ? connection.now() : Date.now()) ||
                 (currentGame.status != "S" && currentGame.status != "G")) { return; }
             var delay = fastForward ? 1000 :
@@ -2001,6 +2035,7 @@
         function runBotLoop() {
             botLoopTimer = null;
             if (currentGame == null ||
+                currentGame.localWritePending ||
                 !GamePresence.canDrive(currentGame, connection ? connection.now() : Date.now())) { return; }
             if (Date.now() < shuffleEndsAt) {
                 scheduleBotLoop();

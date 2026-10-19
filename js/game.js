@@ -241,6 +241,19 @@ function clearCardSelection() {
     selectedCardStrength = null;
 }
 
+const PLAY_ANIMATION_MS = 420;
+const DISCARD_ANIMATION_MS = 300;
+
+function discardAnimationMs(cardCount) {
+    return DISCARD_ANIMATION_MS + Math.min(Math.max(0, cardCount - 1) * 6, 120);
+}
+
+function clearAnimationStartsAt(pause) {
+    var count = (pause.clearedPiles || []).reduce((total, pile) =>
+        total + Object.keys(pile).filter(key => /^\d+$/.test(key)).length, 0);
+    return pause.until - discardAnimationMs(count);
+}
+
 function showInvalidCardWarning(game) {
     var roundKey = `${game.id}:${game.round}`;
     if (invalidCardAttemptRound != roundKey) {

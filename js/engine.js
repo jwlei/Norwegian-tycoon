@@ -268,6 +268,7 @@ class PresidentGame extends Game {
         return super.startGame();
     }
     assertSessionActive() {
+        if (this.localWritePending) { throw ("Venter på at handlingen lagres."); }
         if (!GamePresence.isExpired(this)) { return; }
         this.save();
         throw ("Spilløkten er avsluttet.");
@@ -275,6 +276,9 @@ class PresidentGame extends Game {
     recordHumanAction(player) {
         if (player && player.gaveUp !== true && !GamePresence.isBot(this, player)) {
             this.lastHumanActionAt = GamePresence.now();
+            if (player.playerKey == getPlayerKey() && player.name == this.localPlayerName) {
+                this.localActionQueued = true;
+            }
         }
     }
     allHumansReady() {
@@ -337,8 +341,26 @@ class PresidentGame extends Game {
             ...(this.status != "F" ? { roundStartVote: null, gameEndVote: null } : {}),
             ts: new Date()
         };
+        var localAction = this.localActionQueued === true;
+        this.localActionQueued = false;
+        var notifyLocalAction = phase => {
+            if (localAction && typeof document != "undefined" && typeof document.dispatchEvent == "function") {
+                document.dispatchEvent(new CustomEvent("local-game-action", {
+                    detail: { game: this, phase }
+                }));
+            }
+        };
+        if (localAction) {
+            this.localWritePending = true;
+            notifyLocalAction("started");
+        }
+        var failureReported = false;
         var failed = error => {
+            if (failureReported) { return; }
+            failureReported = true;
             console.error("Kunne ikke lagre spillet.", error);
+            if (localAction) { this.localWritePending = false; }
+            notifyLocalAction("failed");
         };
         var write;
         if (typeof this.databaseRef.transaction == "function") {
@@ -386,6 +408,7 @@ class PresidentGame extends Game {
                 return next;
             }, (error, committed, snapshot) => {
                 if (error) { failed(error); return; }
+                if (localAction) { this.localWritePending = false; }
                 if (snapshot && snapshot.val()) {
                     this.lastHumanActionAt = GamePresence.lastActivityAt(snapshot.val());
                     this.turnSeconds = gameTurnSeconds(snapshot.val().turnSeconds);
@@ -394,9 +417,16 @@ class PresidentGame extends Game {
                     this.status = "V";
                 }
                 this.updatePublicListing();
+                notifyLocalAction(committed ? "saved" : "rejected");
             }, allowCreate === true);
         } else {
             write = this.databaseRef.update(update);
+            if (localAction && write && typeof write.then == "function") {
+                write.then(() => {
+                    this.localWritePending = false;
+                    notifyLocalAction("saved");
+                }, failed);
+            }
         }
         if (write && typeof write.catch == "function") { write.catch(failed); }
         this.updatePublicListing();
@@ -1877,7 +1907,7 @@ class PresidentGame extends Game {
         this.advanceTurn();
     }
     canPass(player) {
-        return player != null &&
+        return !this.localWritePending && player != null &&
             player.placement == 0 &&
             this.status == "S" &&
             player.turn == 1 &&

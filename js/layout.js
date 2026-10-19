@@ -138,7 +138,7 @@ class GameLayout {
         return Card.normalizeStyle(stored, GameLayout.cardStylePlayerName || "");
     }
     static cardStyleScope() {
-        return getCookie("CardStyleScope") == "player" ? "player" : "own";
+        return getCookie("CardStyleScope") == "own" ? "own" : "player";
     }
     static styleForPlayer(game, name) {
         if (GameLayout.cardStyleScope() == "own" || name == GameLayout.viewerName) {
@@ -625,9 +625,8 @@ class GameLayout {
             var flightY = targetBounds.top - flightTop;
             var targetRotation = parseFloat(target.style.getPropertyValue("--pile-rotation")) || 0;
             var sourceRotation = typeof source.rotation == "number" ? source.rotation : 0;
-            var startRotation = sourceRotation * 0.45 + (Math.random() - 0.5) * 40;
-            var middleRotation = startRotation + (targetRotation - startRotation) * 0.35 +
-                (Math.random() - 0.5) * 50;
+            var startRotation = sourceRotation;
+            var middleRotation = sourceRotation + (targetRotation - sourceRotation) * 0.9;
             flight.style.left = `${flightLeft}px`;
             flight.style.top = `${flightTop}px`;
             flight.style.width = `${targetBounds.width}px`;
@@ -641,19 +640,19 @@ class GameLayout {
                     opacity: 1
                 },
                 {
-                    transform: `translate(${flightX * 0.65}px, ${flightY * 0.65}px) rotate(${middleRotation}deg)`,
+                    transform: `translate(${flightX * 0.9}px, ${flightY * 0.9}px) rotate(${middleRotation}deg) scale(1.025)`,
                     opacity: 1,
-                    offset: 0.68
+                    offset: 0.35
                 },
                 {
                     transform: `translate(${flightX}px, ${flightY}px) rotate(${targetRotation}deg)`,
                     opacity: 1
                 }
             ], {
-                duration: 520,
-                delay: cardIndex * 55,
-                easing: "cubic-bezier(.22,.8,.25,1)",
-                fill: "forwards"
+                duration: PLAY_ANIMATION_MS,
+                delay: Math.min(cardIndex * 12, 36),
+                easing: "cubic-bezier(.16,1,.3,1)",
+                fill: "both"
             });
             var animationFinished = false;
             var finishAnimation = function () {
@@ -738,9 +737,9 @@ class GameLayout {
                     opacity: 0
                 }
             ], {
-                duration: 720,
-                delay: index * 12,
-                easing: "cubic-bezier(.45,0,.8,.4)",
+                duration: DISCARD_ANIMATION_MS,
+                delay: Math.min(index * 6, 120),
+                easing: "cubic-bezier(.2,.8,.3,1)",
                 fill: "forwards"
             });
             card.style.opacity = "0";
@@ -1281,14 +1280,12 @@ class GameLayout {
                             play.pile == transitionPlay
                         );
                         if (transitionElement != null) {
-                            window.requestAnimationFrame(() => {
-                                this.animatePlayedCards(
-                                    transitionElement.element,
-                                    transitionElement.pile,
-                                    playOrigins,
-                                    completePlayedAnimation
-                                );
-                            });
+                            this.animatePlayedCards(
+                                transitionElement.element,
+                                transitionElement.pile,
+                                playOrigins,
+                                completePlayedAnimation
+                            );
                         } else {
                             completePlayedAnimation();
                         }
@@ -1528,7 +1525,7 @@ class GameLayout {
         document.getElementById("gameTable").inert = game == null || blocked;
         var exchangeActions = document.getElementById("exchangeActions");
         if (exchangeActions) {
-            exchangeActions.inert = game == null || blocked;
+            exchangeActions.inert = game == null || blocked || game.localWritePending === true;
             if (game == null || (player && GamePresence.isBot(game, player))) {
                 exchangeActions.hidden = true;
             }
@@ -1902,6 +1899,7 @@ class GameLayout {
             : null);
         if (activeExchange) {
             selectExchangeCard = function (card) {
+                if (game.localWritePending) { return; }
                 var selectedIndex = activeExchange.cards.findIndex(selectedCard =>
                     selectedCard.suit == card.suit && selectedCard.rank == card.rank
                 );
@@ -2019,7 +2017,7 @@ class GameLayout {
         }
         element.classList.toggle("HasHandSelection", isPlayingTurn && selectedCardKeys.size > 0);
         var playSelectedCards = function () {
-            if (game.status != "S" || player.turn != 1 || player.placement != 0 ||
+            if (game.localWritePending || game.status != "S" || player.turn != 1 || player.placement != 0 ||
                 game.isTurnPaused() || game.connectionOnline === false ||
                 GamePresence.isBot(game, player)) {
                 return false;
@@ -2043,7 +2041,7 @@ class GameLayout {
         var selectedPile = new CardPile(player.name, ...player.cards.filter(card =>
             selectedCardKeys.has(`${card.suit}:${card.rank}`)
         ));
-        playButton.disabled = playButton.hidden || !isPlayingTurn ||
+        playButton.disabled = game.localWritePending || playButton.hidden || !isPlayingTurn ||
             game.connectionOnline === false || selectedPile.length == 0 ||
             !game.canPlayPile(player, selectedPile);
         playButton.onclick = playSelectedCards;
