@@ -116,6 +116,7 @@
                 ? `${Math.floor(remaining / 60)}:${seconds < 10 ? "0" : ""}${seconds}`
                 : "";
             if (countdown.textContent != text) { countdown.textContent = text; }
+            countdown.hidden = !active;
             timer.hidden = !active;
             extend.hidden = !active || remaining == 0 || remaining > 30 ||
                 deadline.extended || GamePresence.hasExtendedThisRound(currentGame, player);

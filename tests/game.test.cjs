@@ -271,7 +271,7 @@ test("turn timer is hidden for a solo human and shown once another human is acti
     const render = activeHumanCount => {
         const elements = {
             turnTimer: { hidden: true },
-            turnCountdown: { textContent: "" },
+            turnCountdown: { hidden: true, textContent: "" },
             extendTurnButton: { hidden: true, disabled: false }
         };
         const player = { name: "Owner", playerKey: "owner" };
@@ -293,9 +293,12 @@ test("turn timer is hidden for a solo human and shown once another human is acti
         vm.runInContext("updateTurnTimer()", context);
         return elements;
     };
-    assert.equal(render(1).turnTimer.hidden, true);
+    const solo = render(1);
+    assert.equal(solo.turnTimer.hidden, true);
+    assert.equal(solo.turnCountdown.hidden, true);
     const multiplayer = render(2);
     assert.equal(multiplayer.turnTimer.hidden, false);
+    assert.equal(multiplayer.turnCountdown.hidden, false);
     assert.equal(multiplayer.turnCountdown.textContent, "2:00");
 });
 
