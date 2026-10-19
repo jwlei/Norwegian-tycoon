@@ -276,6 +276,24 @@ test("the play button is hidden outside an active human turn and guards stale cl
     }
 });
 
+test("connection and seat-control changes invalidate the hand's play-button state", () => {
+    const { GameLayout, GamePresence } = loadGame();
+    const player = { name: "Player", playerKey: "human-key", turn: 1, placement: 0, cards: [] };
+    const game = {
+        id: "room", round: 1, turn: 0, status: "S", piles: [],
+        isTurnPaused: () => false
+    };
+    const onlineSignature = GameLayout.handSignature(game, player);
+    game.connectionOnline = false;
+    assert.notEqual(GameLayout.handSignature(game, player), onlineSignature);
+    game.connectionOnline = true;
+    assert.equal(GameLayout.handSignature(game, player), onlineSignature);
+    game.controllers = { [GamePresence.playerId(player)]: {} };
+    assert.notEqual(GameLayout.handSignature(game, player), onlineSignature);
+    game.controllers = {};
+    assert.equal(GameLayout.handSignature(game, player), onlineSignature);
+});
+
 test("a gift requires the same owner on the first and fourth consecutive singles", () => {
     const { CardPile, PresidentCard, isGiftPackage } = loadGame();
     const single = (name, suit) => new CardPile(name, new PresidentCard(suit, 5));

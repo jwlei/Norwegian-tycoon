@@ -1421,6 +1421,8 @@ class GameLayout {
             player.placement,
             player.turn,
             game.isTurnPaused() ? 1 : 0,
+            game.connectionOnline === false ? 0 : 1,
+            GamePresence.isBot(game, player) ? 1 : 0,
             game.piles.map(pile => `${pile.strengthRank}/${pile.map(keyOf).join(",")}`).join("|"),
             player.cards.map(keyOf).join(","),
             Array.from(selectedCardKeys).join(","),
