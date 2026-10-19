@@ -535,6 +535,7 @@
             clearingPauseId = null;
             currentGame.roundStartVote = null;
             currentGame.startGame();
+            refreshAfterTurnPause(currentGame);
             scheduleBotLoop();
         }
 
@@ -1401,6 +1402,7 @@
                         clearTimeout(gameEndVoteRefreshTimer);
                         gameEndVoteRefreshTimer = null;
                     }
+                    refreshAfterTurnPause(connectingGame);
                     scheduleBotLoop();
                 }
             };
