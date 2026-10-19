@@ -418,6 +418,17 @@ select:focus-visible {
     color: #fff;
 }
 
+#playerActions > button {
+    min-width: clamp(112px, 26vw, 180px);
+    max-width: 46%;
+}
+
+#playerActions > button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
 #playerActions > #passButton.pass-needs-action,
 #playerActions > #passButton.pass-needs-action:hover {
     border-color: #e4b51a;
@@ -1861,7 +1872,10 @@ select:focus-visible {
     top: 50%;
     left: 50%;
     width: min(420px, calc(100vw - 24px));
-    padding: 12px 18px;
+    height: clamp(44px, 9dvh, 76px);
+    box-sizing: border-box;
+    align-content: center;
+    padding: 4px 14px;
     border: 1px solid var(--line);
     border-radius: 14px;
     background: var(--surface);
@@ -1880,6 +1894,10 @@ select:focus-visible {
     pointer-events: auto;
     cursor: pointer;
     touch-action: manipulation;
+}
+
+#GameToast {
+    max-height: calc(100% - 4px);
 }
 
 .game-toast::after {
@@ -2180,12 +2198,18 @@ select:focus-visible {
 }
 
 #reclaimSeatButton {
-    position: fixed;
+    position: relative;
     z-index: 40;
-    bottom: calc(env(safe-area-inset-bottom) + 12px);
-    left: 50%;
-    padding: 10px 16px;
-    transform: translateX(-50%);
+    grid-column: 1 / -1;
+    grid-row: 5 / 6;
+    align-self: center;
+    justify-self: center;
+    width: min(80%, 320px);
+    min-height: 56px;
+    margin: 0;
+    padding: 14px 24px;
+    font-size: 1.1rem;
+    box-shadow: var(--shadow);
 }
 
 #resumeGameButton[hidden],
@@ -3364,6 +3388,19 @@ select:focus-visible {
         --shell-hand-card-height: clamp(96px, 17dvh, 132px);
         grid-template-rows: 44px 56px minmax(0, 1fr) 84px calc(var(--shell-hand-card-height) + 34px);
         box-shadow: 0 0 0 1px rgb(255 255 255 / 6%), 0 0 60px rgb(0 0 0 / 35%);
+    }
+
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #BnInnstillinger {
+        left: calc(max(0px, (100vw - 980px) / 2) + 8px);
+    }
+
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > .topbar-actions {
+        right: calc(max(0px, (100vw - 980px) / 2) + 8px);
+    }
+
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #waitingPlayers {
+        left: calc(max(0px, (100vw - 980px) / 2) + 60px);
+        max-width: 750px;
     }
 
     #gameShell.game-active #playerHand.card-hand > .game-card > img,

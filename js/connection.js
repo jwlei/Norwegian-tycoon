@@ -756,6 +756,7 @@
                 leaving.style.left = `${rect.left}px`;
                 leaving.style.top = `${rect.top}px`;
                 leaving.style.width = `${rect.width}px`;
+                leaving.style.height = `${rect.height}px`;
                 leaving.style.setProperty("--toast-push", `${rect.height + 10}px`);
                 var leaveMs = { fast: 1000, normal: 2000, slow: 3000 }[currentGameSpeed()] || 1000;
                 leaving.style.setProperty("--toast-leave", `${leaveMs}ms`);
