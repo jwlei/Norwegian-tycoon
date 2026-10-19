@@ -729,13 +729,17 @@
             game.piles.forEach(exchange => {
                 if (exchange.kind != "playerTrade" || exchange.mode == "Tilbud") { return; }
                 var key = `${game.shuffleStartedAt}:${game.round}:${exchange.tradeId}`;
-                if (game.notifiedTrades.has(key)) { return; }
+                var sneaky = hasSneakyConsent(exchange);
+                var sneakyKey = `${key}:sneaky`;
+                if (game.notifiedTrades.has(key) &&
+                    (!sneaky || game.notifiedTrades.has(sneakyKey))) { return; }
                 var participant = [game.players[exchange.from], game.players[exchange.to]]
                     .some(player => player && player.name == currentPlayerName);
                 if (!participant) { return; }
                 game.notifiedTrades.add(key);
-                showGameToast(hasSneakyConsent(exchange)
-                    ? "Sneaky-samtykke nådd. Byttet starter med alle kort."
+                if (sneaky) { game.notifiedTrades.add(sneakyKey); }
+                showGameToast(sneaky
+                    ? "Oooh.. Sneaky.."
                     : "Sneaky-samtykke ikke nådd. Byttet starter med kort 7–J.", game);
             });
         }
@@ -1176,6 +1180,62 @@
             showDialog("NyttSpill", false);
             startNewGame(isPublic);
         });
+
+        var quickPlayPlayerCount = null;
+        var quickPlayPending = false;
+        document.querySelectorAll(".quick-play-option").forEach(button => {
+            button.addEventListener("click", function () {
+                quickPlayPlayerCount = Number(button.dataset.players);
+                document.querySelectorAll(".quick-play-option").forEach(option => {
+                    option.setAttribute("aria-pressed", String(option == button));
+                });
+                document.getElementById("quickPlayButton").disabled = false;
+            });
+        });
+
+        async function startQuickPlay() {
+            if (quickPlayPending || currentGame != null || ![2, 3, 4].includes(quickPlayPlayerCount)) {
+                return;
+            }
+            quickPlayPending = true;
+            var menu = document.getElementById("mainMenu");
+            var button = document.getElementById("quickPlayButton");
+            menu.inert = true;
+            button.disabled = true;
+            showPublicLobbyError("");
+            try {
+                var game = new PresidentGame(null, false);
+                var name = readLastUsedPlayerName() || localizedMessage("Spiller");
+                var human = new PresidentPlayer(name, getPlayerKey());
+                human.ready = true;
+                var result = await game.addPlayer(human);
+                if (!result.player) { throw new Error(result.text); }
+                name = result.player.name;
+                game.localPlayerName = name;
+                while (game.players.length < quickPlayPlayerCount) {
+                    var usedNames = game.players.map(player => player.name.toLocaleLowerCase());
+                    var availableNames = BOT_NAMES.filter(candidate =>
+                        !usedNames.includes(candidate.toLocaleLowerCase()));
+                    var botName = availableNames[Math.floor(Math.random() * availableNames.length)];
+                    var botResult = await game.addPlayer(new PresidentPlayer(botName, "PC"));
+                    if (!botResult.player) { throw new Error(botResult.text); }
+                }
+                game.startGame();
+                currentGame = game;
+                currentPlayerName = name;
+                saveLastUsedPlayerName(name);
+                connectGame();
+            } catch (error) {
+                console.error("Kunne ikke starte hurtigspill.", error);
+                showPublicLobbyError("Kunne ikke starte hurtigspill. Prøv igjen.");
+            } finally {
+                quickPlayPending = false;
+                menu.inert = false;
+                button.disabled = quickPlayPlayerCount == null;
+            }
+        }
+
+        document.getElementById("quickPlayButton").addEventListener("click", startQuickPlay);
 
         var publicLobbies = [];
 
