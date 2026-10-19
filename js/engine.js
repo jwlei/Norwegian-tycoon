@@ -235,7 +235,7 @@ class PresidentGame extends Game {
             this.players = [];
             this.piles = [];
             this.turn = -1;
-            this.save(true);
+            this.creation = this.save(true);
         } else {
             this.id = id;
             this.databaseRef = firebase.database().ref(`boms_1/${this.id}`);
@@ -264,7 +264,7 @@ class PresidentGame extends Game {
             this.roundStartVote = null;
             this.gameEndVote = null;
         }
-        super.startGame();
+        return super.startGame();
     }
     assertSessionActive() {
         if (!GamePresence.isExpired(this)) { return; }
@@ -389,6 +389,7 @@ class PresidentGame extends Game {
         }
         if (write && typeof write.catch == "function") { write.catch(failed); }
         this.updatePublicListing();
+        return write;
     }
     updatePublicListing() {
         var listingRef = firebase.database().ref(`${PUBLIC_LOBBY_PATH}/${this.id}`);

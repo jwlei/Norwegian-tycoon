@@ -93,8 +93,7 @@ class Game {
                 // Prepare game-specific state.
                 this.prepareRound();
                 // Start the game.
-                this.save();
-                break;
+                return this.save();
             default:
                 throw ('Spillet har allerede startet.');
                 break;

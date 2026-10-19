@@ -1205,6 +1205,7 @@
             showPublicLobbyError("");
             try {
                 var game = new PresidentGame(null, false);
+                await game.creation;
                 var name = readLastUsedPlayerName() || localizedMessage("Spiller");
                 var human = new PresidentPlayer(name, getPlayerKey());
                 human.ready = true;
@@ -1220,7 +1221,7 @@
                     var botResult = await game.addPlayer(new PresidentPlayer(botName, "PC"));
                     if (!botResult.player) { throw new Error(botResult.text); }
                 }
-                game.startGame();
+                await game.startGame();
                 currentGame = game;
                 currentPlayerName = name;
                 saveLastUsedPlayerName(name);
