@@ -326,29 +326,29 @@ input {
 }
 
     input:invalid {
-        border: 2px dashed red;
+        border: 2px dashed var(--danger);
     }
 
 input.input-soft-error {
-    border-color: #b87878;
-    background-color: rgb(168 96 96 / 18%);
+    border-color: var(--danger);
+    background-color: var(--danger-soft);
 }
 
 @keyframes invalid-background {
     0% {
-        background-color: white;
+        background-color: var(--surface);
     }
 
     40% {
-        background-color: red;
+        background-color: var(--danger-soft);
     }
 
     60% {
-        background-color: red;
+        background-color: var(--danger-soft);
     }
 
     100% {
-        background-color: white;
+        background-color: var(--surface);
     }
 }
 

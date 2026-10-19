@@ -810,7 +810,7 @@
                 "--toast-progress-gradient",
                 progressColors.length > 0
                     ? `linear-gradient(90deg, ${progressColors.join(", ")})`
-                    : "linear-gradient(90deg, #17803d, #39a95f, #f4cf43)"
+                    : "linear-gradient(90deg, var(--success-fill), var(--success), var(--warning))"
             );
             activeToastPauseId = pauseId;
             appendColoredGameMessage(toast, localizedMessage(message), players, true);

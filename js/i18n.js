@@ -114,6 +114,7 @@
         "Velg fargetema": "Choose color theme",
         "Blå": "Blue",
         "Skoggrønn": "Forest green",
+        "Temaet tilpasser også aktiv tur, pass og feil. Forhåndsvisningen viser temafarge, positiv, pass og negativ. Kort- og spillerfarger beholdes.": "The theme also adapts the active turn, pass and errors. The preview shows the theme, positive, pass and negative colors. Card and player colors are preserved.",
         "Dyp turkis": "Deep teal",
         "Ametyst": "Amethyst",
         "Burgunder": "Burgundy",

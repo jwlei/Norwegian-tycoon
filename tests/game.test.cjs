@@ -760,11 +760,12 @@ function colorThemeContext(storage = new Map(), storageBlocked = false) {
     return { context, options, elements, events, dialogs };
 }
 
-test("all eight color themes have previews and persist without cookies", () => {
+test("all sixteen color themes have previews and persist without cookies", () => {
     const storage = new Map();
     const { context, options, elements } = colorThemeContext(storage);
     assert.deepEqual(options.map(option => option.dataset.colorTheme),
-        ["blue", "forest", "teal", "amethyst", "burgundy", "amber", "gray", "amoled"]);
+        ["blue", "forest", "teal", "amethyst", "burgundy", "amber", "gray", "amoled",
+            "solarized", "dark-modern", "material", "darcula", "one-dark", "nord", "monokai", "gradianto"]);
     assert.equal(context.document.documentElement.dataset.colorTheme, "blue");
     context.document.documentElement.dataset.theme = "light";
     for (const option of options) {
