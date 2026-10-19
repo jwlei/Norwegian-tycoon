@@ -211,6 +211,7 @@ class PresidentGame extends Game {
         this.debug = true;
         this.isPublic = isPublic === true;
         this.turnPause = null;
+        this.fastForward = false;
         this.roundStartVote = null;
         this.gameEndVote = null;
         this.roundStarterName = null;
@@ -258,6 +259,7 @@ class PresidentGame extends Game {
         }
         this.endGameVoteResolvedForStart = false;
         this.shuffleStartedAt = Date.now();
+        this.fastForward = false;
         if (this.status == "O" || this.status == "F") {
             this.roundStartVote = null;
             this.gameEndVote = null;
@@ -301,6 +303,10 @@ class PresidentGame extends Game {
         });
     }
     save(allowCreate = false) {
+        if (this.status != "S" ||
+            (!GamePresence.onlyBotsRemain(this) && !this.turnPause?.pendingGameEnd)) {
+            this.fastForward = false;
+        }
         var expiredLocally = this.status != "V" && GamePresence.isExpired(this);
         if (GamePresence.isExpired(this)) { this.status = "V"; }
         var lastAction = GamePresence.lastActivityAt(this);
@@ -315,6 +321,7 @@ class PresidentGame extends Game {
             "spillBunke": this.status == "V" ? [] : this.serializePiles(),
             "sinTur": this.turn,
             "turnPause": this.turnPause,
+            "fastForward": this.fastForward === true,
             "roundStarterName": this.roundStarterName,
             "shuffleStartedAt": this.shuffleStartedAt,
             "playedCards": this.playedCards || [],
@@ -1567,6 +1574,36 @@ class PresidentGame extends Game {
                     Array.isArray(this.turnPause.clearedPiles) &&
                     this.turnPause.clearedPiles.length > 0));
     }
+    actionPauseMs() {
+        return this.fastForward === true &&
+            (GamePresence.onlyBotsRemain(this) ||
+                (this.status == "S" && this.turnPause?.pendingGameEnd))
+            ? 1000 : TURN_ACTION_PAUSE_MS;
+    }
+    setFastForward(enabled) {
+        var player = this.getPlayer(this.localPlayerName);
+        if (this.connectionOnline === false || !player || player.playerKey != getPlayerKey() ||
+            GamePresence.isBot(this, player) || !GamePresence.onlyBotsRemain(this)) {
+            return Promise.resolve();
+        }
+        return this.databaseRef.transaction(record => {
+            if (!GamePresence.onlyBotsRemain(record) || GamePresence.isExpired(record)) { return; }
+            var member = (record.spillere || []).find(candidate =>
+                candidate.nick == player.name && candidate.spillerKey == player.playerKey
+            );
+            if (!member || member.spillerKey == "PC" ||
+                (record.controllers || {})[GamePresence.playerId(member)]) { return; }
+            var update = { fastForward: enabled === true };
+            if (record.turnPause && record.turnPause.until > Date.now()) {
+                update.turnPause = Object.assign({}, record.turnPause, {
+                    until: Date.now() + (enabled ? 1000 : TURN_ACTION_PAUSE_MS)
+                });
+            }
+            return Object.assign({}, record, update);
+        }).catch(error => {
+            console.error("Kunne ikke endre avspillingshastigheten.", error);
+        });
+    }
     canPlayRank(player, strengthRank, resultInfo = {}) {
         // Check whether a player can play a rank, and mark the matching cards.
         if (this.isTurnPaused()) {
@@ -1709,7 +1746,7 @@ class PresidentGame extends Game {
         this.turnPause = {
             id: `${now}-${Math.random().toString(36).slice(2)}`,
             kind: "play",
-            until: now + TURN_ACTION_PAUSE_MS,
+            until: now + this.actionPauseMs(),
             message: `${player.name}: ${pile.describe()}.`,
             playedPile: {
                 name: player.name,
@@ -1754,7 +1791,7 @@ class PresidentGame extends Game {
         this.turnPause = {
             id: `${now}-${Math.random().toString(36).slice(2)}`,
             kind: "pass",
-            until: now + TURN_ACTION_PAUSE_MS,
+            until: now + this.actionPauseMs(),
             message: `${player.name}: pass.`
         };
         this.recordHumanAction(player);
@@ -1827,7 +1864,7 @@ class PresidentGame extends Game {
             this.turnPause = {
                 id: `${now}-${Math.random().toString(36).slice(2)}`,
                 kind: "clear",
-                until: now + TURN_ACTION_PAUSE_MS,
+                until: now + this.actionPauseMs(),
                 message: placementMessage || clearMessage,
                 clearedPiles: clearedPiles,
                 playedPile: playedPile

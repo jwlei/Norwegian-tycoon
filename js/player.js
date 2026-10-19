@@ -209,14 +209,14 @@ class Game {
                     pause.pendingGameEnd = true;
                     pause.until = Math.max(
                         pause.until || 0,
-                        Date.now() + TURN_ACTION_PAUSE_MS
+                        Date.now() + (this.actionPauseMs ? this.actionPauseMs() : TURN_ACTION_PAUSE_MS)
                     );
                 } else {
                     var now = Date.now();
                     this.turnPause = {
                         id: `${now}-${Math.random().toString(36).slice(2)}`,
                         kind: "finish",
-                        until: now + TURN_ACTION_PAUSE_MS,
+                        until: now + (this.actionPauseMs ? this.actionPauseMs() : TURN_ACTION_PAUSE_MS),
                         message: pauseMessage,
                         pendingGameEnd: true
                     };

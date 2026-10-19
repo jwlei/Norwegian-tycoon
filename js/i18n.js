@@ -38,6 +38,8 @@
         "Resultater": "Results",
         "Trykk for å kopiere spill-ID": "Tap to copy the game ID",
         "Pass": "Pass",
+        "Spol frem": "Fast forward",
+        "Vanlig avspilling": "Normal playback",
         "Pass (ikke tillatt nå)": "Pass (not allowed now)",
         "Pass utilgjengelig": "Pass unavailable",
         "Legg ut valgte kort": "Play selected cards",

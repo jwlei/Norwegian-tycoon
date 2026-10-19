@@ -111,6 +111,10 @@
         </div>
         <small id="lobbyCapacity" role="status" aria-live="polite" hidden></small>
         <div id="gameTable">
+            <button type="button" id="fastForwardButton" title="Spol frem" aria-label="Spol frem" aria-pressed="false" hidden>
+                <svg class="fast-forward-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="m3 5 9 7-9 7V5Zm10 0 9 7-9 7V5Z"/></svg>
+                <svg class="normal-play-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="m6 4 14 8-14 8V4Z"/></svg>
+            </button>
             <div id="turnTimer" class="turn-timer" hidden>
                 <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                     <circle cx="8" cy="8" r="6.5"></circle>
@@ -123,6 +127,7 @@
         </div>
         <div id="playerActions" style="text-align: center; vertical-align: middle;">
             <div id="GameToast" class="game-toast" role="status" aria-live="polite" aria-atomic="true" data-i18n-skip></div>
+            <div id="spectatorJoinToast" class="game-toast" role="status" aria-live="polite" data-i18n-skip></div>
             <span id="selectedCardCount" class="visually-hidden" aria-live="polite" aria-atomic="true"></span>
             <button type="button" id="playButton" title="Legg ut valgte kort" aria-label="Legg ut valgte kort" hidden disabled>Legg ut</button>
             <button type="button" id="passButton" title="Pass" aria-label="Pass" style="float: left;">Pass</button>
@@ -167,7 +172,6 @@
         </div>
     </div>
     <div id="CopyToast" class="copy-toast" role="status" aria-live="polite"></div>
-    <div id="spectatorJoinToast" class="game-toast" role="status" aria-live="polite" data-i18n-skip></div>
     <div id="receivedCardsOverlay" class="received-cards-overlay" role="status" aria-live="polite" data-i18n-skip hidden>
         <div id="receivedCardsContent" class="received-cards__content"></div>
     </div>

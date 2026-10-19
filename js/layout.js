@@ -186,6 +186,9 @@ class GameLayout {
             setClass(mainMenu, "is-hidden", false);
             this.updateMainMenu();
             var emptyTable = document.getElementById("gameTable");
+            if (this.fastForwardElement == null) {
+                this.fastForwardElement = document.getElementById("fastForwardButton");
+            }
             if (this.turnTimerElement == null) {
                 this.turnTimerElement = document.getElementById("turnTimer");
             }
@@ -811,6 +814,9 @@ class GameLayout {
     static updateTable(game, player, existingPileSignatures = new Set(), playOrigins = null) {
         document.getElementById("exchangePrompt").textContent = "";
         var table = document.getElementById("gameTable");
+        if (this.fastForwardElement == null) {
+            this.fastForwardElement = document.getElementById("fastForwardButton");
+        }
         if (this.turnTimerElement == null) {
             this.turnTimerElement = document.getElementById("turnTimer");
         }
@@ -1451,6 +1457,11 @@ class GameLayout {
         this.keepTurnTimer(table);
     }
     static keepTurnTimer(table) {
+        if (this.fastForwardElement != null &&
+            this.fastForwardElement.parentElement != table &&
+            typeof table.appendChild == "function") {
+            table.appendChild(this.fastForwardElement);
+        }
         if (this.turnTimerElement != null &&
             this.turnTimerElement.parentElement != table &&
             typeof table.appendChild == "function") {
