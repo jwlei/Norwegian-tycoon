@@ -76,16 +76,27 @@ document.addEventListener("keydown", event => {
     }
 });
 
+var savedCookieValues = Object.create(null);
+
 function setCookie(cookieName, cookieValue, expiryDays) {
+    savedCookieValues[cookieName] = String(cookieValue);
+    try { localStorage.setItem("norwegian-tycoon-cookie-" + cookieName, String(cookieValue)); } catch (error) { }
     var expiryDate = new Date();
     expiryDate.setTime(expiryDate.getTime() + (expiryDays * 24 * 60 * 60 * 1000));
     var expires = "expires=" + expiryDate.toUTCString();
-    document.cookie = cookieName + "=" + cookieValue + ";" + expires + ";path=/";
+    var secureAttribute = window.location.protocol == "https:" ? ";Secure" : "";
+    try {
+        document.cookie = cookieName + "=" + cookieValue + ";" + expires + ";path=/;SameSite=Lax" + secureAttribute;
+    } catch (error) { }
 }
 
 function getCookie(cookieName) {
+    if (Object.prototype.hasOwnProperty.call(savedCookieValues, cookieName)) {
+        return savedCookieValues[cookieName];
+    }
     var name = cookieName + "=";
-    var cookieParts = document.cookie.split(';');
+    var cookieParts = [];
+    try { cookieParts = document.cookie.split(';'); } catch (error) { }
     for (var i = 0; i < cookieParts.length; i++) {
         var c = cookieParts[i];
         while (c.charAt(0) == ' ') {
@@ -95,6 +106,7 @@ function getCookie(cookieName) {
             return c.substring(name.length, c.length);
         }
     }
+    try { return localStorage.getItem("norwegian-tycoon-cookie-" + cookieName) || ""; } catch (error) { }
     return "";
 }
 
@@ -125,7 +137,8 @@ function initializeThemeToggle() {
     const root = document.documentElement;
     const storageKey = "norwegian-tycoon-theme";
     const themeButtons = document.querySelectorAll(".theme-toggle");
-    const storedTheme = localStorage.getItem(storageKey);
+    let storedTheme = null;
+    try { storedTheme = localStorage.getItem(storageKey); } catch (error) { }
     const initialTheme = (storedTheme === "light" || storedTheme === "dark") ? storedTheme : "dark";
 
     function applyTheme(theme) {
@@ -154,7 +167,7 @@ function initializeThemeToggle() {
     themeButtons.forEach(button => {
         button.addEventListener("click", function () {
             const nextTheme = (root.dataset.theme === "dark") ? "light" : "dark";
-            localStorage.setItem(storageKey, nextTheme);
+            try { localStorage.setItem(storageKey, nextTheme); } catch (error) { }
             applyTheme(nextTheme);
         });
     });
