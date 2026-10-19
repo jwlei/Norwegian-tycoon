@@ -472,6 +472,23 @@ class GameLayout {
                 parent.insertBefore(element, parent.children[index] || null);
             }
         };
+        if (game.status == "O") {
+            var lobbyElements = game.players.map(player =>
+                updatePlayerSummary(player, player === currentPlayer));
+            var emptySeats = playerList.querySelectorAll(".lobby-empty-seat");
+            for (var index = lobbyElements.length; index < MAX_PLAYERS; index++) {
+                var emptySeat = emptySeats[index - game.players.length] || document.createElement("div");
+                emptySeat.className = "lobby-empty-seat";
+                emptySeat.textContent = "Ledig plass";
+                lobbyElements.push(emptySeat);
+            }
+            lobbyElements.forEach((element, index) => placeElement(playerList, element, index));
+            existingElements.forEach(staleElement => staleElement.remove());
+            Array.from(playerList.children).forEach(child => {
+                if (!lobbyElements.includes(child)) { child.remove(); }
+            });
+            return;
+        }
         var selfElement = currentPlayer ? updatePlayerSummary(currentPlayer, true) : null;
         var currentPlayerIndex = (currentPlayer == null) ? -1 : game.players.indexOf(currentPlayer);
         var opponents = currentPlayerIndex < 0
@@ -486,10 +503,6 @@ class GameLayout {
         opponentElements.forEach((element, index) => {
             element.className = element.className.replace(/\s*opponent-seat-\d+/g, "");
             element.classList.add(`opponent-seat-${index}`);
-            element.classList.toggle(
-                "lobby-grid-last-player",
-                game.players.length == 3 && index == opponentElements.length - 1
-            );
             element.dataset.clockwiseSeat = String(index);
             placeElement(opponentList, element, index);
         });

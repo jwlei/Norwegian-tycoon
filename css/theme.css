@@ -411,6 +411,13 @@ select:focus-visible {
     background: var(--line);
 }
 
+#playerActions > #playButton:enabled,
+#playerActions > #playButton:enabled:hover {
+    background: #17803d;
+    border-color: #39a95f;
+    color: #fff;
+}
+
 #playerActions > #passButton.pass-needs-action,
 #playerActions > #passButton.pass-needs-action:hover {
     border-color: #e4b51a;
@@ -2648,16 +2655,6 @@ select:focus-visible {
     text-align: center;
 }
 
-#gameShell.game-active.Lobby > #playerList[data-player-count="1"] {
-    grid-template-columns: minmax(0, 360px);
-    grid-template-rows: minmax(0, 1fr);
-    justify-content: center;
-}
-
-#gameShell.game-active.Lobby > #playerList[data-player-count="2"] {
-    grid-template-rows: minmax(0, 1fr);
-}
-
 #gameShell.game-active.Lobby > #playerList > .opponent-list {
     display: contents;
 }
@@ -2671,13 +2668,8 @@ select:focus-visible {
     grid-row: auto;
 }
 
-#gameShell.game-active.Lobby > #playerList .player-summary.lobby-grid-last-player {
-    grid-column: 1 / -1;
-    justify-self: center;
-    width: min(100%, 360px);
-}
-
-#gameShell.game-active.Lobby > #playerList .player-summary {
+#gameShell.game-active.Lobby > #playerList .player-summary,
+#gameShell.game-active.Lobby > #playerList .lobby-empty-seat {
     display: flex;
     min-width: 0;
     min-height: 0;
@@ -2696,9 +2688,13 @@ select:focus-visible {
     overflow: hidden;
 }
 
-#gameShell.game-active.Lobby > #playerList[data-player-count="1"] .player-summary {
-    justify-self: center;
-    width: min(100%, 360px);
+#gameShell.game-active.Lobby > #playerList .lobby-empty-seat {
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    background: var(--surface-soft);
+    color: var(--muted);
+    font-size: 0.8rem;
+    opacity: 0.45;
 }
 
 #gameShell.game-active.Lobby > #playerList .player-summary__name {
@@ -3287,6 +3283,10 @@ select:focus-visible {
     #playerActions > #playButton:not([hidden]) {
         display: inline-block;
     }
+
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #playerActions > #playerStatus {
+        flex: 0 0 100%;
+    }
 }
 
 /* Desktop: a compact, centered play area instead of a stretched full-window layout. */
@@ -3299,7 +3299,7 @@ select:focus-visible {
         width: min(100%, 980px);
         margin: 0 auto;
         --shell-hand-card-height: clamp(96px, 17dvh, 132px);
-        grid-template-rows: 44px 56px minmax(0, 1fr) 48px calc(var(--shell-hand-card-height) + 34px);
+        grid-template-rows: 44px 56px minmax(0, 1fr) 76px calc(var(--shell-hand-card-height) + 34px);
         box-shadow: 0 0 0 1px rgb(255 255 255 / 6%), 0 0 60px rgb(0 0 0 / 35%);
     }
 
@@ -3319,7 +3319,7 @@ select:focus-visible {
 
 @media (min-width: 900px) and (min-height: 560px) and (orientation: landscape) and (hover: hover) and (pointer: fine) {
     #gameShell.game-active:not(.Lobby):not(.GameFinished) {
-        grid-template-rows: 44px clamp(76px, 10dvh, 100px) minmax(0, 1fr) 48px calc(var(--shell-hand-card-height) + 34px);
+        grid-template-rows: 44px clamp(76px, 10dvh, 100px) minmax(0, 1fr) 76px calc(var(--shell-hand-card-height) + 34px);
     }
 
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #playerList .player-summary {
