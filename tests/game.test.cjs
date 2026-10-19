@@ -932,6 +932,80 @@ test("lobby capacity counts filled seats for every player count", () => {
     assert.equal(elements.get("lobbyCapacity").hidden, true);
 });
 
+test("lobby slots follow player order for every viewer and reuse faded empty seats", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    const start = source.indexOf("        var placeElement =");
+    const end = source.indexOf("\n    }\n    static capturePlayOrigins", start);
+    function element() {
+        return {
+            children: [], className: "", dataset: {},
+            insertBefore(child, reference) {
+                child.remove();
+                const index = reference ? this.children.indexOf(reference) : this.children.length;
+                this.children.splice(index, 0, child);
+                child.parent = this;
+            },
+            remove() {
+                if (this.parent) {
+                    this.parent.children.splice(this.parent.children.indexOf(this), 1);
+                    this.parent = null;
+                }
+            },
+            querySelectorAll(selector) {
+                assert.equal(selector, ".lobby-empty-seat");
+                return this.children.filter(child => child.className === "lobby-empty-seat");
+            }
+        };
+    }
+    const players = Array.from({ length: 4 }, (_, index) => ({ name: `Player ${index}` }));
+    const summaries = new Map(players.map(player => [player.name, element()]));
+    const playerList = element();
+    const context = vm.createContext({
+        MAX_PLAYERS: 4, playerList, document: { createElement: element },
+        game: { status: "O", players: [] }, currentPlayer: null,
+        existingElements: new Map(),
+        updatePlayerSummary(player, self) {
+            const summary = summaries.get(player.name);
+            summary.dataset.playerName = player.name;
+            summary.self = self;
+            return summary;
+        }
+    });
+    const render = () => vm.runInContext(`(function () { ${source.slice(start, end)} })()`, context);
+    for (const viewer of [null, ...players]) {
+        context.currentPlayer = viewer;
+        for (const count of [0, 1, 2, 3, 4, 3, 2, 1]) {
+            context.game.players = players.slice(0, count);
+            render();
+            assert.equal(playerList.children.length, 4);
+            assert.deepEqual(playerList.children.slice(0, count).map(child => child.dataset.playerName),
+                players.slice(0, count).map(player => player.name));
+            for (const child of playerList.children.slice(count)) {
+                assert.equal(child.className, "lobby-empty-seat");
+                assert.equal(child.textContent, "Ledig plass");
+            }
+            const previous = playerList.children.slice();
+            render();
+            assert.deepEqual(playerList.children, previous);
+        }
+    }
+});
+
+test("disconnected ready players cannot start a lobby before readiness is reconciled", () => {
+    const { PresidentGame, GamePresence } = loadGame();
+    const player = { name: "Owner", playerKey: "human-key", ready: true };
+    const game = Object.assign(Object.create(PresidentGame.prototype), {
+        players: [player], presence: {}, connectionOnline: true
+    });
+    assert.equal(game.allHumansReady(), true);
+    game.presence[GamePresence.playerId(player)] = { tab: { online: false, changedAt: 100 } };
+    assert.equal(game.allHumansReady(), false);
+    game.presence[GamePresence.playerId(player)].other = { online: true, changedAt: 101 };
+    assert.equal(game.allHumansReady(), true);
+    game.connectionOnline = false;
+    assert.equal(game.allHumansReady(), false);
+});
+
 test("waiting spectators register once, arm disconnect cleanup first and remove their own entry on leave", async () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const start = source.indexOf("        var spectatorJoinPending");
@@ -1078,7 +1152,7 @@ test("lobby start stays neutral until enough players are present and every human
         }
         return elements.get(id);
     };
-    const { GameLayout, PresidentGame, PresidentPlayer } = loadGame(null, {
+    const { GameLayout, PresidentGame, PresidentPlayer, GamePresence } = loadGame(null, {
         document: { getElementById: getElement }
     });
     const host = new PresidentPlayer("Host", "human-key");
@@ -1107,6 +1181,19 @@ test("lobby start stays neutral until enough players are present and every human
     assert.equal(start.textContent, "Start spill");
     assert.equal(start.disabled, false);
     assert.equal(start.classList.contains("is-waiting"), false);
+
+    game.connectionOnline = false;
+    GameLayout.updateGameButtons(game);
+    assert.equal(start.disabled, true);
+    assert.equal(getElement("readyButton").textContent, "Klar");
+    assert.equal(getElement("readyButton").disabled, true);
+
+    game.connectionOnline = true;
+    game.presence = { [GamePresence.playerId(guest)]: { tab: { online: false, changedAt: 100 } } };
+    GameLayout.updateGameButtons(game);
+    assert.equal(start.disabled, true);
+    assert.equal(getElement("readyButton").disabled, false);
+    game.presence = {};
 
     host.ready = false;
     GameLayout.updateGameButtons(game);

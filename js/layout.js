@@ -217,8 +217,11 @@ class GameLayout {
         var readyButton = this.el("readyButton");
         var localPlayer = game.getPlayer(game.localPlayerName);
         readyButton.hidden = game.status != "O" || localPlayer == null || GamePresence.isBot(game, localPlayer);
-        readyButton.textContent = localPlayer && localPlayer.ready ? "Ikke klar" : "Klar";
-        readyButton.setAttribute("aria-pressed", String(localPlayer != null && localPlayer.ready === true));
+        readyButton.disabled = game.connectionOnline === false ||
+            (localPlayer != null && GamePresence.disconnectedAt(game.presence, localPlayer) != null);
+        var localPlayerReady = localPlayer != null && localPlayer.ready === true && !readyButton.disabled;
+        readyButton.textContent = localPlayerReady ? "Ikke klar" : "Klar";
+        readyButton.setAttribute("aria-pressed", String(localPlayerReady));
         startButton.classList.toggle("is-waiting",
             game.status == "O" && (waitingForPlayers || !game.allHumansReady()));
         startButton.disabled = waitingForPlayers;
@@ -326,8 +329,6 @@ class GameLayout {
             var isPassed = game.status == "S" && !isTurn &&
                 (player.lastPlay === "Pass" || passedNames.has(player.name));
             playerElement.classList.toggle("player-summary--self", isCurrentPlayer);
-            playerElement.classList.toggle("player-summary--ready",
-                game.status == "O" && (player.ready === true || GamePresence.isBot(game, player)));
             playerElement.classList.toggle("is-current-turn", isTurn && isActiveStatus);
             playerElement.classList.toggle("player-summary--passed", isPassed);
             var turnState = isTurn && isActiveStatus ? "turn" : (isPassed ? "passed" : "");
@@ -351,6 +352,9 @@ class GameLayout {
             var reconnecting = player.playerKey != "PC" &&
                 ((isCurrentPlayer && game.connectionOnline === false) ||
                     GamePresence.disconnectedAt(game.presence, player) != null);
+            playerElement.classList.toggle("player-summary--ready",
+                game.status == "O" && !reconnecting &&
+                (player.ready === true || GamePresence.isBot(game, player)));
             if (reconnecting) {
                 detailsText = "Kobler til igjen …";
             } else if (GamePresence.isBot(game, player) && player.playerKey != "PC") {
@@ -472,6 +476,23 @@ class GameLayout {
                 parent.insertBefore(element, parent.children[index] || null);
             }
         };
+        if (game.status == "O") {
+            var lobbyElements = game.players.map(player =>
+                updatePlayerSummary(player, player === currentPlayer));
+            var emptySeats = playerList.querySelectorAll(".lobby-empty-seat");
+            for (var index = lobbyElements.length; index < MAX_PLAYERS; index++) {
+                var emptySeat = emptySeats[index - game.players.length] || document.createElement("div");
+                emptySeat.className = "lobby-empty-seat";
+                emptySeat.textContent = "Ledig plass";
+                lobbyElements.push(emptySeat);
+            }
+            lobbyElements.forEach((element, index) => placeElement(playerList, element, index));
+            existingElements.forEach(staleElement => staleElement.remove());
+            Array.from(playerList.children).forEach(child => {
+                if (!lobbyElements.includes(child)) { child.remove(); }
+            });
+            return;
+        }
         var selfElement = currentPlayer ? updatePlayerSummary(currentPlayer, true) : null;
         var currentPlayerIndex = (currentPlayer == null) ? -1 : game.players.indexOf(currentPlayer);
         var opponents = currentPlayerIndex < 0
@@ -486,10 +507,6 @@ class GameLayout {
         opponentElements.forEach((element, index) => {
             element.className = element.className.replace(/\s*opponent-seat-\d+/g, "");
             element.classList.add(`opponent-seat-${index}`);
-            element.classList.toggle(
-                "lobby-grid-last-player",
-                game.players.length == 3 && index == opponentElements.length - 1
-            );
             element.dataset.clockwiseSeat = String(index);
             placeElement(opponentList, element, index);
         });

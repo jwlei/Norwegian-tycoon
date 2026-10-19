@@ -264,7 +264,9 @@ class PresidentGame extends Game {
     }
     allHumansReady() {
         var humans = this.players.filter(player => !GamePresence.isBot(this, player));
-        return humans.length > 0 && humans.every(player => player.ready === true);
+        return this.connectionOnline !== false && humans.length > 0 &&
+            humans.every(player => player.ready === true &&
+                GamePresence.disconnectedAt(this.presence, player) == null);
     }
     setReady(player, ready) {
         if (this.status != "O" || player == null || player.playerKey == "PC" ||
