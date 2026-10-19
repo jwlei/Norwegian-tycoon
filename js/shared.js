@@ -139,14 +139,22 @@ function initializeThemeToggle() {
     const themeButtons = document.querySelectorAll(".theme-toggle");
     let storedTheme = null;
     try { storedTheme = localStorage.getItem(storageKey); } catch (error) { }
-    const initialTheme = (storedTheme === "light" || storedTheme === "dark") ? storedTheme : "dark";
+    let preferredTheme = (storedTheme === "light" || storedTheme === "dark") ? storedTheme : "dark";
 
     function applyTheme(theme) {
+        const amoled = root.dataset.colorTheme === "amoled";
+        if (amoled) { theme = "dark"; }
         const isDark = theme === "dark";
         root.dataset.theme = theme;
         themeButtons.forEach(button => {
             const label = button.querySelector(".theme-toggle__label");
-            const actionLabel = isDark ? "Bytt til lys modus" : "Bytt til mørk modus";
+            const actionLabel = amoled ? "AMOLED Black bruker mørk modus" :
+                (isDark ? "Bytt til lys modus" : "Bytt til mørk modus");
+            button.disabled = amoled;
+            const description = button.querySelector(".setting-row__text small");
+            if (description) {
+                description.textContent = amoled ? actionLabel : "Bytt mellom mørkt og lyst tema";
+            }
             button.setAttribute("aria-pressed", String(isDark));
             if (label) {
                 label.textContent = isDark ? "Mørk" : "Lys";
@@ -159,27 +167,75 @@ function initializeThemeToggle() {
         });
         const themeColor = document.querySelector('meta[name="theme-color"]');
         if (themeColor) {
-            themeColor.content = isDark ? "#1e1e1e" : "#f3f6f8";
+            themeColor.content = amoled ? "#000000" : (isDark ? "#1e1e1e" : "#f3f6f8");
         }
     }
 
-    applyTheme(initialTheme);
+    applyTheme(preferredTheme);
+    document.addEventListener("colorthemechange", () => applyTheme(preferredTheme));
     themeButtons.forEach(button => {
         button.addEventListener("click", function () {
-            const nextTheme = (root.dataset.theme === "dark") ? "light" : "dark";
-            try { localStorage.setItem(storageKey, nextTheme); } catch (error) { }
-            applyTheme(nextTheme);
+            preferredTheme = (root.dataset.theme === "dark") ? "light" : "dark";
+            try { localStorage.setItem(storageKey, preferredTheme); } catch (error) { }
+            applyTheme(preferredTheme);
         });
     });
     window.addEventListener("storage", event => {
         if (event.key === storageKey) {
-            applyTheme(event.newValue === "light" ? "light" : "dark");
+            preferredTheme = event.newValue === "light" ? "light" : "dark";
+            applyTheme(preferredTheme);
         }
+    });
+}
+
+function initializeColorTheme() {
+    const root = document.documentElement;
+    const options = Array.from(document.querySelectorAll(".color-theme-option"));
+    const current = document.getElementById("colorThemeCurrent");
+    const currentName = document.getElementById("colorThemeCurrentName");
+
+    function applyColorTheme(theme) {
+        const selected = options.find(button => button.dataset.colorTheme === theme) ||
+            options.find(button => button.dataset.colorTheme === "blue");
+        root.dataset.colorTheme = selected.dataset.colorTheme;
+        options.forEach(button => {
+            button.setAttribute("aria-pressed", String(button === selected));
+        });
+        current.replaceChildren(selected.querySelector(".color-theme-preview").cloneNode(true));
+        const name = selected.querySelector("strong").textContent;
+        currentName.textContent = window.I18n ? window.I18n.msg(name) : name;
+        document.dispatchEvent(new CustomEvent("colorthemechange"));
+    }
+
+    applyColorTheme(getCookie("ColorTheme"));
+    document.addEventListener("languagechange", () => applyColorTheme(root.dataset.colorTheme));
+    window.addEventListener("storage", event => {
+        if (event.key === "norwegian-tycoon-cookie-ColorTheme") {
+            applyColorTheme(event.newValue);
+        }
+    });
+    document.getElementById("colorThemeOpenButton").addEventListener("click", () => {
+        showDialog("Innstillinger", false);
+        showDialog("Fargetema", true);
+    });
+    document.getElementById("colorThemeCloseButton").addEventListener("click", () => {
+        showDialog("Fargetema", false);
+        showDialog("Innstillinger", true);
+    });
+    options.forEach(button => {
+        button.addEventListener("click", () => {
+            setCookie("ColorTheme", button.dataset.colorTheme, 1000);
+            applyColorTheme(button.dataset.colorTheme);
+            showDialog("Fargetema", false);
+            showDialog("Innstillinger", true);
+        });
     });
 }
 
 if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initializeThemeToggle, { once: true });
+    document.addEventListener("DOMContentLoaded", initializeColorTheme, { once: true });
 } else {
     initializeThemeToggle();
+    initializeColorTheme();
 }

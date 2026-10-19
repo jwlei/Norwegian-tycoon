@@ -589,7 +589,10 @@ test("theme controls still initialize and work when local storage is blocked", (
     };
     const root = { dataset: {} };
     const context = vm.createContext({
-        document: { documentElement: root, querySelectorAll: () => [button], querySelector: () => null },
+        document: {
+            documentElement: root, querySelectorAll: () => [button], querySelector: () => null,
+            addEventListener() {}
+        },
         window: { addEventListener() {} },
         localStorage: {
             getItem() { throw new Error("Storage unavailable"); },
@@ -602,6 +605,115 @@ test("theme controls still initialize and work when local storage is blocked", (
     assert.equal(root.dataset.theme, "dark");
     click();
     assert.equal(root.dataset.theme, "light");
+});
+
+function colorThemeContext(storage = new Map(), storageBlocked = false) {
+    const context = savedPreferencesContext("ignored", storage, storageBlocked);
+    const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    const options = Array.from(html.matchAll(/class="color-theme-option" data-color-theme="([^"]+)"[^>]*>.*?<strong>([^<]+)<\/strong>/g),
+        ([, theme, name]) => ({
+            dataset: { colorTheme: theme }, pressed: null,
+            setAttribute(key, value) { if (key === "aria-pressed") { this.pressed = value; } },
+            addEventListener(type, callback) { this[type] = callback; },
+            querySelector(selector) {
+                return selector === "strong" ? { textContent: name } : { cloneNode: () => ({ theme }) };
+            }
+        }));
+    const elements = {
+        colorThemeCurrent: { replaceChildren(preview) { this.preview = preview; } },
+        colorThemeCurrentName: {},
+        colorThemeOpenButton: { addEventListener(type, callback) { this[type] = callback; } },
+        colorThemeCloseButton: { addEventListener(type, callback) { this[type] = callback; } }
+    };
+    const events = {};
+    const dialogs = [];
+    context.document.querySelectorAll = () => options;
+    context.document.getElementById = id => elements[id];
+    context.document.addEventListener = (type, callback) => { events[type] = callback; };
+    context.document.dispatchEvent = event => { events[event.type]?.(event); };
+    context.CustomEvent = class { constructor(type) { this.type = type; } };
+    context.window.addEventListener = (type, callback) => { events[type] = callback; };
+    context.showDialog = (name, visible) => dialogs.push([name, visible]);
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "shared.js"), "utf8");
+    vm.runInContext(source.slice(source.indexOf("function initializeColorTheme()"),
+        source.indexOf('if (document.readyState === "loading")')), context);
+    context.initializeColorTheme();
+    return { context, options, elements, events, dialogs };
+}
+
+test("all eight color themes have previews and persist without cookies", () => {
+    const storage = new Map();
+    const { context, options, elements } = colorThemeContext(storage);
+    assert.deepEqual(options.map(option => option.dataset.colorTheme),
+        ["blue", "forest", "teal", "amethyst", "burgundy", "amber", "gray", "amoled"]);
+    assert.equal(context.document.documentElement.dataset.colorTheme, "blue");
+    context.document.documentElement.dataset.theme = "light";
+    for (const option of options) {
+        option.click();
+        const theme = option.dataset.colorTheme;
+        assert.equal(context.document.documentElement.dataset.colorTheme, theme);
+        assert.equal(context.document.documentElement.dataset.theme, "light");
+        assert.equal(options.filter(candidate => candidate.pressed === "true").length, 1);
+        assert.equal(option.pressed, "true");
+        assert.equal(elements.colorThemeCurrent.preview.theme, theme);
+        assert.equal(elements.colorThemeCurrentName.textContent, option.querySelector("strong").textContent);
+        assert.equal(colorThemeContext(storage).context.document.documentElement.dataset.colorTheme, theme);
+    }
+});
+
+test("color themes remain usable with blocked storage, validate saved values and update translated labels", () => {
+    const { context, options, elements, events, dialogs } = colorThemeContext(new Map(), true);
+    elements.colorThemeOpenButton.click();
+    assert.deepEqual(dialogs.splice(0), [["Innstillinger", false], ["Fargetema", true]]);
+    options.find(option => option.dataset.colorTheme === "forest").click();
+    assert.equal(context.getCookie("ColorTheme"), "forest");
+    assert.deepEqual(dialogs.splice(0), [["Fargetema", false], ["Innstillinger", true]]);
+    context.window.I18n = { msg: name => name === "Skoggrønn" ? "Forest green" : name };
+    events.languagechange();
+    assert.equal(elements.colorThemeCurrentName.textContent, "Forest green");
+    elements.colorThemeCloseButton.click();
+    assert.deepEqual(dialogs.splice(0), [["Fargetema", false], ["Innstillinger", true]]);
+    events.storage({ key: "norwegian-tycoon-cookie-ColorTheme", newValue: "gray" });
+    assert.equal(context.document.documentElement.dataset.colorTheme, "gray");
+    events.storage({ key: "unrelated", newValue: "amber" });
+    assert.equal(context.document.documentElement.dataset.colorTheme, "gray");
+    events.storage({ key: "norwegian-tycoon-cookie-ColorTheme", newValue: "invalid" });
+    assert.equal(context.document.documentElement.dataset.colorTheme, "blue");
+    const invalid = new Map([["norwegian-tycoon-cookie-ColorTheme", "invalid"]]);
+    assert.equal(colorThemeContext(invalid).context.document.documentElement.dataset.colorTheme, "blue");
+});
+
+test("AMOLED forces dark mode and a black browser bar, then restores the preferred appearance", () => {
+    const storage = new Map([["norwegian-tycoon-theme", "light"]]);
+    const { context, options, events } = colorThemeContext(storage);
+    const button = {
+        querySelector: () => null, setAttribute() {},
+        addEventListener(type, callback) { this[type] = callback; }
+    };
+    const meta = {};
+    context.document.querySelectorAll = () => [button];
+    context.document.querySelector = () => meta;
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "shared.js"), "utf8");
+    vm.runInContext(source.slice(source.indexOf("function initializeThemeToggle()"),
+        source.indexOf("function initializeColorTheme()")), context);
+    context.initializeThemeToggle();
+    const root = context.document.documentElement;
+    assert.equal(root.dataset.theme, "light");
+    options.find(option => option.dataset.colorTheme === "amoled").click();
+    assert.equal(root.dataset.theme, "dark");
+    assert.equal(meta.content, "#000000");
+    assert.equal(button.disabled, true);
+    assert.equal(button.title, "AMOLED Black bruker mørk modus");
+    assert.equal(storage.get("norwegian-tycoon-theme"), "light");
+    events.storage({ key: "norwegian-tycoon-theme", newValue: "light" });
+    assert.equal(root.dataset.theme, "dark");
+    options.find(option => option.dataset.colorTheme === "gray").click();
+    assert.equal(root.dataset.theme, "light");
+    assert.equal(meta.content, "#f3f6f8");
+    assert.equal(button.disabled, false);
+    button.click();
+    assert.equal(root.dataset.theme, "dark");
+    assert.equal(storage.get("norwegian-tycoon-theme"), "dark");
 });
 
 test("quick play requires a count, uses the saved or localized name and starts a private bot game", async () => {
@@ -620,12 +732,26 @@ test("quick play requires a count, uses the saved or localized name and starts a
         const menu = { inert: false };
         const games = [];
         let stored = null;
+        let cached = null;
+        const listeners = new Set();
         const clone = value => JSON.parse(JSON.stringify(value));
         const room = {
-            transaction(transform, complete) {
-                const next = transform(clone(stored));
+            on(event, listener) {
+                assert.equal(event, "value");
+                listeners.add(listener);
+                listener({ val: () => clone(cached) });
+            },
+            off(event, listener) {
+                assert.equal(event, "value");
+                assert.equal(listeners.delete(listener), true);
+                if (listeners.size === 0) { cached = null; }
+            },
+            transaction(transform, complete, applyLocally) {
+                const next = transform(clone(cached));
+                if (applyLocally && next !== undefined) { cached = clone(next); }
                 return Promise.resolve().then(() => {
                     if (next !== undefined) { stored = clone(next); }
+                    cached = listeners.size ? clone(stored) : null;
                     const result = {
                         committed: next !== undefined,
                         snapshot: { val: () => clone(stored) }
@@ -664,6 +790,7 @@ test("quick play requires a count, uses the saved or localized name and starts a
             connectGame: () => {
                 assert.equal(stored.status, "S");
                 assert.equal(stored.spillere.length, count);
+                assert.equal(listeners.size, 1);
                 connections++;
             }
         });
@@ -696,17 +823,19 @@ test("quick play requires a count, uses the saved or localized name and starts a
         assert.equal(context.currentPlayerName, savedName || fallback);
         assert.equal(connections, 1);
         assert.equal(menu.inert, false);
+        assert.equal(listeners.size, 0);
     }
 });
 
-test("quick play restores the menu after a creation or start write fails and allows retry", async () => {
+test("quick play releases its setup listener after creation, subscription or start failure and allows retry", async () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const start = source.indexOf("        var quickPlayPlayerCount");
     const end = source.indexOf("        var publicLobbies", start);
-    for (const stage of ["creation", "start"]) {
+    for (const stage of ["creation", "subscription", "start"]) {
         const button = { addEventListener(type, callback) { this.click = callback; } };
         const menu = {};
         const errors = [];
+        const listeners = new Set();
         let fail = true;
         let connections = 0;
         const context = vm.createContext({
@@ -716,6 +845,19 @@ test("quick play restores the menu after a creation or start write fails and all
             PresidentGame: class {
                 constructor() {
                     this.players = [];
+                    this.databaseRef = {
+                        on(event, listener, onError) {
+                            listeners.add(listener);
+                            if (fail && stage === "subscription") {
+                                onError(new Error("Subscription failed"));
+                            } else {
+                                listener({ val: () => null });
+                            }
+                        },
+                        off(event, listener) {
+                            assert.equal(listeners.delete(listener), true);
+                        }
+                    };
                     this.creation = fail && stage === "creation"
                         ? Promise.reject(new Error("Creation failed")) : Promise.resolve();
                 }
@@ -739,11 +881,13 @@ test("quick play restores the menu after a creation or start write fails and all
         assert.equal(connections, 0);
         assert.equal(menu.inert, false);
         assert.equal(button.disabled, false);
+        assert.equal(listeners.size, 0);
         fail = false;
         await button.click();
         assert.equal(errors.length, 1);
         assert.equal(connections, 1);
         assert.equal(context.currentGame.players.length, 2);
+        assert.equal(listeners.size, 0);
     }
 });
 
@@ -1694,7 +1838,7 @@ function publicLobbyContext() {
             appendChild(child) { child.parent = this; this.children.push(child); },
             append(...children) { children.forEach(child => this.appendChild(child)); },
             remove() { this.parent.children = this.parent.children.filter(child => child !== this); },
-            setAttribute() {}, addEventListener() {},
+            setAttribute() {}, addEventListener(type, callback) { this[type] = callback; },
             querySelectorAll(selector) {
                 return this.children.flatMap(child => [
                     ...(selector === child.tag || child.className.split(" ").includes(selector.slice(1)) ? [child] : []),
@@ -1711,7 +1855,7 @@ function publicLobbyContext() {
         return node;
     };
     const list = element();
-    const state = { fetches: 0, errors: [], timer: null, listener: null, pending: null };
+    const state = { fetches: 0, errors: [], joins: [], timer: null, listener: null, pending: null };
     const snapshot = records => ({ forEach: callback => records.forEach(record => callback({ val: () => record })) });
     const context = vm.createContext({
         console: { error: (...args) => state.errors.push(args) }, currentGame: null,
@@ -1725,12 +1869,26 @@ function publicLobbyContext() {
             once() { state.fetches++; return state.pending || Promise.resolve(snapshot(state.records || [])); }
         }) }) },
         setInterval: (callback, delay) => { state.timer = callback; assert.equal(delay, 15000); },
-        joinGameById() {}
+        joinGameById(id) { state.joins.push(id); }
     });
     vm.runInContext(source.slice(source.indexOf("        var publicLobbies = [];"),
         source.indexOf('        document.getElementById("gameTable").addEventListener("click"', source.indexOf("        var publicLobbies = [];"))), context);
     return { context, list, state, snapshot };
 }
+
+test("public lobby rows remain clickable join buttons before and after refresh", () => {
+    const { list, state } = publicLobbyContext();
+    const lobby = { id: "123", host: "Host", players: 2, waiting: true, ts: Date.now() };
+    state.update([lobby]);
+    const button = list.querySelector(".public-lobby-entry");
+    assert.equal(button.tag, "button");
+    assert.equal(button.type, "button");
+    button.click();
+    state.update([{ ...lobby, players: 3 }]);
+    assert.equal(list.querySelector(".public-lobby-entry"), button);
+    button.click();
+    assert.deepEqual(state.joins, ["123", "123"]);
+});
 
 test("public lobby refresh keeps existing buttons, order and scroll position", () => {
     const { list, state } = publicLobbyContext();

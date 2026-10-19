@@ -1198,9 +1198,16 @@
             menu.inert = true;
             button.disabled = true;
             showPublicLobbyError("");
+            var game = null;
+            var setupListener = null;
             try {
-                var game = new PresidentGame(null, false);
-                await game.creation;
+                game = new PresidentGame(null, false);
+                // Keep Firebase's room cache alive until connectGame attaches its listener.
+                var setupReady = new Promise((resolve, reject) => {
+                    setupListener = resolve;
+                    game.databaseRef.on("value", setupListener, reject);
+                });
+                await Promise.all([game.creation, setupReady]);
                 var name = readLastUsedPlayerName() || localizedMessage("Spiller");
                 var human = new PresidentPlayer(name, getPlayerKey());
                 human.ready = true;
@@ -1225,6 +1232,9 @@
                 console.error("Kunne ikke starte hurtigspill.", error);
                 showPublicLobbyError("Kunne ikke starte hurtigspill. Prøv igjen.");
             } finally {
+                if (game != null && setupListener != null) {
+                    game.databaseRef.off("value", setupListener);
+                }
                 quickPlayPending = false;
                 menu.inert = false;
                 button.disabled = quickPlayPlayerCount == null;
