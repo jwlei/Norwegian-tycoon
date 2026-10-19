@@ -1469,6 +1469,15 @@ select:focus-visible {
     background: var(--success-soft);
 }
 
+.card-style-option > strong {
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.card-style-option .card-preview {
+    width: clamp(30px, 10vw, 52px);
+}
+
 .color-theme-list .color-theme-option[aria-pressed="true"] {
     border-color: var(--focus);
     background: var(--accent-soft);
@@ -2476,6 +2485,10 @@ select:focus-visible {
 
 #gameToastRegion[data-animation-speed="fast"] {
     height: var(--board-toast-height);
+}
+
+#gameToastRegion[hidden] {
+    display: none;
 }
 
 #gameToastRegion > .game-toast {

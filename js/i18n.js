@@ -81,6 +81,8 @@
         "Slå av automatisk kortforslag": "Turn off automatic card suggestion",
         "Slå på automatisk kortforslag": "Turn on automatic card suggestion",
         "Spillhastighet": "Game speed",
+        "Skjul toast-meldinger": "Hide toast messages",
+        "Skjuler meldinger på spillbrettet for deg. Hendelser vises fortsatt i spilloggen.": "Hides board messages for you. Events still appear in the game log.",
         "Animasjonshastighet": "Animation speed",
         "Personlig lesetid. Maks to meldinger, eller én med raske animasjoner, uten å stoppe spillet.": "Personal reading time. Up to two messages, or one with fast animations, without stopping play.",
         "Personlig animasjonshastighet": "Personal animation speed",

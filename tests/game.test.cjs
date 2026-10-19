@@ -47,6 +47,7 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
     let visible = true;
     let clones = 0;
     let animationSpeed = "normal";
+    let hideToasts = false;
     let reducedMotion = false;
     const animations = [];
     const timers = [];
@@ -74,7 +75,8 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
     };
     const region = { dataset: { animationSpeed: "normal" }, appendChild() {}, querySelectorAll: () => [] };
     const context = vm.createContext({
-        currentGame: null, getCookie: () => animationSpeed,
+        currentGame: null, spectatorJoinToastTimer: null,
+        getCookie: key => key == "HideGameToasts" ? String(hideToasts) : animationSpeed,
         getComputedStyle: () => ({ transform: "matrix(1, 0, 0, 1, 0, 23)" }),
         window: { matchMedia: () => ({ matches: reducedMotion }) },
         Date: { now: () => 3000 }, gameToastExpiresAt: 3000,
@@ -83,15 +85,16 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
         ensureGameLog() {}, clearTimeout() {},
         setTimeout: (callback, delay) => { timers.push({ callback, delay }); return timers.length; },
         document: {
+            querySelectorAll: () => [],
             getElementById: id => id === "GameToast" ? toast : id === "gameToastRegion"
                 ? region : { classList: { contains: () => false } },
             body: { appendChild() {} }
         },
-        gameLogNeedsTrickHeader: false, gameLogEntries: [],
+        gameLogNeedsTrickHeader: false, gameLogTrickCount: 0, gameLogEntries: [],
         localizedMessage: message => message, appendColoredGameMessage() {},
         game: { players: [] }
     });
-    const hideStart = source.indexOf("        function hideGameToast(");
+    const hideStart = source.indexOf("        function gameToastsHidden(");
     const hideEnd = source.indexOf("        function resetGameLog", hideStart);
     const showStart = source.indexOf("        function showGameToast(");
     const showEnd = source.indexOf("        var receivedCardQueue", showStart);
@@ -134,6 +137,75 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
     vm.runInContext('showGameToast("Reduced replacement", game)', context);
     assert.equal(context.archivedToasts.length, 0);
     assert.equal(animations.length, animationCount);
+    hideToasts = true;
+    const cloneCount = clones;
+    const timerCount = timers.length;
+    const logCount = context.gameLogEntries.length;
+    context.gameLogNeedsTrickHeader = true;
+    vm.runInContext('showGameToast("Hidden action", game, undefined, "pause", true)', context);
+    assert.equal(visible, false);
+    assert.equal(clones, cloneCount, "Hidden messages must not create archived toasts");
+    assert.equal(animations.length, animationCount);
+    assert.equal(timers.length, timerCount, "Hidden messages must not schedule expiry timers");
+    assert.equal(context.gameToastExpiresAt, 0);
+    assert.equal(context.activeToastPauseId, null);
+    assert.equal(context.gameLogEntries.length, logCount + 2);
+    assert.equal(context.gameLogEntries.at(-1).message, "Hidden action");
+    assert.equal(context.gameLogNeedsTrickHeader, true);
+    hideToasts = false;
+    vm.runInContext('showGameToast("Visible again", game)', context);
+    assert.equal(visible, true);
+    assert.equal(timers.length, timerCount + 1);
+});
+
+test("hiding toasts persists locally, clears the stack and hides only message speed settings", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const saved = new Map();
+    const button = {
+        setAttribute(name, value) { this[name] = value; },
+        addEventListener(type, callback) { this.click = callback; }
+    };
+    const speed = { hidden: false };
+    const region = { hidden: false };
+    const spectator = { classList: { remove(name) { this.removed = name; } } };
+    let clears = 0;
+    const context = vm.createContext({
+        getCookie: key => saved.get(key) || "",
+        setCookie: (key, value, days) => { assert.equal(days, 1000); saved.set(key, value); },
+        hideGameToast: () => { clears++; },
+        spectatorJoinToastTimer: 10,
+        clearTimeout: id => { assert.equal(id, 10); },
+        document: {
+            getElementById: id => id == "hideToastsToggleButton" ? button :
+                id == "spectatorJoinToast" ? spectator : region,
+            querySelector: selector => { assert.equal(selector, ".setting-speed"); return speed; }
+        }
+    });
+    const start = source.indexOf("        function gameToastsHidden(");
+    vm.runInContext(source.slice(start, source.indexOf("        function hideGameToast(", start)), context);
+    const listener = source.indexOf('        document.getElementById("hideToastsToggleButton").addEventListener');
+    vm.runInContext(source.slice(listener, source.indexOf('        document.querySelectorAll(".speed-option")', listener)), context);
+    assert.equal(button["aria-pressed"], "false");
+    assert.equal(speed.hidden, false);
+    assert.equal(region.hidden, false);
+    assert.equal(clears, 0);
+    saved.set("gameSpeed", "slow");
+    button.click();
+    assert.equal(saved.get("HideGameToasts"), "true");
+    assert.equal(button["aria-pressed"], "true");
+    assert.equal(speed.hidden, true);
+    assert.equal(region.hidden, true);
+    assert.equal(clears, 1);
+    assert.equal(context.spectatorJoinToastTimer, null);
+    assert.equal(spectator.classList.removed, "is-visible");
+    context.updateToastVisibility();
+    assert.equal(speed.hidden, true, "Reopening settings restores the saved visibility");
+    button.click();
+    assert.equal(saved.get("HideGameToasts"), "false");
+    assert.equal(button["aria-pressed"], "false");
+    assert.equal(speed.hidden, false);
+    assert.equal(region.hidden, false);
+    assert.equal(saved.get("gameSpeed"), "slow", "Hiding must not overwrite the saved message speed");
 });
 
 test("received-card overlays filter recipients, queue receipts and honor every game speed", () => {
@@ -1216,6 +1288,7 @@ test("fast forward temporarily shows the fastest message speed without overwriti
         dataset: { speed }, setAttribute(name, value) { this[name] = value; }
     }));
     const context = vm.createContext({
+        updateToastVisibility() {},
         currentGame: { fastForward: false },
         localStorage: { getItem: () => "slow" },
         document: { querySelectorAll: () => buttons }
@@ -2612,7 +2685,9 @@ test("spectator join notices use the toast area with two lines for exactly three
     };
     let callback;
     let duration;
+    let hidden = false;
     const context = vm.createContext({
+        gameToastsHidden: () => hidden,
         spectatorJoinToastTimer: null, localizedMessage: text => text,
         appendColoredGameMessage: (element, text, players, separateNotices) => {
             element.textContent = text;
@@ -2633,6 +2708,10 @@ test("spectator join notices use the toast area with two lines for exactly three
     assert.equal(duration, 3000);
     callback();
     assert.equal(toast.closed, true);
+    hidden = true;
+    duration = null;
+    context.showSpectatorJoinToast();
+    assert.equal(duration, null, "Hidden spectator notices must not schedule a toast");
 });
 
 test("every card renders in each style with distinct artwork", () => {

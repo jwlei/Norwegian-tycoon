@@ -118,10 +118,15 @@ test("status surfaces use theme tokens instead of legacy fixed green, gold and r
     assert.match(css, /\.color-theme-preview > span \+ span\s*\{[^}]*var\(--success\)[^}]*var\(--warning\)[^}]*var\(--danger\)/);
 });
 
-test("visible release and versioned local assets use version 0.8.8", () => {
-    assert.ok(html.includes('aria-label="Spillversjon 0.8.8">v0.8.8</span>'));
+test("card style names stay compact and on one line with responsive previews", () => {
+    assert.match(css, /\.card-style-option > strong\s*\{[^}]*font-size:\s*0\.8rem;[^}]*white-space:\s*nowrap;/);
+    assert.match(css, /\.card-style-option \.card-preview\s*\{[^}]*width:\s*clamp\(30px, 10vw, 52px\);/);
+});
+
+test("visible release and versioned local assets use version 0.8.9", () => {
+    assert.ok(html.includes('aria-label="Spillversjon 0.8.9">v0.8.9</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"]+)"/g),
         match => match[1]);
     assert.ok(versions.length > 0);
-    assert.ok(versions.every(version => version === "0.8.8"));
+    assert.ok(versions.every(version => version === "0.8.9"));
 });

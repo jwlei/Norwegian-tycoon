@@ -288,6 +288,7 @@
         var waitingSpectatorRef = null;
         var spectatorJoinToastTimer = null;
         function showSpectatorJoinToast() {
+            if (gameToastsHidden()) { return; }
             var toast = document.getElementById("spectatorJoinToast");
             if (spectatorJoinToastTimer != null) { clearTimeout(spectatorJoinToastTimer); }
             toast.replaceChildren();
@@ -635,6 +636,25 @@
             leaveCurrentGame();
         }
 
+        function gameToastsHidden() {
+            return getCookie("HideGameToasts") == "true";
+        }
+
+        function updateToastVisibility() {
+            var hidden = gameToastsHidden();
+            document.getElementById("hideToastsToggleButton").setAttribute("aria-pressed", String(hidden));
+            document.querySelector(".setting-speed").hidden = hidden;
+            document.getElementById("gameToastRegion").hidden = hidden;
+            if (hidden) {
+                hideGameToast();
+                if (spectatorJoinToastTimer != null) {
+                    clearTimeout(spectatorJoinToastTimer);
+                    spectatorJoinToastTimer = null;
+                }
+                document.getElementById("spectatorJoinToast").classList.remove("is-visible");
+            }
+        }
+
         function hideGameToast(clearHistory = true) {
             if (clearHistory) {
                 archivedToasts.forEach(entry => { clearTimeout(entry.timer); entry.node.remove(); });
@@ -786,7 +806,7 @@
                 hideGameToast(false);
             }
 
-            if (toast.classList.contains("is-visible") && toast.textContent != "") {
+            if (!gameToastsHidden() && toast.classList.contains("is-visible") && toast.textContent != "") {
                 archiveGameToast(toast);
             }
             toast.classList.remove("is-visible");
@@ -814,6 +834,10 @@
                 appendGameLogEntry(logEntry);
             }
             if (endsTrick) { gameLogNeedsTrickHeader = true; }
+            if (gameToastsHidden()) {
+                hideGameToast();
+                return;
+            }
             var progressColors = players.map(player => player.displayColor).filter(Boolean);
             toast.style.setProperty("--toast-duration", `${duration}ms`);
             toast.style.setProperty(
@@ -1914,6 +1938,7 @@
             return GAME_SPEED_MS[stored] != null ? stored : "fast";
         }
         function updateSpeedButtons() {
+            updateToastVisibility();
             var speed = currentGameSpeed();
             document.querySelectorAll(".speed-option").forEach(button => {
                 button.setAttribute("aria-pressed", String(button.dataset.speed == speed));
@@ -2040,6 +2065,12 @@
             showDialog("Korttype", false);
             showDialog("Innstillinger", true);
         });
+
+        document.getElementById("hideToastsToggleButton").addEventListener("click", function () {
+            setCookie("HideGameToasts", String(!gameToastsHidden()), 1000);
+            updateToastVisibility();
+        });
+        updateToastVisibility();
 
         document.querySelectorAll(".speed-option")        .forEach(button => {
                     button.addEventListener("click", function () {
