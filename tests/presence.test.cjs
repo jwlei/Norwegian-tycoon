@@ -323,3 +323,392 @@ test("connection registration arms onDisconnect before marking online, reconnect
     assert.equal(handlers.size, 0);
     assert.ok(calls.includes("remove1"));
 });
+
+test("session expiry is strictly after ten minutes and uses only human activity or legacy timestamps", () => {
+    assert.equal(Presence.sessionMs, 600000);
+    for (const status of ["O", "G", "S", "F"]) {
+        const record = { status, lastHumanActionAt: start, ts: new Date(start + 599999).toISOString() };
+        assert.equal(Presence.isExpired(record, start + 600000), false);
+        assert.equal(Presence.isExpired(record, start + 600001), true);
+        assert.equal(Presence.reconcile(record, start + 600001).status, "V");
+        assert.equal(record.status, status);
+    }
+    assert.equal(Presence.isExpired({ ts: new Date(start).toISOString() }, start + 600001), true);
+    assert.equal(Presence.isExpired({ ts: new Date(start) }, start + 600001), true);
+    assert.equal(Presence.isExpired({ lastHumanActionAt: 0 }, 600001), true);
+    for (const record of [null, {}, { ts: "invalid" }]) {
+        assert.equal(Presence.isExpired(record, start + 600001), false);
+    }
+    assert.equal(Presence.lastActivityAt({}), null);
+    assert.equal(Presence.isExpired({ status: "V", lastHumanActionAt: start }, start), true);
+    assert.equal(Presence.reconcile({ ...room(), status: "V" }, start), undefined);
+});
+
+test("legacy reconciliation freezes the session baseline before later bot saves change ts", () => {
+    const original = { ...room(), status: "O", ts: new Date(start).toISOString() };
+    const initialized = Presence.reconcile(original, start + 1000);
+    assert.equal(initialized.lastHumanActionAt, start);
+    assert.equal(original.lastHumanActionAt, undefined);
+    initialized.ts = new Date(start + 590000).toISOString();
+    assert.equal(Presence.reconcile(initialized, start + 600000), undefined);
+    const expired = Presence.reconcile(initialized, start + 600001);
+    assert.equal(expired.status, "V");
+    assert.equal(expired.lastHumanActionAt, start);
+});
+
+function lifecycleGame({ serverTimestamp = null } = {}) {
+    let now = start;
+    let stored = null;
+    const localWriteOptions = [];
+    const rawWrites = [];
+    const listing = { removed: 0, value: null };
+    const root = {
+        transaction(transform, complete, applyLocally) {
+            localWriteOptions.push(applyLocally);
+            const next = transform(stored == null ? null : structuredClone(stored));
+            if (next !== undefined) {
+                rawWrites.push(structuredClone(next));
+                stored = structuredClone(next);
+                if (stored.lastHumanActionAt && stored.lastHumanActionAt[".sv"] == "timestamp") {
+                    stored.lastHumanActionAt = serverTimestamp;
+                }
+            }
+            if (complete) { complete(null, next !== undefined, { val: () => stored }); }
+            return Promise.resolve({ committed: next !== undefined, snapshot: { val: () => stored } });
+        },
+        child() {
+            return { remove: () => Promise.resolve(), set: () => Promise.resolve() };
+        }
+    };
+    const firebase = { database: () => ({ ref: path => path.startsWith("boms_1/") ? root : {
+        set(value) { listing.value = value; return Promise.resolve(); },
+        remove() { listing.value = null; listing.removed++; return Promise.resolve(); },
+        onDisconnect: () => ({ remove() {} })
+    } }) };
+    if (serverTimestamp != null) {
+        firebase.database.ServerValue = { TIMESTAMP: { ".sv": "timestamp" } };
+    }
+    const context = vm.createContext({
+        console, firebase, getCookie: () => null, getPlayerKey: () => "owner",
+        setTimeout: () => 0, clearTimeout() {},
+        document: { dispatchEvent() {} }, CustomEvent: class {},
+        Date: class extends Date {
+            constructor(...args) { super(...(args.length ? args : [now])); }
+            static now() { return now; }
+        }
+    });
+    for (const file of ["cards.js", "player.js", "bot.js", "presence.js", "game.js", "engine.js", "bot-turn.js"]) {
+        vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context);
+    }
+    const types = vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, CardDeck, GamePresence, playBotTurn })", context);
+    const game = new types.PresidentGame();
+    game.localPlayerName = game.hostName = "Owner";
+    game.players = [
+        new types.PresidentPlayer("Owner", "owner"),
+        new types.PresidentPlayer("Bot", "PC"),
+        new types.PresidentPlayer("Other bot", "PC")
+    ];
+    game.players.forEach(player => {
+        player.cards = new types.CardDeck();
+        player.cards.push(new types.PresidentCard(1, 5), new types.PresidentCard(2, 8));
+    });
+    game.status = "S";
+    game.setTurn(0);
+    game.save();
+    return {
+        game, types, listing, localWriteOptions, rawWrites,
+        get stored() { return stored; }, set stored(value) { stored = value; },
+        get now() { return now; }, set now(value) { now = value; }
+    };
+}
+
+test("fresh lobbies establish a persisted human-session baseline", () => {
+    const fixture = lifecycleGame();
+    assert.equal(fixture.game.lastHumanActionAt, start);
+    assert.equal(fixture.stored.lastHumanActionAt, start);
+});
+
+test("creation publishes its local transaction before subscribers attach but later saves do not", () => {
+    const fixture = lifecycleGame();
+    assert.deepEqual(fixture.localWriteOptions, [true, false]);
+    fixture.game.save();
+    assert.deepEqual(fixture.localWriteOptions, [true, false, false]);
+});
+
+test("creation uses Firebase server time even before the clock offset is initialized", () => {
+    const fixture = lifecycleGame({ serverTimestamp: start + 120000 });
+    assert.deepEqual(fixture.rawWrites[0].lastHumanActionAt, { ".sv": "timestamp" });
+    assert.equal(fixture.stored.lastHumanActionAt, start + 120000);
+    assert.equal(fixture.game.lastHumanActionAt, start + 120000);
+});
+
+test("human activity and default expiry checks share the server-adjusted clock", () => {
+    const fixture = lifecycleGame();
+    const { game, types } = fixture;
+    types.GamePresence.serverOffset = 300000;
+    assert.equal(types.GamePresence.now(), start + 300000);
+    game.advanceTurn = () => game.save();
+    fixture.now += 1000;
+    const player = game.players[0];
+    game.playCards(player, new types.CardPile(player.name, player.cards[0]));
+    assert.equal(fixture.stored.lastHumanActionAt, start + 301000);
+    fixture.now += 600000;
+    assert.equal(types.GamePresence.isExpired(fixture.stored), false);
+    fixture.now++;
+    assert.equal(types.GamePresence.isExpired(fixture.stored), true);
+});
+
+test("positive and negative server offsets preserve the exact ten-minute human activity boundary", () => {
+    for (const offset of [120000, -120000]) {
+        const fixture = lifecycleGame({ serverTimestamp: start + offset });
+        const { game, types } = fixture;
+        types.GamePresence.serverOffset = offset;
+        game.advanceTurn = () => game.save();
+        fixture.now += 1000;
+        const player = game.players[0];
+        game.playCards(player, new types.CardPile(player.name, player.cards[0]));
+        const baseline = start + 1000 + offset;
+        assert.equal(game.lastHumanActionAt, baseline);
+        assert.equal(fixture.stored.lastHumanActionAt, baseline);
+        fixture.now += 600000;
+        assert.equal(types.GamePresence.isExpired(fixture.stored), false);
+        fixture.now++;
+        assert.equal(types.GamePresence.isExpired(fixture.stored), true);
+        assert.equal(types.GamePresence.reconcile(fixture.stored).status, "V");
+    }
+});
+
+test("the final human leaving voids every game phase without adding results", () => {
+    for (const status of ["O", "G", "S", "F"]) {
+        const fixture = lifecycleGame();
+        const { game } = fixture;
+        game.status = status;
+        if (status == "G") { game.piles = [{ mode: "Velg", from: 0, to: 1, cards: [] }]; }
+        game.results = [["previous result"]];
+        game.leavePlayer(game.players[0]);
+        assert.equal(game.status, "V");
+        assert.equal(game.turn, -1);
+        assert.equal(game.results.length, 1);
+        assert.equal(fixture.stored.status, "V");
+        assert.equal(fixture.stored.lastHumanActionAt, start);
+    }
+});
+
+test("gave-up players and takeover bots do not keep an explicitly abandoned session alive", () => {
+    for (const takeover of [false, true]) {
+        const fixture = lifecycleGame();
+        const { game, types } = fixture;
+        const other = game.players[1];
+        other.playerKey = "guest";
+        if (takeover) {
+            game.controllers = { [types.GamePresence.playerId(other)]: { since: start } };
+        } else {
+            other.gaveUp = true;
+        }
+        game.leavePlayer(game.players[0]);
+        assert.equal(fixture.stored.status, "V");
+        assert.equal(fixture.stored.lastHumanActionAt, start);
+        assert.equal(game.results, undefined);
+    }
+});
+
+test("leaving with another eligible human retains the game and transfers host ownership", () => {
+    for (const status of ["O", "G", "S", "F"]) {
+        const fixture = lifecycleGame();
+        const { game } = fixture;
+        game.status = status;
+        game.players[1].playerKey = "guest";
+        game.setTurn(1);
+        game.leavePlayer(game.players[0]);
+        assert.equal(fixture.stored.status, status);
+        assert.equal(game.hostKey, "guest");
+        assert.equal(game.results, undefined);
+    }
+});
+
+test("a human who already finished and explicitly left cannot keep a bot-only room alive", () => {
+    const fixture = lifecycleGame();
+    const { game } = fixture;
+    game.players[1].playerKey = "guest";
+    game.players[1].placement = 1;
+    game.leavePlayer(game.players[1]);
+    assert.equal(game.players[1].gaveUp, true);
+    assert.equal(game.status, "S");
+    game.leavePlayer(game.players[0]);
+    assert.equal(fixture.stored.status, "V");
+    assert.equal(game.results, undefined);
+});
+
+test("successful human card plays and passes refresh activity but invalid moves do not", () => {
+    const fixture = lifecycleGame();
+    const { game, types } = fixture;
+    game.advanceTurn = () => game.save();
+    const player = game.players[0];
+    assert.throws(() => game.passTurn(player));
+    assert.equal(game.lastHumanActionAt, start);
+    fixture.now += 1000;
+    game.playCards(player, new types.CardPile(player.name, player.cards[0]));
+    assert.equal(fixture.stored.lastHumanActionAt, start + 1000);
+    fixture.now += 4000;
+    game.passTurn(player);
+    assert.equal(fixture.stored.lastHumanActionAt, start + 5000);
+});
+
+test("normal and takeover bot turns and background saves cannot extend the session", () => {
+    for (const takeover of [false, true]) {
+        const fixture = lifecycleGame();
+        const { game, types } = fixture;
+        const player = game.players[1];
+        if (takeover) {
+            player.playerKey = "guest";
+            game.controllers = { [types.GamePresence.playerId(player)]: { since: start } };
+        }
+        game.advanceTurn = () => game.save();
+        game.setTurn(1);
+        fixture.now += 1000;
+        types.playBotTurn(game, player, () => 0);
+        assert.equal(fixture.stored.lastHumanActionAt, start);
+        fixture.now += 4000;
+        game.passTurn(player);
+        game.save();
+        assert.equal(fixture.stored.lastHumanActionAt, start);
+        fixture.now = start + 600001;
+        game.save();
+        assert.equal(fixture.stored.status, "V");
+        assert.equal(game.results, undefined);
+    }
+});
+
+test("giving and receiving exchange cards count only when the actor is human", () => {
+    for (const key of ["owner", "PC", "takeover"]) {
+        const fixture = lifecycleGame();
+        const { game, types } = fixture;
+        const actor = game.players[0];
+        actor.playerKey = key;
+        if (key == "takeover") {
+            game.controllers = { [types.GamePresence.playerId(actor)]: { since: start } };
+        }
+        game.status = "G";
+        const exchange = { from: 0, to: 1, count: 1, mode: "Velg", cards: [actor.cards[0]] };
+        game.piles = [exchange, { from: 1, to: 0, count: 1, mode: "Velg", cards: [] }];
+        fixture.now += 1000;
+        game.giveExchangeCards(exchange);
+        assert.equal(fixture.stored.lastHumanActionAt, key == "owner" ? start + 1000 : start);
+        const incoming = { from: 1, to: 0, count: 1, mode: "Kan se", cards: [new types.PresidentCard(3, 9)] };
+        game.piles = [incoming];
+        fixture.now += 1000;
+        game.receiveExchangeCards(incoming);
+        assert.equal(fixture.stored.lastHumanActionAt, key == "owner" ? start + 2000 : start);
+    }
+});
+
+test("legacy saves freeze their original timestamp and stale saves cannot revive void or deleted rooms", () => {
+    const fixture = lifecycleGame();
+    const { game } = fixture;
+    delete fixture.stored.lastHumanActionAt;
+    fixture.stored.ts = new Date(start).toISOString();
+    delete game.lastHumanActionAt;
+    fixture.now += 1000;
+    game.save();
+    assert.equal(fixture.stored.lastHumanActionAt, start);
+    fixture.stored.status = "V";
+    game.status = "S";
+    game.lastHumanActionAt = fixture.now;
+    game.save();
+    assert.equal(fixture.stored.status, "V");
+    assert.equal(game.status, "V");
+    fixture.stored = null;
+    game.status = "S";
+    game.save();
+    assert.equal(fixture.stored, null);
+    assert.equal(game.status, "V");
+});
+
+test("a stale client's expired clock cannot void a session with newer human activity", () => {
+    const fixture = lifecycleGame();
+    fixture.stored.lastHumanActionAt = start + 500000;
+    fixture.now = start + 600001;
+    fixture.game.save();
+    assert.equal(fixture.stored.status, "S");
+    assert.equal(fixture.stored.lastHumanActionAt, start + 500000);
+    assert.equal(fixture.game.status, "S");
+    assert.equal(fixture.game.lastHumanActionAt, start + 500000);
+});
+
+test("optional exchanges refresh activity only for human offers, skips and sneaky consent", () => {
+    for (const action of ["offer", "skip", "sneaky"]) {
+        for (const bot of [false, true]) {
+            const fixture = lifecycleGame();
+            const { game } = fixture;
+            if (bot) { game.players[0].playerKey = "PC"; }
+            game.players.forEach((player, index) => { player.lastPlacement = index + 1; });
+            const offer = {
+                id: "offer", tradeId: "trade", kind: "playerTrade",
+                from: 0, to: 1, count: 1, mode: "Tilbud", cards: []
+            };
+            game.status = "G";
+            game.piles = [offer];
+            fixture.now += 1000;
+            if (action == "offer") { game.startOptionalTrade(offer); }
+            else if (action == "skip") { game.skipOptionalTrade(offer, 0); }
+            else { game.toggleSneakyTrade(offer, 0); }
+            assert.equal(fixture.stored.lastHumanActionAt, bot ? start : start + 1000);
+        }
+    }
+});
+
+test("presence reconciliation and control extensions never refresh human activity", async () => {
+    const fixture = controlClient();
+    fixture.stored.lastHumanActionAt = start;
+    const id = Presence.playerId(fixture.stored.spillere[0]);
+    await fixture.client.changeControl();
+    assert.equal(fixture.stored.lastHumanActionAt, start);
+    fixture.stored = Presence.reconcile(fixture.stored, start + 240000);
+    assert.equal(fixture.stored.lastHumanActionAt, start);
+    fixture.now = start + 241000;
+    await fixture.client.changeControl(true);
+    assert.equal(fixture.stored.controllers[id], undefined);
+    assert.equal(fixture.stored.lastHumanActionAt, start);
+    fixture.now = start + 600001;
+    await fixture.client.changeControl();
+    assert.equal(fixture.stored.lastHumanActionAt, start);
+    assert.equal(Presence.reconcile(fixture.stored, start + 600001).status, "V");
+});
+
+test("presence expiry removes the public listing when its transaction commits V", async () => {
+    const fixture = lifecycleGame();
+    const { game, types } = fixture;
+    game.isPublic = true;
+    game.save();
+    assert.ok(fixture.listing.value);
+    const client = Object.assign(Object.create(types.GamePresence.prototype), {
+        game, record: fixture.stored, online: true, pending: false, stopped: false,
+        retryAt: 0, now: () => start + 600001, refresh() {}, register() {},
+        notify: message => assert.fail(message)
+    });
+    await client.tick();
+    assert.equal(fixture.stored.status, "V");
+    assert.equal(game.status, "V");
+    assert.equal(fixture.listing.value, null);
+});
+
+test("expired and void games cannot start, rejoin or appear in public listings", async () => {
+    for (const voided of [false, true]) {
+        const fixture = lifecycleGame();
+        const { game, types } = fixture;
+        game.status = "O";
+        game.isPublic = true;
+        game.players[0].ready = true;
+        game.save();
+        assert.ok(fixture.listing.value);
+        if (voided) { fixture.stored.status = game.status = "V"; }
+        else { fixture.now = start + 600001; }
+        assert.throws(() => game.startGame(), /avsluttet/);
+        assert.equal(game.status, "V");
+        assert.equal(fixture.stored.status, "V");
+        const joined = await game.addPlayer(new types.PresidentPlayer("Owner", "owner"));
+        assert.match(joined.text, /avsluttet/);
+        game.updatePublicListing();
+        assert.equal(fixture.listing.value, null);
+    }
+});

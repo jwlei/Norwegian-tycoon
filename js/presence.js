@@ -2,6 +2,25 @@ class GamePresence {
     static actionMs = 120000;
     static disconnectMs = 120000;
     static hostMs = 240000;
+    static sessionMs = 600000;
+    static serverOffset = 0;
+
+    static now() { return Date.now() + this.serverOffset; }
+
+    static lastActivityAt(record) {
+        if (record == null) { return null; }
+        var lastAction = record.lastHumanActionAt;
+        if (lastAction == null) {
+            lastAction = typeof record.ts == "number" ? record.ts : Date.parse(record.ts);
+        }
+        return lastAction != null && Number.isFinite(Number(lastAction)) ? Number(lastAction) : null;
+    }
+
+    static isExpired(record, now = this.now()) {
+        if (record == null) { return false; }
+        var lastAction = this.lastActivityAt(record);
+        return record.status == "V" || (lastAction != null && now - lastAction > this.sessionMs);
+    }
 
     static playerId(player) {
         return Array.from(JSON.stringify([player.playerKey || player.spillerKey, player.name || player.nick]))
@@ -23,8 +42,8 @@ class GamePresence {
         return player.playerKey == "PC" || !!(game.controllers || {})[this.playerId(player)];
     }
 
-    static canDrive(game, now = Date.now()) {
-        if (game.connectionOnline === false) { return false; }
+    static canDrive(game, now = this.now()) {
+        if (game.connectionOnline === false || this.isExpired(game, now)) { return false; }
         var host = game.players.find(player => player.playerKey == game.hostKey &&
             (!game.hostName || player.name == game.hostName));
         var offlineAt = host ? this.disconnectedAt(game.presence, host) : null;
@@ -56,12 +75,17 @@ class GamePresence {
         return null;
     }
 
-    static reconcile(record, now) {
-        if (record == null) { return; }
+    static reconcile(record, now = this.now()) {
+        if (record == null || record.status == "V") { return; }
+        var baseline = this.lastActivityAt(record);
+        var changed = record.lastHumanActionAt == null && baseline != null;
+        if (changed) { record = Object.assign({}, record, { lastHumanActionAt: baseline }); }
+        if (this.isExpired(record, now)) {
+            return Object.assign({}, record, { status: "V" });
+        }
         var players = (record.spillere || []).slice();
         var controllers = Object.assign({}, record.controllers);
         var deadlines = Object.assign({}, record.actionDeadlines);
-        var changed = false;
         var notices = (record.connectionNotices || []).slice();
         players.forEach((player, index) => {
             if (player.spillerKey == "PC" || player.gaveUp === true) { return; }
@@ -119,14 +143,17 @@ class GamePresence {
         this.notify = notify;
         this.remember = remember;
         this.seen = new Set();
-        this.offset = 0;
+        this.offset = GamePresence.serverOffset;
         this.online = false;
         this.pending = false;
         this.stopped = false;
         this.retryAt = 0;
         this.connectedRef = firebase.database().ref(".info/connected");
         this.offsetRef = firebase.database().ref(".info/serverTimeOffset");
-        this.onOffset = snapshot => { this.offset = Number(snapshot.val()) || 0; };
+        this.onOffset = snapshot => {
+            this.offset = Number(snapshot.val()) || 0;
+            GamePresence.serverOffset = this.offset;
+        };
         this.onConnected = snapshot => {
             this.online = snapshot.val() === true;
             this.game.connectionOnline = this.online;
@@ -142,7 +169,7 @@ class GamePresence {
     now() { return Date.now() + this.offset; }
 
     async register() {
-        if (!this.game.players) { return; }
+        if (!this.game.players || GamePresence.isExpired(this.game, this.now())) { return; }
         var player = this.game.getPlayer(this.playerName());
         if (!player || player.playerKey == "PC") { return; }
         var id = GamePresence.playerId(player);
@@ -176,6 +203,7 @@ class GamePresence {
             (record.connectionNotices || []).forEach(notice => this.seen.add(notice.id));
         }
         this.record = record;
+        this.game.lastHumanActionAt = GamePresence.lastActivityAt(record);
         this.game.presence = record.presence || {};
         this.game.controllers = record.controllers || {};
         this.game.actionDeadlines = record.actionDeadlines || {};
@@ -196,7 +224,11 @@ class GamePresence {
         if (!GamePresence.reconcile(this.record, this.now())) { return; }
         this.pending = true;
         try {
-            await this.game.databaseRef.transaction(record => GamePresence.reconcile(record, this.now()), undefined, false);
+            var result = await this.game.databaseRef.transaction(record => GamePresence.reconcile(record, this.now()), undefined, false);
+            if (result.committed && result.snapshot.val() && result.snapshot.val().status == "V") {
+                this.game.status = "V";
+                this.game.updatePublicListing();
+            }
         } catch (error) {
             this.retryAt = this.now() + 5000;
             console.error("Kunne ikke oppdatere spillerstatus.", error);
@@ -213,7 +245,7 @@ class GamePresence {
         this.pending = true;
         try {
             var result = await this.game.databaseRef.transaction(record => {
-                if (!record) { return; }
+                if (!record || GamePresence.isExpired(record, this.now())) { return; }
                 var owner = (record.spillere || []).find(candidate =>
                     candidate.spillerKey == player.playerKey && candidate.nick == player.name);
                 if (!owner || owner.spillerKey != getPlayerKey()) { return; }

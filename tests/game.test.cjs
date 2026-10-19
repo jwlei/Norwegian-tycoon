@@ -624,13 +624,37 @@ test("names expand by click or keyboard for exactly three seconds without trigge
     assert.equal(stopped, 2);
 });
 
-test("resumable games validate identity and room ID, persist the seat and clear on explicit leave", () => {
+function resumableGameContext() {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const storage = new Map();
     const button = {};
+    const state = { now: Date.now(), listeners: new Map(), timers: [], record: null, transactions: 0 };
+    class Clock extends Date {
+        static now() { return state.now; }
+    }
+    const { GamePresence } = loadGame(null, { Date: Clock });
+    const ref = {
+        key: "123",
+        on(type, listener) { state.listeners.set(listener, listener); },
+        off(type, listener) { state.listeners.delete(listener); },
+        remove() { state.listingRemoved = true; return Promise.resolve(); },
+        transaction(transform) {
+            state.transactions++;
+            const next = transform(state.record);
+            if (next) { state.record = next; }
+            return Promise.resolve({ committed: !!next });
+        }
+    };
     const context = vm.createContext({
-        console, currentGame: { id: "123" }, getPlayerKey: () => "owner",
+        console, Date: Clock, GamePresence, PUBLIC_LOBBY_PATH: "boms_public",
+        currentGame: { id: "123" }, getPlayerKey: () => "owner",
         document: { getElementById: () => button },
+        firebase: { database: () => ({ ref: () => ref }) },
+        setTimeout(callback, delay) {
+            state.timers.push({ callback, delay });
+            return state.timers.length;
+        },
+        clearTimeout(id) { state.timers[id - 1].cleared = true; },
         localStorage: {
             getItem: key => storage.get(key) || null,
             setItem: (key, value) => storage.set(key, value),
@@ -639,9 +663,46 @@ test("resumable games validate identity and room ID, persist the seat and clear 
     });
     vm.runInContext(source.slice(source.indexOf('        var resumeStorageKey ='),
         source.indexOf("        function refreshConnectionView()")), context);
+    function emit(record) {
+        state.record = record;
+        for (const listener of [...state.listeners.values()]) {
+            listener({ val: () => record });
+        }
+    }
+    const record = {
+        status: "S", lastHumanActionAt: state.now,
+        spillere: [{ nick: "Owner", spillerKey: "owner" }]
+    };
+    return { context, storage, button, state, emit, record };
+}
+
+test("new room creation is visible locally before its listener subscribes", () => {
+    const writes = [];
+    const root = {
+        transaction(transform, complete, applyLocally) {
+            writes.push({ record: transform(null), applyLocally });
+            return Promise.resolve();
+        }
+    };
+    const database = () => ({
+        ref: path => path.startsWith("boms_1/") ? root : { remove: () => Promise.resolve() }
+    });
+    database.ServerValue = { TIMESTAMP: { ".sv": "timestamp" } };
+    const { PresidentGame } = loadGame(null, { firebase: { database } });
+    const game = new PresidentGame();
+    assert.equal(writes[0].record.status, "O");
+    assert.equal(writes[0].applyLocally, true);
+    game.save();
+    assert.equal(writes[1].applyLocally, false);
+});
+
+test("resumable games validate identity and room ID, persist the seat and clear on explicit leave", () => {
+    const { context, storage, button, state, emit, record } = resumableGameContext();
     context.updateResumeButton();
     assert.equal(button.hidden, true);
     context.rememberActiveGame({ name: "Owner", playerKey: "owner" });
+    assert.equal(button.hidden, true);
+    emit(record);
     assert.equal(button.hidden, false);
     assert.equal(context.readResumableGame().name, "Owner");
     storage.set("norwegian-tycoon-active-game", JSON.stringify({ id: "123", name: "Other", playerKey: "other" }));
@@ -651,6 +712,122 @@ test("resumable games validate identity and room ID, persist the seat and clear 
     context.forgetActiveGame();
     assert.equal(button.hidden, true);
     assert.equal(storage.size, 0);
+    assert.equal(state.listeners.size, 0);
+});
+
+test("resume hides and voids a session more than ten minutes after the last human move", async () => {
+    const { context, button, state, emit, record, storage } = resumableGameContext();
+    context.rememberActiveGame({ name: "Owner", playerKey: "owner" });
+    emit(record);
+    state.now += 600000;
+    emit(record);
+    assert.equal(button.hidden, false);
+    state.now++;
+    state.timers.at(-1).callback();
+    assert.equal(button.hidden, true);
+    assert.equal(state.record.status, "V");
+    assert.equal(state.transactions, 1);
+    assert.equal(storage.size, 0);
+    assert.equal(state.listeners.size, 0);
+    await Promise.resolve();
+    assert.equal(state.listingRemoved, true);
+});
+
+test("resume validation rejects deleted, voided, expired, missing and surrendered seats", () => {
+    for (const invalid of [
+        null, { status: "V" }, { lastHumanActionAt: 1 }, { spillere: [] },
+        { spillere: [{ nick: "Owner", spillerKey: "other" }] },
+        { spillere: [{ nick: "Owner", spillerKey: "owner", gaveUp: true }] }
+    ]) {
+        const { context, button, state, emit, record, storage } = resumableGameContext();
+        context.rememberActiveGame({ name: "Owner", playerKey: "owner" });
+        emit(invalid === null ? null : { ...record, ...invalid });
+        assert.equal(button.hidden, true);
+        assert.equal(storage.size, 0);
+        assert.equal(state.listeners.size, 0);
+    }
+});
+
+test("human activity resets the resume deadline and stale timers cannot clear another saved seat", () => {
+    const { context, button, state, emit, record, storage } = resumableGameContext();
+    context.rememberActiveGame({ name: "Owner", playerKey: "owner" });
+    emit(record);
+    const oldTimer = state.timers[0];
+    state.now += 500000;
+    emit({ ...record, lastHumanActionAt: state.now });
+    assert.equal(oldTimer.cleared, true);
+    assert.equal(state.timers.at(-1).delay, 600001);
+    context.currentGame.id = "456";
+    context.rememberActiveGame({ name: "Guest", playerKey: "owner" });
+    oldTimer.callback();
+    assert.equal(context.readResumableGame().id, "456");
+    assert.equal(storage.size, 1);
+    assert.equal(button.hidden, true);
+});
+
+test("an old room listener cannot clear a different seat saved by another tab", () => {
+    const { context, button, state, emit, record, storage } = resumableGameContext();
+    context.rememberActiveGame({ name: "Owner", playerKey: "owner" });
+    emit(record);
+    storage.set("norwegian-tycoon-active-game",
+        JSON.stringify({ id: "456", name: "Guest", playerKey: "owner" }));
+    state.now += 600001;
+    state.timers.at(-1).callback();
+    assert.equal(context.readResumableGame().id, "456");
+    assert.equal(button.hidden, true);
+    assert.equal(state.transactions, 0);
+});
+
+test("resume deadlines follow server time even when the local clock is skewed", () => {
+    for (const offset of [-120000, 120000]) {
+        const { context, button, state, emit, record } = resumableGameContext();
+        context.updateSessionClock({ val: () => offset });
+        context.rememberActiveGame({ name: "Owner", playerKey: "owner" });
+        emit({ ...record, lastHumanActionAt: state.now + offset });
+        assert.equal(button.hidden, false);
+        assert.equal(state.timers.at(-1).delay, 600001);
+        state.now += 600001;
+        state.timers.at(-1).callback();
+        assert.equal(button.hidden, true);
+        assert.equal(state.record.status, "V");
+    }
+});
+
+test("a server clock correction immediately revalidates the saved game", () => {
+    const { context, button, state, emit, record } = resumableGameContext();
+    context.rememberActiveGame({ name: "Owner", playerKey: "owner" });
+    emit(record);
+    state.now += 500000;
+    context.updateSessionClock({ val: () => 100001 });
+    assert.equal(button.hidden, true);
+    assert.equal(state.record.status, "V");
+});
+
+test("joining a voided or expired room does not leave the current game", async () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const { GamePresence } = loadGame();
+    for (const record of [{ status: "V" }, { status: "S", lastHumanActionAt: Date.now() - 600001 }]) {
+        let failure = "";
+        let voids = 0;
+        const game = { id: "456" };
+        const context = vm.createContext({
+            currentGame: game, GamePresence,
+            showPublicLobbyError() {},
+            voidExpiredSession() { voids++; },
+            leaveCurrentGame() { assert.fail("The current game must not be left"); },
+            firebase: { database: () => ({ ref: () => ({
+                once: async () => ({ exists: () => true, val: () => record })
+            }) }) }
+        });
+        const start = source.indexOf("        function joinGameById(");
+        const end = source.indexOf("        document.getElementById('dialogKobleSpillOk')", start);
+        vm.runInContext(source.slice(start, end), context);
+        context.joinGameById("123", text => { failure = text; });
+        await Promise.resolve();
+        assert.match(failure, /Kunne ikke koble til/);
+        assert.equal(context.currentGame, game);
+        assert.equal(voids, 1);
+    }
 });
 
 test("takeover bots run on the backup client after 120 seconds while host transfer still waits", () => {
