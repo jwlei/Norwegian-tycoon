@@ -66,6 +66,19 @@ function getAvailableExchangeCards(game, playerIndex, excludedExchange = null) {
         .forEach(exchange => {
             (exchange.cards || []).forEach(card => reservedCards.add(exchangeCardKey(card)));
         });
+    if (game.players.length == 3 && excludedExchange?.kind == "playerTrade" &&
+        excludedExchange.from == playerIndex &&
+        game.players[playerIndex].lastPlacement == 2 &&
+        game.players[excludedExchange.to].lastPlacement == 3 &&
+        !hasSneakyConsent(excludedExchange)) {
+        var president = game.players.find(player => player.lastPlacement == 1);
+        (game.exchangeReceipts || []).filter(receipt =>
+            receipt.sender == president?.name &&
+            receipt.recipient == game.players[playerIndex].name
+        ).forEach(receipt => {
+            receipt.cards.forEach(card => reservedCards.add(exchangeCardKey(card)));
+        });
+    }
     return game.players[playerIndex].cards.filter(card => !reservedCards.has(exchangeCardKey(card)));
 }
 

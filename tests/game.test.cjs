@@ -605,6 +605,24 @@ test("consent stays private and remains available after a trade starts until car
     assert.equal(render(players[1]).find(node => node.textContent == "Sneaky?")
         .attributes["aria-pressed"], "false");
     game.piles[0].sneakyVotes = [0, 1];
+    const originalOffer = game.piles[0];
+    for (const from of [0, 1]) {
+        for (const bot of [false, true]) {
+            players[from].playerKey = bot ? "PC" : `key-${from}`;
+            game.piles = [{ ...originalOffer, from, to: from + 1, sneakyVotes: [] }];
+            const initiator = render(players[from]);
+            assert.ok(initiator.some(node => node.textContent == "Tving bytte"));
+            assert.ok(initiator.some(node => node.textContent == "Ingen bytte"));
+            const recipient = render(players[from + 1]);
+            assert.equal(recipient.some(node => node.textContent == "Tving bytte" ||
+                node.textContent == "Ingen bytte"), false);
+            assert.ok(recipient.some(node => node.textContent == "Sneaky?"));
+            assert.ok(recipient.some(node => node.textContent.includes(`${players[from].name} som`) &&
+                node.textContent.includes("bestemmer om det blir bytte")));
+            players[from].playerKey = `key-${from}`;
+        }
+    }
+    game.piles = [originalOffer];
     const start = render(players[0]).find(node => node.textContent === "Tving bytte");
     assert.equal(start.disabled, false);
     start.onclick();

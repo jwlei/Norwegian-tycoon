@@ -24,7 +24,7 @@ function loadBots() {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(source, context);
     }
-    return vm.runInContext("({ BotAI, PresidentGame, PresidentPlayer, PresidentCard, CardDeck, CardPile, playBotTurn, BOT_NAMES, isCardAllowedForExchange })", context);
+    return vm.runInContext("({ BotAI, PresidentGame, PresidentPlayer, PresidentCard, CardDeck, CardPile, playBotTurn, BOT_NAMES, isCardAllowedForExchange, getAvailableExchangeCards, hasLegalTradeCard, activeTradeOffer })", context);
 }
 
 const types = loadBots();
@@ -140,13 +140,101 @@ test("optional bot decisions survive exchange serialization and host handoff", (
     assert.equal(restored[0].botDecisions[1], "skip");
 });
 
-test("a human recipient can decline a bot's optional trade without waiting for a timeout", () => {
+test("only the initiator may decline an optional trade, regardless of role or bot control", () => {
+    for (const from of [0, 1]) {
+        for (const bot of [false, true]) {
+            const game = optionalTradeGame();
+            const offer = game.piles[0];
+            offer.from = from;
+            offer.to = from + 1;
+            game.players[from].playerKey = bot ? "PC" : "human-initiator";
+            game.players[offer.to].playerKey = "human-recipient";
+            assert.throws(() => game.skipOptionalTrade(offer, offer.to), /kan ikke avslå/);
+            assert.throws(() => game.skipOptionalTrade(offer, (from + 2) % 3), /kan ikke avslå/);
+            assert.equal(game.status, "G");
+            assert.equal(game.piles[0], offer);
+            game.skipOptionalTrade(offer, from);
+            assert.equal(game.status, "S");
+            assert.equal(game.piles.length, 0);
+        }
+    }
+});
+
+test("President then Neutral control sequential trades and received cards cannot be passed on without mutual sneaky", () => {
     const game = optionalTradeGame();
-    game.players[1].playerKey = "human";
+    const { getAvailableExchangeCards, hasLegalTradeCard, activeTradeOffer } = types;
+    const received = card(7);
+    const sameRank = card(7, 2);
+    game.players[0].cards = new CardDeck(received, card(9));
+    game.players[1].cards = new CardDeck(card(8, 2), card(10, 2), sameRank);
+    game.players[2].cards = new CardDeck(card(11, 4), card(6, 4));
+    const first = game.piles[0];
+    const second = { ...first, id: "second", tradeId: "second-trade", from: 1, to: 2,
+        cards: [], sneakyVotes: [] };
+    game.piles.push(second);
+    assert.throws(() => game.startOptionalTrade(second), /ikke lenger/);
+    assert.throws(() => game.skipOptionalTrade(first, 1), /kan ikke avslå/);
+    first.sneakyVotes = [0, 1];
+    game.startOptionalTrade(first);
+    assert.equal(activeTradeOffer(game), null);
+    assert.throws(() => game.startOptionalTrade(second), /ikke lenger/);
+    const outgoing = game.piles.find(exchange => exchange.tradeId == "trade" && exchange.from == 0);
+    const incoming = game.piles.find(exchange => exchange.tradeId == "trade" && exchange.from == 1);
+    outgoing.cards = [received];
+    game.giveExchangeCards(outgoing);
+    assert.equal(activeTradeOffer(game), null);
+    incoming.cards = [game.players[1].cards.find(c => c.rank == 8)];
+    game.giveExchangeCards(incoming);
+    assert.equal(activeTradeOffer(game), second);
+    assert.ok(second.offerUntil > Date.now());
+    assert.throws(() => game.skipOptionalTrade(second, 2), /kan ikke avslå/);
+    game.exchangeReceipts = JSON.parse(JSON.stringify(game.exchangeReceipts));
+    let available = getAvailableExchangeCards(game, 1, second);
+    assert.equal(available.some(c => c.suit == received.suit && c.rank == received.rank), false);
+    assert.ok(available.some(c => c.suit == sameRank.suit && c.rank == sameRank.rank));
+    const neutralHand = game.players[1].cards;
+    game.players[1].cards = new CardDeck(received);
+    assert.equal(hasLegalTradeCard(game, 1, second), false);
+    assert.throws(() => game.startOptionalTrade(second), /7 til J/);
+    game.players[1].cards = neutralHand;
+    game.startOptionalTrade(second);
+    const neutral = game.piles.find(exchange => exchange.from == 1);
+    neutral.cards = [received];
+    assert.throws(() => game.giveExchangeCards(neutral), /ikke gyldige/);
+    assert.equal(neutral.mode, "Velg");
+    neutral.cards = [];
+    game.toggleSneakyTrade(neutral, 1);
+    assert.equal(getAvailableExchangeCards(game, 1, neutral).some(c =>
+        c.suit == received.suit && c.rank == received.rank), false);
+    game.toggleSneakyTrade(neutral, 2);
+    available = getAvailableExchangeCards(game, 1, neutral);
+    assert.ok(available.some(c => c.suit == received.suit && c.rank == received.rank));
+    game.toggleSneakyTrade(neutral, 2);
+    assert.equal(getAvailableExchangeCards(game, 1, neutral).some(c =>
+        c.suit == received.suit && c.rank == received.rank), false);
+    game.toggleSneakyTrade(neutral, 2);
+    neutral.cards = [received];
+    game.giveExchangeCards(neutral);
+    assert.equal(neutral.mode, "Gitt");
+});
+
+test("a Neutral bot cannot pass the President's received card on in a normal exchange", () => {
+    const game = optionalTradeGame();
+    const received = card(7);
+    game.players[1].cards = new CardDeck(received, card(9, 2));
+    game.players[2].cards = new CardDeck(card(8, 4));
+    game.exchangeReceipts = [{ id: "prior", sender: game.players[0].name,
+        recipient: game.players[1].name, cards: [{ suit: received.suit, rank: received.rank }] }];
     const offer = game.piles[0];
-    game.skipOptionalTrade(offer, 1);
-    assert.equal(game.status, "S");
-    assert.equal(game.piles.length, 0);
+    offer.from = 1;
+    offer.to = 2;
+    game.startOptionalTrade(offer);
+    const outgoing = game.piles.find(exchange => exchange.from == 1);
+    playBotTurn(game, game.players[1], () => 0.99);
+    assert.equal(outgoing.mode, "Gitt");
+    assert.equal(outgoing.cards.length, 1);
+    assert.equal(outgoing.cards[0].rank, 9);
+    assert.ok(game.players[1].cards.some(c => c.suit == received.suit && c.rank == received.rank));
 });
 
 test("skills default to good, persist for bots, and reject unknown levels explicitly", () => {

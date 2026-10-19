@@ -213,9 +213,6 @@ class GameLayout {
             setClass(mainMenu, "is-hidden", false);
             this.updateMainMenu();
             var emptyTable = document.getElementById("gameTable");
-            if (this.fastForwardElement == null) {
-                this.fastForwardElement = document.getElementById("fastForwardButton");
-            }
             if (this.turnTimerElement == null) {
                 this.turnTimerElement = document.getElementById("turnTimer");
             }
@@ -895,9 +892,6 @@ class GameLayout {
                 player.placement == 0 && player.turn == 1 && game.piles.length == 0 &&
                 !game.isTurnPaused());
         }
-        if (this.fastForwardElement == null) {
-            this.fastForwardElement = document.getElementById("fastForwardButton");
-        }
         if (this.turnTimerElement == null) {
             this.turnTimerElement = document.getElementById("turnTimer");
         }
@@ -1108,7 +1102,9 @@ class GameLayout {
                         case "Tilbud":
                             var fromRole = game.placementTitle(fromPlayer.lastPlacement).title;
                             var toRole = game.placementTitle(toPlayer.lastPlacement).title;
-                            title.textContent = `Du som ${fromRole} kan tvinge bytte av kort mellom 7–J med ${toRole}. Om begge velger sneaky, kan alle kort byttes.`;
+                            title.textContent = isSender
+                                ? `Du som ${fromRole} kan tvinge bytte av kort mellom 7–J med ${toRole}. Om begge velger sneaky, kan alle kort byttes.`
+                                : `${fromPlayer.name} som ${fromRole} bestemmer om det blir bytte med ${toPlayer.name}. Om begge velger sneaky, kan alle kort byttes.`;
                             break;
                         default:
                             title.textContent = exchange.text;
@@ -1167,7 +1163,7 @@ class GameLayout {
                             };
                             buttonSpan.appendChild(startButton);
                         }
-                        if (canInitiate || (isRecipient && GamePresence.isBot(game, fromPlayer))) {
+                        if (canInitiate) {
                             var skipButton = document.createElement("button");
                             skipButton.type = "button";
                             skipButton.textContent = "Ingen bytte";
@@ -1537,11 +1533,6 @@ class GameLayout {
         if (this.tableTurnHint != null && this.tableTurnHint.parentElement != table &&
             typeof table.appendChild == "function") {
             table.appendChild(this.tableTurnHint);
-        }
-        if (this.fastForwardElement != null &&
-            this.fastForwardElement.parentElement != table &&
-            typeof table.appendChild == "function") {
-            table.appendChild(this.fastForwardElement);
         }
         if (this.turnTimerElement != null &&
             this.turnTimerElement.parentElement != table &&

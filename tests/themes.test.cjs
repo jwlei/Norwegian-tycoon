@@ -123,10 +123,24 @@ test("card style names stay compact and on one line with responsive previews", (
     assert.match(css, /\.card-style-option \.card-preview\s*\{[^}]*width:\s*clamp\(30px, 10vw, 52px\);/);
 });
 
-test("visible release and versioned local assets use version 0.8.9", () => {
-    assert.ok(html.includes('aria-label="Spillversjon 0.8.9">v0.8.9</span>'));
+test("board toasts anchor four pixels above the bottom and keep turn controls clear", () => {
+    assert.match(css, /#gameToastRegion\s*\{[^}]*bottom:\s*4px;/);
+    assert.match(css, /#gameTable:has\(#gameToastRegion:not\(\[hidden\]\) > \.game-toast\.is-visible\) > :is\(#turnTimer, #tableTurnHint\)\s*\{[^}]*bottom:\s*calc\(var\(--toast-stack-height\) \+ 10px\);/);
+    assert.ok(!css.includes("--toast-reserve"), "Toast overlays must not reserve card space");
+    assert.doesNotMatch(css, /#gameTable[^{}]*:has\(#gameToastRegion[^{}]*\)[^{}]*\{[^}]*--table-card-height:/);
+});
+
+test("fast-forward controls live outside the board at the top-right of the actions area", () => {
+    assert.match(html, /id="playerActions"[^>]*>\s*<div id="playbackControls">\s*<button[^>]*id="fastForwardButton"/);
+    assert.match(css, /#playbackControls\s*\{[^}]*position:\s*absolute;[^}]*top:\s*4px;[^}]*right:\s*8px;/);
+    const layout = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    assert.ok(!layout.includes("fastForwardElement"), "Table redraws must not reparent playback controls");
+});
+
+test("visible release and versioned local assets use version 0.8.10", () => {
+    assert.ok(html.includes('aria-label="Spillversjon 0.8.10">v0.8.10</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"]+)"/g),
         match => match[1]);
     assert.ok(versions.length > 0);
-    assert.ok(versions.every(version => version === "0.8.9"));
+    assert.ok(versions.every(version => version === "0.8.10"));
 });

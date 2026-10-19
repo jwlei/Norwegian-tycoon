@@ -1485,8 +1485,7 @@ class PresidentGame extends Game {
             currentOffer != activeTradeOffer(this)) {
             throw ("Dette byttet er ikke lenger tilgjengelig.");
         }
-        if (currentOffer.from != playerIndex &&
-            !(currentOffer.to == playerIndex && GamePresence.isBot(this, this.players[currentOffer.from]))) {
+        if (currentOffer.from != playerIndex) {
             throw ("Du kan ikke avslå dette byttet.");
         }
         this.piles.splice(this.piles.indexOf(currentOffer), 1);
