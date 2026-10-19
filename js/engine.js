@@ -229,7 +229,7 @@ class PresidentGame extends Game {
                 showCardsOnly: false
             };
             this.status = 'O'; // O = waiting, G = exchanging cards, S = playing, F = finished, V = void.
-            this.lastHumanActionAt = Date.now();
+            this.lastHumanActionAt = GamePresence.now();
             this.round = 0;
             this.players = [];
             this.piles = [];
@@ -271,7 +271,7 @@ class PresidentGame extends Game {
     }
     recordHumanAction(player) {
         if (player && player.gaveUp !== true && !GamePresence.isBot(this, player)) {
-            this.lastHumanActionAt = Date.now();
+            this.lastHumanActionAt = GamePresence.now();
         }
     }
     allHumansReady() {
@@ -305,7 +305,7 @@ class PresidentGame extends Game {
         if (GamePresence.isExpired(this)) { this.status = "V"; }
         var lastAction = GamePresence.lastActivityAt(this);
         var hasLastAction = lastAction != null;
-        this.lastHumanActionAt = hasLastAction ? Number(lastAction) : Date.now();
+        this.lastHumanActionAt = hasLastAction ? Number(lastAction) : GamePresence.now();
         var update = {
             status: this.status,
             lastHumanActionAt: this.lastHumanActionAt,
@@ -333,7 +333,12 @@ class PresidentGame extends Game {
         var write;
         if (typeof this.databaseRef.transaction == "function") {
             write = this.databaseRef.transaction(current => {
-                if (current == null) { return allowCreate ? update : undefined; }
+                if (current == null) {
+                    if (!allowCreate) { return; }
+                    return Object.assign({}, update, {
+                        lastHumanActionAt: firebase.database.ServerValue?.TIMESTAMP ?? update.lastHumanActionAt
+                    });
+                }
                 if (GamePresence.isExpired(current)) {
                     this.status = "V";
                     return current.status == "V" ? undefined : Object.assign({}, current, { status: "V" });
@@ -353,7 +358,7 @@ class PresidentGame extends Game {
                     this.status = "V";
                 }
                 this.updatePublicListing();
-            }, false);
+            }, allowCreate === true);
         } else {
             write = this.databaseRef.update(update);
         }

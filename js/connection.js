@@ -8,6 +8,7 @@
         var resumeStorageKey = "norwegian-tycoon-active-game";
         var resumeSubscription = null;
         var resumeListener = null;
+        var resumeSnapshot = null;
         var resumeSeat = null;
         var resumeExpiryTimer = null;
         function readResumableGame() {
@@ -28,6 +29,7 @@
             if (resumeExpiryTimer != null) { clearTimeout(resumeExpiryTimer); resumeExpiryTimer = null; }
             resumeSubscription = null;
             resumeListener = null;
+            resumeSnapshot = null;
             resumeSeat = seat;
             document.getElementById("resumeGameButton").hidden = true;
             if (!saved) { return; }
@@ -40,6 +42,7 @@
                     updateResumeButton();
                     return;
                 }
+                resumeSnapshot = snapshot;
                 if (resumeExpiryTimer != null) { clearTimeout(resumeExpiryTimer); resumeExpiryTimer = null; }
                 var record = snapshot.val();
                 var player = record && (record.spillere || []).find(candidate =>
@@ -57,7 +60,7 @@
                     resumeExpiryTimer = setTimeout(() => {
                         if (resumeSeat == seat) { resumeListener(snapshot); }
                     },
-                        Math.max(1, lastAction + GamePresence.sessionMs + 1 - Date.now()));
+                        Math.max(1, lastAction + GamePresence.sessionMs + 1 - GamePresence.now()));
                 }
             };
             ref.on("value", resumeListener, function (error) {
@@ -68,13 +71,17 @@
         }
         function voidExpiredSession(ref) {
             ref.transaction(record => record && GamePresence.isExpired(record) && record.status != "V"
-                ? GamePresence.reconcile(record, Date.now()) : undefined, undefined, false)
+                ? GamePresence.reconcile(record, GamePresence.now()) : undefined, undefined, false)
                 .then(result => {
                     if (result.committed) {
                         return firebase.database().ref(`${PUBLIC_LOBBY_PATH}/${ref.key}`).remove();
                     }
                 })
                 .catch(error => console.warn("Kunne ikke avslutte utløpt spill.", error));
+        }
+        function updateSessionClock(snapshot) {
+            GamePresence.serverOffset = Number(snapshot.val()) || 0;
+            if (resumeListener && resumeSnapshot) { resumeListener(resumeSnapshot); }
         }
         function rememberActiveGame(player) {
             try {
@@ -1371,7 +1378,7 @@
                 if (currentGame != connectingGame) { return; }
                 var snapshotRecord = snapshot.val();
                 if (snapshotRecord != null && GamePresence.isExpired(snapshotRecord,
-                    connection ? connection.now() : Date.now())) {
+                    connection ? connection.now() : GamePresence.now())) {
                     voidExpiredSession(connectingGame.databaseRef);
                     snapshotRecord = null;
                 }
@@ -1500,6 +1507,7 @@
         document.getElementById("reclaimSeatButton").addEventListener("click", () => {
             if (connection) { connection.changeControl(true); }
         });
+        firebase.database().ref(".info/serverTimeOffset").on("value", updateSessionClock);
         updateResumeButton();
 
         document.getElementById('BnFInviterSpill').addEventListener('click', function () {

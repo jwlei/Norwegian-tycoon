@@ -344,16 +344,37 @@ test("session expiry is strictly after ten minutes and uses only human activity 
     assert.equal(Presence.reconcile({ ...room(), status: "V" }, start), undefined);
 });
 
-function lifecycleGame() {
+test("legacy reconciliation freezes the session baseline before later bot saves change ts", () => {
+    const original = { ...room(), status: "O", ts: new Date(start).toISOString() };
+    const initialized = Presence.reconcile(original, start + 1000);
+    assert.equal(initialized.lastHumanActionAt, start);
+    assert.equal(original.lastHumanActionAt, undefined);
+    initialized.ts = new Date(start + 590000).toISOString();
+    assert.equal(Presence.reconcile(initialized, start + 600000), undefined);
+    const expired = Presence.reconcile(initialized, start + 600001);
+    assert.equal(expired.status, "V");
+    assert.equal(expired.lastHumanActionAt, start);
+});
+
+function lifecycleGame({ serverTimestamp = null } = {}) {
     let now = start;
     let stored = null;
+    const localWriteOptions = [];
+    const rawWrites = [];
     const listing = { removed: 0, value: null };
     const root = {
-        transaction(transform, complete) {
+        transaction(transform, complete, applyLocally) {
+            localWriteOptions.push(applyLocally);
             const next = transform(stored == null ? null : structuredClone(stored));
-            if (next !== undefined) { stored = structuredClone(next); }
+            if (next !== undefined) {
+                rawWrites.push(structuredClone(next));
+                stored = structuredClone(next);
+                if (stored.lastHumanActionAt && stored.lastHumanActionAt[".sv"] == "timestamp") {
+                    stored.lastHumanActionAt = serverTimestamp;
+                }
+            }
             if (complete) { complete(null, next !== undefined, { val: () => stored }); }
-            return Promise.resolve({ committed: next !== undefined });
+            return Promise.resolve({ committed: next !== undefined, snapshot: { val: () => stored } });
         },
         child() {
             return { remove: () => Promise.resolve(), set: () => Promise.resolve() };
@@ -364,6 +385,9 @@ function lifecycleGame() {
         remove() { listing.value = null; listing.removed++; return Promise.resolve(); },
         onDisconnect: () => ({ remove() {} })
     } }) };
+    if (serverTimestamp != null) {
+        firebase.database.ServerValue = { TIMESTAMP: { ".sv": "timestamp" } };
+    }
     const context = vm.createContext({
         console, firebase, getCookie: () => null, getPlayerKey: () => "owner",
         setTimeout: () => 0, clearTimeout() {},
@@ -392,7 +416,7 @@ function lifecycleGame() {
     game.setTurn(0);
     game.save();
     return {
-        game, types, listing,
+        game, types, listing, localWriteOptions, rawWrites,
         get stored() { return stored; }, set stored(value) { stored = value; },
         get now() { return now; }, set now(value) { now = value; }
     };
@@ -402,6 +426,56 @@ test("fresh lobbies establish a persisted human-session baseline", () => {
     const fixture = lifecycleGame();
     assert.equal(fixture.game.lastHumanActionAt, start);
     assert.equal(fixture.stored.lastHumanActionAt, start);
+});
+
+test("creation publishes its local transaction before subscribers attach but later saves do not", () => {
+    const fixture = lifecycleGame();
+    assert.deepEqual(fixture.localWriteOptions, [true, false]);
+    fixture.game.save();
+    assert.deepEqual(fixture.localWriteOptions, [true, false, false]);
+});
+
+test("creation uses Firebase server time even before the clock offset is initialized", () => {
+    const fixture = lifecycleGame({ serverTimestamp: start + 120000 });
+    assert.deepEqual(fixture.rawWrites[0].lastHumanActionAt, { ".sv": "timestamp" });
+    assert.equal(fixture.stored.lastHumanActionAt, start + 120000);
+    assert.equal(fixture.game.lastHumanActionAt, start + 120000);
+});
+
+test("human activity and default expiry checks share the server-adjusted clock", () => {
+    const fixture = lifecycleGame();
+    const { game, types } = fixture;
+    types.GamePresence.serverOffset = 300000;
+    assert.equal(types.GamePresence.now(), start + 300000);
+    game.advanceTurn = () => game.save();
+    fixture.now += 1000;
+    const player = game.players[0];
+    game.playCards(player, new types.CardPile(player.name, player.cards[0]));
+    assert.equal(fixture.stored.lastHumanActionAt, start + 301000);
+    fixture.now += 600000;
+    assert.equal(types.GamePresence.isExpired(fixture.stored), false);
+    fixture.now++;
+    assert.equal(types.GamePresence.isExpired(fixture.stored), true);
+});
+
+test("positive and negative server offsets preserve the exact ten-minute human activity boundary", () => {
+    for (const offset of [120000, -120000]) {
+        const fixture = lifecycleGame({ serverTimestamp: start + offset });
+        const { game, types } = fixture;
+        types.GamePresence.serverOffset = offset;
+        game.advanceTurn = () => game.save();
+        fixture.now += 1000;
+        const player = game.players[0];
+        game.playCards(player, new types.CardPile(player.name, player.cards[0]));
+        const baseline = start + 1000 + offset;
+        assert.equal(game.lastHumanActionAt, baseline);
+        assert.equal(fixture.stored.lastHumanActionAt, baseline);
+        fixture.now += 600000;
+        assert.equal(types.GamePresence.isExpired(fixture.stored), false);
+        fixture.now++;
+        assert.equal(types.GamePresence.isExpired(fixture.stored), true);
+        assert.equal(types.GamePresence.reconcile(fixture.stored).status, "V");
+    }
 });
 
 test("the final human leaving voids every game phase without adding results", () => {
@@ -599,6 +673,23 @@ test("presence reconciliation and control extensions never refresh human activit
     await fixture.client.changeControl();
     assert.equal(fixture.stored.lastHumanActionAt, start);
     assert.equal(Presence.reconcile(fixture.stored, start + 600001).status, "V");
+});
+
+test("presence expiry removes the public listing when its transaction commits V", async () => {
+    const fixture = lifecycleGame();
+    const { game, types } = fixture;
+    game.isPublic = true;
+    game.save();
+    assert.ok(fixture.listing.value);
+    const client = Object.assign(Object.create(types.GamePresence.prototype), {
+        game, record: fixture.stored, online: true, pending: false, stopped: false,
+        retryAt: 0, now: () => start + 600001, refresh() {}, register() {},
+        notify: message => assert.fail(message)
+    });
+    await client.tick();
+    assert.equal(fixture.stored.status, "V");
+    assert.equal(game.status, "V");
+    assert.equal(fixture.listing.value, null);
 });
 
 test("expired and void games cannot start, rejoin or appear in public listings", async () => {
