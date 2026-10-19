@@ -1473,11 +1473,26 @@ class PresidentGame extends Game {
                 this.setTurn(startIndex);
             }
         } else if (this.piles.every(exchange => exchange.mode == "Gitt")) {
-            this.piles.forEach(exchange => {
-                exchange.mode = "Kan se";
-            });
-            this.setTurn(-1);
+            var completedExchanges = this.piles.slice();
+            completedExchanges.forEach(exchange => this.deliverExchangeCards(exchange));
+            this.piles = [];
+            this.advanceExchangeStage();
         }
+    }
+    deliverExchangeCards(exchange) {
+        if (exchange.cards.length != exchange.count) { throw ("Feil antall kort som byttes."); };
+        exchange.cards.forEach(k => {
+            this.players[exchange.to].cards.push(new PresidentCard(k.suit, k.rank));
+        });
+        this.players[exchange.to].cards.sortCards();
+        markReceivedCards(`${this.id}:${this.players[exchange.to].name}`, exchange.cards);
+        document.dispatchEvent(new CustomEvent("exchange-cards-received", {
+            detail: {
+                game: this, recipient: this.players[exchange.to].name,
+                sender: this.players[exchange.from].name,
+                cards: exchange.cards.map(card => new Card(card.suit, card.rank))
+            }
+        }));
     }
     giveExchangeCards(exchange) {
         this.assertSessionActive();
@@ -1518,20 +1533,9 @@ class PresidentGame extends Game {
         this.assertSessionActive();
         if (this.status != "G") { throw ("Spillet er ikke i bytte-modus."); };
         if (exchange.mode != 'Kan se') { throw (`Kan ikke gi kort når modus er ${exchange.mode} (må være Kan se).`); };
-        if (exchange.cards.length != exchange.count) { throw ("Feil antall kort som byttes."); };
-        exchange.cards.forEach(k => {
-            this.players[exchange.to].cards.push(new PresidentCard(k.suit, k.rank));
-        });
-        this.players[exchange.to].cards.sortCards();
-        markReceivedCards(`${this.id}:${this.players[exchange.to].name}`, exchange.cards);
-        document.dispatchEvent(new CustomEvent("exchange-cards-received", {
-            detail: {
-                game: this, recipient: this.players[exchange.to].name,
-                sender: this.players[exchange.from].name,
-                cards: exchange.cards.map(card => new Card(card.suit, card.rank))
-            }
-        }));
-        this.piles.splice(this.piles.findIndex(b => (b == exchange)), 1);
+        this.deliverExchangeCards(exchange);
+        var exchangeIndex = this.piles.findIndex(b => b == exchange);
+        if (exchangeIndex >= 0) { this.piles.splice(exchangeIndex, 1); }
         this.recordHumanAction(this.players[exchange.to]);
         this.advanceExchangeStage();
         this.save();
