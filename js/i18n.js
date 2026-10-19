@@ -84,7 +84,7 @@
         "Animasjonshastighet": "Animation speed",
         "Personlig lesetid. Inntil tre meldinger beholdes samtidig uten å stoppe spillet.": "Personal reading time. Up to three messages remain visible without stopping play.",
         "Personlig animasjonshastighet": "Personal animation speed",
-        "Kortbevegelsene styrer når du kan spille. Valget gjelder bare din skjerm.": "You can play when the card animations finish. This setting only affects your screen.",
+        "Rask bruker 50 % kortere tid, Sakte 50 % lengre tid enn Vanlig. Valget gjelder bare din skjerm.": "Fast takes 50% less time, Slow 50% more time than Normal. This setting only affects your screen.",
         "Kunne ikke oppdatere turen. Prøver igjen.": "Could not update the turn. Retrying.",
         "Venter på at handlingen lagres.": "Waiting for the action to be saved.",
         "Kunne ikke lagre handlingen. Henter spillet på nytt.": "Could not save the action. Reloading the game.",

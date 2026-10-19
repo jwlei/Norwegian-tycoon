@@ -15,7 +15,7 @@ function load(globals = {}) {
     return context;
 }
 
-test("play animation lasts 500ms and covers 90 percent of its distance without anticipation", () => {
+test("normal play animation restores the original movement, easing and card stagger", () => {
     const animations = [];
     const image = () => ({
         style: { getPropertyValue: () => "0" },
@@ -41,34 +41,67 @@ test("play animation lasts 500ms and covers 90 percent of its distance without a
     `, context);
     assert.equal(animations.length, 4);
     for (const [index, { frames, timing }] of animations.entries()) {
-        assert.equal(timing.duration, 500);
-        assert.equal(timing.delay, index * 12);
+        assert.equal(timing.duration, 520);
+        assert.equal(timing.delay, index * 55);
+        assert.equal(timing.easing, "cubic-bezier(.22,.8,.25,1)");
         assert.equal(timing.fill, "both");
-        assert.match(frames[0].transform, /translate\(0, 0\) rotate\(0deg\)/);
-        assert.match(frames[1].transform, /translate\(180px, 180px\)/);
-        assert.equal(frames[1].offset * timing.duration, 175);
+        assert.match(frames[0].transform, /translate\(0, 0\) rotate\(-?[\d.]+deg\)/);
+        assert.match(frames[1].transform, /translate\(130px, 130px\)/);
+        assert.equal(frames[1].offset, 0.68);
         assert.match(frames[2].transform, /translate\(200px, 200px\)/);
     }
 });
 
-test("clear animation scheduling includes every serialized card and caps the stagger", () => {
+test("clear animation scheduling includes the original duration and every card's stagger", () => {
     const context = load();
-    assert.equal(vm.runInContext("discardAnimationMs(1)", context), 500);
-    assert.equal(vm.runInContext("discardAnimationMs(52)", context), 620);
+    assert.equal(vm.runInContext("discardAnimationMs(1)", context), 720);
+    assert.equal(vm.runInContext("discardAnimationMs(52)", context), 1332);
     assert.equal(vm.runInContext(`clearAnimationStartsAt({
         until: 2000, clearedPiles: [{ nick: "Owner", 0: {}, 1: {}, 2: {}, 3: {} }]
-    })`, context), 1482);
+    })`, context), 1244);
 });
 
-test("animation speeds are personal, default to 500ms and fast-forward temporarily uses 300ms", () => {
+test("discard animation restores the original easing and scales duration and stagger together", () => {
+    for (const [speed, factor] of [["fast", 0.5], ["normal", 1], ["slow", 1.5]]) {
+        const timings = [];
+        const context = load({
+            getCookie: () => speed,
+            window: { innerHeight: 800, matchMedia: () => ({ matches: false }) },
+            document: { body: { appendChild() {} } }
+        });
+        context.table = {
+            querySelectorAll: () => Array.from({ length: 4 }, () => ({
+                style: { getPropertyValue: () => "0" },
+                getBoundingClientRect: () => ({ left: 100, top: 100, width: 80, height: 120 }),
+                cloneNode: () => ({
+                    style: {}, setAttribute() {},
+                    animate(frames, timing) { timings.push(timing); return {}; }
+                })
+            }))
+        };
+        vm.runInContext("GameLayout.animateDiscardedCards(table)", context);
+        assert.equal(timings.length, 4);
+        timings.forEach((timing, index) => {
+            assert.equal(timing.duration, 720 * factor);
+            assert.equal(timing.delay, index * 12 * factor);
+            assert.equal(timing.easing, "cubic-bezier(.45,0,.8,.4)");
+        });
+    }
+});
+
+test("personal animation speeds scale original durations and stagger by exactly minus or plus 50 percent", () => {
     let speed = null;
     const context = load({ getCookie: () => speed });
-    for (const [preference, duration] of [[null, 500], ["fast", 300], ["normal", 500], ["slow", 800]]) {
+    for (const [preference, duration] of [[null, 520], ["fast", 260], ["normal", 520], ["slow", 780]]) {
         speed = preference;
         assert.equal(vm.runInContext("animationDuration({})", context), duration);
+        const factor = duration / 520;
+        assert.equal(vm.runInContext("animationDuration({}, DISCARD_ANIMATION_MS)", context), 720 * factor);
+        assert.equal(vm.runInContext("animationDuration({}, 55)", context), 55 * factor);
+        assert.equal(vm.runInContext("animationDuration({}, 12)", context), 12 * factor);
     }
-    assert.equal(vm.runInContext("animationDuration({ fastForward: true })", context), 300);
-    assert.equal(vm.runInContext("animationDuration({ fastForward: false })", context), 800);
+    assert.equal(vm.runInContext("animationDuration({ fastForward: true })", context), 260);
+    assert.equal(vm.runInContext("animationDuration({ fastForward: false })", context), 780);
 });
 
 test("human actions unlock on local animation completion with no grace or shared observation pause", () => {

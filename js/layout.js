@@ -632,8 +632,9 @@ class GameLayout {
             var flightY = targetBounds.top - flightTop;
             var targetRotation = parseFloat(target.style.getPropertyValue("--pile-rotation")) || 0;
             var sourceRotation = typeof source.rotation == "number" ? source.rotation : 0;
-            var startRotation = sourceRotation;
-            var middleRotation = sourceRotation + (targetRotation - sourceRotation) * 0.9;
+            var startRotation = sourceRotation * 0.45 + (Math.random() - 0.5) * 40;
+            var middleRotation = startRotation + (targetRotation - startRotation) * 0.35 +
+                (Math.random() - 0.5) * 50;
             flight.style.left = `${flightLeft}px`;
             flight.style.top = `${flightTop}px`;
             flight.style.width = `${targetBounds.width}px`;
@@ -647,9 +648,9 @@ class GameLayout {
                     opacity: 1
                 },
                 {
-                    transform: `translate(${flightX * 0.9}px, ${flightY * 0.9}px) rotate(${middleRotation}deg) scale(1.025)`,
+                    transform: `translate(${flightX * 0.65}px, ${flightY * 0.65}px) rotate(${middleRotation}deg)`,
                     opacity: 1,
-                    offset: 0.35
+                    offset: 0.68
                 },
                 {
                     transform: `translate(${flightX}px, ${flightY}px) rotate(${targetRotation}deg)`,
@@ -657,8 +658,8 @@ class GameLayout {
                 }
             ], {
                 duration: animationDuration(typeof currentGame != "undefined" ? currentGame : null),
-                delay: Math.min(cardIndex * 12, 36),
-                easing: "cubic-bezier(.16,1,.3,1)",
+                delay: animationDuration(typeof currentGame != "undefined" ? currentGame : null, cardIndex * 55),
+                easing: "cubic-bezier(.22,.8,.25,1)",
                 fill: "both"
             });
             var animationFinished = false;
@@ -745,8 +746,8 @@ class GameLayout {
                 }
             ], {
                 duration: animationDuration(typeof currentGame != "undefined" ? currentGame : null, DISCARD_ANIMATION_MS),
-                delay: Math.min(index * 6, 120),
-                easing: "cubic-bezier(.2,.8,.3,1)",
+                delay: animationDuration(typeof currentGame != "undefined" ? currentGame : null, index * 12),
+                easing: "cubic-bezier(.45,0,.8,.4)",
                 fill: "forwards"
             });
             card.style.opacity = "0";

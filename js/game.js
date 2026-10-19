@@ -247,13 +247,13 @@ function clearCardSelection() {
     selectedCardStrength = null;
 }
 
-const PLAY_ANIMATION_MS = 500;
-const DISCARD_ANIMATION_MS = 500;
+const PLAY_ANIMATION_MS = 520;
+const DISCARD_ANIMATION_MS = 720;
 
 function animationDuration(game, normal = PLAY_ANIMATION_MS) {
-    if (game && game.fastForward === true) { return normal * 0.6; }
+    if (game && game.fastForward === true) { return normal * 0.5; }
     var speed = getCookie("AnimationSpeed");
-    return normal * ({ fast: 0.6, normal: 1, slow: 1.6 }[speed] || 1);
+    return normal * ({ fast: 0.5, normal: 1, slow: 1.5 }[speed] || 1);
 }
 
 function preparePresentationPause(game) {
@@ -268,7 +268,7 @@ function preparePresentationPause(game) {
 }
 
 function discardAnimationMs(cardCount) {
-    return DISCARD_ANIMATION_MS + Math.min(Math.max(0, cardCount - 1) * 6, 120);
+    return DISCARD_ANIMATION_MS + Math.max(0, cardCount - 1) * 12;
 }
 
 function clearAnimationStartsAt(pause) {
