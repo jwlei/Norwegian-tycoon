@@ -419,6 +419,16 @@ select:focus-visible {
     box-shadow: 0 0 0 3px rgb(244 207 67 / 24%), 0 5px 16px rgb(244 207 67 / 35%);
 }
 
+#playerActions > #playButton {
+    order: -1;
+}
+
+#playerActions > #playButton:not(:disabled),
+#playerActions > #playButton:not(:disabled):hover {
+    border-color: #35c46a;
+    background: rgb(31 145 68 / 30%);
+}
+
 #gameMenu > #gameMetadata {
     font-size: 0.82rem;
     text-align: center;
@@ -3299,8 +3309,13 @@ select:focus-visible {
         width: min(100%, 980px);
         margin: 0 auto;
         --shell-hand-card-height: clamp(96px, 17dvh, 132px);
-        grid-template-rows: 44px 56px minmax(0, 1fr) 48px calc(var(--shell-hand-card-height) + 34px);
+        grid-template-rows: 44px 56px minmax(0, 1fr) 68px calc(var(--shell-hand-card-height) + 34px);
         box-shadow: 0 0 0 1px rgb(255 255 255 / 6%), 0 0 60px rgb(0 0 0 / 35%);
+    }
+
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #playerActions > #playerStatus.player-status--turn-hint {
+        order: 1;
+        flex: 0 0 100%;
     }
 
     #gameShell.game-active #playerHand.card-hand > .game-card > img,

@@ -145,7 +145,9 @@
         async function joinRememberedPlayerOrPrompt() {
             pendingSpectatorJoinName = null;
             var rememberedName = readLastUsedPlayerName();
-            if (currentGame.status == "S" || currentGame.status == "G") {
+            var waitingForResultVote = currentGame.status == "F" &&
+                (currentGame.gameEndVote != null || currentGame.roundStartVote != null);
+            if (currentGame.status == "S" || currentGame.status == "G" || waitingForResultVote) {
                 var alreadyPlaying = currentGame.players.some(player =>
                     player.playerKey == getPlayerKey()
                 );
@@ -154,7 +156,7 @@
                     pendingSpectatorJoinName = rememberedName != "" ? rememberedName : null;
                     showSpectatorJoinToast();
                     registerWaitingSpectator(currentGame);
-                    if (rememberedName == "") { promptForPlayerName(); }
+                    if (rememberedName == "" && !waitingForResultVote) { promptForPlayerName(); }
                     return;
                 }
             }

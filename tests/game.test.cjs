@@ -1002,6 +1002,28 @@ test("spectator join notices sit above the board for exactly three seconds", () 
     assert.equal(toast.closed, true);
 });
 
+test("joining during a finished-game vote keeps the visitor as a spectator", async () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const events = [];
+    const game = {
+        status: "F", gameEndVote: { id: "vote" }, roundStartVote: null,
+        players: [], addPlayer: () => assert.fail("spectator must not join as a player")
+    };
+    const context = vm.createContext({
+        currentGame: game, pendingSpectatorJoinName: null,
+        readLastUsedPlayerName: () => "Guest", getPlayerKey: () => "guest-key",
+        showSpectatorJoinToast: () => events.push("notice"),
+        registerWaitingSpectator: joinedGame => events.push(joinedGame),
+        promptForPlayerName: () => assert.fail("a spectator needs no player name")
+    });
+    const start = source.indexOf("        var pendingSpectatorJoinName = null;");
+    const end = source.indexOf("        var spectatorJoinPending", start);
+    vm.runInContext(source.slice(start, end), context);
+    await context.joinRememberedPlayerOrPrompt();
+    assert.equal(context.pendingSpectatorJoinName, "Guest");
+    assert.deepEqual(events, ["notice", game]);
+});
+
 test("every card renders in each style with distinct artwork", () => {
     const { PresidentCard } = loadGame();
     const styles = ["normal", "holo", "gold", "pixel", "parallax", "neon", "botanical"];
