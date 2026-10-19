@@ -158,7 +158,7 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
     assert.equal(timers.length, timerCount + 1);
 });
 
-test("toast expiry fades from top to bottom and cancels safely when a new message arrives", () => {
+test("toast expiry fades quickly at fast speed and cancels safely when a new message arrives", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     let reducedMotion = false;
     let speed = "normal";
@@ -193,13 +193,18 @@ test("toast expiry fades from top to bottom and cancels safely when a new messag
         toast.textContent = "Message";
         active = [];
         context.hideGameToast(false, true);
-        assert.equal(visible, true, "Text must remain while the mask reveals the backup behind it");
+        assert.equal(visible, true, "Text must remain until its exit animation completes");
         assert.equal(toast.textContent, "Message");
         const animation = active[0];
         assert.equal(animation.timing.duration, preference == "fast" ? 180 : 320);
-        assert.equal(animation.frames[0].maskPosition, "0% 100%");
-        assert.equal(animation.frames[1].maskPosition, "0% 0%");
-        assert.equal(animation.frames[0].maskSize, "100% 300%");
+        if (preference == "fast") {
+            assert.deepEqual(Array.from(animation.frames, frame => frame.opacity), [1, 0]);
+            assert.equal(animation.timing.easing, "ease-out");
+        } else {
+            assert.equal(animation.frames[0].maskPosition, "0% 100%");
+            assert.equal(animation.frames[1].maskPosition, "0% 0%");
+            assert.equal(animation.frames[0].maskSize, "100% 300%");
+        }
         assert.equal(animation.timing.fill, "forwards");
         animation.onfinish();
         assert.equal(visible, false);
@@ -595,15 +600,19 @@ test("turn countdowns and extensions wait for play, discard and shuffle animatio
         }
         assert.equal(fixture.render().turnCountdown.textContent, "–:–");
         assert.equal(fixture.elements.extendTurnButton.hidden, true);
-        fixture.now = 183499;
+        fixture.now = kind == "shuffle" ? 182999 : 183499;
         if (kind == "clear" || kind == "shuffle") {
             assert.equal(fixture.render().turnCountdown.textContent, "–:–");
         }
-        fixture.now = 183500;
+        fixture.now = kind == "shuffle" ? 183000 : 183500;
+        if (kind == "shuffle") {
+            assert.equal(fixture.render().turnCountdown.textContent, "0:17");
+        }
         if (kind == "clear") {
             assert.equal(fixture.render().turnCountdown.textContent, "–:–");
             fixture.game.turnPause.clearedPiles = [];
         }
+        fixture.now = 183500;
         fixture.game.actionDeadlines[fixture.id] = { until: 303500 };
         assert.equal(fixture.render().turnCountdown.textContent, "2:00");
         fixture.now = 184500;
@@ -1838,9 +1847,9 @@ test("exchange rendering waits for the exact shuffle deadline", () => {
     assert.equal(GameLayout.isShufflingExchange(game), true);
     GameLayout.updateTable(game, null);
     assert.equal(elements.get("gameTable").cleared, true);
-    now = 4499;
+    now = 3999;
     assert.equal(GameLayout.isShufflingExchange(game), true);
-    now = 4500;
+    now = 4000;
     assert.equal(GameLayout.isShufflingExchange(game), false);
     game.status = "S";
     now = 1000;
@@ -1931,7 +1940,7 @@ test("the starter toast waits until exchange is complete and the starter can pla
     const context = vm.createContext({
         currentGame: { status: "G", roundStarterName: "Bjørn" }, currentPlayerName: "Bjørn",
         starterFlashTimer: null, STARTER_FLASH_DURATION_MS: 1000,
-        announcedStarterRound: null,
+        announcedStarterRound: null, announcedBomsStarterGame: null,
         GamePresence: { now: () => 1000, isActionPaused: game => game.paused === true },
         showGameToast: text => messages.push(text),
         document: { querySelectorAll: () => [] }, setTimeout: () => 1, clearTimeout() {}
@@ -1957,6 +1966,12 @@ test("the starter toast waits until exchange is complete and the starter can pla
     context.currentGame = { id: "test", round: 3, status: "S", turn: 0, players: [{ name: "Guest" }] };
     context.flashRoundStarter();
     assert.equal(messages.pop(), "Du begynner");
+    context.currentGame = {
+        id: "test", round: 4, status: "S", turn: 0,
+        players: [{ name: "Bjørn", lastPlacement: 3 }, { name: "Guest" }, { name: "Other" }]
+    };
+    context.flashRoundStarter();
+    assert.equal(messages.pop(), "Bjørn begynner");
 });
 
 test("lobby colors stay distinct and at least 60 degrees apart for humans and bots", () => {

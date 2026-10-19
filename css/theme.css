@@ -2353,6 +2353,26 @@ select:focus-visible {
     white-space: nowrap;
 }
 
+.table-pile-summary--required {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+#gameTable:has(#gameToastRegion:not([hidden]) > .game-toast.is-visible) > .table-pile-summary--required {
+    opacity: 0;
+    animation: none;
+}
+
+#gameTable:not(:has(#gameToastRegion:not([hidden]) > .game-toast.is-visible)) > .table-pile-summary--required {
+    animation: table-pile-summary-fade-in 240ms ease 1s both;
+}
+
+@keyframes table-pile-summary-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
 .table-play {
     position: absolute;
     inset: 0;
@@ -2995,6 +3015,10 @@ select:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
     .received-cards__pile img { animation: none; }
+    #gameTable:not(:has(#gameToastRegion:not([hidden]) > .game-toast.is-visible)) > .table-pile-summary--required {
+        animation: none;
+        opacity: 1;
+    }
 }
 
 #BnInnstillinger:hover {
@@ -3828,7 +3852,7 @@ select:focus-visible {
     align-items: center;
     justify-content: center;
     gap: 28px;
-    background: rgb(0 0 0 / 30%);
+    background: rgb(0 0 0 / 45%);
 }
 
 .shuffle-stack {
@@ -3846,14 +3870,18 @@ select:focus-visible {
     background: var(--surface-soft);
     border: 3px solid var(--accent-hover);
     box-shadow: 0 3px 10px rgb(0 0 0 / 35%);
-    animation: shuffle-card-riffle 0.62s ease-in-out infinite;
+    animation: shuffle-card-riffle 0.775s ease-in-out infinite;
     animation-delay: calc(var(--shuffle-index) * 0.07s);
 }
 
 .shuffle-label {
-    color: #fff;
+    padding: 10px 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
     font-weight: 750;
-    text-shadow: 0 2px 8px rgb(0 0 0 / 60%);
+    box-shadow: 0 3px 12px rgb(0 0 0 / 35%);
 }
 
 @keyframes shuffle-card-riffle {

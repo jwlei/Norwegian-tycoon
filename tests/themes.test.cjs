@@ -132,11 +132,23 @@ test("board toasts anchor four pixels above the bottom and keep turn controls cl
 
 test("table summary is a single-line backup aligned behind board toasts", () => {
     assert.match(css, /\.table-pile-summary\s*\{[^}]*z-index:\s*60;[^}]*bottom:\s*4px;[^}]*width:\s*min\(440px, calc\(100% - 20px\)\);[^}]*height:\s*40px;[^}]*white-space:\s*nowrap;/);
+    assert.match(css, /\.table-pile-summary--required\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/);
+    assert.match(css, /#gameTable:not\(:has\(#gameToastRegion:not\(\[hidden\]\) > \.game-toast\.is-visible\)\) > \.table-pile-summary--required\s*\{[^}]*table-pile-summary-fade-in 240ms ease 1s both;/);
+    assert.match(css, /#gameTable:has\(#gameToastRegion:not\(\[hidden\]\) > \.game-toast\.is-visible\) > \.table-pile-summary--required\s*\{[^}]*opacity:\s*0;[^}]*animation:\s*none;/);
     assert.match(css, /#gameToastRegion\s*\{[^}]*z-index:\s*65;/);
     const layout = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    assert.match(layout, /tableSummary\.classList\.toggle\("table-pile-summary--required", mustBeatPile\);/);
     assert.ok(layout.includes('`På bordet ligger: ${describeRequiredPlay(game)}`'));
     assert.ok(layout.includes('`Du må slå: ${describeRequiredPlay(game)}`'));
     assert.match(layout, /tableSummary\.title = tableSummary\.textContent;/);
+});
+
+test("shuffle overlay uses a slower card animation, readable label and three-second duration", () => {
+    assert.match(css, /\.shuffle-card\s*\{[^}]*animation:\s*shuffle-card-riffle 0\.775s ease-in-out infinite;/);
+    assert.match(css, /\.shuffle-overlay\s*\{[^}]*background:\s*rgb\(0 0 0 \/ 45%\);/);
+    assert.match(css, /\.shuffle-label\s*\{[^}]*padding:\s*10px 16px;[^}]*border:\s*1px solid var\(--line\);[^}]*background:\s*var\(--surface\);/);
+    const game = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    assert.match(game, /const SHUFFLE_DURATION_MS = 3000;/);
 });
 
 test("fast-forward controls live outside the board at the top-right of the actions area", () => {
