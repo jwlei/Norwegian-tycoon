@@ -388,6 +388,36 @@ test("exchange timers show the earliest deadline but extensions use the viewer's
     assert.equal(fixture.render().turnTimer.hidden, true);
 });
 
+test("turn countdowns and extensions wait for play, discard and shuffle animations", () => {
+    for (const kind of ["play", "pass", "clear", "shuffle"]) {
+        const fixture = turnTimerFixture();
+        fixture.now = 180000;
+        fixture.game.actionDeadlines[fixture.id].until = 200000;
+        if (kind == "shuffle") {
+            fixture.game.status = "G";
+            fixture.game.shuffleStartedAt = 180000;
+        } else {
+            fixture.game.turnPause = { kind, until: 183000 };
+            if (kind == "clear") { fixture.game.turnPause.clearedPiles = [{}]; }
+        }
+        assert.equal(fixture.render().turnCountdown.textContent, "–:–");
+        assert.equal(fixture.elements.extendTurnButton.hidden, true);
+        fixture.now = 183499;
+        if (kind == "clear" || kind == "shuffle") {
+            assert.equal(fixture.render().turnCountdown.textContent, "–:–");
+        }
+        fixture.now = 183500;
+        if (kind == "clear") {
+            assert.equal(fixture.render().turnCountdown.textContent, "–:–");
+            fixture.game.turnPause.clearedPiles = [];
+        }
+        fixture.game.actionDeadlines[fixture.id] = { until: 303500 };
+        assert.equal(fixture.render().turnCountdown.textContent, "2:00");
+        fixture.now = 184500;
+        assert.equal(fixture.render().turnCountdown.textContent, "1:59");
+    }
+});
+
 test("consent stays private and remains available after a trade starts until cards are given", () => {
     const element = () => {
         const classes = new Set();

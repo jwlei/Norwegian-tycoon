@@ -83,9 +83,21 @@ class GamePresence {
             driver.name == game.localPlayerName;
     }
 
-    static actionToken(record, player, index) {
+    static isActionPaused(record, now = this.now()) {
+        if (record.status == "G") {
+            return record.shuffleStartedAt != null &&
+                now < Number(record.shuffleStartedAt) + SHUFFLE_DURATION_MS;
+        }
+        var pause = record.turnPause;
+        return record.status == "S" && pause != null &&
+            (now < pause.until || (pause.kind == "clear" &&
+                Array.isArray(pause.clearedPiles) && pause.clearedPiles.length > 0));
+    }
+
+    static actionToken(record, player, index, now = this.now()) {
+        if (this.isActionPaused(record, now)) { return null; }
         if (record.status == "S" && player.plassering == 0 && record.sinTur == index &&
-            record.turnPause == null) {
+            !record.turnPause?.pendingGameEnd) {
             return JSON.stringify([record.shuffleStartedAt, record.runde, index, record.spillBunke || []]);
         }
         if (record.status == "G") {
@@ -118,10 +130,10 @@ class GamePresence {
         players.forEach((player, index) => {
             if (player.spillerKey == "PC" || player.gaveUp === true) { return; }
             var id = this.playerId(player);
-            var token = timersEnabled ? this.actionToken(record, player, index) : null;
+            var token = timersEnabled ? this.actionToken(record, player, index, now) : null;
             var deadline = deadlines[id];
             if (token != null && !controllers[id] && (!deadline || deadline.token != token)) {
-                deadlines[id] = { token, until: Math.max(now, Number(record.shuffleStartedAt || 0) + SHUFFLE_DURATION_MS) + this.actionMs, extended: this.hasExtendedThisRound(record, player) };
+                deadlines[id] = { token, until: now + this.actionMs, extended: this.hasExtendedThisRound(record, player) };
                 deadline = deadlines[id];
                 changed = true;
             } else if (token == null && deadline) {
@@ -293,7 +305,7 @@ class GamePresence {
                     }
                 } else {
                     if (!deadline || deadline.extended || GamePresence.hasExtendedThisRound(record, owner) ||
-                        deadline.token != GamePresence.actionToken(record, owner, record.spillere.indexOf(owner)) ||
+                        deadline.token != GamePresence.actionToken(record, owner, record.spillere.indexOf(owner), this.now()) ||
                         this.now() >= deadline.until ||
                         (record.controllers || {})[id]) { return; }
                     record.turnExtensions = Object.assign({}, record.turnExtensions, {

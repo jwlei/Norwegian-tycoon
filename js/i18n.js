@@ -89,6 +89,7 @@
         "Bot spiller for deg": "Bot is playing for you",
         "Bot spiller": "Bot is playing",
         "Utsett 120 sekunder": "Extend by 120 seconds",
+        "Nedtellingen starter først når du kan spille. Pauser mellom trekk, rydding av bunken og stokking bruker ikke av tiden din.": "The countdown only starts when you can play. Pauses between turns, clearing the pile and shuffling do not use your time.",
         "Utsett +120 s": "Extend +120 s",
         "+120 s": "+120 s",
         "Ta tilbake plassen": "Take back your seat",

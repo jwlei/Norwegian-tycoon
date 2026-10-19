@@ -109,13 +109,14 @@
             var timerActive = !!currentGame &&
                 GamePresence.activeHumanCount(currentGame) > 1 &&
                 (currentGame.status == "S" || currentGame.status == "G");
-            var timerDeadline = timerActive && (currentGame.players || [])
+            var now = connection ? connection.now() : Date.now();
+            var canAct = timerActive && !GamePresence.isActionPaused(currentGame, now);
+            var timerDeadline = canAct && (currentGame.players || [])
                 .filter(candidate => !candidate.gaveUp && !GamePresence.isBot(currentGame, candidate))
                 .map(candidate => (currentGame.actionDeadlines || {})[GamePresence.playerId(candidate)])
                 .filter(candidateDeadline => !!candidateDeadline)
                 .sort((first, second) => first.until - second.until)[0];
-            var now = connection ? connection.now() : Date.now();
-            var active = !!player && !!deadline && !controlled && timerActive;
+            var active = !!player && !!deadline && !controlled && canAct;
             var ownRemaining = active ? Math.max(0, Math.ceil((deadline.until - now) / 1000)) : 0;
             var remaining = timerActive && timerDeadline
                 ? Math.max(0, Math.ceil((timerDeadline.until - now) / 1000))

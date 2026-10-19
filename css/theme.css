@@ -3624,7 +3624,7 @@ select:focus-visible {
         width: min(100%, 980px);
         margin: 0 auto;
         --shell-hand-card-height: clamp(96px, 17dvh, 132px);
-        grid-template-rows: 44px 56px minmax(0, 1fr) 84px calc(var(--shell-hand-card-height) + 34px);
+        grid-template-rows: 60px 56px minmax(0, 1fr) 84px calc(var(--shell-hand-card-height) + 34px);
         box-shadow: 0 0 0 1px rgb(255 255 255 / 6%), 0 0 60px rgb(0 0 0 / 35%);
     }
 
@@ -3657,7 +3657,7 @@ select:focus-visible {
 
 @media (min-width: 900px) and (min-height: 560px) and (orientation: landscape) and (hover: hover) and (pointer: fine) {
     #gameShell.game-active:not(.Lobby):not(.GameFinished) {
-        grid-template-rows: 44px clamp(76px, 10dvh, 100px) minmax(0, 1fr) 84px calc(var(--shell-hand-card-height) + 34px);
+        grid-template-rows: 60px clamp(76px, 10dvh, 100px) minmax(0, 1fr) 84px calc(var(--shell-hand-card-height) + 34px);
     }
 
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #playerList .player-summary {

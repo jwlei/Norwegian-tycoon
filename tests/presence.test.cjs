@@ -135,17 +135,42 @@ test("turn changes reset the deadline and gameplay pauses do not consume thinkin
     assert.equal(record.actionDeadlines[guestId].until, start + 130000);
 });
 
-test("exchange deadlines follow the acting stage and wait until shuffling has finished", () => {
+test("exchange deadlines start with 120 seconds only after shuffling has finished", () => {
     const record = room();
     record.status = "G";
     record.shuffleStartedAt = start;
     record.spillBunke = [{ id: "offer", modus: "Tilbud", fra: 1, til: 0 }];
-    const next = Presence.reconcile(record, start);
+    assert.equal(Presence.reconcile(record, start), undefined);
+    assert.equal(Presence.reconcile(record, start + 3499), undefined);
+    const next = Presence.reconcile(record, start + 3500);
     const guestId = Presence.playerId(record.spillere[1]);
     assert.equal(next.actionDeadlines[guestId].until, start + 3500 + 120000);
     assert.equal(Object.keys(next.actionDeadlines).length, 1);
     record.spillBunke = [{ id: "give", modus: "Gitt", fra: 1, til: 0 }];
     assert.equal(Presence.actionToken(record, record.spillere[1], 1), null);
+});
+
+test("the three-second play pause is excluded even when the completed pause remains stored", () => {
+    const record = room();
+    record.turnPause = { kind: "play", until: start + 3000 };
+    assert.equal(Presence.reconcile(record, start), undefined);
+    assert.equal(Presence.reconcile(record, start + 2999), undefined);
+    const next = Presence.reconcile(record, start + 3000);
+    const id = Presence.playerId(record.spillere[0]);
+    assert.equal(next.actionDeadlines[id].until, start + 123000);
+    assert.equal(Presence.reconcile(next, start + 122999), undefined);
+    assert.equal(Presence.reconcile(next, start + 123000).controllers[id].reason, "idle");
+});
+
+test("clearing piles blocks the countdown until the discard animation is complete", () => {
+    const record = room();
+    record.turnPause = { kind: "clear", until: start, clearedPiles: [{ cards: [] }] };
+    assert.equal(Presence.reconcile(record, start + 3000), undefined);
+    record.turnPause = { ...record.turnPause, clearedPiles: [] };
+    const next = Presence.reconcile(record, start + 4000);
+    assert.equal(next.actionDeadlines[Presence.playerId(record.spillere[0])].until, start + 124000);
+    const pendingEnd = { ...record, turnPause: { kind: "finish", until: start, pendingGameEnd: true } };
+    assert.equal(Presence.reconcile(pendingEnd, start + 4000), undefined);
 });
 
 test("offline players get bot takeover after 120 seconds even when it is not their turn", () => {
