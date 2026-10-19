@@ -131,8 +131,15 @@ function getRepeatedSinglePlay(piles) {
 }
 
 function assignPlayerColors(game) {
-    var usedHues = [];
-    game.players.slice().sort((a, b) => a.name < b.name ? -1 : (a.name > b.name ? 1 : 0)).forEach(player => {
+    var usedHues = game.players.map(player => {
+        var match = typeof player.displayColor == "string"
+            ? player.displayColor.match(/^hsl\((\d+) 82% 70%\)$/)
+            : null;
+        return match ? Number(match[1]) : null;
+    }).filter(hue => hue != null);
+    game.players.filter(player => !player.displayColor)
+        .sort((a, b) => a.name < b.name ? -1 : (a.name > b.name ? 1 : 0))
+        .forEach(player => {
         var key = `${game.id}:${player.name.toLowerCase()}`;
         var hash = 2166136261;
         for (var index = 0; index < key.length; index++) {

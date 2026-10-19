@@ -15,6 +15,7 @@ class Player {
         var result = {
             "nick": this.name,
             "spillerKey": this.playerKey,
+            "displayColor": this.displayColor || null,
             "plassering": this.placement,
             "kort": this.cards,
             "sinTur": this.turn,
@@ -28,6 +29,7 @@ class Player {
     fromRecord(record) {
         this.name = record["nick"];
         this.playerKey = record["spillerKey"];
+        this.displayColor = record.displayColor || null;
         this.placement = record["plassering"];
         this.cards = record["kort"];
         this.turn = record["sinTur"];
