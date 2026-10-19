@@ -172,13 +172,10 @@
         });
 
         function readLastUsedPlayerName() {
-            var cookiePrefix = `${playerNameCookie}=`;
-            var cookie = document.cookie.split(";")
-                .map(value => value.trim())
-                .find(value => value.startsWith(cookiePrefix));
-            if (cookie == null) { return ""; }
+            var name = getCookie(playerNameCookie);
+            if (name == "") { return ""; }
             try {
-                return sanitizePlayerName(decodeURIComponent(cookie.slice(cookiePrefix.length))).trim();
+                return sanitizePlayerName(decodeURIComponent(name)).trim();
             } catch (error) {
                 console.warn("Kunne ikke lese lagret spillernavn fra cookie.", error);
                 return "";
@@ -186,9 +183,7 @@
         }
 
         function saveLastUsedPlayerName(name) {
-            var secureAttribute = window.location.protocol == "https:" ? "; Secure" : "";
-            document.cookie =
-                `${playerNameCookie}=${encodeURIComponent(name)}; Max-Age=31536000; Path=/; SameSite=Lax${secureAttribute}`;
+            setCookie(playerNameCookie, encodeURIComponent(name), 365);
             updateSavedPlayerName();
         }
 

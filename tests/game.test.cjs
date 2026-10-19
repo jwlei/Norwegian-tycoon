@@ -491,11 +491,126 @@ test("mutual sneaky consent after trade initiation produces one additional parti
     assert.equal(messages[1], "Oooh.. Sneaky..");
 });
 
+function savedPreferencesContext(cookieMode = "enabled", storage = new Map(), storageBlocked = false) {
+    const cookies = new Map();
+    const elements = new Map();
+    const document = {
+        documentElement: { dataset: {} },
+        get cookie() {
+            if (cookieMode === "throws") { throw new Error("Cookies unavailable"); }
+            return Array.from(cookies, ([name, value]) => `${name}=${value}`).join("; ");
+        },
+        set cookie(value) {
+            if (cookieMode === "throws") { throw new Error("Cookies unavailable"); }
+            if (cookieMode !== "enabled") { return; }
+            const pair = value.split(";")[0];
+            const split = pair.indexOf("=");
+            cookies.set(pair.slice(0, split), pair.slice(split + 1));
+        },
+        getElementById(id) {
+            if (!elements.has(id)) { elements.set(id, {}); }
+            return elements.get(id);
+        }
+    };
+    const { sanitizePlayerName } = loadGame();
+    const context = vm.createContext({
+        console, document, window: { location: { protocol: "https:" } },
+        localStorage: {
+            getItem(key) {
+                if (storageBlocked) { throw new Error("Storage unavailable"); }
+                return storage.get(key) ?? null;
+            },
+            setItem(key, value) {
+                if (storageBlocked) { throw new Error("Storage unavailable"); }
+                storage.set(key, value);
+            }
+        },
+        currentGame: null, playerNameCookie: "norwegian_tycoon_player_name",
+        GameLayout: { cardStyle: () => "normal" }, sanitizePlayerName
+    });
+    const shared = fs.readFileSync(path.join(__dirname, "..", "js", "shared.js"), "utf8");
+    vm.runInContext(shared.slice(shared.indexOf("var savedCookieValues"),
+        shared.indexOf("function hasClass")) +
+        shared.slice(shared.indexOf("function getPlayerKey()"),
+            shared.indexOf("function initializeThemeToggle()")), context);
+    const connection = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    vm.runInContext(connection.slice(connection.indexOf("        function readLastUsedPlayerName()"),
+        connection.indexOf("        function promptForPlayerName(")), context);
+    return context;
+}
+
+test("saved names, preferences and player keys survive reloads without cookies", () => {
+    for (const cookieMode of ["enabled", "ignored", "throws"]) {
+        const storage = new Map();
+        const context = savedPreferencesContext(cookieMode, storage);
+        const key = context.getPlayerKey();
+        assert.equal(key.length, 50);
+        assert.equal(context.getPlayerKey(), key);
+        context.saveLastUsedPlayerName("Bjørn / ギフテッド 😎");
+        context.setCookie("AutoSuggestPlayableCards", "false", 365);
+        assert.equal(context.readLastUsedPlayerName(), "Bjørn / ギフテッド 😎");
+        assert.equal(context.document.getElementById("splashPlayerName").textContent, "Bjørn / ギフテッド 😎");
+        const reloaded = savedPreferencesContext(cookieMode, storage);
+        assert.equal(reloaded.getPlayerKey(), key);
+        assert.equal(reloaded.readLastUsedPlayerName(), "Bjørn / ギフテッド 😎");
+        assert.equal(reloaded.getCookie("AutoSuggestPlayableCards"), "false");
+    }
+});
+
+test("player identity and preferences stay usable when all persistent storage is unavailable", () => {
+    for (const cookieMode of ["ignored", "throws"]) {
+        const context = savedPreferencesContext(cookieMode, new Map(), true);
+        const key = context.getPlayerKey();
+        context.saveLastUsedPlayerName("Ada");
+        context.setCookie("AutoSuggestPlayableCards", "false", 365);
+        assert.equal(context.getPlayerKey(), key);
+        assert.equal(context.readLastUsedPlayerName(), "Ada");
+        assert.equal(context.getCookie("AutoSuggestPlayableCards"), "false");
+    }
+});
+
+test("existing cookies are preserved and malformed saved names do not stop startup", () => {
+    const context = savedPreferencesContext();
+    context.document.cookie = "SpillerKey=existing-key";
+    context.document.cookie = `norwegian_tycoon_player_name=${encodeURIComponent("ギフテッド")}`;
+    assert.equal(context.getPlayerKey(), "existing-key");
+    assert.equal(context.readLastUsedPlayerName(), "ギフテッド");
+    context.document.cookie = "norwegian_tycoon_player_name=%invalid";
+    context.console = { warn() {} };
+    assert.equal(context.readLastUsedPlayerName(), "");
+});
+
+test("theme controls still initialize and work when local storage is blocked", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "shared.js"), "utf8");
+    let click;
+    const button = {
+        querySelector: () => null, setAttribute() {},
+        addEventListener(type, handler) { click = handler; }
+    };
+    const root = { dataset: {} };
+    const context = vm.createContext({
+        document: { documentElement: root, querySelectorAll: () => [button], querySelector: () => null },
+        window: { addEventListener() {} },
+        localStorage: {
+            getItem() { throw new Error("Storage unavailable"); },
+            setItem() { throw new Error("Storage unavailable"); }
+        }
+    });
+    vm.runInContext(source.slice(source.indexOf("function initializeThemeToggle()"),
+        source.indexOf('if (document.readyState === "loading")')), context);
+    context.initializeThemeToggle();
+    assert.equal(root.dataset.theme, "dark");
+    click();
+    assert.equal(root.dataset.theme, "light");
+});
+
 test("quick play requires a count, uses the saved or localized name and starts a private bot game", async () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const start = source.indexOf("        var quickPlayPlayerCount");
     const end = source.indexOf("        var publicLobbies", start);
     for (const [count, savedName, fallback] of [[2, "Ada", "Spiller"], [3, "", "Spiller"], [4, "", "Player"]]) {
+        const preferences = savedPreferencesContext("ignored", new Map(), count === 4);
+        const playerKey = preferences.getPlayerKey();
         const options = [2, 3, 4].map(players => ({
             dataset: { players: String(players) },
             setAttribute(key, value) { this[key] = value; },
@@ -521,6 +636,7 @@ test("quick play requires a count, uses the saved or localized name and starts a
             }
         };
         const { PresidentGame, PresidentPlayer } = loadGame(null, {
+            getPlayerKey: preferences.getPlayerKey,
             firebase: { database: () => ({
                 ref: path => path.startsWith("boms_1/") ? room : { remove: () => Promise.resolve() }
             }) }
@@ -540,7 +656,7 @@ test("quick play requires a count, uses the saved or localized name and starts a
             },
             PresidentPlayer,
             BOT_NAMES: ["Ada", "Bot A", "Bot B", "Bot C"],
-            getPlayerKey: () => "human-key",
+            getPlayerKey: preferences.getPlayerKey,
             readLastUsedPlayerName: () => savedName,
             localizedMessage: message => message === "Spiller" ? fallback : message,
             showPublicLobbyError: text => { assert.equal(text, ""); },
@@ -569,7 +685,7 @@ test("quick play requires a count, uses the saved or localized name and starts a
         assert.equal(games[0].players.length, count);
         const humans = games[0].players.filter(player => player.playerKey !== "PC");
         assert.equal(humans.length, 1);
-        assert.equal(humans[0].playerKey, "human-key");
+        assert.equal(humans[0].playerKey, playerKey);
         assert.equal(humans[0].ready, true);
         assert.equal(humans[0].name, savedName || fallback);
         assert.equal(games[0].localPlayerName, humans[0].name);
@@ -1731,7 +1847,7 @@ test("new bot names are available and Japanese player names survive input and co
     assert.equal(sanitizePlayerName('Name_<>"&()'), "Name");
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const context = vm.createContext({
-        document: { cookie: `other=value; norwegian_tycoon_player_name=${encodeURIComponent("ギフテッド")}` },
+        getCookie: () => encodeURIComponent("ギフテッド"),
         playerNameCookie: "norwegian_tycoon_player_name", sanitizePlayerName, console
     });
     vm.runInContext(source.slice(source.indexOf("        function readLastUsedPlayerName()"),
