@@ -24,8 +24,9 @@ function playBotTurn(game, player, random = Math.random) {
                     if (!game.piles.includes(exchange)) { return; }
                 }
                 if (exchange.from != seat) { return; }
-                if (decision == "normal" && hasLegalTradeCard(game, exchange.from, exchange) &&
-                    hasLegalTradeCard(game, exchange.to, exchange)) {
+                if ((decision == "sneaky" && hasSneakyConsent(exchange)) ||
+                    (decision == "normal" && hasLegalTradeCard(game, exchange.from, exchange) &&
+                        hasLegalTradeCard(game, exchange.to, exchange))) {
                     game.startOptionalTrade(exchange);
                 } else if (decision == "skip" || decision == "normal" ||
                     exchange.botDecisions[exchange.to] == "skip") {

@@ -42,6 +42,14 @@ class GamePresence {
         return player.playerKey == "PC" || !!(game.controllers || {})[this.playerId(player)];
     }
 
+    static roundToken(record) {
+        return JSON.stringify([record.shuffleStartedAt || null, record.runde ?? record.round]);
+    }
+
+    static hasExtendedThisRound(record, player) {
+        return (record.turnExtensions || {})[this.playerId(player)] === this.roundToken(record);
+    }
+
     static canDrive(game, now = this.now()) {
         if (game.connectionOnline === false || this.isExpired(game, now)) { return false; }
         var host = game.players.find(player => player.playerKey == game.hostKey &&
@@ -93,7 +101,7 @@ class GamePresence {
             var token = this.actionToken(record, player, index);
             var deadline = deadlines[id];
             if (token != null && !controllers[id] && (!deadline || deadline.token != token)) {
-                deadlines[id] = { token, until: Math.max(now, Number(record.shuffleStartedAt || 0) + SHUFFLE_DURATION_MS) + this.actionMs, extended: false };
+                deadlines[id] = { token, until: Math.max(now, Number(record.shuffleStartedAt || 0) + SHUFFLE_DURATION_MS) + this.actionMs, extended: this.hasExtendedThisRound(record, player) };
                 deadline = deadlines[id];
                 changed = true;
             } else if (token == null && deadline) {
@@ -207,6 +215,7 @@ class GamePresence {
         this.game.presence = record.presence || {};
         this.game.controllers = record.controllers || {};
         this.game.actionDeadlines = record.actionDeadlines || {};
+        this.game.turnExtensions = record.turnExtensions || {};
         (record.connectionNotices || []).forEach(notice => {
             if (!this.seen.has(notice.id)) {
                 this.seen.add(notice.id);
@@ -256,12 +265,20 @@ class GamePresence {
                     delete record.controllers[id];
                     if (deadline) {
                         record.actionDeadlines = Object.assign({}, record.actionDeadlines, {
-                            [id]: Object.assign({}, deadline, { until: this.now() + GamePresence.actionMs, extended: false })
+                            [id]: Object.assign({}, deadline, {
+                                until: this.now() + GamePresence.actionMs,
+                                extended: GamePresence.hasExtendedThisRound(record, owner) || deadline.extended === true
+                            })
                         });
                     }
                 } else {
-                    if (!deadline || deadline.extended || this.now() >= deadline.until ||
+                    if (!deadline || deadline.extended || GamePresence.hasExtendedThisRound(record, owner) ||
+                        deadline.token != GamePresence.actionToken(record, owner, record.spillere.indexOf(owner)) ||
+                        this.now() >= deadline.until ||
                         (record.controllers || {})[id]) { return; }
+                    record.turnExtensions = Object.assign({}, record.turnExtensions, {
+                        [id]: GamePresence.roundToken(record)
+                    });
                     record.actionDeadlines = Object.assign({}, record.actionDeadlines, {
                         [id]: Object.assign({}, deadline, { until: deadline.until + GamePresence.actionMs, extended: true })
                     });

@@ -701,7 +701,7 @@ class GameLayout {
     static pileCardJitter(game, pile, card, stackIndex, cardIndex = 0) {
         var seed = 2166136261;
         var first = pile[0];
-        var text = `${game.round}:${pile.name}:${first.suit}:${first.rank}:${stackIndex - cardIndex}`;
+        var text = `${game.shuffleStartedAt || ""}:${pile.name}:${first.suit}:${first.rank}:${stackIndex - cardIndex}`;
         for (var i = 0; i < text.length; i++) {
             seed = Math.imul(seed ^ text.charCodeAt(i), 16777619) >>> 0;
         }
@@ -733,7 +733,7 @@ class GameLayout {
         tablePile.style.setProperty("--pile-fan-count", String(Math.max(0, maxCardsPerPlay - 1)));
         tablePile.style.setProperty("--pile-depth", `${Math.min(totalCardCount * 2.5, compactStack ? 18 : 44)}px`);
         piles.forEach((pile, playIndex) => {
-            var signature = `${game.round}:${pile.name}:${pile.map(card => `${card.suit}:${card.rank}`).join(",")}`;
+            var signature = `${game.shuffleStartedAt || ""}:${pile.name}:${pile.map(card => `${card.suit}:${card.rank}`).join(",")}`;
             var playElement = document.createElement("div");
             playElement.className = "table-play";
             playElement.dataset.playSignature = signature;
@@ -1018,13 +1018,13 @@ class GameLayout {
                         var isParticipant = isSender || isRecipient;
                         var canInitiate = isSender;
                         var participantIndex = currentPlayerIndex;
-                        var status = document.createElement("span");
-                        status.className = "trade-status";
-                        status.textContent = hasSneakyConsent(exchange)
-                            ? "Begge har samtykket til sneaky bytte."
-                            : `Vanlig bytte bruker kort 7–J. Sneaky-samtykke: ${voters.length}/2.`;
-                        exchangeStatus.appendChild(status);
                         if (isParticipant) {
+                            var status = document.createElement("span");
+                            status.className = "trade-status";
+                            status.textContent = hasSneakyConsent(exchange)
+                                ? "Begge har samtykket til sneaky bytte."
+                                : `Vanlig bytte bruker kort 7–J. Sneaky-samtykke: ${voters.length}/2.`;
+                            exchangeStatus.appendChild(status);
                             var sneakyButton = document.createElement("button");
                             sneakyButton.type = "button";
                             sneakyButton.textContent = voters.includes(participantIndex)
@@ -1040,8 +1040,9 @@ class GameLayout {
                             var startButton = document.createElement("button");
                             startButton.type = "button";
                             startButton.textContent = "Start tvunget bytte";
-                            startButton.disabled = !hasLegalTradeCard(game, exchange.from, exchange) ||
-                                !hasLegalTradeCard(game, exchange.to, exchange);
+                            startButton.disabled = !hasSneakyConsent(exchange) &&
+                                (!hasLegalTradeCard(game, exchange.from, exchange) ||
+                                    !hasLegalTradeCard(game, exchange.to, exchange));
                             startButton.title = startButton.disabled
                                 ? "Begge spillerne trenger minst ett ledig kort fra 7 til J."
                                 : "";
@@ -1078,29 +1079,12 @@ class GameLayout {
                             buttonSpan.appendChild(chooseButton);
                         }
                         if (exchange.kind == "playerTrade" && player != null && (isSender || isRecipient)) {
-                            var voters = exchange.sneakyVotes || [];
                             var tradeStatus = document.createElement("span");
                             tradeStatus.className = "trade-status";
                             tradeStatus.textContent = hasSneakyConsent(exchange)
                                 ? "Sneaky bytte: alle kort kan brukes."
-                                : `Vanlig bytte: kort 7–J. Sneaky-samtykke: ${voters.length}/2.`;
+                                : "Vanlig bytte: kort 7–J.";
                             exchangeStatus.appendChild(tradeStatus);
-                            var sneakyButton = document.createElement("button");
-                            sneakyButton.type = "button";
-                            sneakyButton.textContent = voters.includes(currentPlayerIndex)
-                                ? "Trekk sneaky-samtykke"
-                                : "Sneaky bytte";
-                            sneakyButton.setAttribute("aria-pressed", String(voters.includes(currentPlayerIndex)));
-                            var hasSelectedTradeCard = game.piles.some(candidate =>
-                                candidate.tradeId == exchange.tradeId &&
-                                candidate.cards && candidate.cards.length > 0
-                            );
-                            sneakyButton.disabled = exchange.sneakyLocked === true ||
-                                (hasSelectedTradeCard && voters.includes(currentPlayerIndex));
-                            sneakyButton.onclick = function () {
-                                game.toggleSneakyTrade(exchange, currentPlayerIndex);
-                            };
-                            buttonSpan.appendChild(sneakyButton);
                         }
                         if (isRecipient && exchange.mode == "Kan se") {
                             var receiveButton = document.createElement("button");
@@ -2072,6 +2056,9 @@ class GameLayout {
                                     isCardAllowedForExchange(activeExchange, k) &&
                                     activeExchange.cards.length < activeExchange.count;
                                 elemKort.disabled = !isSelectedForExchange && !canSelectForExchange;
+                                if (elemKort.disabled) {
+                                    elemKort.classList.add("is-unplayable");
+                                }
                                 if (!elemKort.disabled) {
                                 elemKort.tabIndex = 0;
                                 elemKort.setAttribute(

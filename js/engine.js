@@ -1312,7 +1312,7 @@ class PresidentGame extends Game {
             }
         }
     }
-    startOptionalTrade(offer, sneaky = false) {
+    startOptionalTrade(offer) {
         this.assertSessionActive();
         if (this.status != "G") { throw ("Spillet er ikke i bytte-modus."); }
         var offerId = getExchangeId(offer);
@@ -1330,12 +1330,9 @@ class PresidentGame extends Game {
         if (this.players.length != 3 || !isAuthorizedPair) {
             throw ("Denne bytteregelen gjelder bare President, Nøytral og Boms i et tre-spillers spill.");
         }
-        if (sneaky) {
-            if (!hasSneakyConsent(currentOffer)) {
-                throw ("Begge spillerne må samtykke til sneaky bytte.");
-            }
-        } else if (!hasLegalTradeCard(this, currentOffer.from, currentOffer) ||
-            !hasLegalTradeCard(this, currentOffer.to, currentOffer)) {
+        var sneaky = hasSneakyConsent(currentOffer);
+        if (!sneaky && (!hasLegalTradeCard(this, currentOffer.from, currentOffer) ||
+            !hasLegalTradeCard(this, currentOffer.to, currentOffer))) {
             throw ("Begge spillerne må ha et ledig kort fra 7 til J.");
         }
         this.piles.splice(this.piles.indexOf(currentOffer), 1);
@@ -1352,7 +1349,7 @@ class PresidentGame extends Game {
             mode: "Velg",
             cards: [],
             sneakyVotes: votes.slice(),
-            sneakyLocked: false
+            sneakyLocked: true
         });
         this.piles.push(
             createExchange(currentOffer.from, currentOffer.to),
@@ -1360,7 +1357,7 @@ class PresidentGame extends Game {
         );
         this.players[currentOffer.from].turn = 1;
         this.players[currentOffer.to].turn = 1;
-        if (!sneaky) { this.recordHumanAction(this.players[currentOffer.from]); }
+        this.recordHumanAction(this.players[currentOffer.from]);
         this.save();
     }
     skipOptionalTrade(offer, playerIndex) {
@@ -1387,8 +1384,7 @@ class PresidentGame extends Game {
         var current = this.piles.find(candidate =>
             getExchangeId(candidate) == getExchangeId(exchange)
         );
-        if (!current || current.kind != "playerTrade" ||
-            (current.mode != "Tilbud" && current.mode != "Velg")) {
+        if (!current || current.kind != "playerTrade" || current.mode != "Tilbud") {
             throw ("Sneaky-samtykke kan ikke endres nå.");
         }
         if (playerIndex != current.from && playerIndex != current.to) {
@@ -1411,11 +1407,7 @@ class PresidentGame extends Game {
             candidate.sneakyVotes = votes.slice();
         });
         this.recordHumanAction(this.players[playerIndex]);
-        if (current.mode == "Tilbud" && hasSneakyConsent(current)) {
-            this.startOptionalTrade(current, true);
-        } else {
-            this.save();
-        }
+        this.save();
     }
     advanceExchangeStage() {
         if (this.piles.length == 0) {

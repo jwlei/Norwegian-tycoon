@@ -120,7 +120,8 @@
             if (countdown.textContent != text) { countdown.textContent = text; }
             countdown.hidden = !active;
             var extend = document.getElementById("extendTurnButton");
-            extend.hidden = !active || deadline.extended || now >= deadline.until;
+            extend.hidden = !active || deadline.extended ||
+                GamePresence.hasExtendedThisRound(currentGame, player) || now >= deadline.until;
             extend.disabled = !online;
             var reclaim = document.getElementById("reclaimSeatButton");
             reclaim.hidden = !controlled || !player || player.playerKey == "PC";
@@ -706,6 +707,23 @@
             }
             showDialog("Spillogg", true);
             log.scrollTop = log.scrollHeight;
+        }
+
+        function notifyStartedTrades(game) {
+            if (game.status != "G") { return; }
+            if (!game.notifiedTrades) { game.notifiedTrades = new Set(); }
+            game.piles.forEach(exchange => {
+                if (exchange.kind != "playerTrade" || exchange.mode == "Tilbud") { return; }
+                var key = `${game.shuffleStartedAt}:${game.round}:${exchange.tradeId}`;
+                if (game.notifiedTrades.has(key)) { return; }
+                var participant = [game.players[exchange.from], game.players[exchange.to]]
+                    .some(player => player && player.name == currentPlayerName);
+                if (!participant) { return; }
+                game.notifiedTrades.add(key);
+                showGameToast(hasSneakyConsent(exchange)
+                    ? "Sneaky-samtykke nådd. Byttet starter med alle kort."
+                    : "Sneaky-samtykke ikke nådd. Byttet starter med kort 7–J.", game);
+            });
         }
 
         function showGameToast(message, game, duration = GAME_SPEED_MS[currentGameSpeed()], pauseId = null, endsTrick = false) {
@@ -1439,6 +1457,7 @@
                     }
                     GameLayout.updateSharedView(connectingGame, connectingGame.getPlayer(currentPlayerName));
                     GameLayout.updatePlayerView(connectingGame, connectingGame.getPlayer(currentPlayerName));
+                    notifyStartedTrades(connectingGame);
                     handleTurnPause(connectingGame);
                     handleRoundStartVote(connectingGame);
                     handleGameEndVote(connectingGame);
