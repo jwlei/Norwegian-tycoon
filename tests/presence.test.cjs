@@ -19,7 +19,7 @@ const human = (name, key) => ({ nick: name, spillerKey: key, plassering: 0 });
 function room() {
     return {
         status: "S", shuffleStartedAt: start - 10000, runde: 1, sinTur: 0, spillBunke: [],
-        spillere: [human("Owner", "owner"), human("Guest", "guest"), human("Third", "third")],
+        spillere: [human("Owner", "owner"), human("Guest", "guest")],
         hostKey: "owner", hostName: "Owner", turnPause: null, presence: {}
     };
 }
@@ -68,7 +68,7 @@ test("lobby readiness remains set for online tabs, bots and players without pres
     record.spillere.forEach(player => { player.ready = true; });
     session(record, 0, false);
     record.presence[Presence.playerId(record.spillere[0])].other = { online: true, changedAt: start };
-    session(record, record.spillere.length - 1, false);
+    session(record, 2, false);
     assert.equal(Presence.reconcile(record, start), undefined);
     assert.ok(record.spillere.every(player => player.ready));
 });
@@ -99,7 +99,7 @@ test("turns get exactly 120 seconds and expire at the precise deadline, not befo
     assert.equal(expired.spillere[0].spillerKey, "owner");
 });
 
-test("action deadlines require three active human players and stop when only two remain", () => {
+test("action deadlines require two active human players and stop when only one remains", () => {
     const owner = human("Owner", "owner");
     const bots = [human("Bot 1", "PC"), human("Bot 2", "PC"), human("Bot 3", "PC")];
     const solo = { ...room(), spillere: [owner, ...bots] };
@@ -107,11 +107,8 @@ test("action deadlines require three active human players and stop when only two
     assert.equal(Presence.reconcile(solo, start), undefined);
     assert.equal(Object.keys(solo.actionDeadlines || {}).length, 0);
 
-    const twoHumans = { ...solo, spillere: [...solo.spillere, human("Guest", "guest")] };
-    assert.equal(Presence.activeHumanCount(twoHumans), 2);
-    assert.equal(Presence.reconcile(twoHumans, start), undefined);
-    const multiplayer = { ...twoHumans, spillere: [...twoHumans.spillere, human("Third", "third")] };
-    assert.equal(Presence.activeHumanCount(multiplayer), 3);
+    const multiplayer = { ...solo, spillere: [...solo.spillere, human("Guest", "guest")] };
+    assert.equal(Presence.activeHumanCount(multiplayer), 2);
     const timed = Presence.reconcile(multiplayer, start);
     const ownerId = Presence.playerId(owner);
     assert.equal(timed.actionDeadlines[ownerId].until, start + 120000);
@@ -123,7 +120,7 @@ test("action deadlines require three active human players and stop when only two
         )
     };
     const untimed = Presence.reconcile(guestLeft, start + 1000);
-    assert.equal(Presence.activeHumanCount(guestLeft), 2);
+    assert.equal(Presence.activeHumanCount(guestLeft), 1);
     assert.equal(untimed.actionDeadlines[ownerId], undefined);
 });
 

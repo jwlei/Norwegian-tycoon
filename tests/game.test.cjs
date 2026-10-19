@@ -271,7 +271,7 @@ function turnTimerFixture() {
     const { GamePresence } = loadGame();
     const elements = {
         turnTimer: { hidden: true },
-        turnCountdown: { textContent: "" },
+        turnCountdown: { hidden: true, textContent: "" },
         extendTurnButton: { hidden: true, disabled: false }
     };
     const players = ["Owner", "Guest", "Third"].map(name => ({ name, playerKey: name }));
@@ -316,29 +316,35 @@ test("all players and spectators see the active human's full 2:00 to 0:00 countd
     assert.equal(fixture.render().turnCountdown.textContent, "0:00");
 });
 
-test("turn timers require at least three active humans, not bots or abandoned seats", () => {
+test("turn timers require at least two active humans, not bots or abandoned seats", () => {
     for (const update of [
         fixture => { fixture.game.players = fixture.players.slice(0, 1); },
-        fixture => { fixture.game.players = fixture.players.slice(0, 2); },
-        fixture => { fixture.players[2].playerKey = "PC"; },
-        fixture => { fixture.players[2].gaveUp = true; },
+        fixture => { fixture.players[1].playerKey = "PC"; },
+        fixture => { fixture.players[1].gaveUp = true; },
         fixture => {
             fixture.game.controllers = {
-                [fixture.GamePresence.playerId(fixture.players[2])]: { reason: "idle" }
+                [fixture.GamePresence.playerId(fixture.players[1])]: { reason: "idle" }
             };
         }
     ]) {
         const fixture = turnTimerFixture();
+        fixture.game.players = fixture.players.slice(0, 2);
         update(fixture);
         assert.equal(fixture.render().turnTimer.hidden, true);
+        assert.equal(fixture.elements.turnCountdown.hidden, true);
     }
+    const fixture = turnTimerFixture();
+    fixture.game.players = fixture.players.slice(0, 2);
+    assert.equal(fixture.render().turnTimer.hidden, false);
 });
 
-test("turn timers hide during pauses, inactive states and bot turns and follow turn changes", () => {
+test("turn timers show a placeholder between human turns and hide outside active games", () => {
     const fixture = turnTimerFixture();
     const { game, players, GamePresence } = fixture;
     game.turnPause = { until: 90000 };
-    assert.equal(fixture.render().turnTimer.hidden, true);
+    game.actionDeadlines = {};
+    assert.equal(fixture.render().turnTimer.hidden, false);
+    assert.equal(fixture.elements.turnCountdown.textContent, "–:–");
     game.turnPause = null;
     for (const status of ["O", "F", "V"]) {
         game.status = status;
@@ -346,16 +352,19 @@ test("turn timers hide during pauses, inactive states and bot turns and follow t
     }
     game.status = "S";
     game.turn = 1;
-    assert.equal(fixture.render().turnTimer.hidden, true);
+    assert.equal(fixture.render().turnTimer.hidden, false);
+    assert.equal(fixture.elements.turnCountdown.textContent, "–:–");
     game.actionDeadlines[GamePresence.playerId(players[1])] = { until: 180000 };
     assert.equal(fixture.render().turnCountdown.textContent, "1:40");
     game.players.push({ name: "Bot", playerKey: "PC" });
     game.turn = 3;
+    game.actionDeadlines = {};
     game.actionDeadlines[GamePresence.playerId(game.players[3])] = { until: 200000 };
-    assert.equal(fixture.render().turnTimer.hidden, true);
+    assert.equal(fixture.render().turnTimer.hidden, false);
+    assert.equal(fixture.elements.turnCountdown.textContent, "–:–");
 });
 
-test("exchange timers prefer the viewer's own deadline and only offer their own extension", () => {
+test("exchange timers show the earliest deadline but extensions use the viewer's own deadline", () => {
     const fixture = turnTimerFixture();
     fixture.game.status = "G";
     fixture.now = 180000;
@@ -363,8 +372,11 @@ test("exchange timers prefer the viewer's own deadline and only offer their own 
     assert.equal(fixture.elements.extendTurnButton.hidden, true);
     const guestId = fixture.GamePresence.playerId(fixture.players[1]);
     fixture.game.actionDeadlines[guestId] = { until: 205000 };
-    assert.equal(fixture.render("Guest").turnCountdown.textContent, "0:25");
+    assert.equal(fixture.render("Guest").turnCountdown.textContent, "0:20");
     assert.equal(fixture.elements.extendTurnButton.hidden, false);
+    fixture.game.actionDeadlines[guestId].until = 240000;
+    assert.equal(fixture.render("Guest").extendTurnButton.hidden, true);
+    fixture.game.actionDeadlines[guestId].until = 205000;
     fixture.game.actionDeadlines[guestId].extended = true;
     assert.equal(fixture.render("Guest").extendTurnButton.hidden, true);
     fixture.game.actionDeadlines[guestId].extended = false;

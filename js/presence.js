@@ -114,7 +114,7 @@ class GamePresence {
         var controllers = Object.assign({}, record.controllers);
         var deadlines = Object.assign({}, record.actionDeadlines);
         var notices = (record.connectionNotices || []).slice();
-        var timersEnabled = this.activeHumanCount(record) > 2;
+        var timersEnabled = this.activeHumanCount(record) > 1;
         players.forEach((player, index) => {
             if (player.spillerKey == "PC" || player.gaveUp === true) { return; }
             var id = this.playerId(player);

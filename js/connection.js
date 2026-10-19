@@ -103,28 +103,33 @@
             var countdown = document.getElementById("turnCountdown");
             var extend = document.getElementById("extendTurnButton");
             if (!timer || !countdown || !extend) { return; }
-            var localPlayer = currentGame && currentGame.getPlayer(currentPlayerName);
-            var deadlines = currentGame && currentGame.actionDeadlines || {};
-            var player = currentGame && (currentGame.status == "S"
-                ? (currentGame.turnPause == null ? currentGame.players[currentGame.turn] : null)
-                : currentGame.players.find(candidate => candidate == localPlayer &&
-                    deadlines[GamePresence.playerId(candidate)] && !GamePresence.isBot(currentGame, candidate)) ||
-                    currentGame.players.find(candidate =>
-                        deadlines[GamePresence.playerId(candidate)] && !GamePresence.isBot(currentGame, candidate)));
+            var player = currentGame && currentGame.getPlayer(currentPlayerName);
             var controlled = player && GamePresence.isBot(currentGame, player);
-            var deadline = player && deadlines[GamePresence.playerId(player)];
-            var now = connection ? connection.now() : Date.now();
-            var active = !!player && !!deadline && !controlled &&
-                GamePresence.activeHumanCount(currentGame) > 2 &&
+            var deadline = player && (currentGame.actionDeadlines || {})[GamePresence.playerId(player)];
+            var timerActive = !!currentGame &&
+                GamePresence.activeHumanCount(currentGame) > 1 &&
                 (currentGame.status == "S" || currentGame.status == "G");
-            var remaining = active ? Math.max(0, Math.ceil((deadline.until - now) / 1000)) : 0;
+            var timerDeadline = timerActive && (currentGame.players || [])
+                .filter(candidate => !candidate.gaveUp && !GamePresence.isBot(currentGame, candidate))
+                .map(candidate => (currentGame.actionDeadlines || {})[GamePresence.playerId(candidate)])
+                .filter(candidateDeadline => !!candidateDeadline)
+                .sort((first, second) => first.until - second.until)[0];
+            var now = connection ? connection.now() : Date.now();
+            var active = !!player && !!deadline && !controlled && timerActive;
+            var ownRemaining = active ? Math.max(0, Math.ceil((deadline.until - now) / 1000)) : 0;
+            var remaining = timerActive && timerDeadline
+                ? Math.max(0, Math.ceil((timerDeadline.until - now) / 1000))
+                : 0;
             var seconds = remaining % 60;
-            var text = active
-                ? `${Math.floor(remaining / 60)}:${seconds < 10 ? "0" : ""}${seconds}`
+            var text = timerActive
+                ? (timerDeadline
+                    ? `${Math.floor(remaining / 60)}:${seconds < 10 ? "0" : ""}${seconds}`
+                    : "–:–")
                 : "";
             if (countdown.textContent != text) { countdown.textContent = text; }
-            timer.hidden = !active;
-            extend.hidden = !active || player != localPlayer || remaining == 0 || remaining > 30 ||
+            countdown.hidden = !timerActive;
+            timer.hidden = !timerActive;
+            extend.hidden = !active || ownRemaining == 0 || ownRemaining > 30 ||
                 deadline.extended || GamePresence.hasExtendedThisRound(currentGame, player);
             extend.disabled = !currentGame || currentGame.connectionOnline === false;
         }
