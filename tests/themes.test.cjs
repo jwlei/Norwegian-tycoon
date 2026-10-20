@@ -15,9 +15,15 @@ test("rules separate player counts, keep voting on the voting screen, and transl
     assert.match(rules, /Spill alle kortene dine\./);
     assert.match(rules, /Kortstyrke:/);
     assert.doesNotMatch(rules, /Sneaky|h4cker|Lobby|lobby|Flertallet bestemmer/);
+    const playerBox = rules.match(/<section class="rules-player-box">([\s\S]*?)<\/section>/);
+    assert.ok(playerBox, "Player-count controls and rules share a bordered section");
+    assert.match(playerBox[1], /class="rules-player-options speed-options"/);
+    const boxStyles = css.match(/\.rules-player-box\s*\{([^}]+)\}/)[1];
+    assert.match(boxStyles, /border: 1px solid var\(--line\)/);
+    assert.match(boxStyles, /background: var\(--surface-soft\)/);
     for (const count of [2, 3, 4]) {
         assert.match(rules, new RegExp(`data-rules-players="${count}"`));
-        assert.match(rules, new RegExp(`id="rulesPlayers${count}"${count == 3 ? "" : " hidden"}`));
+        assert.match(playerBox[1], new RegExp(`id="rulesPlayers${count}"${count == 3 ? "" : " hidden"}`));
     }
     const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
     for (const [, paragraph] of rules.matchAll(/<p>([^<]+)<\/p>/g)) {

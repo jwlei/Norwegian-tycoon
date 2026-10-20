@@ -2654,6 +2654,12 @@ select:focus-visible {
 .rules-content li + li { margin-top: 6px; }
 .rules-content p { margin: 0; }
 .rules-content p + p { margin-top: 8px; }
+.rules-player-box {
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface-soft);
+}
 .rules-player-options { margin-bottom: 10px; }
 .round-start-vote__hint { color: var(--muted); font-size: 0.72rem; text-align: center; }
 .rules-content strong { color: var(--ink); }
