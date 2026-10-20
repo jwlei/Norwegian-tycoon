@@ -8,6 +8,7 @@ const { webcrypto } = require("node:crypto");
 function fixture() {
     const records = {};
     const cookies = new Map();
+    const transactions = { cold: false, beforeUpdate: null };
     const ref = name => ({
         child(key) { return ref(`${name}/${key}`); },
         async once() {
@@ -39,6 +40,10 @@ function fixture() {
             };
         },
         async transaction(update) {
+            if (transactions.cold && update(null) === undefined) {
+                return { committed: false, snapshot: { val: () => records[name] || null } };
+            }
+            if (transactions.beforeUpdate) { transactions.beforeUpdate(name); }
             const value = update(records[name] || null);
             if (value !== undefined) { records[name] = value; }
             return { committed: value !== undefined, snapshot: { val: () => records[name] || null } };
@@ -52,8 +57,92 @@ function fixture() {
     vm.runInContext(shared.slice(shared.indexOf("function generatePlayerKey()"),
         shared.indexOf("function getPlayerKey()")), context);
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "identity.js"), "utf8"), context);
-    return { identity: vm.runInContext("PlayerIdentity", context), records, ref, context, cookies };
+    return { identity: vm.runInContext("PlayerIdentity", context), records, ref, context, cookies, transactions };
 }
+
+test("two browsers can save Carl without PIN and keep separate persistent IDs", async () => {
+    const f = fixture();
+    const first = await f.identity.resolve("Carl", "Carl01");
+    const second = await f.identity.resolve("Carl", "Carl02");
+    assert.equal(first.playerKey, "Carl01");
+    assert.equal(second.playerKey, "Carl02");
+    assert.equal((await f.identity.resolve("Carl", first.playerKey)).playerKey, first.playerKey);
+    assert.equal((await f.identity.resolve("Carl", second.playerKey)).playerKey, second.playerKey);
+    assert.equal(Object.keys(f.records).some(key => key.startsWith("playerNames/")), false);
+    f.records[`playerNames/${await f.identity.nameKey("Carl")}`] = {
+        name: "Carl", noPinPlayerKey: "someone-else"
+    };
+    assert.equal((await f.identity.resolve("Carl", "Carl02", "", "Carl02")).playerKey, "Carl02");
+});
+
+test("PIN login from another named browser handles cold transactions and reordered fields", async () => {
+    for (const cold of [false, true]) {
+        const f = clientFixture();
+        const registered = await f.identity.resolve("C", "UserC1", "123456");
+        await f.context.applyPlayerIdentity("A");
+        const namePath = `playerNames/${await f.identity.nameKey("C")}`;
+        f.transactions.beforeUpdate = name => {
+            if (name == namePath) {
+                const record = f.records[name];
+                f.records[name] = { pinProfiles: record.pinProfiles, name: record.name };
+            }
+        };
+        f.transactions.cold = cold;
+        f.context.document.getElementById("playerUsePin").setAttribute("aria-pressed", "true");
+        f.context.document.getElementById("playerRecoveryPin").value = "123456";
+        await f.context.applyPlayerIdentity("C");
+        assert.equal(f.key, registered.playerKey);
+        assert.equal(f.cookies.get("playerPinKey"), registered.playerKey);
+    }
+});
+
+test("PIN transactions preserve concurrently added profiles but reject a conflicting credential", async () => {
+    const f = fixture();
+    const registered = await f.identity.resolve("C", "UserC1", "123456");
+    const namePath = `playerNames/${await f.identity.nameKey("C")}`;
+    const otherCredential = await f.identity.pinHash("654321", "norwegian-tycoon-profile-pin-v1");
+    f.transactions.beforeUpdate = name => {
+        if (name == namePath) {
+            f.records[name].pinProfiles[otherCredential] = { playerKey: "Other1", pinVersion: 2 };
+        }
+    };
+    assert.equal((await f.identity.resolve("C", "UserA1", "123456")).playerKey, registered.playerKey);
+    assert.equal(f.records[namePath].pinProfiles[otherCredential].playerKey, "Other1");
+    const credential = await f.identity.pinHash("123456", "norwegian-tycoon-profile-pin-v1");
+    f.transactions.beforeUpdate = name => {
+        if (name == namePath) { f.records[name].pinProfiles[credential].playerKey = "Race01"; }
+    };
+    await assert.rejects(f.identity.resolve("C", "UserA1", "123456"), /Profilen ble endret samtidig/);
+    assert.equal(f.records[namePath].pinProfiles[credential].playerKey, "Race01");
+});
+
+test("adding a PIN to Carl keeps this browser's statistics, not another Carl's legacy name mapping", async () => {
+    const f = fixture();
+    const namePath = `playerNames/${await f.identity.nameKey("Carl")}`;
+    f.records[namePath] = { name: "Carl", noPinPlayerKey: "Carl01" };
+    f.records["playerStats/Carl01"] = { name: "Carl", presidentWins: 20 };
+    f.records["playerStats/Carl02"] = { name: "Carl", presidentWins: 5 };
+    const saved = await f.identity.resolve("Carl", "Carl02", "123456");
+    assert.equal(saved.playerKey, "Carl02");
+    assert.equal((await f.identity.resolve("Carl", "Fresh1", "123456")).playerKey, "Carl02");
+    assert.equal(await f.identity.winsForName("Carl", "Carl02"), 5);
+    assert.equal(f.records[namePath].noPinPlayerKey, "Carl01");
+    assert.equal(f.records["playerStats/Carl01"].presidentWins, 20);
+});
+
+test("name-only saves in the name dialog keep the joined player's cookie and ID", async () => {
+    const f = clientFixture();
+    f.context.setCookie("SpillerKey", "Carl02");
+    f.context.currentPlayerName = "A";
+    f.records["playerStats/Carl02"] = { name: "A", presidentWins: 5 };
+    f.records[`playerNames/${await f.identity.nameKey("Carl")}`] = {
+        name: "Carl", noPinPlayerKey: "Carl01"
+    };
+    await f.context.applyPlayerIdentity("Carl");
+    assert.equal(f.key, "Carl02");
+    assert.equal(f.records["playerStats/Carl02"].name, "Carl");
+    assert.equal(f.records["playerStats/Carl02"].presidentWins, 5);
+});
 
 test("names are case-insensitive and Unicode-normalized, with Firebase-safe keys", async () => {
     const { identity } = fixture();
@@ -91,23 +180,24 @@ test("production HTTP redirects to HTTPS preserving game links without redirecti
     assert.ok(html.indexOf('id="requireProductionHttps"') < html.indexOf('src="js/identity.js'));
 });
 
-test("a name restores its existing player ID and statistics on a clean browser", async () => {
+test("name-only saves retain the browser ID rather than recovering another player's statistics", async () => {
     const { identity, records } = fixture();
     records["playerStats/original"] = { name: "Ada", names: ["Ada"], presidentWins: 50 };
     const initial = await identity.resolve("Ada", "original");
     assert.equal(initial.playerKey, "original");
     const recovered = await identity.resolve(" ada ", "clean-browser");
-    assert.equal(recovered.playerKey, "original");
-    assert.equal(await identity.winsForName("ADA", "clean-browser"), 50);
-    assert.equal(await identity.winsForName("Someone Else", "original"), 0);
+    assert.notEqual(recovered.playerKey, "original");
+    assert.equal(await identity.winsForName("ADA", recovered.playerKey), 0);
+    assert.equal(await identity.winsForName("Someone Else", "original"), 50);
+    assert.equal(Object.keys(records).some(key => key.startsWith("playerNames/")), false);
 });
 
-test("legacy recovery supports old aliases, changed casing and refuses ambiguous IDs", async () => {
+test("legacy name-only aliases cannot recover or block another browser's identity", async () => {
     const { identity, records } = fixture();
     records["playerStats/old"] = { name: "Ada Lovelace", names: ["Ada", "Ada Lovelace"], presidentWins: 10 };
-    assert.equal((await identity.resolve("ADA", "fresh")).playerKey, "old");
+    assert.notEqual((await identity.resolve("ADA", "Fresh1")).playerKey, "old");
     records["playerStats/other"] = { name: "Ada Lovelace", presidentWins: 20 };
-    await assert.rejects(identity.resolve("Ada Lovelace", "fresh"), /Flere gamle profiler/);
+    assert.equal((await identity.resolve("Ada Lovelace", "Fresh1")).playerKey, "Fresh1");
 });
 
 test("PIN recovery verifies salted hashes without storing plaintext and retains statistics", async () => {
@@ -162,9 +252,11 @@ test("fresh registration replaces old long browser IDs with reserved six-charact
         assert.notEqual(f.key, oldKey);
         assert.ok(f.records[`playerIds/${f.key}`]);
         const registered = f.key;
-        assert.equal((await f.identity.resolve("Ada", "different-browser", pin)).playerKey, registered);
+        const another = await f.identity.resolve("Ada", "different-browser", pin);
+        if (pin) { assert.equal(another.playerKey, registered); }
+        else { assert.notEqual(another.playerKey, registered); }
         const record = f.records[`playerNames/${await f.identity.nameKey("Ada")}`];
-        assert.ok(!JSON.stringify(record).includes(oldKey));
+        assert.ok(!JSON.stringify(record || {}).includes(oldKey));
     }
 });
 
@@ -249,7 +341,8 @@ test("appearance statistics follow the recovered ID and aliases without losing r
     await identity.resolve("Ada", "original");
     await identity.resolve("Grace", "original");
     for (const name of ["Ada", "Grace"]) {
-        assert.deepEqual({ ...await identity.statsForName(name, "fresh") }, { presidentWins: 50, roundsPlayed: 15 });
+        assert.deepEqual({ ...await identity.statsForName(name, "original") }, { presidentWins: 50, roundsPlayed: 15 });
+        assert.deepEqual({ ...await identity.statsForName(name, "fresh") }, { presidentWins: 0, roundsPlayed: 0 });
     }
     assert.deepEqual({ ...await identity.statsForName("player", "original") }, { presidentWins: 0, roundsPlayed: 0 });
     assert.deepEqual({ ...await identity.statsForName("Unknown", "fresh") }, { presidentWins: 0, roundsPlayed: 0 });
@@ -260,8 +353,8 @@ test("switching to a new name keeps the same player ID and its total wins", asyn
     records["playerStats/original"] = { name: "Ada", presidentWins: 5 };
     await identity.resolve("Ada", "original", "123456");
     await identity.resolve("Grace", "original");
-    assert.equal((await identity.resolve("Grace", "another-browser")).playerKey, "original");
-    assert.equal(await identity.winsForName("Grace", "another-browser"), 5);
+    assert.notEqual((await identity.resolve("Grace", "another-browser")).playerKey, "original");
+    assert.equal(await identity.winsForName("Grace", "original"), 5);
 });
 
 test("changing name in a lobby cannot change account or overwrite another profile's PIN", async () => {
@@ -294,16 +387,17 @@ test("existing salted PIN records migrate on matching login without changing the
     assert.equal((await identity.resolve("Ada", "fresh", "654321")).playerKey, different.playerKey);
 });
 
-test("turning PIN off uses a separate name-only profile without exposing the PIN profile's statistics", async () => {
+test("name-only saves keep the current ID but do not recover a PIN profile on another browser", async () => {
     const { identity, records } = fixture();
     const registered = await identity.resolve("Ada", "original", "123456");
     records[`playerStats/${registered.playerKey}`] = { name: "Ada", roundsPlayed: 100, presidentWins: 50 };
     const withoutPin = await identity.resolve("Ada", registered.playerKey);
-    assert.notEqual(withoutPin.playerKey, registered.playerKey);
+    assert.equal(withoutPin.playerKey, registered.playerKey);
     assert.equal(withoutPin.hasPin, false);
-    assert.equal((await identity.resolve("Ada", "fresh")).playerKey, withoutPin.playerKey);
+    const fresh = await identity.resolve("Ada", "fresh");
+    assert.notEqual(fresh.playerKey, withoutPin.playerKey);
     assert.equal((await identity.resolve("Ada", "fresh", "123456")).playerKey, registered.playerKey);
-    assert.equal(await identity.winsForName("Ada", withoutPin.playerKey), 0);
+    assert.equal(await identity.winsForName("Ada", fresh.playerKey), 0);
 });
 
 test("enabling PIN on an existing name-only profile preserves its statistics", async () => {
@@ -376,6 +470,9 @@ function clientFixture() {
 test("restoring an ID from the name dialog updates cookies and clears the previous wins", async () => {
     const f = clientFixture();
     f.records["playerStats/original"] = { name: "Ada", presidentWins: 10 };
+    await f.identity.resolve("Ada", "original", "000123");
+    f.context.document.getElementById("playerUsePin").setAttribute("aria-pressed", "true");
+    f.context.document.getElementById("playerRecoveryPin").value = "000123";
     await f.context.applyPlayerIdentity("Ada");
     assert.equal(f.key, "original");
     assert.equal(f.context.playerPresidentWins, 0);
@@ -511,7 +608,7 @@ test("an enabled PIN rejects invalid length while disabling PIN ignores the hidd
     await assert.rejects(f.context.applyPlayerIdentity("Ada"), /6 sifre/);
     toggle.setAttribute("aria-pressed", "false");
     await f.context.applyPlayerIdentity("Ada");
-    assert.equal((await f.identity.resolve("Ada", "fresh")).playerKey, f.key);
+    assert.equal((await f.identity.resolve("Ada", f.key)).playerKey, f.key);
 });
 
 test("name dialog has one optional PIN input and no repeat or separate registration controls", () => {
@@ -530,6 +627,9 @@ test("name dialog has one optional PIN input and no repeat or separate registrat
 test("restoring an ID while creating an empty lobby transfers its host atomically", async () => {
     const f = clientFixture();
     f.records["playerStats/original"] = { name: "Ada", presidentWins: 10 };
+    await f.identity.resolve("Ada", "original", "000123");
+    f.context.document.getElementById("playerUsePin").setAttribute("aria-pressed", "true");
+    f.context.document.getElementById("playerRecoveryPin").value = "000123";
     f.records["rooms/test"] = { status: "O", hostKey: "clean-browser", spillere: [] };
     f.context.pendingNewGameName = true;
     f.context.currentGame = { status: "O", players: [], creation: Promise.resolve(), databaseRef: f.ref("rooms/test") };
@@ -542,6 +642,9 @@ test("restoring an ID while creating an empty lobby transfers its host atomicall
 test("a lobby changed during recovery is not overwritten and leaves the old cookie intact", async () => {
     const f = clientFixture();
     f.records["playerStats/original"] = { name: "Ada", presidentWins: 10 };
+    await f.identity.resolve("Ada", "original", "000123");
+    f.context.document.getElementById("playerUsePin").setAttribute("aria-pressed", "true");
+    f.context.document.getElementById("playerRecoveryPin").value = "000123";
     f.records["rooms/test"] = { status: "S", hostKey: "clean-browser", spillere: [] };
     f.context.pendingNewGameName = true;
     f.context.currentGame = { status: "O", players: [], creation: Promise.resolve(), databaseRef: f.ref("rooms/test") };

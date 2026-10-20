@@ -92,30 +92,18 @@ const PlayerIdentity = {
             return Object.assign({}, record, { name: name.trim(), names, nameUpdatedAt: updatedAt });
         }, undefined, false);
     },
-    async findLegacyKey(name, playerKey) {
-        const ref = firebase.database().ref("playerStats");
-        const own = (await ref.child(playerKey).once("value")).val();
-        const normalized = this.normalizeName(name);
-        if (own && [own.name, ...(Array.isArray(own.names) ? own.names : [])]
-            .some(value => this.normalizeName(value) == normalized)) { return playerKey; }
-        const snapshot = await ref.orderByChild("name").equalTo(name.trim()).limitToFirst(2).once("value");
-        let keys = Object.keys(snapshot.val() || {}).filter(key => key != "PC");
-        if (keys.length < 2) {
-            // Old records have no normalized name index; only unregistered names need this migration scan.
-            const records = (await ref.once("value")).val() || {};
-            keys = Object.keys(records).filter(key => key != "PC" &&
-                [records[key].name, ...(Array.isArray(records[key].names) ? records[key].names : [])]
-                    .some(value => this.normalizeName(value) == normalized));
-        }
-        if (keys.length > 1) {
-            throw new Error("Flere gamle profiler har dette navnet. Bruk enheten du spilte med, eller kontakt administrator.");
-        }
-        return keys[0] || null;
-    },
     async resolve(name, playerKey, pin = "", expectedKey = null, inheritedCredential = null) {
         if (this.isDefaultName(name)) {
             if (pin || inheritedCredential) { throw new Error("Velg et eget spillernavn før du bruker PIN."); }
             return { playerKey, hasPin: false };
+        }
+        if (!pin && !inheritedCredential) {
+            const resolvedKey = await this.registrationKey(playerKey);
+            if (expectedKey != null && resolvedKey != expectedKey) {
+                throw new Error("Dette navnet tilhører en annen spiller-ID. Gå til hovedmenyen før du henter profilen.");
+            }
+            await this.updatePlayerName(name, resolvedKey);
+            return { playerKey: resolvedKey, hasPin: false };
         }
         const nameKey = await this.nameKey(name);
         const ref = firebase.database().ref(`playerNames/${nameKey}`);
@@ -131,11 +119,9 @@ const PlayerIdentity = {
             await this.pinHash(pin, previous.pinSalt) == previous.pinHash;
         const unprotectedKey = previous && (previous.noPinPlayerKey ||
             (!previous.pinHash && previous.playerKey)) || null;
-        let resolvedKey = credential
-            ? profiles[credential] && profiles[credential].playerKey ||
-                (oldCredential && profiles[oldCredential] && profiles[oldCredential].playerKey) ||
-                (legacyMatch ? previous.playerKey : null)
-            : unprotectedKey;
+        let resolvedKey = profiles[credential] && profiles[credential].playerKey ||
+            (oldCredential && profiles[oldCredential] && profiles[oldCredential].playerKey) ||
+            (legacyMatch ? previous.playerKey : null);
         if (pin && pin.length != 6 && !resolvedKey) {
             throw new Error("Nye PIN må ha 6 sifre. Eldre PIN virker bare for eksisterende profiler.");
         }
@@ -153,26 +139,37 @@ const PlayerIdentity = {
         }
         if (!resolvedKey) {
             if (!previous) {
-                resolvedKey = await this.findLegacyKey(name, playerKey);
-                if (!resolvedKey) {
-                    resolvedKey = await this.registrationKey(playerKey);
-                }
-            } else if (pin && unprotectedKey && Object.keys(profiles).length == 0 && !previous.pinHash) {
+                resolvedKey = await this.registrationKey(playerKey);
+            } else if (pin && unprotectedKey == playerKey && Object.keys(profiles).length == 0 && !previous.pinHash) {
                 resolvedKey = unprotectedKey;
-            } else {
+            } else if ((previous.pinHash && previous.playerKey == playerKey) ||
+                Object.values(profiles).some(profile => profile.playerKey == playerKey)) {
                 resolvedKey = await this.allocatePlayerKey();
+            } else {
+                resolvedKey = await this.registrationKey(playerKey);
             }
         }
         if (expectedKey != null && resolvedKey != expectedKey) {
             throw new Error("Dette navnet tilhører en annen spiller-ID. Gå til hovedmenyen før du henter profilen.");
         }
         const result = await ref.transaction(record => {
-            if (JSON.stringify(record || null) != JSON.stringify(previous || null)) { return; }
+            const currentProfiles = record && record.pinProfiles || {};
+            const currentProfile = currentProfiles[credential];
+            if (currentProfile && currentProfile.playerKey != resolvedKey) { return; }
+            if (inheritedCredential && !pin && record && (
+                (record.pinHash && record.playerKey != playerKey) ||
+                Object.values(currentProfiles).some(profile => profile.pinVersion != 2 && profile.playerKey != playerKey)
+            )) { return; }
+            if (record && oldCredential && currentProfiles[oldCredential] &&
+                currentProfiles[oldCredential].playerKey != resolvedKey) { return; }
+            if (record && legacyMatch &&
+                (record.playerKey != previous.playerKey || record.pinHash != previous.pinHash ||
+                    record.pinSalt != previous.pinSalt)) { return; }
             return Object.assign({}, record || {}, {
                 name: name.trim(),
-                ...(credential ? { pinProfiles: Object.assign({}, profiles, {
+                pinProfiles: Object.assign({}, currentProfiles, {
                     [credential]: { playerKey: resolvedKey, pinVersion: 2 }
-                }) } : { noPinPlayerKey: resolvedKey })
+                })
             });
         }, undefined, false);
         if (!result.committed) { throw new Error("Profilen ble endret samtidig. Prøv igjen."); }
@@ -186,16 +183,7 @@ const PlayerIdentity = {
     async statsForName(name, playerKey) {
         const empty = { presidentWins: 0, roundsPlayed: 0 };
         if (this.isDefaultName(name)) { return empty; }
-        const record = (await firebase.database().ref(`playerNames/${await this.nameKey(name)}`).once("value")).val();
-        const profileKeys = record ? [
-            record.playerKey, record.noPinPlayerKey,
-            ...Object.values(record.pinProfiles || {}).map(profile => profile.playerKey)
-        ] : [];
-        const key = record
-            ? profileKeys.includes(playerKey) ? playerKey : record.noPinPlayerKey || (!record.pinHash ? record.playerKey : null)
-            : await this.findLegacyKey(name, playerKey);
-        if (!key) { return empty; }
-        const stats = (await firebase.database().ref(`playerStats/${key}`).once("value")).val();
+        const stats = (await firebase.database().ref(`playerStats/${playerKey}`).once("value")).val();
         const count = field => stats && Number.isSafeInteger(stats[field]) && stats[field] >= 0 ? stats[field] : 0;
         return { presidentWins: count("presidentWins"), roundsPlayed: count("roundsPlayed") };
     },

@@ -33,6 +33,8 @@
         "Nettleseren gir ikke tilgang til Web Crypto. Åpne https://playboms.eu direkte i en oppdatert nettleser og prøv igjen.": "The browser does not provide Web Crypto access. Open https://playboms.eu directly in an up-to-date browser and try again.",
         "Ikke gjenbruk en viktig PIN fra andre steder, dette er enkel spillgjenoppretting.": "Do not reuse an important PIN from elsewhere, this is simple game recovery.",
         "Bruk PIN for å hente tilbake opplåsinger og statistikk.": "Use PIN to restore your unlocks and statistics.",
+        "Uten PIN lagres profilen på denne enheten. Flere spillere kan bruke samme navn.": "Without a PIN, your profile stays on this device. Multiple players can use the same name.",
+        "Bruk navn og PIN for å hente profilen på en annen enhet.": "Use your name and PIN to restore your profile on another device.",
         "PIN må ha 6 sifre. Eldre PIN kan fortsatt brukes til gjenoppretting.": "The PIN must have 6 digits. Older PINs can still be used for recovery.",
         "Nye PIN må ha 6 sifre. Eldre PIN virker bare for eksisterende profiler.": "New PINs must have 6 digits. Older PINs only work for existing profiles.",
         "Ugyldig lagret PIN-profil. Logg inn med navn og PIN på nytt.": "Invalid saved PIN profile. Sign in with your name and PIN again.",
