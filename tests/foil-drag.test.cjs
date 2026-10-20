@@ -99,6 +99,7 @@ function fixture() {
     const types = vm.runInContext("({ Card, PresidentCard, PresidentPlayer, PresidentGame, GameLayout })", context);
     return { context, types, preferences, nodes, body, timers,
         set now(value) { now = value; }, set reducedMotion(value) { reducedMotion = value; },
+        get pendingFrames() { return frames.size; },
         runFrame(time) {
             const pending = Array.from(frames.values());
             frames.clear();
@@ -296,6 +297,17 @@ test("foil overlays cover the full card surface and settings share one card prev
     assert.match(themeCss, /\.table-deck \.table-play__card > img\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%;/);
 });
 
+test("foil reduces light and pattern movement by twenty percent with 400ms easing", () => {
+    const css = fs.readFileSync(path.join(__dirname, "..", "css", "foil.css"), "utf8");
+    for (const axis of ["x", "y"]) {
+        assert.ok(css.includes(`--foil-${axis}: calc(50% + (var(--pointer-${axis}, 50%) - 50%) * .8);`));
+    }
+    assert.match(css, /background-position:\s*center, 0% var\(--foil-y\),\s*var\(--foil-x\) var\(--foil-y\), center;/);
+    assert.match(css, /transition: opacity 400ms ease, background-position 400ms ease-out;/);
+    assert.match(css, /transition: opacity 400ms ease;/);
+    assert.match(css, /\.is-tilting::before,[\s\S]*?opacity: \.72;/);
+});
+
 test("touch-dragging a foil preview tracks its pointer without selecting its option", () => {
     const f = fixture();
     const connection = source("connection.js");
@@ -359,6 +371,7 @@ test("drag previews escape hand clipping, follow both axes without a distance ca
     f.context.moveCardDragPreview(hand, { clientX: 360, clientY: 110 }, 100, 500);
     assert.equal(first._dragPreview.properties.get("--tilt-x"), "0deg");
     assert.equal(first._dragPreview.properties.get("--drag-scale"), "1");
+    assert.equal(f.pendingFrames, 0);
     f.context.clearCardDragPreview(hand);
     assert.equal(f.body.children.length, 0);
     assert.equal(first._dragPreview, undefined);
@@ -366,22 +379,81 @@ test("drag previews escape hand clipping, follow both axes without a distance ca
     assert.equal(f.nodes.get("gameTable").classList.contains("is-card-drop-target"), false);
 });
 
-test("horizontal drag previews stay level in either direction", () => {
+test("velocity tilt inverts both axes, clamps and settles all selected cards together", () => {
     const f = fixture();
     const hand = new Element();
     const card = new Element();
     card.dataset = { cardKey: "1:5", cardStyle: "normal", foil: "none" };
     card.className = "game-card";
-    hand.appendChild(card);
-    vm.runInContext('selectedCardKeys.add("1:5")', f.context);
+    const second = card.cloneNode(true);
+    const third = card.cloneNode(true);
+    second.dataset.cardKey = "2:5";
+    third.dataset.cardKey = "3:5";
+    hand.append(card, second, third);
+    vm.runInContext('["1:5", "2:5", "3:5"].forEach(key => selectedCardKeys.add(key))', f.context);
     f.context.startCardDragPreview(hand, { clientX: 100, clientY: 100 });
-    f.now = 1020;
-    f.context.moveCardDragPreview(hand, { clientX: 200, clientY: 100 }, 100, 100);
+    f.context.moveCardDragPreview(hand, { clientX: 200, clientY: 20 }, 100, 100);
+    f.runFrame(1016);
+    const pitch = parseFloat(card._dragPreview.properties.get("--tilt-x"));
+    const yaw = parseFloat(card._dragPreview.properties.get("--tilt-y"));
+    assert.ok(pitch > 0 && pitch < 18);
+    assert.ok(yaw < 0 && yaw > -18);
+    assert.ok(Math.abs(hand._cardDragPreview.pitch + hand._cardDragPreview.yaw * 0.7) < 1e-10);
+    assert.ok(parseFloat(card._dragPreview.properties.get("--pointer-x")) < 50);
+    assert.ok(parseFloat(card._dragPreview.properties.get("--pointer-y")) < 50);
+    assert.equal(card._dragPreview.classList.contains("is-tilting"), true);
+    for (const selected of [second, third]) {
+        assert.ok(parseFloat(selected._dragPreview.properties.get("--tilt-x")) > pitch);
+        assert.equal(selected._dragPreview.properties.get("--tilt-y"), `${yaw.toFixed(2)}deg`);
+        assert.equal(selected._dragPreview.properties.get("--pointer-x"), card._dragPreview.properties.get("--pointer-x"));
+        assert.ok(parseFloat(selected._dragPreview.properties.get("--pointer-y")) <
+            parseFloat(card._dragPreview.properties.get("--pointer-y")));
+    }
+    assert.ok(parseFloat(third._dragPreview.properties.get("--tilt-x")) >
+        parseFloat(second._dragPreview.properties.get("--tilt-x")));
+    f.runFrame(1032);
+    assert.ok(Math.abs(hand._cardDragPreview.targetPitch) < 18);
+    f.context.moveCardDragPreview(hand, { clientX: -10000, clientY: 10000 }, 100, 100);
+    f.runFrame(1048);
+    assert.ok(parseFloat(card._dragPreview.properties.get("--tilt-x")) > 0,
+        "a brief direction reversal must ease through the existing rotation rather than snap");
+    for (let time = 1064; time < 2600; time += 16) { f.runFrame(time); }
+    assert.equal(card._dragPreview.properties.get("--tilt-x"), "0deg");
     assert.equal(card._dragPreview.properties.get("--tilt-y"), "0deg");
-    f.now = 1040;
-    f.context.moveCardDragPreview(hand, { clientX: 0, clientY: 100 }, 100, 100);
-    assert.equal(card._dragPreview.properties.get("--tilt-y"), "0deg");
+    assert.equal(card._dragPreview.properties.get("--pointer-x"), "50.00%");
+    assert.equal(card._dragPreview.properties.get("--pointer-y"), "50.00%");
+    assert.equal(card._dragPreview.classList.contains("is-tilting"), false);
+    for (const selected of [second, third]) {
+        assert.equal(selected._dragPreview.properties.get("--tilt-x"), "0deg");
+        assert.equal(selected._dragPreview.properties.get("--pointer-y"), "50.00%");
+    }
+    assert.equal(f.pendingFrames, 0);
     f.context.clearCardDragPreview(hand);
+});
+
+test("drag tilt is driven by frame velocity rather than total drag distance", () => {
+    function pitchForFrameDuration(elapsed) {
+        const f = fixture();
+        const hand = new Element();
+        const card = new Element();
+        card.dataset = { cardKey: "1:5", cardStyle: "normal", foil: "none" };
+        card.className = "game-card";
+        hand.appendChild(card);
+        vm.runInContext('selectedCardKeys.add("1:5")', f.context);
+        f.context.startCardDragPreview(hand, { clientX: 100, clientY: 100 });
+        const drag = hand._cardDragPreview;
+        drag.lastFrameTime = 1000;
+        f.context.moveCardDragPreview(hand, { clientX: 100, clientY: 99.75 }, 100, 100);
+        f.runFrame(1000 + elapsed);
+        const blend = 1 - Math.exp(-elapsed / 120);
+        const targetBlend = 1 - Math.exp(-elapsed / 100);
+        const target = drag.pitch / blend / targetBlend;
+        f.context.clearCardDragPreview(hand);
+        assert.equal(f.pendingFrames, 0);
+        return target;
+    }
+    assert.ok(Math.abs(pitchForFrameDuration(16) - 7.875) < 1e-10);
+    assert.ok(Math.abs(pitchForFrameDuration(32) - 3.9375) < 1e-10);
 });
 
 test("a non-board release glides drag previews back before restoring the hand cards", () => {
@@ -547,7 +619,7 @@ test("selected cards drag on diagonal gestures and scroll only on deliberate sid
     assert.equal(scroll.state.plays, 0);
 });
 
-test("dragged foil cards preserve their preview angle while returning", () => {
+test("releasing a tilted card interpolates back to zero and cancels the frame on cleanup", () => {
     const f = fixture();
     const hand = new Element();
     const card = new Element();
@@ -558,12 +630,17 @@ test("dragged foil cards preserve their preview angle while returning", () => {
     f.context.startCardDragPreview(hand, { clientX: 100, clientY: 100 });
     f.now = 1020;
     f.context.moveCardDragPreview(hand, { clientX: 140, clientY: 130 }, 100, 100);
+    f.runFrame(1016);
     let preview = card._dragPreview;
-    assert.equal(preview.style.getPropertyValue("--tilt-x"), "0deg");
-    assert.equal(preview.style.getPropertyValue("--tilt-y"), "0deg");
+    const pitch = Math.abs(parseFloat(preview.style.getPropertyValue("--tilt-x")));
+    assert.ok(pitch > 0);
     f.context.returnCardDragPreview(hand);
-    assert.equal(card._dragPreview.properties.get("--tilt-y"), "0deg");
+    for (let time = 1032; time <= 1304; time += 16) { f.runFrame(time); }
+    assert.ok(Math.abs(parseFloat(preview.style.getPropertyValue("--tilt-x"))) < pitch);
     f.timers.at(-1).callback();
+    assert.equal(f.pendingFrames, 0);
+    f.runFrame(1048);
+    assert.equal(hand._cardDragPreview, null);
 });
 
 test("a brief diagonal drift does not lock a vertical flick into hand scrolling", () => {
@@ -633,7 +710,7 @@ test("the final flick stroke can span several pointer events", () => {
     assert.equal(flick.state.plays, 1);
 });
 
-test("gameplay cards stay level, and cancellation or lost capture clears all drag visuals", () => {
+test("hover leaves cards level, and cancellation or lost capture clears drag tilt", () => {
     const f = pointerFixture({ desktop: true });
     f.hand.onpointermove(f.event(300, 200));
     assert.equal(f.card.classList.contains("is-tilting"), false);
@@ -647,10 +724,13 @@ test("gameplay cards stay level, and cancellation or lost capture clears all dra
     for (const cancel of ["onpointercancel", "onlostpointercapture"]) {
         f.hand.onpointerdown(f.event(100, 500));
         f.hand.onpointermove(f.event(200, 200));
+        f.runFrame(1016);
+        assert.notEqual(f.card._dragPreview.properties.get("--tilt-x"), "0deg");
         assert.equal(f.body.children.length, 1);
         f.hand[cancel](f.event(200, 200));
         assert.equal(f.body.children.length, 0);
         assert.equal(f.card.classList.contains("is-pressed"), false);
         assert.equal(f.state.plays, 0);
+        f.runFrame(1032);
     }
 });

@@ -7,13 +7,15 @@
     --foil-radius: 11.15% / 7.38%;
     --foil-angle: 133deg;
     --foil-space: 5%;
+    --foil-x: calc(50% + (var(--pointer-x, 50%) - 50%) * .8);
+    --foil-y: calc(50% + (var(--pointer-y, 50%) - 50%) * .8);
     --foil-spectrum: repeating-linear-gradient(0deg,
         #ff7773 5%, #ffed5f 10%, #a8ff5f 15%, #83fff7 20%,
         #7894ff 25%, #d875ff 30%, #ff7773 35%);
     --foil-texture: repeating-linear-gradient(45deg, #fff3 0 1px, #0002 1px 3px, transparent 3px 7px);
     --foil-bars: repeating-linear-gradient(var(--foil-angle),
         #0e152e 0%, #8faaaa 3.8%, #8fc2c2 4.5%, #8faaaa 5.2%, #0e152e 10% 12%);
-    --foil-light: radial-gradient(farthest-corner circle at var(--pointer-x, 50%) var(--pointer-y, 50%),
+    --foil-light: radial-gradient(farthest-corner circle at var(--foil-x) var(--foil-y),
         #fff9 5%, #9995 40%, #000 100%);
     --foil-blend: screen, hue, hard-light;
     --foil-filter: brightness(.8) contrast(2.95) saturate(.5);
@@ -42,14 +44,14 @@
     pointer-events: none;
     background-image: var(--foil-texture), var(--foil-spectrum), var(--foil-bars), var(--foil-light);
     background-size: var(--foil-size);
-    background-position: center, 0% var(--pointer-y, 50%),
-        var(--pointer-x, 50%) var(--pointer-y, 50%), center;
+    background-position: center, 0% var(--foil-y),
+        var(--foil-x) var(--foil-y), center;
     background-blend-mode: var(--foil-blend);
     filter: var(--foil-filter);
     mix-blend-mode: var(--foil-mix);
     opacity: .48;
     animation: none;
-    transition: opacity 180ms ease;
+    transition: opacity 400ms ease, background-position 400ms ease-out;
 }
 
 :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"])::after {
@@ -59,11 +61,11 @@
     border-radius: var(--foil-radius);
     content: "";
     pointer-events: none;
-    background: radial-gradient(farthest-corner circle at var(--pointer-x, 50%) var(--pointer-y, 50%),
+    background: radial-gradient(farthest-corner circle at var(--foil-x) var(--foil-y),
         #fff8 0%, #fff2 25%, transparent 65%);
     mix-blend-mode: soft-light;
     opacity: .3;
-    transition: opacity 180ms ease;
+    transition: opacity 400ms ease;
 }
 
 :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]).is-tilting::before,

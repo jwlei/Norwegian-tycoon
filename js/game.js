@@ -356,13 +356,63 @@ function startCardDragPreview(hand, event) {
         cards.push(card);
     });
     document.body.appendChild(layer);
-    hand._cardDragPreview = { layer, cards };
+    hand._cardDragPreview = {
+        layer, cards, pointerX: event.clientX, pointerY: event.clientY,
+        sampledX: event.clientX, sampledY: event.clientY,
+        pitch: 0, yaw: 0, targetPitch: 0, targetYaw: 0,
+        frame: null, lastFrameTime: null, returning: false
+    };
+}
+
+function animateCardDragTilt(drag, time) {
+    drag.frame = null;
+    var elapsed = drag.lastFrameTime == null ? 16 : Math.max(1, time - drag.lastFrameTime);
+    drag.lastFrameTime = time;
+    var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var velocityX = (drag.pointerX - drag.sampledX) / Math.max(16, elapsed);
+    var velocityY = (drag.pointerY - drag.sampledY) / Math.max(16, elapsed);
+    drag.sampledX = drag.pointerX;
+    drag.sampledY = drag.pointerY;
+    var targetPitch = drag.returning || reducedMotion ? 0 : Math.max(-18, Math.min(18, -velocityY * 720)) * 0.7;
+    var targetYaw = drag.returning || reducedMotion ? 0 : Math.max(-18, Math.min(18, -velocityX * 720));
+    var targetBlend = 1 - Math.exp(-elapsed / 100);
+    drag.targetPitch = reducedMotion || drag.returning ? 0 : drag.targetPitch + (targetPitch - drag.targetPitch) * targetBlend;
+    drag.targetYaw = reducedMotion || drag.returning ? 0 : drag.targetYaw + (targetYaw - drag.targetYaw) * targetBlend;
+    var blend = 1 - Math.exp(-elapsed / 120);
+    drag.pitch = reducedMotion ? 0 : drag.pitch + (drag.targetPitch - drag.pitch) * blend;
+    drag.yaw = reducedMotion ? 0 : drag.yaw + (drag.targetYaw - drag.yaw) * blend;
+    var settled = Math.abs(drag.pitch) < 0.02 && Math.abs(drag.yaw) < 0.02 &&
+        Math.abs(drag.targetPitch) < 0.02 && Math.abs(drag.targetYaw) < 0.02 &&
+        targetPitch == 0 && targetYaw == 0;
+    if (settled) { drag.pitch = drag.yaw = drag.targetPitch = drag.targetYaw = 0; }
+    drag.cards.forEach((card, index) => {
+        var pitchScale = drag.cards.length == 1 ? 1 : 0.9 + 0.2 * index / (drag.cards.length - 1);
+        var pitch = Math.max(-18, Math.min(18, drag.pitch * pitchScale));
+        card._dragPreview.style.setProperty("--tilt-x", pitch == 0 ? "0deg" : `${pitch.toFixed(2)}deg`);
+        card._dragPreview.style.setProperty("--tilt-y", drag.yaw == 0 ? "0deg" : `${drag.yaw.toFixed(2)}deg`);
+        card._dragPreview.style.setProperty("--pointer-x", `${(50 + drag.yaw / 18 * 45).toFixed(2)}%`);
+        card._dragPreview.style.setProperty("--pointer-y", `${(50 - pitch / 18 * 45).toFixed(2)}%`);
+        card._dragPreview.classList.toggle("is-tilting", !settled && !reducedMotion);
+    });
+    if (!settled) {
+        drag.frame = requestAnimationFrame(nextTime => animateCardDragTilt(drag, nextTime));
+    } else {
+        drag.lastFrameTime = null;
+    }
 }
 
 function moveCardDragPreview(hand, event, startX, startY) {
     var drag = hand._cardDragPreview;
     if (!drag) { return; }
     var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    drag.pointerX = event.clientX;
+    drag.pointerY = event.clientY;
+    if (reducedMotion) {
+        if (drag.frame != null) { cancelAnimationFrame(drag.frame); }
+        animateCardDragTilt(drag, performance.now());
+    } else if (drag.frame == null) {
+        drag.frame = requestAnimationFrame(time => animateCardDragTilt(drag, time));
+    }
     drag.cards.forEach(card => {
         var preview = card._dragPreview;
         preview.style.setProperty("--drag-offset-x", `${event.clientX - startX}px`);
@@ -394,6 +444,7 @@ function shouldPlayCardDrag(drag, event) {
 function clearCardDragPreview(hand) {
     var drag = hand._cardDragPreview;
     if (!drag) { return; }
+    if (drag.frame != null) { cancelAnimationFrame(drag.frame); }
     drag.cards.forEach(card => {
         card.classList.remove("is-drag-source");
         delete card._dragPreview;
@@ -409,6 +460,10 @@ function returnCardDragPreview(hand) {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         clearCardDragPreview(hand);
         return;
+    }
+    drag.returning = true;
+    if (drag.frame == null) {
+        drag.frame = requestAnimationFrame(time => animateCardDragTilt(drag, time));
     }
     drag.cards.forEach(card => {
         var preview = card._dragPreview;
