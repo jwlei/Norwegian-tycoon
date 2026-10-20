@@ -639,11 +639,15 @@ class GameLayout {
                     height: targetBounds.height
                 };
             }
-            var flight = document.createElement("img");
-            flight.src = targetImage.src;
-            flight.alt = "";
+            var flight = document.createElement("span");
+            var cardStyle = target.dataset.cardStyle || "normal";
+            flight.className = `card-flight card-preview card-preview--${cardStyle}`;
+            flight.dataset.foil = target.dataset.foil || "none";
+            var flightImage = targetImage.cloneNode(false);
+            flightImage.alt = "";
+            flightImage.setAttribute("aria-hidden", "true");
+            flight.appendChild(flightImage);
             flight.setAttribute("aria-hidden", "true");
-            flight.className = "card-flight";
             var flightLeft = source.left + (source.width - targetBounds.width) / 2;
             var flightTop = source.top + (source.height - targetBounds.height) / 2;
             var flightX = targetBounds.left - flightLeft;
@@ -714,15 +718,22 @@ class GameLayout {
         var pile = new CardDeck(...exchange.cards);
         pile.name = game.players[exchange.from].name;
         pile.forEach((card, index) => {
-            var image = GameLayout.createCardImage(card, null,
-                GameLayout.styleForPlayer(game, pile.name), GameLayout.foilForPlayer(game, pile.name));
-            image.dataset.cardKey = `${card.suit}:${card.rank}`;
-            image.style.position = "fixed";
-            image.style.width = "48px";
-            image.style.height = "72px";
-            image.style.left = `${bounds.left + (bounds.width - 48) / 2 + index * 6}px`;
-            image.style.top = `${bounds.top + (bounds.height - 72) / 2}px`;
-            destination.appendChild(image);
+            var style = GameLayout.styleForPlayer(game, pile.name);
+            var foil = GameLayout.foilForPlayer(game, pile.name);
+            var cardElement = document.createElement("span");
+            cardElement.className = `card-preview card-preview--${style}`;
+            cardElement.dataset.cardKey = `${card.suit}:${card.rank}`;
+            cardElement.dataset.cardStyle = style;
+            cardElement.dataset.foil = foil;
+            var image = GameLayout.createCardImage(card, null, style, foil);
+            image.alt = "";
+            cardElement.appendChild(image);
+            cardElement.style.position = "fixed";
+            cardElement.style.width = "48px";
+            cardElement.style.height = "72px";
+            cardElement.style.left = `${bounds.left + (bounds.width - 48) / 2 + index * 6}px`;
+            cardElement.style.top = `${bounds.top + (bounds.height - 72) / 2}px`;
+            destination.appendChild(cardElement);
         });
         document.body.appendChild(destination);
         GameLayout.animatePlayedCards(destination, pile, origins, () => destination.remove());
@@ -857,6 +868,7 @@ class GameLayout {
                 var image = GameLayout.createCardImage(card, null, style, foil);
                 var cardElement = document.createElement("div");
                 cardElement.className = `table-play__card card-preview card-preview--${style}`;
+                cardElement.dataset.cardStyle = style;
                 cardElement.dataset.foil = foil;
                 var cardKey = `${card.suit}:${card.rank}`;
                 cardElement.dataset.cardKey = cardKey;

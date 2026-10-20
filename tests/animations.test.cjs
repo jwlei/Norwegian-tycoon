@@ -17,21 +17,34 @@ function load(globals = {}) {
 
 test("normal play animation restores the original movement, easing and card stagger", () => {
     const animations = [];
-    const image = () => ({
+    const flights = [];
+    const element = () => ({
         src: "data:image/svg+xml,card",
+        dataset: {},
+        children: [],
+        classList: { add() {} },
         style: { getPropertyValue: () => "0" },
-        setAttribute() {}, remove() {},
+        setAttribute() {},
+        appendChild(child) { this.children.push(child); },
+        cloneNode() { return element(); },
         animate(frames, timing) {
             animations.push({ frames, timing });
             return {};
         },
         getBoundingClientRect: () => ({ left: 200, top: 200, width: 80, height: 120 })
     });
+    const targetImage = element();
     const context = load({
         window: { innerWidth: 1000, innerHeight: 800, matchMedia: () => ({ matches: false }) },
-        document: { createElement: image, body: { appendChild() {} } }
+        document: { createElement: element, body: { appendChild(flight) { flights.push(flight); } } }
     });
-    context.target = image();
+    context.target = {
+        dataset: { cardStyle: "normal", foil: "galaxy" },
+        style: { getPropertyValue: () => "0" },
+        querySelector: () => targetImage,
+        animate() {},
+        getBoundingClientRect: () => ({ left: 200, top: 200, width: 80, height: 120 })
+    };
     vm.runInContext(`
         var pile = new CardPile("Owner", ...[1,2,3,4].map(suit => new PresidentCard(suit, 7)));
         GameLayout.animatePlayedCards({ querySelector: () => target }, pile, {
@@ -41,6 +54,12 @@ test("normal play animation restores the original movement, easing and card stag
         });
     `, context);
     assert.equal(animations.length, 4);
+    assert.equal(flights.length, 4);
+    flights.forEach(flight => {
+        assert.match(flight.className, /card-preview--normal/);
+        assert.equal(flight.dataset.foil, "galaxy");
+        assert.equal(flight.children.length, 1);
+    });
     for (const [index, { frames, timing }] of animations.entries()) {
         assert.equal(timing.duration, 520);
         assert.equal(timing.delay, index * 55);
