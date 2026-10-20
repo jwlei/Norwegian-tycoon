@@ -2455,6 +2455,10 @@ select:focus-visible {
     text-align: center;
 }
 
+#dialogLeaderboard .dialog-window {
+    position: relative;
+}
+
 .leaderboard-table-scroll {
     max-width: 100%;
     overflow-x: auto;
@@ -2498,6 +2502,42 @@ select:focus-visible {
     border-radius: 0;
     box-shadow: none;
     white-space: nowrap;
+}
+
+.leaderboard-player-name {
+    display: block;
+    max-width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 6px 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.leaderboard-player-id {
+    position: absolute;
+    z-index: 1;
+    transform: translateY(-50%);
+    width: max-content;
+    max-width: calc(100% - 24px);
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    color: var(--ink);
+    font-size: 0.8125rem;
+    overflow-wrap: anywhere;
+    text-align: center;
+    pointer-events: none;
 }
 
 .leaderboard-table th[aria-sort="descending"] button,
@@ -3092,9 +3132,9 @@ select:focus-visible {
     color: var(--muted);
     font-size: 0.8rem;
     max-width: 90%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    text-align: center;
 }
 
 .settings-list #BnPByttNavn { width: 100%; }

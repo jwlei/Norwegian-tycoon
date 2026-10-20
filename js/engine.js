@@ -509,6 +509,7 @@ class PresidentGame extends Game {
         await Promise.all(players.map(player =>
             firebase.database().ref(`playerStats/${player.playerKey}`).transaction(record => {
                 var previous = record && typeof record == "object" ? record : {};
+                var latestName = previous.nameUpdatedAt > finishedAt ? previous.name : player.name;
                 var names = Array.isArray(previous.names)
                     ? previous.names.filter(name => typeof name == "string")
                     : [];
@@ -553,7 +554,8 @@ class PresidentGame extends Game {
                     };
                 }
                 return Object.assign({}, previous, {
-                    name: player.name,
+                    name: latestName,
+                    nameUpdatedAt: Math.max(previous.nameUpdatedAt || 0, finishedAt),
                     names,
                     presidentWins: wins + Number(wonGame),
                     presidentWinGames: winGames

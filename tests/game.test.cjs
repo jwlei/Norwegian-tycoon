@@ -997,7 +997,8 @@ function savedPreferencesContext(cookieMode = "enabled", storage = new Map(), st
     };
     const { sanitizePlayerName } = loadGame();
     const context = vm.createContext({
-        console, document, window: { location: { protocol: "https:" } },
+        console, document, crypto: require("node:crypto").webcrypto,
+        window: { location: { protocol: "https:" } },
         localStorage: {
             getItem(key) {
                 if (storageBlocked) { throw new Error("Storage unavailable"); }
@@ -1009,12 +1010,13 @@ function savedPreferencesContext(cookieMode = "enabled", storage = new Map(), st
             }
         },
         currentGame: null, playerNameCookie: "norwegian_tycoon_player_name",
-        GameLayout: { cardStyle: () => "normal" }, sanitizePlayerName
+        GameLayout: { cardStyle: () => "normal" }, sanitizePlayerName,
+        PlayerIdentity: { normalizeName: name => name.trim().normalize("NFC").toLowerCase() }
     });
     const shared = fs.readFileSync(path.join(__dirname, "..", "js", "shared.js"), "utf8");
     vm.runInContext(shared.slice(shared.indexOf("var savedCookieValues"),
         shared.indexOf("function hasClass")) +
-        shared.slice(shared.indexOf("function getPlayerKey()"),
+        shared.slice(shared.indexOf("function generatePlayerKey()"),
             shared.indexOf("function initializeThemeToggle()")), context);
     const connection = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     vm.runInContext(connection.slice(connection.indexOf("        function readLastUsedPlayerName()"),
@@ -1027,7 +1029,7 @@ test("saved names, preferences and player keys survive reloads without cookies",
         const storage = new Map();
         const context = savedPreferencesContext(cookieMode, storage);
         const key = context.getPlayerKey();
-        assert.equal(key.length, 50);
+        assert.match(key, /^[A-Za-z0-9]{6}$/);
         assert.equal(context.getPlayerKey(), key);
         context.saveLastUsedPlayerName("Bjørn / ギフテッド 😎");
         context.setCookie("AutoSuggestPlayableCards", "false", 365);
@@ -1061,6 +1063,51 @@ test("existing cookies are preserved and malformed saved names do not stop start
     context.document.cookie = "norwegian_tycoon_player_name=%invalid";
     context.console = { warn() {} };
     assert.equal(context.readLastUsedPlayerName(), "");
+});
+
+test("splash only displays the matching player ID after a remembered PIN login", () => {
+    const storage = new Map();
+    const context = savedPreferencesContext("ignored", storage);
+    const key = context.getPlayerKey();
+    context.saveLastUsedPlayerName("Ada");
+    const splash = context.document.getElementById("splashPlayerName");
+    assert.equal(splash.textContent, "Ada");
+    context.setCookie("playerPinProfile", encodeURIComponent(JSON.stringify(["ada", key])), 1000);
+    context.updateSavedPlayerName();
+    assert.equal(splash.textContent, `Ada · ID ${key}`);
+    const reloaded = savedPreferencesContext("ignored", storage);
+    reloaded.updateSavedPlayerName();
+    assert.equal(reloaded.document.getElementById("splashPlayerName").textContent, `Ada · ID ${key}`);
+    context.setCookie("SpillerKey", "Other1", 1000);
+    context.updateSavedPlayerName();
+    assert.equal(splash.textContent, "Ada");
+    context.setCookie("SpillerKey", key, 1000);
+    context.saveLastUsedPlayerName("Grace");
+    assert.equal(splash.textContent, "Grace");
+    context.saveLastUsedPlayerName("");
+    assert.equal(splash.textContent, "");
+    assert.equal(splash.hidden, true);
+});
+
+test("PIN recovery displays legacy IDs without shortening them or changing their identity", () => {
+    const context = savedPreferencesContext();
+    const key = "x".repeat(50);
+    context.setCookie("SpillerKey", key, 1000);
+    context.setCookie("playerPinProfile", encodeURIComponent(JSON.stringify(["bjørn / ギフテッド 😎", key])), 1000);
+    context.saveLastUsedPlayerName("Bjørn / ギフテッド 😎");
+    assert.equal(context.getPlayerKey(), key);
+    assert.equal(context.document.getElementById("splashPlayerName").textContent, `Bjørn / ギフテッド 😎 · ID ${key}`);
+});
+
+test("short ID generation excludes biased bytes and keeps letters and digits case-sensitive", () => {
+    const context = savedPreferencesContext();
+    context.crypto = {
+        getRandomValues(bytes) {
+            bytes.set([248, 255, 0, 25, 26, 51, 52, 61, 1, 1, 1, 1]);
+            return bytes;
+        }
+    };
+    assert.equal(context.generatePlayerKey(), "AZaz09");
 });
 
 test("theme controls still initialize and work when local storage is blocked", () => {
@@ -3311,6 +3358,28 @@ test("a delayed profile transaction keeps the finished placement even after the 
     assert.equal(stats.longestPresidentStreak, 3);
     assert.equal(stats.placementScore, 1);
     assert.equal(stats.lastActiveAt, 10000);
+});
+
+test("late round statistics cannot overwrite a more recently registered leaderboard name", async () => {
+    const { game, players, profileRecords } = setupGame();
+    game.endTime = 10000;
+    players[0].placement = 1;
+    profileRecords["playerStats/human-key"] = {
+        name: "New name", names: ["Human", "New name"], nameUpdatedAt: 20000
+    };
+    await game.recordFinishedPlayerStats();
+    const stats = profileRecords["playerStats/human-key"];
+    assert.equal(stats.name, "New name");
+    assert.equal(stats.nameUpdatedAt, 20000);
+    assert.equal(stats.roundsPlayed, 1);
+    assert.equal(stats.presidentWins, 1);
+    assert.equal(stats.lastActiveAt, 10000);
+    game.round++;
+    game.endTime = 30000;
+    players[0].name = "Latest played name";
+    await game.recordFinishedPlayerStats();
+    assert.equal(profileRecords["playerStats/human-key"].name, "Latest played name");
+    assert.equal(profileRecords["playerStats/human-key"].nameUpdatedAt, 30000);
 });
 
 test("historical wins are retained without awarding an already counted room again, and scores average across player counts", async () => {

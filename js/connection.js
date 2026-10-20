@@ -234,7 +234,10 @@
                 document.documentElement.dataset.cardStyle = GameLayout.cardStyle();
             }
             var splashName = document.getElementById("splashPlayerName");
-            splashName.textContent = name;
+            var key = getPlayerKey();
+            var pinProfile = getCookie("playerPinProfile");
+            var hasPinProfile = pinProfile == encodeURIComponent(JSON.stringify([PlayerIdentity.normalizeName(name), key]));
+            splashName.textContent = name + (name && hasPinProfile ? ` · ID ${key}` : "");
             splashName.hidden = name == "";
             document.getElementById("settingsPlayerName").textContent = name;
         }
@@ -2608,7 +2611,7 @@
             document.getElementById("playerNameError").textContent = "";
         });
         document.getElementById("playerRecoveryPin").addEventListener("input", function () {
-            var invalid = !/^\d{3,4}$/.test(this.value);
+            var invalid = !PlayerIdentity.isRecoveryPin(this.value);
             this.classList.toggle("input-soft-error", invalid);
             this.setAttribute("aria-invalid", String(invalid));
         });
@@ -2622,15 +2625,23 @@
             var oldKey = getPlayerKey();
             var usePin = document.getElementById("playerUsePin").getAttribute("aria-pressed") == "true";
             var pin = usePin ? document.getElementById("playerRecoveryPin").value : "";
-            if (usePin && !/^\d{3,4}$/.test(pin)) {
-                throw new Error("PIN må ha 3–4 sifre.");
+            if (usePin && !PlayerIdentity.isRecoveryPin(pin)) {
+                throw new Error("PIN må ha 6 sifre. Eldre PIN kan fortsatt brukes til gjenoppretting.");
             }
             var identity = await PlayerIdentity.resolve(name, oldKey, pin,
-                previousName != null ? oldKey : null);
+                previousName != null ? oldKey : null,
+                !usePin ? PlayerIdentity.rememberedPinCredential(oldKey) : null);
             if (currentGame != game || currentPlayerName != previousName) {
                 throw new Error("Spillet ble endret. Åpne navnevalget på nytt.");
             }
-            if (identity.playerKey == oldKey) { return; }
+            if (identity.playerKey == oldKey) {
+                setCookie("playerPinProfile", identity.hasPin
+                    ? encodeURIComponent(JSON.stringify([PlayerIdentity.normalizeName(name), identity.playerKey])) : "", 1000);
+                setCookie("playerKeyPending", "", 1000);
+                setCookie("playerPinCredential", identity.pinCredential || "", 1000);
+                setCookie("playerPinKey", identity.hasPin ? identity.playerKey : "", 1000);
+                return;
+            }
             if (currentPlayerName != null) {
                 throw new Error("Dette navnet tilhører en annen spiller-ID. Gå til hovedmenyen før du henter profilen.");
             }
@@ -2645,6 +2656,11 @@
                 game.hostKey = identity.playerKey;
             }
             setCookie("SpillerKey", identity.playerKey, 1000);
+            setCookie("playerPinProfile", identity.hasPin
+                ? encodeURIComponent(JSON.stringify([PlayerIdentity.normalizeName(name), identity.playerKey])) : "", 1000);
+            setCookie("playerKeyPending", "", 1000);
+            setCookie("playerPinCredential", identity.pinCredential || "", 1000);
+            setCookie("playerPinKey", identity.hasPin ? identity.playerKey : "", 1000);
             playerWinsName = null;
             playerPresidentWins = 0;
             playerRoundsPlayed = 0;
@@ -2681,7 +2697,7 @@
             }
             var pinField = document.getElementById("playerRecoveryPin");
             var invalidPin = document.getElementById("playerUsePin").getAttribute("aria-pressed") == "true" &&
-                !/^\d{3,4}$/.test(pinField.value);
+                !PlayerIdentity.isRecoveryPin(pinField.value);
             pinField.classList.toggle("input-soft-error", invalidPin);
             pinField.setAttribute("aria-invalid", String(invalidPin));
             if (invalidPin) { return; }

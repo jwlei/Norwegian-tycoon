@@ -109,14 +109,18 @@ test("every numeric column sorts both ways; normalized placement prefers 1 and u
 function uiFixture() {
     const f = fixture();
     const node = () => ({
-        children: [], dataset: {}, attributes: {}, listeners: {}, textContent: "",
+        children: [], dataset: {}, attributes: {}, listeners: {}, textContent: "", style: {},
+        getBoundingClientRect: () => ({ left: 20, right: 80, top: 100, height: 40, width: 60 }),
         appendChild(child) { this.children.push(child); },
         replaceChildren() { this.children = []; },
         addEventListener(type, callback) { this.listeners[type] = callback; },
         setAttribute(name, value) { this.attributes[name] = value; }
     });
-    const elements = Object.fromEntries(["leaderboardRows", "leaderboardStatus", "leaderboardOpenButton"]
+    const elements = Object.fromEntries(["leaderboardRows", "leaderboardStatus", "leaderboardOpenButton", "leaderboardPlayerId", "dialogLeaderboard"]
         .map(id => [id, node()]));
+    elements.leaderboardPlayerId.offsetParent = {
+        getBoundingClientRect: () => ({ left: 10, top: 10, width: 300 })
+    };
     const headers = ["name", "roundsPlayed", "presidentWins", "bomsCount", "placementScore",
         "longestPresidentStreak", "longestBomsStreak"].map(column => {
         const header = node();
@@ -128,18 +132,27 @@ function uiFixture() {
     });
     const errors = [];
     const dialogs = [];
+    const timers = new Map();
+    let timerId = 0;
+    f.context.setTimeout = (callback, delay) => {
+        timers.set(++timerId, { callback, delay });
+        return timerId;
+    };
+    f.context.clearTimeout = id => timers.delete(id);
     f.context.document = {
         getElementById: id => elements[id],
         querySelectorAll: () => headers,
         createElement: node
     };
-    f.context.window = { I18n: { msg: text => text } };
+    f.context.window = { I18n: { msg: text => text }, addEventListener() {} };
     f.context.console = { error: (...args) => errors.push(args) };
     f.context.showDialog = (...args) => dialogs.push(args);
     f.context.initializeLeaderboard();
     const open = () => elements.leaderboardOpenButton.listeners.click({ preventDefault() {} });
-    const names = () => elements.leaderboardRows.children.map(row => row.children[0].textContent);
-    return { ...f, elements, headers, errors, dialogs, open, names };
+    const names = () => elements.leaderboardRows.children
+        .filter(row => row.className != "leaderboard-player-id")
+        .map(row => row.children[0].children[0].textContent);
+    return { ...f, elements, headers, errors, dialogs, open, names, timers };
 }
 
 test("leaderboard dialog opens, sorts, resets on reopening and renders names as text only", async () => {
@@ -165,6 +178,49 @@ test("leaderboard dialog opens, sorts, resets on reopening and renders names as 
     assert.deepEqual(f.names(), ["B", rows[0].name]);
     assert.equal(f.headers[1].header.attributes["aria-sort"], "descending");
     assert.equal(score.header.attributes["aria-sort"], "none");
+});
+
+test("clicking a name shows an ID popup for exactly five seconds without adding table rows", async () => {
+    const f = uiFixture();
+    f.leaderboard.load = async () => [
+        { id: "AbC123", name: "Latest name", roundsPlayed: 20 },
+        { id: "x".repeat(50), name: "Latest name", roundsPlayed: 10 }
+    ];
+    await f.open();
+    const rows = f.elements.leaderboardRows.children;
+    const button = rows[0].children[0].children[0];
+    assert.equal(button.textContent, "Latest name");
+    const popup = f.elements.leaderboardPlayerId;
+    assert.equal(rows.length, 2);
+    assert.equal(button.attributes["aria-controls"], "leaderboardPlayerId");
+    assert.equal(popup.hidden, true);
+    button.listeners.click();
+    assert.equal(popup.hidden, false);
+    assert.equal(popup.textContent, "ID AbC123");
+    assert.equal(popup.style.left, "76px");
+    assert.equal(popup.style.top, "110px");
+    assert.equal(popup.style.maxWidth, "216px");
+    assert.equal(f.timers.size, 1);
+    assert.equal([...f.timers.values()][0].delay, 5000);
+    button.listeners.click();
+    assert.equal(f.timers.size, 1, "Repeated clicks replace the old timer");
+    [...f.timers.values()][0].callback();
+    assert.equal(popup.hidden, true);
+    assert.equal(popup.textContent, "");
+    assert.equal(f.timers.size, 0);
+    rows[1].children[0].children[0].listeners.click();
+    assert.equal(popup.textContent, `ID ${"x".repeat(50)}`);
+    f.headers[1].listeners.click();
+    assert.equal(popup.hidden, true);
+    assert.equal(f.timers.size, 0);
+    f.elements.leaderboardRows.children[0].children[0].children[0].listeners.click();
+    await f.open();
+    assert.equal(popup.hidden, true);
+    assert.equal(f.timers.size, 0);
+    f.elements.leaderboardRows.children[0].children[0].children[0].listeners.click();
+    f.elements.dialogLeaderboard.listeners.scroll();
+    assert.equal(popup.hidden, true);
+    assert.equal(f.timers.size, 0);
 });
 
 test("leaderboard reports loading, emptiness and errors, and ignores an older request", async () => {

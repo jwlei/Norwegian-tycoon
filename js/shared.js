@@ -121,14 +121,24 @@ function setClass(element, name, isEnabled = true) {
     return classes.length != element.className.split(" ").length;
 }
 
+function generatePlayerKey() {
+    const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let key = "";
+    while (key.length < 6) {
+        const bytes = crypto.getRandomValues(new Uint8Array(12));
+        for (const value of bytes) {
+            if (value < 248 && key.length < 6) { key += characters[value % characters.length]; }
+        }
+    }
+    return key;
+}
+
 function getPlayerKey() {
     var key = getCookie("SpillerKey");
     if (key == "") {
-        for (let i = 0; i < 50; i++) {
-            const characters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"];
-            key += characters[Math.trunc(Math.random() * (characters.length))];
-        }
+        key = generatePlayerKey();
         setCookie("SpillerKey", key, 1000);
+        setCookie("playerKeyPending", key, 1000);
     }
     return key;
 }

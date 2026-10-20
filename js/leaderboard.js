@@ -47,10 +47,21 @@ function initializeLeaderboard() {
     let column = "roundsPlayed";
     let direction = "descending";
     let requestId = 0;
+    let playerIdTimer = null;
+    const playerIdPopup = document.getElementById("leaderboardPlayerId");
     const body = document.getElementById("leaderboardRows");
     const status = document.getElementById("leaderboardStatus");
     const headers = Array.from(document.querySelectorAll("[data-leaderboard-sort]"));
+    function hidePlayerId() {
+        if (playerIdTimer != null) { clearTimeout(playerIdTimer); }
+        playerIdTimer = null;
+        playerIdPopup.hidden = true;
+        playerIdPopup.textContent = "";
+    }
+    document.getElementById("dialogLeaderboard").addEventListener("scroll", hidePlayerId, true);
+    window.addEventListener("resize", hidePlayerId);
     function render() {
+        hidePlayerId();
         headers.forEach(button => button.closest("th").setAttribute("aria-sort",
             button.dataset.leaderboardSort == column ? direction : "none"));
         body.replaceChildren();
@@ -59,9 +70,31 @@ function initializeLeaderboard() {
             for (const field of ["name", "roundsPlayed", "presidentWins", "bomsCount",
                 "placementScore", "longestPresidentStreak", "longestBomsStreak"]) {
                 const cell = document.createElement("td");
-                cell.textContent = field == "name" ? record.name : field == "placementScore"
+                if (field == "name") {
+                    const button = document.createElement("button");
+                    button.type = "button";
+                    button.className = "leaderboard-player-name";
+                    button.textContent = record.name;
+                    button.title = record.name;
+                    button.setAttribute("aria-controls", "leaderboardPlayerId");
+                    button.addEventListener("click", () => {
+                        hidePlayerId();
+                        playerIdPopup.textContent = `ID ${record.id}`;
+                        playerIdPopup.hidden = false;
+                        const anchor = button.getBoundingClientRect();
+                        const container = playerIdPopup.offsetParent.getBoundingClientRect();
+                        const left = anchor.right - container.left + 6;
+                        playerIdPopup.style.left = `${left}px`;
+                        playerIdPopup.style.top = `${anchor.top - container.top + anchor.height / 2}px`;
+                        playerIdPopup.style.maxWidth = `${Math.max(1, container.width - left - 8)}px`;
+                        playerIdTimer = setTimeout(hidePlayerId, 5000);
+                    });
+                    cell.appendChild(button);
+                } else {
+                    cell.textContent = field == "placementScore"
                     ? Number.isFinite(record[field]) ? record[field].toFixed(2) : "–"
                     : String(Number.isSafeInteger(record[field]) && record[field] >= 0 ? record[field] : 0);
+                }
                 cell.dataset.i18nSkip = "";
                 row.appendChild(cell);
             }

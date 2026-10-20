@@ -204,12 +204,19 @@ test("desktop uses taller two-line toasts and the same shell and toolbar in ever
     }
 });
 
-test("visible release and versioned local assets use version 0.9.1", () => {
-    assert.ok(html.includes('aria-label="Spillversjon 0.9.1">v0.9.1</span>'));
+test("visible release and versioned local assets use version 0.9.2", () => {
+    assert.ok(html.includes('aria-label="Spillversjon 0.9.2">v0.9.2</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"]+)"/g),
         match => match[1]);
     assert.ok(versions.length > 0);
-    assert.ok(versions.every(version => version === "0.9.1"));
+    assert.ok(versions.every(version => version === "0.9.2"));
+});
+
+test("splash profile text wraps so long names cannot hide the logged-in player ID", () => {
+    const rule = css.match(/#splashPlayerName\s*\{([^}]+)\}/)[1];
+    assert.match(rule, /overflow-wrap:\s*anywhere;/);
+    assert.match(rule, /white-space:\s*normal;/);
+    assert.doesNotMatch(rule, /text-overflow:\s*ellipsis|overflow:\s*hidden/);
 });
 
 test("leaderboard uses a centered title and no visible hint text", () => {
