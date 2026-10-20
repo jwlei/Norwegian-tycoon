@@ -162,27 +162,38 @@ test("human actions unlock on local animation completion with no grace or shared
     assert.equal(vm.runInContext("game.isTurnPaused()", context), true);
 });
 
-test("bot deadlines are sampled once from 2–5 seconds and fast-forward uses exactly one second", () => {
-    const context = load();
-    for (const [roll, expected] of [[0, 2000], [0.5, 3500], [0.999999, 5000]]) {
-        context.roll = roll;
+test("bot deadlines follow animation speed, stay fixed per turn and ignore toast preferences", () => {
+    let speed = null;
+    let toastSpeed = "fast";
+    const context = load({
+        getCookie: key => key == "AnimationSpeed" ? speed : null,
+        localStorage: { getItem: () => toastSpeed }
+    });
+    for (const [preference, expected] of [[null, 2000], ["fast", 1000], ["normal", 2000], ["slow", 3000]]) {
+        speed = preference;
         vm.runInContext(`
-            Math.random = () => roll;
+            Math.random = () => { throw new Error("Bot timing must not use randomness"); };
             var game = { players: [new PresidentPlayer("Bot", "PC")], turn: 0,
                 turnPause: { presentationVersion: 1 } };
             preparePresentationPause(game);
         `, context);
         assert.equal(vm.runInContext("game.turnPause.botUntil - game.turnPause.startedAt", context), expected);
+        assert.equal(vm.runInContext("game.turnPause.botDelayMs", context), expected);
         const deadline = vm.runInContext("game.turnPause.botUntil", context);
+        speed = "fast";
+        toastSpeed = "slow";
         vm.runInContext("preparePresentationPause(game)", context);
         assert.equal(vm.runInContext("game.turnPause.botUntil", context), deadline);
     }
+    speed = "slow";
     vm.runInContext(`
         game.fastForward = true;
         game.turnPause = { presentationVersion: 1 };
         preparePresentationPause(game);
     `, context);
     assert.equal(vm.runInContext("game.turnPause.botUntil - game.turnPause.startedAt", context), 1000);
+    assert.equal(vm.runInContext("game.turnPause.botDelayMs", context), 3000,
+        "The selected pace must be available when fast-forward is turned off");
 });
 
 test("local clear completion does not mutate shared piles or wait for the reserve deadline", () => {

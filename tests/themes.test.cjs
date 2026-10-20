@@ -167,10 +167,10 @@ test("fast-forward controls live outside the board at the top-right of the actio
     assert.ok(!layout.includes("fastForwardElement"), "Table redraws must not reparent playback controls");
 });
 
-test("visible release and versioned local assets use version 0.8.12", () => {
-    assert.ok(html.includes('aria-label="Spillversjon 0.8.12">v0.8.12</span>'));
+test("visible release and versioned local assets use version 0.8.13", () => {
+    assert.ok(html.includes('aria-label="Spillversjon 0.8.13">v0.8.13</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"]+)"/g),
         match => match[1]);
     assert.ok(versions.length > 0);
-    assert.ok(versions.every(version => version === "0.8.12"));
+    assert.ok(versions.every(version => version === "0.8.13"));
 });

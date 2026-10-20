@@ -86,7 +86,7 @@
         "Animasjonshastighet": "Animation speed",
         "Personlig lesetid. Maks to meldinger, eller én med raske animasjoner, uten å stoppe spillet.": "Personal reading time. Up to two messages, or one with fast animations, without stopping play.",
         "Personlig animasjonshastighet": "Personal animation speed",
-        "Rask bruker 50 % kortere tid, Sakte 50 % lengre tid enn Vanlig. Valget gjelder bare din skjerm.": "Fast takes 50% less time, Slow 50% more time than Normal. This setting only affects your screen.",
+        "Rask bruker 50 % kortere tid, Sakte 50 % lengre tid enn Vanlig. Botene venter 1 / 2 / 3 sekunder, og alltid til kortanimasjonene er ferdige. I nettspill bestemmes bottempoet av den som styrer botene.": "Fast takes 50% less time, Slow 50% more time than Normal. Bots wait 1 / 2 / 3 seconds, and always until card animations finish. In online games, bot pace follows the client controlling the bots.",
         "Kunne ikke oppdatere turen. Prøver igjen.": "Could not update the turn. Retrying.",
         "Venter på at handlingen lagres.": "Waiting for the action to be saved.",
         "Kunne ikke lagre handlingen. Henter spillet på nytt.": "Could not save the action. Reloading the game.",

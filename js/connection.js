@@ -2288,7 +2288,7 @@
                 (currentGame.status != "S" && currentGame.status != "G")) { return; }
             var delay = currentGame.turnPause?.presentationVersion == 1
                 ? Math.max(0, currentGame.turnPause.botUntil - GamePresence.now())
-                : (fastForward ? 1000 : 2000 + Math.floor(Math.random() * 3001));
+                : animationDuration(currentGame, 2000);
             if (currentGame.turnPause != null) {
                 var pauseRemaining = currentGame.turnPause.until - Date.now();
                 if (pauseRemaining > 0) {

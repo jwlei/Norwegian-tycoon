@@ -1709,32 +1709,52 @@ test("fast forward shortens bot actions and final pauses, then resets when the g
     assert.equal(game.actionPauseMs(), 2000);
 });
 
-test("bot scheduling switches to one second and restores its original delay", () => {
+test("bot scheduling follows animation speed and restores it after fast-forward", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const { game, players } = setupGame();
     const { GamePresence } = loadGame();
     players[0].placement = 1;
     const timers = [];
     const cleared = [];
+    let speed = "slow";
     const context = vm.createContext({
         currentGame: game, GamePresence: {
             onlyBotsRemain: record => GamePresence.onlyBotsRemain(record), canDrive: () => true,
+            now: () => 10000,
             isBot: (game, player) => GamePresence.isBot(game, player) },
-        connection: null, BOT_ACTION_DELAY_MS: 3000,
+        connection: null,
+        animationDuration: (game, normal) => normal * (game.fastForward ? 0.5 :
+            { fast: 0.5, normal: 1, slow: 1.5 }[speed]),
         setTimeout: (callback, delay) => { timers.push(delay); return timers.length; },
         clearTimeout: id => cleared.push(id)
     });
     vm.runInContext(source.slice(source.indexOf("        var botLoopTimer = null;"),
         source.indexOf("        document.getElementById('BnFHovedmeny')")), context);
     context.scheduleBotLoop();
-    assert.ok(timers.at(-1) >= 2000 && timers.at(-1) <= 5000);
+    assert.equal(timers.at(-1), 3000);
     game.fastForward = true;
     context.scheduleBotLoop();
     assert.equal(timers.at(-1), 1000);
     game.fastForward = false;
     context.scheduleBotLoop();
-    assert.ok(timers.at(-1) >= 2000 && timers.at(-1) <= 5000);
+    assert.equal(timers.at(-1), 3000);
     assert.deepEqual(cleared, [1, 2]);
+    for (const [preference, expected] of [["fast", 1000], ["normal", 2000], ["slow", 3000]]) {
+        speed = preference;
+        vm.runInContext("botLoopTimer = null; scheduleBotLoop();", context);
+        assert.equal(timers.at(-1), expected);
+    }
+    game.turnPause = { id: "animation", presentationVersion: 1, botUntil: 9000, until: 9000 };
+    const scheduled = timers.length;
+    vm.runInContext("botLoopTimer = null; scheduleBotLoop();", context);
+    assert.equal(timers.length, scheduled, "An expired delay must still wait for local animations");
+    game.presentationCompletedPauseId = "animation";
+    context.scheduleBotLoop();
+    assert.equal(timers.at(-1), 0, "Completed animations must not add another bot delay");
+    game.turnPause.botUntil = 12000;
+    game.turnPause.until = 12000;
+    vm.runInContext("botLoopTimer = null; scheduleBotLoop();", context);
+    assert.equal(timers.at(-1), 2000, "Completed animations must preserve the remaining shared delay");
 });
 
 test("ordinary saves preserve concurrent fast-forward toggles and their pause deadlines", () => {
@@ -2452,7 +2472,7 @@ test("takeover bots run on the backup client after 120 seconds while host transf
     let scheduled = 0;
     const context = vm.createContext({
         currentGame: game, GamePresence, connection: { now: () => now },
-        shuffleEndsAt: 0, BOT_ACTION_DELAY_MS: 1000,
+        shuffleEndsAt: 0, animationDuration: (_, normal) => normal,
         playBotTurn: (room, player) => { assert.equal(room, game); assert.equal(player, host); plays++; },
         setTimeout: () => { scheduled++; return scheduled; }
     });

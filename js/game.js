@@ -273,7 +273,7 @@ function preparePresentationPause(game) {
     var pause = game.turnPause;
     if (!pause || pause.presentationVersion != 1 || pause.startedAt != null) { return; }
     pause.startedAt = GamePresence.now();
-    pause.botDelayMs = 2000 + Math.floor(Math.random() * 3001);
+    pause.botDelayMs = animationDuration(null, 2000);
     pause.botUntil = pause.startedAt + (game.fastForward ? 1000 : pause.botDelayMs);
     var next = game.players[game.turn];
     pause.until = (next && GamePresence.isBot(game, next)) || pause.pendingGameEnd
