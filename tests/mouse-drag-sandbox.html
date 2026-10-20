@@ -34,7 +34,7 @@
     <div class="controls">
         <label for="method">Method</label>
         <select id="method">
-            <option value="baseline">1. Current game (native image drag allowed)</option>
+            <option value="baseline">1. Current game (native image drag blocked)</option>
             <option value="dragstart">2. Disable native drag + cancel dragstart</option>
             <option value="pointerdown" selected>3. Prevent mouse pointerdown default</option>
             <option value="mouse">4. Mouse events + document move/up listeners</option>
@@ -44,12 +44,14 @@
     <p id="description"></p>
     <div id="gameTable" class="table-deck" aria-label="Drop cards here"><p>Drop cards here</p></div>
     <div id="playerHand" class="card-hand is-my-turn" aria-label="Test cards"></div>
-    <div hidden><button id="passButton">Pass</button><button id="playButton">Play</button><span id="selectionCount"></span></div>
+    <div hidden><button id="passButton">Pass</button><button id="playButton">Play</button><span id="selectedCardCount"></span>
+        <div id="DivKort_Kortforklaring">All cards played. Reset to try again.</div>
+    </div>
     <p id="result" role="status"></p>
     <output id="metrics"></output>
     <pre id="events" aria-label="Pointer and native drag event log"></pre>
-    <small>No Firebase, network profile requests or saved settings. Method 1 intentionally leaves the
-        suspected native-drag conflict in place. Methods 2-4 are sandbox-only experiments.
+    <small>No Firebase, network profile requests or saved settings. Method 1 uses the production
+        native-drag protection. Methods 2-4 add sandbox-only experiments.
         Native dragstart followed by pointercancel indicates the browser took over the drag.</small>
 </main>
 <script>
@@ -71,7 +73,7 @@
     const metrics = document.getElementById("metrics");
     const events = document.getElementById("events");
     const descriptions = {
-        baseline: "Control: unmodified production pointer handlers. Try dragging from the image itself.",
+        baseline: "Current production handlers: card images are not draggable and the hand cancels native dragstart. Try dragging from the image itself.",
         dragstart: "Keep production pointer handlers; set draggable=false on cards/images and cancel native dragstart.",
         pointerdown: "Keep production pointer handlers; preventDefault immediately on mouse pointerdown, before movement.",
         mouse: "Feed the same production handlers with mouse events instead of pointer events. Track move/up on document and block native drag."

@@ -167,10 +167,11 @@ class GameLayout {
         return Card.normalizeStyle("botanical", GameLayout.cardStylePlayerName || "") == "botanical";
     }
     static cardImageHtml(K, width = null, rotering = null, style = "normal", foil = GameLayout.cardFoil()) {
-        return `<img src='${K.toImageDataUri(style, foil)}' ${((width != null) ? "width='" + width + "'" : "")} alt='${K.getName()}' ${((rotering != null) ? "transform: translateX(" + rotering + "px) rotate(" + rotering + "deg);" : "")} />`;
+        return `<img draggable="false" src='${K.toImageDataUri(style, foil)}' ${((width != null) ? "width='" + width + "'" : "")} alt='${K.getName()}' ${((rotering != null) ? "transform: translateX(" + rotering + "px) rotate(" + rotering + "deg);" : "")} />`;
     }
     static createCardImage(K, width, style = "normal", foil = GameLayout.cardFoil()) {
         var e = document.createElement("img");
+        e.draggable = false;
         e.src = K.toImageDataUri(style, foil);
         if (width != null) { e.width = width };
         e.alt = K.getName();
@@ -1825,6 +1826,9 @@ class GameLayout {
     }
     static updateHand(game, player, centerCardKey = null, allowSkip = false) {
         var element = document.getElementById("playerHand");
+        element.ondragstart = function (event) {
+            event.preventDefault();
+        };
         if (allowSkip && centerCardKey == null && element._handSignature &&
             element._handSignature == GameLayout.handSignature(game, player)) {
             // Same hand: keep the DOM and only point the existing handlers at the fresh objects.

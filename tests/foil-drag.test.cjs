@@ -168,6 +168,14 @@ test("foil is applied to shared image helpers without changing card backs", () =
     assert.doesNotMatch(decodeURIComponent(types.GameLayout.createCardImage(types.Card.createBack()).src), /data-foil=/);
 });
 
+test("card images disable native browser dragging in both rendering helpers", () => {
+    const { types } = fixture();
+    for (const card of [new types.PresidentCard(2, 1), types.Card.createBack()]) {
+        assert.equal(types.GameLayout.createCardImage(card).draggable, false);
+        assert.match(types.GameLayout.cardImageHtml(card), /<img draggable="false"/);
+    }
+});
+
 test("opponents default to normal cards without local foil unless own style applies globally", () => {
     const { context, types, preferences } = fixture();
     const viewer = new types.PresidentPlayer("Viewer", "viewer");
@@ -709,6 +717,19 @@ function pointerFixture({ desktop = false, valid = true, mode = "flick", blocked
     return { ...f, hand, card, state, event,
         advance(value) { f.now = value; } };
 }
+
+test("the hand cancels native dragstart before it can interrupt pointer gestures", () => {
+    const f = fixture();
+    const hand = new Element();
+    f.nodes.set("playerHand", hand);
+    hand._handSignature = "unchanged";
+    hand._rebindHand = () => {};
+    f.types.GameLayout.handSignature = () => "unchanged";
+    f.types.GameLayout.updateHand({}, {}, null, true);
+    let prevented = false;
+    hand.ondragstart({ preventDefault() { prevented = true; } });
+    assert.equal(prevented, true);
+});
 
 test("pointerdown immediately activates a legal card, while taps and cancellation restore the original selection", () => {
     for (const desktop of [false, true]) {
