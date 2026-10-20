@@ -1,6 +1,10 @@
 /* Adapted from the supplied Simey card effects, with local gradient textures. */
 :is(#playerHand .game-card, .card-preview)[data-foil] {
     isolation: isolate;
+    /* Match the SVG card outline: its 1.5-unit stroke at x/y 1.5 leaves 0.75 of 80×120 units transparent,
+       and the outer corner radius is 8.75 units on a 78.5×118.5 unit card. */
+    --foil-inset: 0.625% 0.9375%;
+    --foil-radius: 11.15% / 7.38%;
     --foil-angle: 133deg;
     --foil-space: 5%;
     --foil-spectrum: repeating-linear-gradient(0deg,
@@ -17,6 +21,12 @@
     --foil-size: 60%, 200% 700%, 300%, 200%;
 }
 
+/* The pixel card style draws square corners. */
+:is([data-card-style="pixel"] #playerHand .game-card, #playerHand .game-card[data-card-style="pixel"],
+    .card-preview--pixel)[data-foil] {
+    --foil-radius: 0;
+}
+
 .card-foil-option > strong {
     min-width: 0;
     white-space: normal;
@@ -25,9 +35,9 @@
 
 :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"])::before {
     position: absolute;
-    inset: 0;
+    inset: var(--foil-inset);
     z-index: 1;
-    border-radius: inherit;
+    border-radius: var(--foil-radius);
     content: "";
     pointer-events: none;
     background-image: var(--foil-texture), var(--foil-spectrum), var(--foil-bars), var(--foil-light);
@@ -44,9 +54,9 @@
 
 :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"])::after {
     position: absolute;
-    inset: 0;
+    inset: var(--foil-inset);
     z-index: 2;
-    border-radius: inherit;
+    border-radius: var(--foil-radius);
     content: "";
     pointer-events: none;
     background: radial-gradient(farthest-corner circle at var(--pointer-x, 50%) var(--pointer-y, 50%),

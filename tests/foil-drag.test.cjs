@@ -272,8 +272,10 @@ test("foil locks show win requirements, block locked selection and exempt the na
 test("foil overlays cover the full card surface and settings share one card preview", () => {
     const { types } = fixture();
     const foilCss = fs.readFileSync(path.join(__dirname, "..", "css", "foil.css"), "utf8");
-    assert.match(foilCss, /\[data-foil\]:not\(\[data-foil="none"\]\)::before\s*\{[^}]*inset:\s*0;/);
-    assert.match(foilCss, /\[data-foil\]:not\(\[data-foil="none"\]\)::after\s*\{[^}]*inset:\s*0;/);
+    assert.match(foilCss, /--foil-inset:\s*0\.625% 0\.9375%;/);
+    assert.match(foilCss, /--foil-radius:\s*11\.15% \/ 7\.38%;/);
+    assert.match(foilCss, /\[data-foil\]:not\(\[data-foil="none"\]\)::before\s*\{[^}]*inset:\s*var\(--foil-inset\);[^}]*border-radius:\s*var\(--foil-radius\);/);
+    assert.match(foilCss, /\[data-foil\]:not\(\[data-foil="none"\]\)::after\s*\{[^}]*inset:\s*var\(--foil-inset\);[^}]*border-radius:\s*var\(--foil-radius\);/);
     assert.match(foilCss, /\[data-foil\]\s*\{[^}]*isolation:\s*isolate;/);
     assert.doesNotMatch(foilCss, /inset:\s*2px;\s*border-radius:\s*6px;/);
     const svg = decodeURIComponent(new types.PresidentCard(1, 5).toImageDataUri("normal", "holo").split(",")[1]);
