@@ -130,6 +130,16 @@ test("board toasts anchor four pixels above the bottom and keep turn controls cl
     assert.doesNotMatch(css, /#gameTable[^{}]*:has\(#gameToastRegion[^{}]*\)[^{}]*\{[^}]*--table-card-height:/);
 });
 
+test("board toast uses one opacity animation owner and survives table redraws", () => {
+    const rule = css.match(/#gameToastRegion > \.game-toast\s*\{([^}]*)\}/);
+    assert.ok(rule);
+    assert.match(rule[1], /transition:\s*visibility 120ms ease;/);
+    assert.doesNotMatch(rule[1], /transition:[^;]*opacity/);
+    const layout = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    assert.match(layout, /static clearTableContent\(table\)[\s\S]*?var persistent = new Set\(\[this\.toastRegion/);
+    assert.match(layout, /static setTableContent\(table, html\)[\s\S]*?table\.insertAdjacentHTML\("afterbegin", html\)/);
+});
+
 test("table guidance is text-only and fades in after one second", () => {
     assert.match(css, /\.table-pile-summary\s*\{[^}]*z-index:\s*60;[^}]*bottom:\s*4px;[^}]*width:\s*min\(440px, calc\(100% - 20px\)\);[^}]*height:\s*40px;[^}]*white-space:\s*nowrap;/);
     assert.match(css, /\.table-pile-summary\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/);
@@ -157,10 +167,10 @@ test("fast-forward controls live outside the board at the top-right of the actio
     assert.ok(!layout.includes("fastForwardElement"), "Table redraws must not reparent playback controls");
 });
 
-test("visible release and versioned local assets use version 0.8.11", () => {
-    assert.ok(html.includes('aria-label="Spillversjon 0.8.11">v0.8.11</span>'));
+test("visible release and versioned local assets use version 0.8.12", () => {
+    assert.ok(html.includes('aria-label="Spillversjon 0.8.12">v0.8.12</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"]+)"/g),
         match => match[1]);
     assert.ok(versions.length > 0);
-    assert.ok(versions.every(version => version === "0.8.11"));
+    assert.ok(versions.every(version => version === "0.8.12"));
 });

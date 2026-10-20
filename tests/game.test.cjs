@@ -1853,6 +1853,39 @@ test("exchange rendering waits for the exact shuffle deadline", () => {
     assert.equal(GameLayout.isShufflingExchange(game), false);
 });
 
+test("board refreshes retain the connected toast node and timer controls", () => {
+    const { GameLayout } = loadGame();
+    const table = { children: [] };
+    function element(name) {
+        return {
+            name, parentElement: table,
+            remove() {
+                const index = table.children.indexOf(this);
+                if (index >= 0) { table.children.splice(index, 1); }
+                this.parentElement = null;
+            }
+        };
+    }
+    const toast = element("toast");
+    const timer = element("timer");
+    const hint = element("hint");
+    table.children.push(toast, timer, hint, element("old cards"));
+    GameLayout.toastRegion = toast;
+    GameLayout.turnTimerElement = timer;
+    GameLayout.tableTurnHint = hint;
+
+    GameLayout.clearTableContent(table);
+    assert.deepEqual(table.children.map(child => child.name), ["toast", "timer", "hint"]);
+    assert.equal(toast.parentElement, table);
+    assert.equal(timer.parentElement, table);
+    assert.equal(hint.parentElement, table);
+
+    table.children.push(element("new cards"));
+    GameLayout.clearTableContent(table);
+    assert.deepEqual(table.children.map(child => child.name), ["toast", "timer", "hint"]);
+    assert.equal(toast.parentElement, table, "The visible toast must never be detached during redraws");
+});
+
 test("the gift toast survives the transition from the fourth single to a cleared pile", () => {
     const { game, players } = setupGame();
     const { PresidentCard, CardPile } = loadGame();

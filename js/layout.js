@@ -217,7 +217,7 @@ class GameLayout {
             if (this.turnTimerElement == null) {
                 this.turnTimerElement = document.getElementById("turnTimer");
             }
-            emptyTable.innerHTML = "";
+            this.clearTableContent(emptyTable);
             this.keepTurnTimer(emptyTable);
             delete document.getElementById("gameTable").dataset.gameId;
             delete document.getElementById("gameTable").dataset.gameStatus;
@@ -898,7 +898,7 @@ class GameLayout {
         }
         if (this.isShufflingExchange(game)) {
             table.className = "table-explanation";
-            table.replaceChildren();
+            this.clearTableContent(table);
             this.keepTurnTimer(table);
             return;
         }
@@ -987,7 +987,7 @@ class GameLayout {
                 if (game.players.length == 0) {
                     // Show guidance while the room is waiting for players.
                     table.className = "table-explanation";
-                    table.innerHTML = document.getElementById("DivBord_Bordforklaring").innerHTML;
+                    this.setTableContent(table, document.getElementById("DivBord_Bordforklaring").innerHTML);
                 } else {
                     // Show the deck while players are joining.
                     table.className = "table-decks";
@@ -995,12 +995,12 @@ class GameLayout {
                     for (let i = 0; i < game.deckCount(); i++) {
                         s += GameLayout.cardImageHtml(Card.createBack(), null);
                     }
-                    table.innerHTML = s;
+                    this.setTableContent(table, s);
                 }
                 break;
             case "G": {
                 table.className = "exchange-panel";
-                table.innerHTML = "";
+                this.clearTableContent(table);
                 var currentPlayerIndex = player == null ? -1 : game.players.indexOf(player);
                 var outgoingExchanges = game.piles.filter(exchange =>
                     exchange.from == currentPlayerIndex &&
@@ -1300,7 +1300,7 @@ class GameLayout {
             }
             case "S":
                 table.className = "table-deck";
-                table.innerHTML = "";
+                this.clearTableContent(table);
                 if (pileView != null) {
                     table.appendChild(pileView.element);
                     if (shouldAnimatePlayedPause) {
@@ -1343,7 +1343,7 @@ class GameLayout {
                 break;
             case "F":
                 table.className = "table-explanation";
-                table.innerHTML = "";
+                this.clearTableContent(table);
                 var gameOver = document.createElement("section");
                 gameOver.className = "game-over";
                 var heading = document.createElement("h2");
@@ -1528,6 +1528,30 @@ class GameLayout {
                 break;
         }
         this.keepTurnTimer(table);
+    }
+    static clearTableContent(table) {
+        if (!table.children) {
+            if (typeof table.replaceChildren == "function") { table.replaceChildren(); }
+            else { table.innerHTML = ""; }
+            return;
+        }
+        var persistent = new Set([this.toastRegion, this.turnTimerElement, this.tableTurnHint]);
+        var dynamic = Array.from(table.children).filter(element => !persistent.has(element));
+        if (dynamic.every(element => typeof element.remove == "function")) {
+            dynamic.forEach(element => element.remove());
+        } else if (typeof table.replaceChildren == "function") {
+            table.replaceChildren(...Array.from(table.children).filter(element => persistent.has(element)));
+        } else {
+            table.innerHTML = "";
+        }
+    }
+    static setTableContent(table, html) {
+        this.clearTableContent(table);
+        if (typeof table.insertAdjacentHTML == "function") {
+            table.insertAdjacentHTML("afterbegin", html);
+        } else {
+            table.innerHTML = html;
+        }
     }
     static keepTurnTimer(table) {
         if (this.toastRegion != null && this.toastRegion.parentElement != table &&

@@ -2522,7 +2522,7 @@ select:focus-visible {
     font-size: clamp(0.7rem, 2.5vw, 0.85rem);
     transform: none;
     transform-origin: center bottom;
-    transition: opacity 120ms ease, visibility 120ms ease;
+    transition: visibility 120ms ease;
     pointer-events: none;
     cursor: default;
 }
