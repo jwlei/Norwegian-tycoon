@@ -271,12 +271,12 @@ test("PIN toggle aligns with the full-width name field without horizontal button
     assert.match(css, /#playerUsePin\s*\{\s*margin:\s*8px 0;\s*\}/);
 });
 
-test("visible release and versioned local assets use version 0.9.5", () => {
-    assert.ok(html.includes('aria-label="Spillversjon 0.9.5">v0.9.5</span>'));
+test("visible release and versioned local assets use version 0.9.6", () => {
+    assert.ok(html.includes('aria-label="Spillversjon 0.9.6">v0.9.6</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"]+)"/g),
         match => match[1]);
     assert.ok(versions.length > 0);
-    assert.ok(versions.every(version => version === "0.9.5"));
+    assert.ok(versions.every(version => version === "0.9.6"));
 });
 
 test("splash profile text wraps so long names cannot hide the logged-in player ID", () => {
