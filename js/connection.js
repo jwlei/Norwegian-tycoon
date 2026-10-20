@@ -2156,7 +2156,6 @@
             updateSavedPlayerName();
             updateCardStyleButtons();
             GameLayout.setVisible("BnPByttNavn", !inGame || currentGame.status == "O");
-            document.getElementById("autoSuggestionToggleButton").hidden = !inGame;
             document.querySelector(".setting-turn-speed").hidden = false;
             document.getElementById("settingsGameId").hidden = !inGame;
             updateAutoSuggestionButton();

@@ -214,6 +214,12 @@ class GameLayout {
             setClass(mainMenu, "is-hidden", false);
             this.updateMainMenu();
             var emptyTable = document.getElementById("gameTable");
+            if (this.toastRegion == null) {
+                this.toastRegion = document.getElementById("gameToastRegion");
+            }
+            if (this.tableTurnHint == null) {
+                this.tableTurnHint = document.getElementById("tableTurnHint");
+            }
             if (this.turnTimerElement == null) {
                 this.turnTimerElement = document.getElementById("turnTimer");
             }

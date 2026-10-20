@@ -138,6 +138,13 @@
                     <svg class="normal-play-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="m6 4 14 8-14 8V4Z"/></svg>
                 </button>
             </div>
+            <div id="suggestionControls">
+                <button type="button" id="autoSuggestionToggleButton" title="Automatisk kortforslag er på" aria-label="Slå av automatisk kortforslag" aria-pressed="true">
+                    <span class="auto-suggestion-on" aria-hidden="true">✦</span>
+                    <span class="auto-suggestion-off" aria-hidden="true">✧</span>
+                    <span>Auto-forslag</span>
+                </button>
+            </div>
             <div id="gameToastRegion" data-animation-speed="normal">
                 <div id="GameToast" class="game-toast" role="status" aria-live="polite" aria-atomic="true" data-i18n-skip></div>
             </div>
@@ -220,10 +227,6 @@
                     <span id="cardStyleCurrent" class="card-style-current" aria-hidden="true"></span>
                 </button>
                 <h3 class="settings-category">Spill og styring</h3>
-                <button type="button" id="autoSuggestionToggleButton" class="setting-row" title="Automatisk kortforslag er på" aria-label="Slå av automatisk kortforslag" aria-pressed="true">
-                    <span class="setting-row__text"><strong>Auto-forslag</strong><small>Foreslår lovlige kort. Kløver 3 prioriteres når resten av hånden er én kombinasjon.</small></span>
-                    <span class="setting-row__switch" aria-hidden="true"><span></span></span>
-                </button>
                 <button type="button" id="hideToastsToggleButton" class="setting-row" aria-pressed="false">
                     <span class="setting-row__text"><strong>Skjul toast-meldinger</strong><small>Skjuler meldinger på spillbrettet for deg. Hendelser vises fortsatt i spilloggen.</small></span>
                     <span class="setting-row__switch" aria-hidden="true"><span></span></span>
