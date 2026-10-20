@@ -167,6 +167,39 @@ test("fast-forward controls live outside the board at the top-right of the actio
     assert.ok(!layout.includes("fastForwardElement"), "Table redraws must not reparent playback controls");
 });
 
+test("auto-suggestion is enabled by default and lives below the board on the left", () => {
+    assert.equal(Array.from(html.matchAll(/id="autoSuggestionToggleButton"/g)).length, 1);
+    const control = html.indexOf('id="suggestionControls"');
+    assert.ok(control > html.indexOf('id="playerActions"'));
+    assert.ok(control < html.indexOf('id="playerHand"'));
+    assert.match(html, /id="autoSuggestionToggleButton"[^>]*aria-pressed="true"/);
+    assert.match(html, /class="auto-suggestion-on" aria-hidden="true">✦/);
+    assert.match(html, /class="auto-suggestion-off" aria-hidden="true">✧/);
+    assert.match(css, /#suggestionControls\s*\{[^}]*top:\s*4px;[^}]*left:\s*8px;/);
+    assert.match(css, /#fastForwardButton,\s*#autoSuggestionToggleButton\s*\{[^}]*color:\s*var\(--muted\);/);
+    assert.match(css, /#autoSuggestionToggleButton > \[aria-hidden\]\s*\{[^}]*font-size:\s*20px;/);
+    assert.match(css, /#autoSuggestionToggleButton\[aria-pressed="false"\] > \.auto-suggestion-on,\s*#autoSuggestionToggleButton\[aria-pressed="true"\] > \.auto-suggestion-off\s*\{\s*display:\s*none;/);
+    const game = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
+    assert.ok(game.includes('getCookie("AutoSuggestPlayableCards") != "false"'));
+    const connection = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    assert.ok(!connection.includes('document.getElementById("autoSuggestionToggleButton").hidden'));
+});
+
+test("desktop uses taller two-line toasts and the same shell and toolbar in every screen", () => {
+    const start = css.indexOf("@media (min-width: 900px) and (min-height: 560px) and (orientation: landscape) and (pointer: fine)");
+    const end = css.indexOf("\n@media", start + 1);
+    const desktop = css.slice(start, end);
+    assert.match(desktop, /#gameToastRegion\s*\{\s*--board-toast-height:\s*48px;/);
+    assert.match(desktop, /--toast-stack-height:\s*102px;/);
+    assert.match(desktop, /--toast-stack-height:\s*48px;/);
+    assert.match(desktop, /#gameShell\s*\{[^}]*width:\s*min\(100%, 980px\);[^}]*margin:\s*0 auto;/);
+    assert.match(desktop, /#gameShell > #BnInnstillinger\s*\{/);
+    assert.match(desktop, /#gameShell > \.topbar-actions\s*\{[^}]*grid-template-columns:\s*repeat\(3, 44px\);/);
+    for (const [id, column] of [["BnFSpillogg", 1], ["BnFRegler", 2], ["homeButton", 3]]) {
+        assert.ok(desktop.includes(`#${id} {\n        grid-column: ${column};`));
+    }
+});
+
 test("visible release and versioned local assets use version 0.8.13", () => {
     assert.ok(html.includes('aria-label="Spillversjon 0.8.13">v0.8.13</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"]+)"/g),

@@ -1873,6 +1873,64 @@ test("exchange rendering waits for the exact shuffle deadline", () => {
     assert.equal(GameLayout.isShufflingExchange(game), false);
 });
 
+test("the initial splash preserves the turn hint for the first empty-table turn", () => {
+    const elements = new Map();
+    const document = {
+        documentElement: { dataset: {} }, querySelectorAll: () => [],
+        getElementById(id) {
+            if (!elements.has(id)) {
+                elements.set(id, {
+                    hidden: true, dataset: {}, style: {}, children: [],
+                    classList: { remove() {} }, setAttribute() {},
+                    replaceChildren() { this.children = []; },
+                    remove() {
+                        if (this.parentElement) {
+                            this.parentElement.children.splice(this.parentElement.children.indexOf(this), 1);
+                            this.parentElement = null;
+                        }
+                    },
+                    appendChild(child) {
+                        child.remove();
+                        this.children.push(child);
+                        child.parentElement = this;
+                    }
+                });
+            }
+            const element = elements.get(id);
+            return id === "tableTurnHint" && element.detached ? null : element;
+        }
+    };
+    const table = document.getElementById("gameTable");
+    const hint = document.getElementById("tableTurnHint");
+    const remove = hint.remove;
+    hint.remove = function () { remove.call(this); this.detached = true; };
+    table.children.push(hint);
+    hint.parentElement = table;
+    const { GameLayout } = loadGame(null, { document, setClass() {} });
+
+    GameLayout.updateSharedView(null, null);
+    assert.equal(hint.parentElement, table);
+    assert.equal(GameLayout.tableTurnHint, hint);
+
+    const game = {
+        id: "first-turn", status: "S", round: 1, piles: [],
+        isTurnPaused: () => false, topPile: () => null
+    };
+    const player = { name: "Player", placement: 0, turn: 1 };
+    GameLayout.updateTable(game, player);
+    assert.equal(hint.hidden, false);
+    player.turn = 0;
+    GameLayout.updateTable(game, player);
+    assert.equal(hint.hidden, true);
+    player.turn = 1;
+    game.isTurnPaused = () => true;
+    GameLayout.updateTable(game, player);
+    assert.equal(hint.hidden, true);
+    game.isTurnPaused = () => false;
+    GameLayout.updateTable(game, player);
+    assert.equal(hint.hidden, false);
+});
+
 test("board refreshes retain the connected toast node and timer controls", () => {
     const { GameLayout } = loadGame();
     const table = { children: [] };
