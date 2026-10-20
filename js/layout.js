@@ -1914,18 +1914,39 @@ class GameLayout {
                 var direction = Math.sign(distance) || drag.flickDirection;
                 if (direction != drag.flickDirection) {
                     drag.flickDirection = direction;
-                    drag.flickDistance = distance;
-                    drag.flickDistanceX = deltaX;
-                    drag.flickStartTime = drag.lastPointerMoveTime;
-                } else {
-                    drag.flickDistance += distance;
-                    drag.flickDistanceX += deltaX;
+                    drag.flickSamples = [];
                 }
-                drag.lastFlickX = drag.flickDistanceX;
-                drag.lastFlickY = drag.flickDistance;
-                drag.lastFlickDistance = Math.hypot(drag.flickDistanceX, drag.flickDistance);
+                var samples = drag.flickSamples;
+                if (samples.length == 0) {
+                    samples.push({ x: drag.lastPointerX, y: drag.lastPointerY, time: drag.lastPointerMoveTime });
+                }
+                samples.push({ x: pointerX, y: pointerY, time: moveTime });
+                // Only the recent finish matters, not a slow pickup or the earlier part of a curve.
+                var cutoff = moveTime - 80;
+                while (samples.length > 2 && samples[1].time <= cutoff) { samples.shift(); }
+                var first = samples[0];
+                var next = samples[1];
+                var startTime = Math.max(first.time, cutoff);
+                var fraction = (next.time > first.time)
+                    ? Math.max(0, Math.min(1, (startTime - first.time) / (next.time - first.time)))
+                    : 0;
+                var startX = first.x + (next.x - first.x) * fraction;
+                var startY = first.y + (next.y - first.y) * fraction;
+                for (var i = samples.length - 2; i >= 0; i--) {
+                    var sample = samples[i];
+                    if (sample.time < cutoff) { break; }
+                    if (Math.hypot(pointerX - sample.x, pointerY - sample.y) >= 12) {
+                        startX = sample.x;
+                        startY = sample.y;
+                        startTime = sample.time;
+                        break;
+                    }
+                }
+                drag.lastFlickX = pointerX - startX;
+                drag.lastFlickY = startY - pointerY;
+                drag.lastFlickDistance = Math.hypot(drag.lastFlickX, drag.lastFlickY);
                 drag.lastFlickVelocity = drag.lastFlickDistance /
-                    Math.max(1, moveTime - drag.flickStartTime);
+                    Math.max(1, moveTime - startTime);
                 drag.lastFlickMoveTime = moveTime;
             }
             drag.lastPointerY = pointerY;
@@ -1973,9 +1994,7 @@ class GameLayout {
                 velocityX: 0, velocityY: 0, lastMotionTime: performance.now(),
                 lastPointerMoveTime: performance.now(),
                 flickDirection: 0,
-                flickDistance: 0,
-                flickDistanceX: 0,
-                flickStartTime: performance.now(),
+                flickSamples: [],
                 lastFlickDistance: 0,
                 lastFlickVelocity: 0,
                 lastX: event.clientX,
@@ -2027,12 +2046,8 @@ class GameLayout {
                     Math.abs(dragOffsetY) * horizontalScrollRatio;
                 var isVerticalIntent = Math.abs(dragOffsetY) >=
                     Math.max(8, Math.abs(dragOffsetX) * 1.1);
-                var isUpwardFlickIntent = isUpwardFlick(dragOffsetX, -dragOffsetY);
-                if (event.pointerType == "mouse" && handScrollDrag.card != null &&
+                if (handScrollDrag.card != null &&
                     handScrollDrag.canDragToPlay) {
-                    handScrollDrag.axis = "vertical";
-                } else if (handScrollDrag.canSwipeToPlay && handScrollDrag.canDragToPlay &&
-                    handScrollDrag.card != null && isUpwardFlickIntent) {
                     handScrollDrag.axis = "vertical";
                 } else if (isHorizontalIntent) {
                     if (Math.abs(dragOffsetX) >= horizontalScrollDistance) {
@@ -2384,8 +2399,8 @@ class GameLayout {
                     ? null
                     : ((selectedCardStrength == PresidentCard.clubThreePower()) ? 1 : topPile.length);
                 selectionCount.textContent = (requiredCount == null)
-                    ? `${selectedCards.length} kort valgt. Sveip sidelengs for å bla. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.`
-                    : `${selectedCards.length} av ${requiredCount} kort valgt. Sveip sidelengs for å bla. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.`;
+                    ? `${selectedCards.length} kort valgt. Sveip på tom plass i hånden for å bla. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.`
+                    : `${selectedCards.length} av ${requiredCount} kort valgt. Sveip på tom plass i hånden for å bla. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.`;
                 if (GameLayout.playInputMode() == "button") {
                     selectionCount.textContent = requiredCount == null
                         ? `${selectedCards.length} kort valgt. Trykk Legg ut eller Enter for å spille.`
