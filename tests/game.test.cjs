@@ -3779,13 +3779,45 @@ test("bot name collisions are rejected regardless of case or player type", async
     }
 });
 
-test("name suffixes remain within 28 code points and can skip used suffixes", () => {
+test("name suffixes remain within 24 code points and can skip used suffixes", () => {
     const { availablePlayerName } = loadGame();
-    const name = "A".repeat(28);
-    assert.equal(availablePlayerName(name, [name]), "A".repeat(26) + "-1");
+    const name = "A".repeat(24);
+    assert.equal(availablePlayerName(name, []), name);
+    assert.equal(availablePlayerName(name, [name]), "A".repeat(22) + "-1");
     assert.equal(availablePlayerName("Guest", ["Guest", "Guest-2"]), "Guest-1");
-    const emojiName = "\u{1f600}".repeat(28);
-    assert.equal(Array.from(availablePlayerName(emojiName, [emojiName])).length, 28);
+    const emojiName = "\u{1f600}".repeat(24);
+    assert.equal(Array.from(availablePlayerName(emojiName, [emojiName])).length, 24);
+    const used = [name, ...Array.from({ length: 9 }, (_, i) => "A".repeat(22) + `-${i + 1}`)];
+    assert.equal(availablePlayerName(name, used), "A".repeat(21) + "-10");
+});
+
+test("name input validates the 24-character boundary without truncating letters or emoji", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const start = source.indexOf('        document.getElementById("dialogSporOmNickTxt").addEventListener("input"');
+    const end = source.indexOf('        document.getElementById("playerRecoveryPin")', start);
+    const { sanitizePlayerName } = loadGame();
+    let validate;
+    const input = {
+        value: "", attributes: {},
+        classList: { toggle(name, value) { this[name] = value; } },
+        setAttribute(name, value) { this.attributes[name] = value; },
+        addEventListener(type, listener) { validate = listener; }
+    };
+    const context = vm.createContext({
+        sanitizePlayerName,
+        document: { getElementById: id => id == "dialogSporOmNickTxt" ? input : { textContent: "" } }
+    });
+    vm.runInContext(source.slice(start, end), context);
+    for (const symbol of ["A", "あ", "\u{1f600}"]) {
+        for (const length of [24, 25]) {
+            input.value = symbol.repeat(length);
+            validate.call(input);
+            assert.equal(input.classList["input-soft-error"], length > 24);
+            assert.equal(input.attributes["aria-invalid"], String(length > 24));
+            assert.equal(input.value, symbol.repeat(length));
+        }
+    }
+    assert.match(source, /var invalidName = requestedName == "" \|\| Array\.from\(requestedName\)\.length > 24/);
 });
 
 test("renaming adds a suffix atomically and preserves host, pile and vote identity", async () => {

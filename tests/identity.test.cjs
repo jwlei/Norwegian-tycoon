@@ -442,7 +442,7 @@ test("name dialog has one optional PIN input and no repeat or separate registrat
     assert.match(dialog, /type="text" id="playerRecoveryPin"[^>]*maxlength="6"/);
     assert.match(dialog, /id="playerUsePin" class="setting-row" aria-pressed="false"/);
     assert.match(dialog, /id="playerPinFields" hidden/);
-    assert.match(dialog, /<label for="dialogSporOmNickTxt">Skriv inn navnet ditt, maks 28 tegn<\/label>[\s\S]*?<input[^>]*id="dialogSporOmNickTxt"/);
+    assert.match(dialog, /<label for="dialogSporOmNickTxt">Skriv inn navnet ditt, maks 24 tegn<\/label>[\s\S]*?<input[^>]*id="dialogSporOmNickTxt"/);
     assert.doesNotMatch(dialog, /playerNameHint/);
     assert.match(dialog, /placeholder="PIN \(6 sifre\)"/);
     assert.doesNotMatch(dialog, /playerNewPin|playerConfirmPin|playerSetPin|oninput=/);

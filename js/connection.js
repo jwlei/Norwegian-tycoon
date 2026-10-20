@@ -2605,7 +2605,7 @@
         });
         document.getElementById("dialogSporOmNickTxt").addEventListener("input", function () {
             var name = this.value.trim();
-            var invalid = name == "" || Array.from(name).length > 28 || sanitizePlayerName(name) != name;
+            var invalid = name == "" || Array.from(name).length > 24 || sanitizePlayerName(name) != name;
             this.classList.toggle("input-soft-error", invalid);
             this.setAttribute("aria-invalid", String(invalid));
             document.getElementById("playerNameError").textContent = "";
@@ -2688,7 +2688,7 @@
 
         document.getElementById('dialogSporOmNickOk').addEventListener('click', async function () {
             var requestedName = document.getElementById('dialogSporOmNickTxt').value.trim();
-            var invalidName = requestedName == "" || Array.from(requestedName).length > 28 ||
+            var invalidName = requestedName == "" || Array.from(requestedName).length > 24 ||
                 sanitizePlayerName(requestedName) != requestedName;
             document.getElementById("dialogSporOmNickTxt").classList.toggle("input-soft-error", invalidName);
             document.getElementById("dialogSporOmNickTxt").setAttribute("aria-invalid", String(invalidName));

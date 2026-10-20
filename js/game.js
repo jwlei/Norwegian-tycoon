@@ -229,7 +229,7 @@ function availablePlayerName(name, usedNames) {
     var number = 0;
     while (used.has(candidate.toLocaleLowerCase())) {
         var suffix = `-${++number}`;
-        candidate = Array.from(name).slice(0, 28 - suffix.length).join("") + suffix;
+        candidate = Array.from(name).slice(0, 24 - suffix.length).join("") + suffix;
     }
     return candidate;
 }
