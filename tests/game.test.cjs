@@ -3062,8 +3062,39 @@ function setupGame() {
         owner.name, ...Array.from({ length: count }, (_, suit) =>
             new types.PresidentCard(suit + 1, rank))
     );
-    return { game, players, pile };
+    return { game, players, pile, types };
 }
+
+test("playing the final card persists the president placement and completed round placement", () => {
+    const { game, players, types } = setupGame();
+    const winner = players[0];
+    const finalPlayer = players[1];
+    players.splice(2);
+    winner.cards = [new types.PresidentCard(1, 5)];
+    finalPlayer.cards = [new types.PresidentCard(2, 7)];
+    game.localPlayerName = winner.name;
+    game.setTurn(0);
+
+    let stored = { status: "S", lastHumanActionAt: Date.now(), shuffleStartedAt: null, runde: 1 };
+    game.lastHumanActionAt = Date.now();
+    game.databaseRef = {
+        transaction(update, complete) {
+            const next = update(stored);
+            const committed = next !== undefined;
+            if (committed) { stored = next; }
+            complete(null, committed, { val: () => stored });
+            return Promise.resolve({ committed });
+        }
+    };
+
+    game.playCards(winner, new types.CardPile(winner.name, ...winner.cards));
+
+    const persistedPlayers = types.PresidentPlayer.deserializePlayers(stored.spillere);
+    assert.equal(persistedPlayers[0].placement, 1);
+    assert.equal(persistedPlayers[1].placement, 2);
+    assert.equal(stored.sinTur, -1);
+    assert.equal(stored.turnPause.pendingGameEnd, true);
+});
 
 test("passing and clearing a pile preserve every displayed card's position and render identity", () => {
     const element = () => ({
@@ -3925,7 +3956,7 @@ test("settings expose animation speed from the main menu and disable Flick only 
                 querySelector: () => setting,
                 getElementById: () => ({})
             },
-            updateSavedPlayerName() {}, updateCardStyleButtons() {},
+            updateSavedPlayerName() {}, updateCardStyleButtons() {}, updateCardFoilButtons() {},
             updateAutoSuggestionButton() {}, updateSpeedButtons() {},
             updateTurnSpeedButtons() {}, showDialog() {}
         });

@@ -1446,6 +1446,10 @@ select:focus-visible {
 .card-style-list .card-style-option:hover,
 .card-style-list .card-style-option:active,
 .card-style-list .card-style-option:focus,
+.card-style-list .card-foil-option,
+.card-style-list .card-foil-option:hover,
+.card-style-list .card-foil-option:active,
+.card-style-list .card-foil-option:focus,
 .color-theme-list .color-theme-option,
 .color-theme-list .color-theme-option:hover,
 .color-theme-list .color-theme-option:active,
@@ -1465,16 +1469,19 @@ select:focus-visible {
     transform: none;
 }
 
-.card-style-list .card-style-option[aria-pressed="true"] {
+.card-style-list .card-style-option[aria-pressed="true"],
+.card-style-list .card-foil-option[aria-pressed="true"] {
     border-color: var(--success);
     background: var(--success-soft);
 }
 
+.card-foil-option > strong,
 .card-style-option > strong {
     font-size: 0.8rem;
     white-space: nowrap;
 }
 
+.card-foil-option .card-preview,
 .card-style-option .card-preview {
     width: clamp(30px, 10vw, 52px);
 }
@@ -1659,6 +1666,46 @@ select:focus-visible {
         rotateX(var(--tilt-x, 0deg))
         rotateY(var(--tilt-y, 0deg))
         rotate(var(--card-rotation, 0deg));
+}
+
+.game-card.is-drag-source {
+    opacity: 0;
+}
+
+.card-drag-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.card-drag-layer > .game-card {
+    position: absolute;
+    display: block;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    opacity: 1;
+    pointer-events: none;
+    transform:
+        translate3d(var(--drag-offset-x, 0px), var(--drag-offset-y, 0px), 0)
+        perspective(600px)
+        scale(var(--drag-scale, 1))
+        rotateX(var(--tilt-x, 0deg))
+        rotateY(var(--tilt-y, 0deg));
+    transition: transform 90ms ease-out;
+}
+
+.card-drag-preview > img {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+#gameTable.is-card-drop-target {
+    outline: 2px solid var(--focus);
+    outline-offset: -4px;
 }
 
 .visually-hidden {
@@ -2905,8 +2952,13 @@ select:focus-visible {
 }
 
 #fastForwardButton:hover,
-#autoSuggestionToggleButton:hover {
-    background: var(--surface-hover);
+#autoSuggestionToggleButton:hover,
+#fastForwardButton:active,
+#autoSuggestionToggleButton:active {
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+    filter: none;
     opacity: 1;
 }
 
@@ -4143,6 +4195,11 @@ select:focus-visible {
 
     .game-card::after {
         display: none;
+    }
+
+    .card-drag-layer > .game-card {
+        transform: translate3d(var(--drag-offset-x, 0px), var(--drag-offset-y, 0px), 0);
+        transition: none;
     }
 }
 

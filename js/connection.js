@@ -1087,7 +1087,11 @@
 
         document.addEventListener("visibilitychange", function () {
             if (!currentGame) { return; }
-            if (document.hidden) { GameLayout.clearCardFlights(); }
+            if (document.hidden) {
+                GameLayout.clearCardFlights();
+                var hand = document.getElementById("playerHand");
+                if (hand.onpointercancel) { hand.onpointercancel(); }
+            }
             if (currentGame.turnPause?.presentationVersion == 1) {
                 completeLocalPresentation(currentGame, currentGame.turnPause);
             }
@@ -2052,10 +2056,13 @@
                 button.hidden = button.dataset.cardStyle == "botanical" && !GameLayout.canUseBotanicalStyle();
                 button.setAttribute("aria-pressed", String(button.dataset.cardStyle == style));
                 var holder = button.querySelector(".card-style-option__cards");
-                if (holder != null && holder.childElementCount == 0) {
+                if (holder != null && (holder.childElementCount == 0 || holder.dataset.foil != GameLayout.cardFoil())) {
+                    holder.replaceChildren();
+                    holder.dataset.foil = GameLayout.cardFoil();
                     previewCards.forEach(card => {
                         var wrapper = document.createElement("span");
                         wrapper.className = "card-preview card-preview--" + button.dataset.cardStyle;
+                        wrapper.dataset.foil = GameLayout.cardFoil();
                         var image = GameLayout.createCardImage(card, null, button.dataset.cardStyle);
                         image.alt = "";
                         wrapper.appendChild(image);
@@ -2108,8 +2115,10 @@
             });
         });
         window.addEventListener("storage", function (event) {
-            if (event.key != "cardStyle" && event.key != "norwegian-tycoon-cookie-CardStyleScope") { return; }
+            if (event.key != "cardStyle" && event.key != "norwegian-tycoon-cookie-CardStyleScope" &&
+                event.key != "norwegian-tycoon-cookie-CardFoil") { return; }
             updateCardStyleButtons();
+            updateCardFoilButtons();
             if (currentGame) {
                 if (event.key == "cardStyle") {
                     currentGame.cardStyleSyncFailed = null;
@@ -2120,6 +2129,67 @@
         });
         document.getElementById("cardStyleCloseButton").addEventListener("click", function () {
             showDialog("Korttype", false);
+            showDialog("Innstillinger", true);
+        });
+
+        function updateCardFoilButtons() {
+            var foil = GameLayout.cardFoil();
+            var style = GameLayout.cardStyle();
+            var options = document.getElementById("cardFoilOptions");
+            if (options.childElementCount == 0) {
+                Card.foilOptions().forEach(option => {
+                    var button = document.createElement("button");
+                    button.type = "button";
+                    button.className = "card-foil-option";
+                    button.dataset.cardFoil = option.id;
+                    var cards = document.createElement("span");
+                    cards.className = "card-style-option__cards";
+                    var name = document.createElement("strong");
+                    name.textContent = option.name;
+                    button.append(cards, name);
+                    button.addEventListener("click", function () {
+                        setCookie("CardFoil", option.id, 1000);
+                        updateCardStyleButtons();
+                        updateCardFoilButtons();
+                        if (currentGame != null) { refreshAfterTurnPause(currentGame); }
+                        showDialog("Kortfolie", false);
+                        showDialog("Innstillinger", true);
+                    });
+                    options.appendChild(button);
+                });
+            }
+            options.querySelectorAll(".card-foil-option").forEach(button => {
+                button.setAttribute("aria-pressed", String(button.dataset.cardFoil == foil));
+                var holder = button.querySelector(".card-style-option__cards");
+                if (holder.dataset.style == style) { return; }
+                holder.dataset.style = style;
+                holder.replaceChildren();
+                var card = new PresidentCard(2, 1);
+                var wrapper = document.createElement("span");
+                wrapper.className = "card-preview";
+                wrapper.dataset.foil = button.dataset.cardFoil;
+                var image = GameLayout.createCardImage(card, null, style, button.dataset.cardFoil);
+                image.alt = "";
+                wrapper.appendChild(image);
+                wrapper.addEventListener("pointermove", event => updateCardTilt(wrapper, event));
+                wrapper.addEventListener("pointerleave", () => resetCardTilt(wrapper));
+                holder.appendChild(wrapper);
+            });
+            var selected = options.querySelector(`[data-card-foil="${foil}"]`);
+            var current = document.getElementById("cardFoilCurrent");
+            current.replaceChildren(selected.querySelector(".card-preview").cloneNode(true));
+            document.getElementById("cardFoilCurrentName").textContent =
+                localizedMessage(Card.foilOptions().find(option => option.id == foil).name);
+        }
+        updateCardFoilButtons();
+        document.addEventListener("languagechange", updateCardFoilButtons);
+        document.getElementById("cardFoilOpenButton").addEventListener("click", function () {
+            updateCardFoilButtons();
+            showDialog("Innstillinger", false);
+            showDialog("Kortfolie", true);
+        });
+        document.getElementById("cardFoilCloseButton").addEventListener("click", function () {
+            showDialog("Kortfolie", false);
             showDialog("Innstillinger", true);
         });
 
@@ -2145,6 +2215,7 @@
                     syncPlayerCardStyle(currentGame);
                 }
                 updateCardStyleButtons();
+                updateCardFoilButtons();
                 if (currentGame != null) { refreshAfterTurnPause(currentGame); }
                 showDialog("Korttype", false);
                 showDialog("Innstillinger", true);
@@ -2155,6 +2226,7 @@
             var inGame = currentGame != null;
             updateSavedPlayerName();
             updateCardStyleButtons();
+            updateCardFoilButtons();
             GameLayout.setVisible("BnPByttNavn", !inGame || currentGame.status == "O");
             document.querySelector(".setting-turn-speed").hidden = false;
             document.getElementById("settingsGameId").hidden = !inGame;

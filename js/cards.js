@@ -120,7 +120,55 @@ class Card {
             "silver", "crystal"].includes(style)
             ? style : "normal";
     }
-    toImageDataUri(style = "normal") {
+    static foilOptions() {
+        return [
+            { id: "none", name: "Ingen folie" },
+            { id: "holo", name: "Stripet" },
+            { id: "galaxy", name: "Stjernestøv" },
+            { id: "v", name: "Prisme" },
+            { id: "vmax", name: "Bølger" },
+            { id: "vstar", name: "Fasetter" },
+            { id: "full-art", name: "Ringer" },
+            { id: "trainer-full-art", name: "Vev" },
+            { id: "rainbow", name: "Regnbue" },
+            { id: "rainbow-alt", name: "Kontrast" },
+            { id: "gold", name: "Gullglans" },
+            { id: "radiant", name: "Rutenett" },
+            { id: "gallery-holo", name: "Fargespill" },
+            { id: "gallery-v", name: "Perlemor" },
+            { id: "gallery-vmax", name: "Stråler" }
+        ];
+    }
+    static normalizeFoil(foil) {
+        return Card.foilOptions().some(option => option.id == foil) ? foil : "none";
+    }
+    static foilOverlay(foil) {
+        foil = Card.normalizeFoil(foil);
+        if (foil == "none") { return ""; }
+        const index = Card.foilOptions().findIndex(option => option.id == foil);
+        const angle = { holo: 90, galaxy: 82, v: 133, vmax: -33, vstar: 133,
+            "full-art": 133, "trainer-full-art": 133, rainbow: -20, "rainbow-alt": -20,
+            gold: 110, radiant: 55, "gallery-holo": -22, "gallery-v": 133, "gallery-vmax": 133 }[foil];
+        const gold = foil == "gold";
+        const colors = gold ? ["#775120", "#e0bc63", "#fff2bf", "#c4963a", "#775120"] :
+            ["#ff7773", "#ffed5f", "#a8ff5f", "#83fff7", "#7894ff", "#d875ff", "#ff7773"];
+        const spectrum = `<linearGradient id="card-foil-spectrum" gradientTransform="rotate(${angle} .5 .5)">${colors.map((color, i) =>
+            `<stop offset="${i / (colors.length - 1)}" stop-color="${color}"/>`).join("")}</linearGradient>`;
+        const pattern = foil == "galaxy"
+            ? Array.from({ length: 22 }, (_, i) => `<circle cx="${(i * 37 + 11) % 80}" cy="${(i * 43 + 7) % 120}" r="${i % 3 + 0.5}" fill="#fff" opacity="${i % 2 ? 0.18 : 0.6}"/>`).join("")
+            : foil == "radiant"
+                ? '<path d="M0 0h12v12H0zM12 12h12v12H12z" fill="#fff" opacity=".4"/>'
+                : `<path d="M0 0v24M${3 + index % 5} 0v24" stroke="#fff" stroke-width="${foil == "holo" ? 1 : 0.6}" opacity=".6"/>
+                    <path d="m0 0 24 24m-24 0 24-24" stroke="#182244" stroke-width=".6" opacity=".35"/>`;
+        const texture = `<pattern id="card-foil-texture" width="${foil == "galaxy" ? 80 : 9 + index}" height="${foil == "galaxy" ? 120 : 9 + index}" patternUnits="userSpaceOnUse" patternTransform="rotate(${angle})">${pattern}</pattern>`;
+        const inset = ["holo", "galaxy"].includes(foil) ? 'x="18" y="27" width="44" height="67" rx="5"' :
+            'x="2" y="2" width="76" height="116" rx="8"';
+        return `<defs>${spectrum}${texture}</defs><g data-foil="${foil}" opacity=".23">
+            <rect ${inset} fill="url(#card-foil-spectrum)"/>
+            <rect ${inset} fill="url(#card-foil-texture)" opacity=".7"/>
+        </g>`;
+    }
+    toImageDataUri(style = "normal", cardFoil = "none") {
         const code = Card.suitInfo(this.suit).code;
         const rank = this.rank === 1 ? "A" : this.rank > 10 ? { 11: "J", 12: "Q", 13: "K" }[this.rank] : String(this.rank);
         const isRed = (this.suit === 2 || this.suit === 4);
@@ -283,6 +331,7 @@ class Card {
             ${illustration}
             </g>
             ${style === "silver" ? "" : foil}
+            ${Card.foilOverlay(cardFoil)}
         </svg>`;
         return Card.imageSource(svg);
     }

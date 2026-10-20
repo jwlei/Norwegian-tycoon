@@ -118,6 +118,10 @@ test("status surfaces use theme tokens instead of legacy fixed green, gold and r
     assert.match(css, /\.color-theme-preview > span \+ span\s*\{[^}]*var\(--success\)[^}]*var\(--warning\)[^}]*var\(--danger\)/);
 });
 
+test("playback and suggestion controls stay visually unbuttoned on hover and press", () => {
+    assert.match(css, /#fastForwardButton:hover,\s*#autoSuggestionToggleButton:hover,\s*#fastForwardButton:active,\s*#autoSuggestionToggleButton:active\s*\{[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;[^}]*transform:\s*none;[^}]*filter:\s*none;/);
+});
+
 test("card style names stay compact and on one line with responsive previews", () => {
     assert.match(css, /\.card-style-option > strong\s*\{[^}]*font-size:\s*0\.8rem;[^}]*white-space:\s*nowrap;/);
     assert.match(css, /\.card-style-option \.card-preview\s*\{[^}]*width:\s*clamp\(30px, 10vw, 52px\);/);

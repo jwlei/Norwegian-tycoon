@@ -145,6 +145,9 @@ class GameLayout {
     static cardStyleScope() {
         return getCookie("CardStyleScope") == "own" ? "own" : "player";
     }
+    static cardFoil() {
+        return Card.normalizeFoil(getCookie("CardFoil"));
+    }
     static styleForPlayer(game, name) {
         if (GameLayout.cardStyleScope() == "own" || name == GameLayout.viewerName) {
             return GameLayout.cardStyle();
@@ -155,12 +158,12 @@ class GameLayout {
     static canUseBotanicalStyle() {
         return Card.normalizeStyle("botanical", GameLayout.cardStylePlayerName || "") == "botanical";
     }
-    static cardImageHtml(K, width = null, rotering = null, style = "normal") {
-        return `<img src='${K.toImageDataUri(style)}' ${((width != null) ? "width='" + width + "'" : "")} alt='${K.getName()}' ${((rotering != null) ? "transform: translateX(" + rotering + "px) rotate(" + rotering + "deg);" : "")} />`;
+    static cardImageHtml(K, width = null, rotering = null, style = "normal", foil = GameLayout.cardFoil()) {
+        return `<img src='${K.toImageDataUri(style, foil)}' ${((width != null) ? "width='" + width + "'" : "")} alt='${K.getName()}' ${((rotering != null) ? "transform: translateX(" + rotering + "px) rotate(" + rotering + "deg);" : "")} />`;
     }
-    static createCardImage(K, width, style = "normal") {
+    static createCardImage(K, width, style = "normal", foil = GameLayout.cardFoil()) {
         var e = document.createElement("img");
-        e.src = K.toImageDataUri(style);
+        e.src = K.toImageDataUri(style, foil);
         if (width != null) { e.width = width };
         e.alt = K.getName();
         return e;
@@ -579,7 +582,7 @@ class GameLayout {
         var cardOrigins = new Map();
         document.querySelectorAll("#playerHand .game-card[data-card-key] img").forEach(image => {
             var cardElement = image.closest(".game-card");
-            var bounds = image.getBoundingClientRect();
+            var bounds = (cardElement._dragPreview || image).getBoundingClientRect();
             cardOrigins.set(cardElement.dataset.cardKey, {
                 left: bounds.left,
                 top: bounds.top,
@@ -1615,6 +1618,7 @@ class GameLayout {
             Array.from(autoSuggestedCardKeys).join(","),
             autoSuggestPlayableCards ? 1 : 0,
             GameLayout.cardStyle(),
+            GameLayout.cardFoil(),
             GameLayout.playInputMode()
         ].join(";");
     }
@@ -1714,6 +1718,7 @@ class GameLayout {
         }
         element._handSignature = null;
         element._rebindHand = null;
+        if (element.onpointercancel) { element.onpointercancel(); }
         var previousScrollLeft = element.scrollLeft;
         var shouldCenterAutoSelection = false;
         var autoCenterTurnKey = null;
@@ -1749,6 +1754,8 @@ class GameLayout {
             element.onpointermove = null;
             element.onpointerup = null;
             element.onpointercancel = null;
+            element.onpointerleave = null;
+            element.onlostpointercapture = null;
             element.onwheel = null;
             element.scrollLeft = 0;
             return;
@@ -1811,6 +1818,8 @@ class GameLayout {
                 cardElement: cardElement,
                 card: card,
                 canSwipeToPlay: GameLayout.playInputMode() == "flick" && game.status == "S" && isPlayingTurn,
+                canDragToPlay: game.status == "S" && isPlayingTurn &&
+                    !game.localWritePending && game.connectionOnline !== false && !GamePresence.isBot(game, player),
                 didMove: false,
                 didPlayDrag: false,
                 canPlay: false
@@ -1822,12 +1831,22 @@ class GameLayout {
             }
         };
         element.onpointermove = function (event) {
-            if (!handScrollDrag || handScrollDrag.pointerId != event.pointerId) { return; }
+            if (!handScrollDrag) {
+                if (event.pointerType != "mouse") { return; }
+                var hoveredCard = event.target instanceof Element ? event.target.closest(".game-card") : null;
+                element.querySelectorAll(".game-card.is-tilting").forEach(card => {
+                    if (card != hoveredCard) { resetCardTilt(card); }
+                });
+                if (hoveredCard) { updateCardTilt(hoveredCard, event); }
+                return;
+            }
+            if (handScrollDrag.pointerId != event.pointerId) { return; }
             var dragOffsetX = event.clientX - handScrollDrag.startX;
             var dragOffsetY = event.clientY - handScrollDrag.startY;
             if (handScrollDrag.axis == null &&
                 Math.max(Math.abs(dragOffsetX), Math.abs(dragOffsetY)) >= 8) {
-                handScrollDrag.axis = Math.abs(dragOffsetX) > Math.abs(dragOffsetY)
+                handScrollDrag.axis = event.pointerType == "mouse" && handScrollDrag.card != null &&
+                    handScrollDrag.canDragToPlay ? "vertical" : Math.abs(dragOffsetX) > Math.abs(dragOffsetY)
                     ? "horizontal"
                     : "vertical";
                 handScrollDrag.didMove = true;
@@ -1855,39 +1874,29 @@ class GameLayout {
                 updateCardTilt(handScrollDrag.cardElement, event);
             }
             if (handScrollDrag.axis == "vertical" &&
-                handScrollDrag.canSwipeToPlay &&
+                handScrollDrag.canDragToPlay &&
                 handScrollDrag.card != null &&
-                dragOffsetY < -4) {
+                (dragOffsetY < -4 || handScrollDrag.didPlayDrag || event.pointerType == "mouse")) {
                 if (!handScrollDrag.didPlayDrag) {
                     handScrollDrag.didPlayDrag = true;
                     handScrollDrag.canPlay = selectCardsForSwipe(handScrollDrag.card);
+                    if (handScrollDrag.canPlay) {
+                        startCardDragPreview(element, {
+                            clientX: handScrollDrag.startX, clientY: handScrollDrag.startY
+                        });
+                    }
                 }
                 if (handScrollDrag.canPlay) {
-                    var selectionOffset = `${Math.max(-180, dragOffsetY)}px`;
-                    element.querySelectorAll(".game-card").forEach(draggedCard => {
-                        if (!selectedCardKeys.has(draggedCard.dataset.cardKey)) { return; }
-                        draggedCard.classList.add("is-selected", "is-dragging");
-                        draggedCard.setAttribute("aria-pressed", "true");
-                        draggedCard.style.setProperty("--drag-base-y", "-18px");
-                        draggedCard.style.setProperty("--drag-scale", "1.06");
-                        draggedCard.style.setProperty("--drag-offset-x", `${dragOffsetX}px`);
-                        draggedCard.style.setProperty("--drag-offset-y", selectionOffset);
-                    });
+                    event.preventDefault();
+                    moveCardDragPreview(element, event, handScrollDrag.startX, handScrollDrag.startY);
                 }
             }
         };
         element.onpointerup = function (event) {
             var activeDrag = handScrollDrag;
+            if (!activeDrag || activeDrag.pointerId != event.pointerId) { return; }
             handScrollDrag = null;
             element.classList.remove("is-hand-dragging");
-            if (!activeDrag || activeDrag.pointerId != event.pointerId) { return; }
-            var swipeDistance = activeDrag.startY - event.clientY;
-            var cardHeight = activeDrag.cardElement
-                ? activeDrag.cardElement.getBoundingClientRect().height
-                : 0;
-            var swipeThreshold = Math.max(48, Math.min(72, cardHeight * 0.35));
-            var swipeVelocity = swipeDistance / Math.max(1, Date.now() - activeDrag.startTime);
-            var isFlick = swipeDistance >= 24 && swipeVelocity >= 0.55;
             if (activeDrag.didMove) {
                 suppressNextCardClick = true;
                 window.setTimeout(function () {
@@ -1895,9 +1904,7 @@ class GameLayout {
                 }, 0);
             }
             var keepDragPosition = false;
-            if (activeDrag.axis != "horizontal" &&
-                activeDrag.canSwipeToPlay &&
-                (swipeDistance >= swipeThreshold || isFlick)) {
+            if (shouldPlayCardDrag(activeDrag, event)) {
                 if ((activeDrag.didPlayDrag && activeDrag.canPlay) ||
                     (!activeDrag.didPlayDrag &&
                         activeDrag.card != null &&
@@ -1917,6 +1924,7 @@ class GameLayout {
             if (!keepDragPosition) {
                 clearDragStyles();
             }
+            clearCardDragPreview(element);
             if (activeDrag.cardElement) {
                 activeDrag.cardElement.classList.remove("is-pressed");
                 resetCardTilt(activeDrag.cardElement);
@@ -1930,6 +1938,13 @@ class GameLayout {
             handScrollDrag = null;
             element.classList.remove("is-hand-dragging");
             clearDragStyles();
+        };
+        element.onlostpointercapture = function (event) {
+            if (handScrollDrag && handScrollDrag.pointerId == event.pointerId) { element.onpointercancel(); }
+        };
+        element.onpointerleave = function () {
+            if (handScrollDrag) { return; }
+            element.querySelectorAll(".game-card.is-tilting").forEach(resetCardTilt);
         };
         element.onwheel = function (event) {
             if (element.scrollWidth <= element.clientWidth ||
@@ -2146,6 +2161,7 @@ class GameLayout {
             return true;
         };
         var clearDragStyles = function () {
+            clearCardDragPreview(element);
             element.querySelectorAll(".game-card.is-dragging").forEach(draggedCard => {
                 draggedCard.classList.remove("is-dragging");
                 draggedCard.style.removeProperty("--drag-base-y");
@@ -2196,6 +2212,8 @@ class GameLayout {
                     var cardKey = `${k.suit}:${k.rank}`;
                     elemKort.className = "game-card";
                     elemKort.dataset.cardKey = cardKey;
+                    elemKort.dataset.foil = GameLayout.cardFoil();
+                    elemKort.dataset.cardStyle = GameLayout.cardStyle();
                     elemKort.style.setProperty("--card-offset", "0px");
                     elemKort.style.setProperty("--card-rotation", `${fanPosition}deg`);
                     elemKort.innerHTML = GameLayout.cardImageHtml(k, null, null, GameLayout.cardStyle());

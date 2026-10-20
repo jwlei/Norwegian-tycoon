@@ -47,6 +47,7 @@
     <link rel="stylesheet" href="css/game.css?v=0.8.13">
     <link rel="stylesheet" href="css/mobile.css">
     <link rel="stylesheet" href="css/theme.css?v=0.8.13">
+    <link rel="stylesheet" href="css/foil.css?v=0.8.13">
 </head>
 
 <body>
@@ -226,6 +227,10 @@
                     <span class="setting-row__text"><strong>Kortstil</strong><small id="cardStyleCurrentName" data-i18n-skip></small></span>
                     <span id="cardStyleCurrent" class="card-style-current" aria-hidden="true"></span>
                 </button>
+                <button type="button" id="cardFoilOpenButton" class="setting-row" aria-haspopup="dialog">
+                    <span class="setting-row__text"><strong>Folie</strong><small id="cardFoilCurrentName" data-i18n-skip></small></span>
+                    <span id="cardFoilCurrent" class="card-style-current" aria-hidden="true"></span>
+                </button>
                 <h3 class="settings-category">Spill og styring</h3>
                 <button type="button" id="hideToastsToggleButton" class="setting-row" aria-pressed="false">
                     <span class="setting-row__text"><strong>Skjul toast-meldinger</strong><small>Skjuler meldinger på spillbrettet for deg. Hendelser vises fortsatt i spilloggen.</small></span>
@@ -254,6 +259,7 @@
                         <button type="button" class="play-input-option" data-play-input="button" aria-pressed="false">Legg ut</button>
                     </span>
                 </div>
+                <p class="color-theme-description">Dra valgte kort til spillbrettet og slipp for å spille. Flick opp fungerer fortsatt med Flick-styring. Sveip sidelengs på mobil for å bla.</p>
             </div>
             <div class="dialog-footer">
                 <button type="button" onclick="showDialog('Innstillinger',false);">Lukk</button>
@@ -285,6 +291,16 @@
             </div>
             <div class="dialog-footer">
                 <button type="button" id="colorThemeCloseButton">Lukk</button>
+            </div>
+        </div>
+    </div>
+    <div id="dialogKortfolie" class="dialog-container">
+        <div class="dialog-window">
+            <div class="dialog-title">Velg folie</div>
+            <p class="color-theme-description">Folie legges over kortstilen. Valget gjelder bare din visning av kortene.</p>
+            <div class="dialogBody card-style-list" id="cardFoilOptions"></div>
+            <div class="dialog-footer">
+                <button type="button" id="cardFoilCloseButton">Lukk</button>
             </div>
         </div>
     </div>

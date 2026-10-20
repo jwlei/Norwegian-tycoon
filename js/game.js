@@ -327,6 +327,83 @@ function resetCardTilt(cardElement) {
     cardElement.style.setProperty("--tilt-y", "0deg");
 }
 
+function startCardDragPreview(hand, event) {
+    clearCardDragPreview(hand);
+    var layer = document.createElement("div");
+    layer.className = "card-drag-layer";
+    layer.setAttribute("aria-hidden", "true");
+    var cards = [];
+    hand.querySelectorAll(".game-card").forEach(card => {
+        if (!selectedCardKeys.has(card.dataset.cardKey)) { return; }
+        var bounds = card.getBoundingClientRect();
+        var preview = card.cloneNode(true);
+        preview.removeAttribute("id");
+        preview.removeAttribute("aria-pressed");
+        preview.className = `game-card card-preview card-preview--${card.dataset.cardStyle} card-drag-preview`;
+        preview.tabIndex = -1;
+        preview.style.left = `${bounds.left}px`;
+        preview.style.top = `${bounds.top}px`;
+        preview.style.width = `${bounds.width}px`;
+        preview.style.height = `${bounds.height}px`;
+        preview.style.setProperty("--card-offset", "0px");
+        preview.style.setProperty("--card-rotation", "0deg");
+        layer.appendChild(preview);
+        card.classList.add("is-drag-source");
+        card._dragPreview = preview;
+        cards.push(card);
+    });
+    document.body.appendChild(layer);
+    hand._cardDragPreview = { layer, cards, lastX: event.clientX, lastY: event.clientY };
+}
+
+function moveCardDragPreview(hand, event, startX, startY) {
+    var drag = hand._cardDragPreview;
+    if (!drag) { return; }
+    var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var tiltX = reducedMotion ? 0 : Math.max(-28, Math.min(28, (drag.lastY - event.clientY) * 1.5));
+    var tiltY = reducedMotion ? 0 : Math.max(-28, Math.min(28, (event.clientX - drag.lastX) * 1.5));
+    drag.cards.forEach(card => {
+        var preview = card._dragPreview;
+        preview.style.setProperty("--drag-offset-x", `${event.clientX - startX}px`);
+        preview.style.setProperty("--drag-offset-y", `${event.clientY - startY}px`);
+        preview.style.setProperty("--tilt-x", `${tiltX}deg`);
+        preview.style.setProperty("--tilt-y", `${tiltY}deg`);
+        preview.style.setProperty("--drag-scale", reducedMotion ? "1" : "1.12");
+        preview.classList.add("is-tilting");
+    });
+    drag.lastX = event.clientX;
+    drag.lastY = event.clientY;
+    document.getElementById("gameTable").classList.toggle("is-card-drop-target", isCardDropOnTable(event));
+}
+
+function isCardDropOnTable(event) {
+    var table = document.getElementById("gameTable");
+    var bounds = table.getBoundingClientRect();
+    return bounds.width > 0 && bounds.height > 0 &&
+        event.clientX >= bounds.left && event.clientX <= bounds.right &&
+        event.clientY >= bounds.top && event.clientY <= bounds.bottom;
+}
+
+function shouldPlayCardDrag(drag, event) {
+    if (!drag.canDragToPlay || drag.axis == "horizontal") { return false; }
+    if (drag.didPlayDrag && isCardDropOnTable(event)) { return true; }
+    var distance = drag.startY - event.clientY;
+    var velocity = distance / Math.max(1, Date.now() - drag.startTime);
+    return drag.canSwipeToPlay && distance >= 24 && velocity >= 0.55;
+}
+
+function clearCardDragPreview(hand) {
+    var drag = hand._cardDragPreview;
+    if (!drag) { return; }
+    drag.cards.forEach(card => {
+        card.classList.remove("is-drag-source");
+        delete card._dragPreview;
+    });
+    drag.layer.remove();
+    hand._cardDragPreview = null;
+    document.getElementById("gameTable").classList.remove("is-card-drop-target");
+}
+
 function stopCardHandInertia() {
     if (cardHandInertiaFrame != null) {
         cancelAnimationFrame(cardHandInertiaFrame);
