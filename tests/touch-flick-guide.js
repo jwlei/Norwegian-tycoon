@@ -22,7 +22,7 @@ function touchFlickExample(angle, stage, distance, speed, hold = 0) {
     } else if (speed < CARD_FLICK_MIN_VELOCITY) {
         verdict = "Too slow. Finish at 400 px/s or faster to flick.";
     } else if (hold > 120) {
-        verdict = "Released too late. The final movement is more than 120 ms old.";
+        verdict = "Released too late. The recognized flick is more than 120 ms old.";
     } else {
         verdict = "Valid flick. Release now to play the card.";
     }

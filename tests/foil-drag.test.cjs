@@ -1172,6 +1172,75 @@ test("shorter gentler upward flicks play, including movement first reported at p
     }
 });
 
+test("a qualifying flick survives a tiny recoil or brief slowdown as the finger lifts", () => {
+    for (const desktop of [false, true]) {
+        for (const finish of ["recoil", "slowdown"]) {
+            const f = pointerFixture({ desktop });
+            f.hand.onpointerdown(f.event(200, 500));
+            f.advance(1020);
+            f.hand.onpointermove(f.event(200, 484));
+            f.advance(1040);
+            f.hand.onpointermove(f.event(200, 468));
+            f.advance(finish == "recoil" ? 1056 : 1072);
+            const y = finish == "recoil" ? 469 : 467;
+            f.hand.onpointermove(f.event(200, y));
+            f.hand.onpointerup(f.event(200, y));
+            assert.equal(f.state.plays, 1, `${desktop}/${finish}`);
+        }
+    }
+});
+
+test("lift-off recoil tolerance works across touch flick angles and selected cards", () => {
+    for (const angle of [-72, -45, 0, 45, 72]) {
+        for (const selected of [false, true]) {
+            const f = pointerFixture();
+            if (selected) { vm.runInContext('selectedCardKeys.add("1:5")', f.context); }
+            const radians = angle * Math.PI / 180;
+            const x = 200 + Math.sin(radians) * 24;
+            const y = 500 - Math.cos(radians) * 24;
+            f.hand.onpointerdown(f.event(200, 500));
+            f.advance(1030);
+            f.hand.onpointermove(f.event(x, y));
+            f.advance(1046);
+            f.hand.onpointerup(f.event(x, y + 1));
+            assert.equal(f.state.plays, 1, `${angle}/${selected}`);
+            assert.equal(f.state.scrolls, 0);
+        }
+    }
+});
+
+test("a recent flick is cancelled by deliberate downward or sideways movement, or holding", () => {
+    for (const [dx, dy, releaseTime] of [[0, 6, 1060], [20, 0, 1060], [0, 0, 1161]]) {
+        const f = pointerFixture();
+        f.hand.onpointerdown(f.event(200, 500));
+        f.advance(1020);
+        f.hand.onpointermove(f.event(200, 484));
+        f.advance(1040);
+        f.hand.onpointermove(f.event(200, 468));
+        f.advance(releaseTime);
+        f.hand.onpointerup(f.event(200 + dx, 468 + dy));
+        assert.equal(f.state.plays, 0, `${dx}/${dy}/${releaseTime}`);
+    }
+});
+
+test("small successive movements cannot renew or accumulate past the flick recoil tolerance", () => {
+    for (const finish of ["reverse", "expire"]) {
+        const f = pointerFixture();
+        f.hand.onpointerdown(f.event(200, 500));
+        f.advance(1030);
+        f.hand.onpointermove(f.event(200, 476));
+        let y = 476;
+        const times = finish == "reverse" ? [1040, 1050, 1060, 1070] : [1080, 1130, 1180];
+        for (const time of times) {
+            y += finish == "reverse" ? 1 : 0.5;
+            f.advance(time);
+            f.hand.onpointermove(f.event(200, y));
+        }
+        f.hand.onpointerup(f.event(200, y));
+        assert.equal(f.state.plays, 0, finish);
+    }
+});
+
 test("a circular pickup can finish with a short upward flick anywhere below the table", () => {
     for (const desktop of [false, true]) {
         for (const selected of [false, true]) {

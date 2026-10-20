@@ -449,6 +449,8 @@ function isUpwardFlick(x, y, coneDegrees = 160) {
 const CARD_TOUCH_PICKUP_CONE = 145;
 const CARD_FLICK_MIN_DISTANCE = 10;
 const CARD_FLICK_MIN_VELOCITY = 0.4;
+const CARD_FLICK_RELEASE_GRACE_MS = 120;
+const CARD_FLICK_RECOIL_TOLERANCE = 3;
 
 function cardTouchDragAxis(x, y) {
     if (Math.max(Math.abs(x), Math.abs(y)) < 8) { return null; }
@@ -463,12 +465,15 @@ function shouldPlayCardDrag(drag, event) {
     if (!drag.canDragToPlay || drag.axis == "horizontal" ||
         (drag.axis == null && drag.pointerType != "mouse")) { return false; }
     if (drag.didPlayDrag && isCardDropOnTable(event)) { return true; }
-    var flickX = drag.lastFlickX || 0;
-    var flickY = drag.lastFlickY ?? drag.lastFlickDistance;
+    var flick = drag.flickIntent;
+    var flickX = flick ? flick.x : drag.lastFlickX || 0;
+    var flickY = flick ? flick.y : drag.lastFlickY ?? drag.lastFlickDistance;
     return drag.canSwipeToPlay && isUpwardFlick(flickX, flickY) &&
-        drag.lastFlickDistance >= CARD_FLICK_MIN_DISTANCE &&
-        drag.lastFlickVelocity >= CARD_FLICK_MIN_VELOCITY &&
-        (drag.lastFlickMoveTime == null || performance.now() - drag.lastFlickMoveTime <= 120);
+        (flick ? flick.distance : drag.lastFlickDistance) >= CARD_FLICK_MIN_DISTANCE &&
+        (flick ? flick.velocity : drag.lastFlickVelocity) >= CARD_FLICK_MIN_VELOCITY &&
+        (flick ? performance.now() - flick.time <= CARD_FLICK_RELEASE_GRACE_MS :
+            drag.lastFlickMoveTime == null ||
+            performance.now() - drag.lastFlickMoveTime <= CARD_FLICK_RELEASE_GRACE_MS);
 }
 
 function clearCardDragPreview(hand) {

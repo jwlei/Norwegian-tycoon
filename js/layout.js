@@ -1963,6 +1963,19 @@ class GameLayout {
         var recordFlickMovement = function (drag, pointerX, pointerY, moveTime) {
             var deltaX = pointerX - drag.lastPointerX;
             var deltaY = pointerY - drag.lastPointerY;
+            var intent = drag.flickIntent;
+            if (intent) {
+                var finishX = pointerX - intent.endX;
+                var finishY = pointerY - intent.endY;
+                var reverseDistance = -(finishX * intent.x - finishY * intent.y) / intent.distance;
+                if (moveTime - intent.time > CARD_FLICK_RELEASE_GRACE_MS ||
+                    finishY > CARD_FLICK_RECOIL_TOLERANCE ||
+                    reverseDistance > CARD_FLICK_RECOIL_TOLERANCE ||
+                    (Math.hypot(finishX, finishY) >= CARD_FLICK_MIN_DISTANCE &&
+                        !isUpwardFlick(finishX, -finishY))) {
+                    drag.flickIntent = null;
+                }
+            }
             if (deltaX == 0 && deltaY == 0 &&
                 moveTime - drag.lastPointerMoveTime > 80) {
                 drag.flickSamples = [];
@@ -2012,6 +2025,16 @@ class GameLayout {
                 drag.lastFlickVelocity = drag.lastFlickDistance /
                     Math.max(1, moveTime - startTime);
                 drag.lastFlickMoveTime = moveTime;
+                if (isUpwardFlick(drag.lastFlickX, drag.lastFlickY) &&
+                    drag.lastFlickDistance >= CARD_FLICK_MIN_DISTANCE &&
+                    drag.lastFlickVelocity >= CARD_FLICK_MIN_VELOCITY) {
+                    // Keep a recognized flick through tiny lift-off recoil, not a deliberate reversal.
+                    drag.flickIntent = {
+                        x: drag.lastFlickX, y: drag.lastFlickY,
+                        distance: drag.lastFlickDistance, velocity: drag.lastFlickVelocity,
+                        time: moveTime, endX: pointerX, endY: pointerY
+                    };
+                }
             }
             drag.lastPointerY = pointerY;
             drag.lastPointerX = pointerX;
