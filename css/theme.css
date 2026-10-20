@@ -1821,10 +1821,7 @@ select:focus-visible {
     pointer-events: none;
     transform:
         translate3d(var(--drag-offset-x, 0px), var(--drag-offset-y, 0px), 0)
-        perspective(600px)
-        scale(var(--drag-scale, 1))
-        rotateX(var(--tilt-x, 0deg))
-        rotateY(var(--tilt-y, 0deg));
+        scale(var(--drag-scale, 1));
     transition: transform 90ms ease-out;
 }
 
@@ -2628,9 +2625,17 @@ select:focus-visible {
     position: fixed;
     z-index: 100;
     pointer-events: none;
+    overflow: hidden;
     border-radius: 8px;
-    object-fit: contain;
     filter: drop-shadow(0 4px 8px rgb(0 0 0 / 28%));
+}
+
+.card-flight > img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    object-fit: fill;
 }
 
 .card-discard-flight {
