@@ -78,19 +78,22 @@ test("legacy recovery supports old aliases, changed casing and refuses ambiguous
 test("PIN recovery verifies salted hashes without storing plaintext and retains statistics", async () => {
     const { identity, records } = fixture();
     records["playerStats/original"] = { name: "Ada", presidentWins: 20 };
-    await identity.resolve("Ada", "original", "", "1234");
+    await identity.resolve("Ada", "original", "1234");
     const record = records[`playerNames/${await identity.nameKey("Ada")}`];
     assert.equal(record.pin, undefined);
-    assert.notEqual(record.pinHash, "1234");
-    assert.match(record.pinSalt, /^[a-f0-9]{32}$/);
-    assert.match(record.pinHash, /^[a-f0-9]{64}$/);
-    await assert.rejects(identity.resolve("Ada", "fresh"), /Oppgi riktig PIN/);
-    await assert.rejects(identity.resolve("Ada", "fresh", "4321"), /Oppgi riktig PIN/);
+    const credentials = Object.keys(record.pinProfiles);
+    assert.equal(credentials.length, 1);
+    assert.match(credentials[0], /^[a-f0-9]{64}$/);
+    assert.deepEqual(Object.keys(record).sort(), ["name", "pinProfiles"]);
+    assert.deepEqual({ ...record.pinProfiles[credentials[0]] }, { playerKey: "original" });
     assert.equal((await identity.resolve("Ada", "fresh", "1234")).playerKey, "original");
-    assert.equal(await identity.winsForName("Ada", "fresh"), 20);
-    await identity.resolve("Ada", "original", "", "321");
-    await assert.rejects(identity.resolve("Ada", "fresh", "1234"), /Oppgi riktig PIN/);
-    assert.equal((await identity.resolve("Ada", "fresh", "321")).playerKey, "original");
+    assert.equal(await identity.winsForName("Ada", "original"), 20);
+    assert.equal(await identity.winsForName("Ada", "fresh"), 0);
+    const separate = await identity.resolve("Ada", "original", "321");
+    assert.notEqual(separate.playerKey, "original");
+    assert.equal((await identity.resolve("Ada", "fresh", "321")).playerKey, separate.playerKey);
+    assert.equal((await identity.resolve("Ada", "fresh", "1234")).playerKey, "original");
+    assert.equal(await identity.winsForName("Ada", separate.playerKey), 0);
 });
 
 test("default names do not share identities or wins, and PIN validation is explicit", async () => {
@@ -98,7 +101,7 @@ test("default names do not share identities or wins, and PIN validation is expli
     assert.equal((await identity.resolve("player", "fresh")).playerKey, "fresh");
     assert.equal(await identity.winsForName("player", "fresh"), 0);
     assert.equal(Object.keys(records).length, 0);
-    await assert.rejects(identity.resolve("spiller", "fresh", "", "1234"), /Velg et eget spillernavn/);
+    await assert.rejects(identity.resolve("spiller", "fresh", "1234"), /Velg et eget spillernavn/);
     for (const pin of ["", "12", "12345", "12a", "abcdef"]) {
         await assert.rejects(identity.pinHash(pin, "salt"), /3–4 sifre/);
     }
@@ -107,7 +110,7 @@ test("default names do not share identities or wins, and PIN validation is expli
 test("both three and four digits, including leading zeroes, work for profile recovery", async () => {
     for (const pin of ["003", "0123"]) {
         const { identity } = fixture();
-        await identity.resolve("Ada", "original", "", pin);
+        await identity.resolve("Ada", "original", pin);
         assert.equal((await identity.resolve("Ada", "fresh", pin)).playerKey, "original");
     }
 });
@@ -127,7 +130,7 @@ test("appearance statistics follow the recovered ID and aliases without losing r
 test("switching to a new name keeps the same player ID and its total wins", async () => {
     const { identity, records } = fixture();
     records["playerStats/original"] = { name: "Ada", presidentWins: 5 };
-    await identity.resolve("Ada", "original", "", "1234");
+    await identity.resolve("Ada", "original", "1234");
     await identity.resolve("Grace", "original");
     assert.equal((await identity.resolve("Grace", "another-browser")).playerKey, "original");
     assert.equal(await identity.winsForName("Grace", "another-browser"), 5);
@@ -135,12 +138,54 @@ test("switching to a new name keeps the same player ID and its total wins", asyn
 
 test("changing name in a lobby cannot change account or overwrite another profile's PIN", async () => {
     const { identity, records } = fixture();
-    await identity.resolve("Ada", "ada-key", "", "1234");
+    await identity.resolve("Ada", "ada-key", "1234");
     const key = `playerNames/${await identity.nameKey("Ada")}`;
-    const originalHash = records[key].pinHash;
-    await assert.rejects(identity.resolve("Ada", "grace-key", "1234", "4321", "grace-key"),
+    const originalRecord = JSON.stringify(records[key]);
+    await assert.rejects(identity.resolve("Ada", "grace-key", "1234", "grace-key"),
         /Gå til hovedmenyen/);
+    await assert.rejects(identity.resolve("Ada", "ada-key", "4321", "ada-key"), /Gå til hovedmenyen/);
+    assert.equal(JSON.stringify(records[key]), originalRecord);
+});
+
+test("existing salted PIN records migrate on matching login without changing their ID", async () => {
+    const { identity, records } = fixture();
+    const key = `playerNames/${await identity.nameKey("Ada")}`;
+    const salt = "0123456789abcdef0123456789abcdef";
+    records[key] = { name: "Ada", playerKey: "legacy", pinSalt: salt,
+        pinHash: await identity.pinHash("1234", salt) };
+    records["playerStats/legacy"] = { name: "Ada", roundsPlayed: 30, presidentWins: 10 };
+    const originalHash = records[key].pinHash;
+    const different = await identity.resolve("Ada", "fresh", "4321");
+    assert.notEqual(different.playerKey, "legacy");
+    const restored = await identity.resolve("ADA", "fresh", "1234");
+    assert.equal(restored.playerKey, "legacy");
+    assert.deepEqual({ ...await identity.statsForName("Ada", restored.playerKey) },
+        { presidentWins: 10, roundsPlayed: 30 });
     assert.equal(records[key].pinHash, originalHash);
+    assert.equal(records[key].pinSalt, salt);
+    assert.equal((await identity.resolve("Ada", "fresh", "4321")).playerKey, different.playerKey);
+});
+
+test("turning PIN off uses a separate name-only profile without exposing the PIN profile's statistics", async () => {
+    const { identity, records } = fixture();
+    await identity.resolve("Ada", "original", "1234");
+    records["playerStats/original"] = { name: "Ada", roundsPlayed: 100, presidentWins: 50 };
+    const withoutPin = await identity.resolve("Ada", "original");
+    assert.notEqual(withoutPin.playerKey, "original");
+    assert.equal(withoutPin.hasPin, false);
+    assert.equal((await identity.resolve("Ada", "fresh")).playerKey, withoutPin.playerKey);
+    assert.equal((await identity.resolve("Ada", "fresh", "1234")).playerKey, "original");
+    assert.equal(await identity.winsForName("Ada", withoutPin.playerKey), 0);
+});
+
+test("enabling PIN on an existing name-only profile preserves its statistics", async () => {
+    const { identity, records } = fixture();
+    await identity.resolve("Ada", "original");
+    records["playerStats/original"] = { name: "Ada", presidentWins: 15, roundsPlayed: 30 };
+    assert.equal((await identity.resolve("Ada", "original", "123")).playerKey, "original");
+    const restored = await identity.resolve("Ada", "fresh", "123");
+    assert.equal(restored.playerKey, "original");
+    assert.equal((await identity.statsForName("Ada", restored.playerKey)).roundsPlayed, 30);
 });
 
 function clientFixture() {
@@ -154,7 +199,12 @@ function clientFixture() {
         setCookie(name, value) { assert.equal(name, "SpillerKey"); key = value; },
         document: {
             getElementById(id) {
-                if (!elements.has(id)) { elements.set(id, { value: "", checked: false }); }
+                if (!elements.has(id)) {
+                    elements.set(id, { value: "", attributes: {},
+                        getAttribute(name) { return this.attributes[name]; },
+                        setAttribute(name, value) { this.attributes[name] = value; }
+                    });
+                }
                 return elements.get(id);
             }
         }
@@ -173,6 +223,42 @@ test("restoring an ID from the name dialog updates cookies and clears the previo
     assert.equal(f.key, "original");
     assert.equal(f.context.playerPresidentWins, 0);
     assert.equal(f.context.playerWinsName, null);
+});
+
+test("the single enabled PIN field registers and restores through the same dialog path", async () => {
+    const f = clientFixture();
+    f.context.document.getElementById("playerUsePin").setAttribute("aria-pressed", "true");
+    f.context.document.getElementById("playerRecoveryPin").value = "0123";
+    await f.context.applyPlayerIdentity("Ada");
+    const key = f.key;
+    assert.equal((await f.identity.resolve("Ada", "fresh", "0123")).playerKey, key);
+    f.context.document.getElementById("playerRecoveryPin").value = "123";
+    await f.context.applyPlayerIdentity("Ada");
+    assert.notEqual(f.key, key);
+    assert.equal((await f.identity.resolve("Ada", "fresh", "123")).playerKey, f.key);
+});
+
+test("an enabled PIN rejects invalid length while disabling PIN ignores the hidden value", async () => {
+    const f = clientFixture();
+    const toggle = f.context.document.getElementById("playerUsePin");
+    toggle.setAttribute("aria-pressed", "true");
+    f.context.document.getElementById("playerRecoveryPin").value = "12";
+    await assert.rejects(f.context.applyPlayerIdentity("Ada"), /3–4 sifre/);
+    toggle.setAttribute("aria-pressed", "false");
+    await f.context.applyPlayerIdentity("Ada");
+    assert.equal((await f.identity.resolve("Ada", "fresh")).playerKey, f.key);
+});
+
+test("name dialog has one optional PIN input and no repeat or separate registration controls", () => {
+    const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    const dialog = html.slice(html.indexOf('id="dialogSporOmNick"'), html.indexOf('id="dialogVisLink"'));
+    assert.equal((dialog.match(/type="password"/g) || []).length, 1);
+    assert.match(dialog, /id="playerUsePin" class="setting-row" aria-pressed="false"/);
+    assert.match(dialog, /id="playerPinFields" hidden/);
+    assert.match(dialog, /<label for="dialogSporOmNickTxt">Skriv inn navnet ditt, maks 28 tegn<\/label>[\s\S]*?<input[^>]*id="dialogSporOmNickTxt"/);
+    assert.doesNotMatch(dialog, /playerNameHint/);
+    assert.match(dialog, /placeholder="PIN \(3–4 sifre\)"/);
+    assert.doesNotMatch(dialog, /playerNewPin|playerConfirmPin|playerSetPin|oninput=/);
 });
 
 test("restoring an ID while creating an empty lobby transfers its host atomically", async () => {

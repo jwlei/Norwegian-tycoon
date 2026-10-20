@@ -436,11 +436,17 @@ function isCardDropOnTable(event) {
         event.clientY >= bounds.top && event.clientY <= bounds.bottom;
 }
 
+function isUpwardFlick(x, y) {
+    return y > 0 && y + 1e-6 >= Math.abs(x) * Math.tan(Math.PI / 9);
+}
+
 function shouldPlayCardDrag(drag, event) {
     if (!drag.canDragToPlay || drag.axis == "horizontal") { return false; }
     if (drag.didPlayDrag && isCardDropOnTable(event)) { return true; }
-    return drag.canSwipeToPlay &&
-        drag.lastFlickDistance >= 24 && drag.lastFlickVelocity >= 0.55 &&
+    var flickX = drag.lastFlickX || 0;
+    var flickY = drag.lastFlickY ?? drag.lastFlickDistance;
+    return drag.canSwipeToPlay && isUpwardFlick(flickX, flickY) &&
+        drag.lastFlickDistance >= 12 && drag.lastFlickVelocity >= 0.55 &&
         (drag.lastFlickMoveTime == null || performance.now() - drag.lastFlickMoveTime <= 120);
 }
 

@@ -9,7 +9,7 @@ function load(globals = {}) {
         console, getCookie: () => null, getPlayerKey: () => "owner-key",
         localStorage: { getItem: () => null }, setTimeout: () => 0, ...globals
     });
-    for (const file of ["cards.js", "player.js", "bot.js", "presence.js", "game.js", "layout.js", "engine.js"]) {
+    for (const file of ["cards.js", "player.js", "bot.js", "presence.js", "game.js", "layout.js", "engine.js", "bot-turn.js"]) {
         vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context);
     }
     return context;
@@ -24,6 +24,50 @@ test("card flights use the unrotated card size centred on a rotated card's bound
     };
     const bounds = vm.runInContext("GameLayout.unrotatedCardBounds(card)", context);
     assert.deepEqual({ ...bounds }, { left: 110, top: 108, width: 80, height: 120 });
+});
+
+test("bot flicks vary landing, strength and tilt without consuming strategy randomness", () => {
+    const context = load();
+    const result = vm.runInContext(`
+        var player = { name: "Bot", turn: 1, placement: 0, botSkill: "medium" };
+        var cards = [1, 2, 3, 4].map(suit => new PresidentCard(suit, 7));
+        var strategyCalls = 0;
+        var chosenRandom;
+        var strategyRandom = () => { strategyCalls++; return 0.5; };
+        BotAI.observe = () => ({});
+        BotAI.chooseMove = (view, skill, random) => { chosenRandom = random; return cards; };
+        var played = [];
+        var game = {
+            status: "S", isTurnPaused: () => false,
+            playCards: (actor, pile) => played.push(pile),
+            passTurn: () => { throw new Error("Unexpected pass"); }
+        };
+        for (var sample of [0, 0.25, 0.5, 0.75, 0.999999]) {
+            Math.random = () => sample;
+            playBotTurn(game, player, strategyRandom);
+        }
+        ({
+            motions: played.map(pile => pile.motion),
+            restored: played.map(pile => PresidentCard.deserializePiles([pile.toRecord()])[0].motion),
+            cardsUnchanged: played.every(pile => pile.length == 4 && pile.every((card, i) => card === cards[i])),
+            strategyCalls, sameStrategyRandom: chosenRandom === strategyRandom
+        });
+    `, context);
+    assert.equal(result.strategyCalls, 0);
+    assert.equal(result.sameStrategyRandom, true);
+    assert.equal(result.cardsUnchanged, true);
+    assert.deepEqual(JSON.parse(JSON.stringify(result.restored)), JSON.parse(JSON.stringify(result.motions)));
+    for (const key of ["x", "y", "power", "spin", "pitch", "yaw"]) {
+        assert.ok(new Set(result.motions.map(motion => motion[key])).size > 2, `${key} must vary`);
+    }
+    for (const motion of result.motions) {
+        assert.ok(Math.abs(motion.x) <= 0.8);
+        assert.ok(Math.abs(motion.y) <= 0.64);
+        assert.ok(motion.power >= 0.2 && motion.power <= 0.9);
+        assert.ok(Math.abs(motion.spin) <= 16);
+        assert.ok(Math.abs(motion.pitch) <= 15);
+        assert.ok(Math.abs(motion.yaw) <= 16.4);
+    }
 });
 
 test("normal play animation restores the original movement, easing and card stagger", () => {

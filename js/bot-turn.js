@@ -106,6 +106,19 @@ function playBotTurn(game, player, random = Math.random) {
         if (cards != null) {
             var pile = new CardPile(player.name);
             cards.forEach(card => pile.push(card));
+            // Cosmetic throws must not consume the strategy's seeded random sequence.
+            var direction = Math.random() * Math.PI * 2;
+            var power = 0.2 + Math.random() * 0.7;
+            var reach = Math.sqrt(Math.random()) * (0.35 + power * 0.5);
+            var spin = (Math.random() - 0.5) * 32;
+            pile.motion = CardPile.normalizeMotion({
+                x: Math.cos(direction) * reach,
+                y: Math.sin(direction) * reach * 0.8,
+                power: power,
+                spin: spin,
+                pitch: (Math.random() - 0.5) * 30,
+                yaw: spin * 0.65 + (Math.random() - 0.5) * 12
+            });
             game.playCards(player, pile);
         } else {
             game.passTurn(player);

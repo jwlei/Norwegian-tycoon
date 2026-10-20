@@ -265,7 +265,7 @@
                         <button type="button" class="play-input-option" data-play-input="button" aria-pressed="false">Legg ut</button>
                     </span>
                 </div>
-                <p class="color-theme-description">Dra kort og slipp inne på spillbrettet for å spille. Med Flick-styring kan du også flicke opp uansett hvor du slipper. Sveip sidelengs på mobil for å bla.</p>
+                <p class="color-theme-description">Dra kort og slipp inne på spillbrettet for å spille. Med Flick-styring kan du også flicke opp i en bred 140-graders vinkel, uansett hvor du slipper. Sveip sidelengs på mobil for å bla.</p>
             </div>
             <div class="dialog-footer">
                 <button type="button" onclick="showDialog('Innstillinger',false);">Lukk</button>
@@ -387,19 +387,16 @@
         <div class="dialog-window">
             <div class="dialog-title">Hva vil du hete?</div>
             <div class="dialogBody">
-                <div><label for="dialogSporOmNickTxt">Skriv inn navnet ditt i spillet:</label></div>
-                <div><input class="autofocus" type="text" id="dialogSporOmNickTxt" aria-describedby="playerNameHint" maxlength="60" oninput="this.value=sanitizePlayerName(this.value); document.getElementById( 'playerNameError').innerHTML=''; this.classList.toggle('input-soft-error', this.value.trim() === '' || Array.from(this.value).length > 28);" /></div>
-                <div><small id="playerNameHint">1–28 tegn: bokstaver (også japanske), tall, mellomrom, - / og emojier. Like navn får -1, -2 osv.</small></div>
-                <label for="playerRecoveryPin">PIN (hvis navnet har PIN)</label>
-                <input type="password" id="playerRecoveryPin" inputmode="numeric" autocomplete="off" minlength="3" maxlength="4" pattern="[0-9]{3,4}" aria-describedby="playerPinHint">
-                <label><input type="checkbox" id="playerSetPin"> Sett PIN</label>
-                <div id="playerNewPinFields" hidden>
-                    <label for="playerNewPin">Ny PIN (3–4 sifre)</label>
-                    <input type="password" id="playerNewPin" inputmode="numeric" autocomplete="new-password" minlength="3" maxlength="4" pattern="[0-9]{3,4}">
-                    <label for="playerConfirmPin">Gjenta PIN</label>
-                    <input type="password" id="playerConfirmPin" inputmode="numeric" autocomplete="new-password" minlength="3" maxlength="4" pattern="[0-9]{3,4}">
+                <div><label for="dialogSporOmNickTxt">Skriv inn navnet ditt, maks 28 tegn</label></div>
+                <div><input class="autofocus" type="text" id="dialogSporOmNickTxt" maxlength="60" /></div>
+                <button type="button" id="playerUsePin" class="setting-row" aria-pressed="false" aria-controls="playerPinFields">
+                    <span class="setting-row__text"><strong>Bruk PIN</strong></span>
+                    <span class="setting-row__switch" aria-hidden="true"><span></span></span>
+                </button>
+                <div id="playerPinFields" hidden>
+                    <input type="password" id="playerRecoveryPin" inputmode="numeric" autocomplete="off" minlength="3" maxlength="4" pattern="[0-9]{3,4}" placeholder="PIN (3–4 sifre)" aria-label="PIN (3–4 sifre)" aria-describedby="playerPinHint">
+                    <small id="playerPinHint">Ikke gjenbruk en viktig PIN fra andre steder, dette er enkel spillgjenoppretting.<br>Bruk PIN for å hente tilbake opplåsinger og statistikk.</small>
                 </div>
-                <small id="playerPinHint">Med navn og valgfri PIN kan du hente samme spiller-ID og statistikk etter slettede cookies eller på en annen enhet. Uten PIN kan alle som kjenner navnet hente profilen. Dette er enkel spillgjenoppretting, ikke sikker kontobeskyttelse. Ikke bruk en PIN du bruker andre steder.</small>
                 <div id="playerNameError" style="color: red;"></div>
             </div>
             <div class="dialog-footer">

@@ -248,11 +248,12 @@
                     : readLastUsedPlayerName();
             document.getElementById("playerNameError").textContent = errorMessage;
             document.getElementById("dialogSporOmNickTxt").classList.remove("input-soft-error");
+            document.getElementById("dialogSporOmNickTxt").setAttribute("aria-invalid", "false");
             document.getElementById("playerRecoveryPin").value = "";
-            document.getElementById("playerNewPin").value = "";
-            document.getElementById("playerConfirmPin").value = "";
-            document.getElementById("playerSetPin").checked = false;
-            document.getElementById("playerNewPinFields").hidden = true;
+            document.getElementById("playerRecoveryPin").classList.remove("input-soft-error");
+            document.getElementById("playerRecoveryPin").setAttribute("aria-invalid", "false");
+            document.getElementById("playerUsePin").setAttribute("aria-pressed", "false");
+            document.getElementById("playerPinFields").hidden = true;
             document.getElementById("dialogSporOmNickOk").textContent =
                 isRename ? "Lagre navn" : "Bli spiller";
             showDialog("SporOmNick", true);
@@ -2592,22 +2593,39 @@
             promptForPlayerName(currentPlayerName != null || currentGame == null);
         });
 
-        document.getElementById("playerSetPin").addEventListener("change", function () {
-            document.getElementById("playerNewPinFields").hidden = !this.checked;
+        document.getElementById("playerUsePin").addEventListener("click", function () {
+            var enabled = this.getAttribute("aria-pressed") != "true";
+            this.setAttribute("aria-pressed", String(enabled));
+            document.getElementById("playerPinFields").hidden = !enabled;
+            if (enabled) { document.getElementById("playerRecoveryPin").focus(); }
+            else { document.getElementById("playerRecoveryPin").value = ""; }
+        });
+        document.getElementById("dialogSporOmNickTxt").addEventListener("input", function () {
+            var name = this.value.trim();
+            var invalid = name == "" || Array.from(name).length > 28 || sanitizePlayerName(name) != name;
+            this.classList.toggle("input-soft-error", invalid);
+            this.setAttribute("aria-invalid", String(invalid));
+            document.getElementById("playerNameError").textContent = "";
+        });
+        document.getElementById("playerRecoveryPin").addEventListener("input", function () {
+            var invalid = !/^\d{3,4}$/.test(this.value);
+            this.classList.toggle("input-soft-error", invalid);
+            this.setAttribute("aria-invalid", String(invalid));
+        });
+        document.getElementById("playerRecoveryPin").addEventListener("keydown", function (event) {
+            if (event.key == "Enter") { document.getElementById("dialogSporOmNickOk").click(); }
         });
 
         async function applyPlayerIdentity(name) {
             var game = currentGame;
             var previousName = currentPlayerName;
             var oldKey = getPlayerKey();
-            var pin = document.getElementById("playerRecoveryPin").value;
-            var newPin = document.getElementById("playerSetPin").checked
-                ? document.getElementById("playerNewPin").value : "";
-            if (document.getElementById("playerSetPin").checked &&
-                (!/^\d{3,4}$/.test(newPin) || newPin != document.getElementById("playerConfirmPin").value)) {
-                throw new Error("PIN må ha 3–4 sifre og være lik i begge feltene.");
+            var usePin = document.getElementById("playerUsePin").getAttribute("aria-pressed") == "true";
+            var pin = usePin ? document.getElementById("playerRecoveryPin").value : "";
+            if (usePin && !/^\d{3,4}$/.test(pin)) {
+                throw new Error("PIN må ha 3–4 sifre.");
             }
-            var identity = await PlayerIdentity.resolve(name, oldKey, pin, newPin,
+            var identity = await PlayerIdentity.resolve(name, oldKey, pin,
                 previousName != null ? oldKey : null);
             if (currentGame != game || currentPlayerName != previousName) {
                 throw new Error("Spillet ble endret. Åpne navnevalget på nytt.");
@@ -2654,11 +2672,19 @@
 
         document.getElementById('dialogSporOmNickOk').addEventListener('click', async function () {
             var requestedName = document.getElementById('dialogSporOmNickTxt').value.trim();
-            if (requestedName == "" && pendingNewGameName) { requestedName = "player"; }
-            if (Array.from(requestedName).length > 28) {
-                document.getElementById('playerNameError').textContent = "Navnet kan ha maks 28 tegn.";
+            var invalidName = requestedName == "" || Array.from(requestedName).length > 28 ||
+                sanitizePlayerName(requestedName) != requestedName;
+            document.getElementById("dialogSporOmNickTxt").classList.toggle("input-soft-error", invalidName);
+            document.getElementById("dialogSporOmNickTxt").setAttribute("aria-invalid", String(invalidName));
+            if (invalidName) {
                 return;
             }
+            var pinField = document.getElementById("playerRecoveryPin");
+            var invalidPin = document.getElementById("playerUsePin").getAttribute("aria-pressed") == "true" &&
+                !/^\d{3,4}$/.test(pinField.value);
+            pinField.classList.toggle("input-soft-error", invalidPin);
+            pinField.setAttribute("aria-invalid", String(invalidPin));
+            if (invalidPin) { return; }
             if (requestedName != "") {
                 var submit = document.getElementById("dialogSporOmNickOk");
                 if (submit.disabled) { return; }
@@ -2726,8 +2752,6 @@
                 } finally {
                     submit.disabled = false;
                     document.getElementById("playerRecoveryPin").value = "";
-                    document.getElementById("playerNewPin").value = "";
-                    document.getElementById("playerConfirmPin").value = "";
                 }
             }
         });

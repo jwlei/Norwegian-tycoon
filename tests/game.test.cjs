@@ -2814,7 +2814,7 @@ test("new bot names are available and Japanese player names survive input and co
     assert.equal(context.readLastUsedPlayerName(), "ギフテッド");
 });
 
-test("an empty new-game name falls back to player", async () => {
+test("an empty new-game name is marked invalid without registering a profile", async () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const elements = new Map();
     let addedPlayer;
@@ -2839,6 +2839,9 @@ test("an empty new-game name falls back to player", async () => {
                     elements.set(id, {
                         value: "",
                         textContent: "",
+                        attributes: {},
+                        classList: { toggle(name, value) { this[name] = value; } },
+                        setAttribute(name, value) { this.attributes[name] = value; },
                         addEventListener(type, callback) { this.click = callback; }
                     });
                 }
@@ -2850,9 +2853,12 @@ test("an empty new-game name falls back to player", async () => {
     const end = source.indexOf("        document.getElementById('BnPGiOpp')", start);
     vm.runInContext(source.slice(start, end), context);
     await context.document.getElementById("dialogSporOmNickOk").click();
-    assert.equal(addedPlayer.name, "player");
-    assert.equal(context.currentPlayerName, "player");
-    assert.equal(context.pendingNewGameName, false);
+    assert.equal(addedPlayer, undefined);
+    assert.equal(context.currentPlayerName, null);
+    assert.equal(context.pendingNewGameName, true);
+    const name = context.document.getElementById("dialogSporOmNickTxt");
+    assert.equal(name.classList["input-soft-error"], true);
+    assert.equal(name.attributes["aria-invalid"], "true");
 });
 
 test("canceling a new-game name prompt voids the empty lobby after creation and returns to the menu", async () => {

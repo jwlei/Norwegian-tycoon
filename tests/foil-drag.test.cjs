@@ -639,7 +639,7 @@ test("releasing a dragged hand outside the board animates the preview back", () 
     assert.equal(f.card.classList.contains("is-drag-source"), false);
 });
 
-test("slow drops play only on the board and flicking keeps its original sensitivity", () => {
+test("slow drops play only on the board and flicks require 12 pixels at the existing velocity", () => {
     const f = fixture();
     f.context.document.getElementById("gameTable");
     const drag = { canDragToPlay: true, canSwipeToPlay: false, didPlayDrag: true,
@@ -651,10 +651,10 @@ test("slow drops play only on the board and flicking keeps its original sensitiv
     drag.lastFlickDistance = 100;
     drag.lastFlickVelocity = 0.1;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 400 }), false);
-    drag.lastFlickDistance = 23;
+    drag.lastFlickDistance = 11;
     drag.lastFlickVelocity = 0.55;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), false);
-    drag.lastFlickDistance = 24;
+    drag.lastFlickDistance = 12;
     drag.lastFlickVelocity = 0.54;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), false);
     drag.lastFlickVelocity = 0.55;
@@ -749,6 +749,46 @@ test("slow long drags outside the board never play, but fresh upward flicks do o
         held.advance(1200);
         held.hand.onpointerup(held.event(100, 470));
         assert.equal(held.state.plays, 0, "A held card is no longer a flick");
+    }
+});
+
+test("short flicks work throughout the upward 140 degree cone on mouse and touch", () => {
+    for (const desktop of [false, true]) {
+        for (const angle of [-70, -60, -45, 0, 45, 60, 70]) {
+            const f = pointerFixture({ desktop });
+            const radians = angle * Math.PI / 180;
+            const x = 100 + Math.sin(radians) * 13;
+            const y = 500 - Math.cos(radians) * 13;
+            f.hand.onpointerdown(f.event(100, 500));
+            f.advance(1016);
+            f.hand.onpointermove(f.event(x, y));
+            f.hand.onpointerup(f.event(x, y));
+            assert.equal(f.state.plays, 1, `${desktop ? "mouse" : "touch"} at ${angle} degrees`);
+            assert.equal(f.state.scrolls, 0);
+        }
+    }
+});
+
+test("flicks outside the cone, too short, too slow, held or in button mode never play off-board", () => {
+    for (const desktop of [false, true]) {
+        for (const [angle, distance, duration, mode, hold] of [
+            [-71, 40, 30, "flick", 0], [71, 40, 30, "flick", 0],
+            [-90, 40, 30, "flick", 0], [90, 40, 30, "flick", 0],
+            [180, 40, 30, "flick", 0], [0, 11, 16, "flick", 0],
+            [60, 30, 200, "flick", 0], [60, 30, 20, "flick", 150],
+            [-60, 30, 20, "button", 0], [60, 30, 20, "button", 0]
+        ]) {
+            const f = pointerFixture({ desktop, mode });
+            const radians = angle * Math.PI / 180;
+            const x = 100 + Math.sin(radians) * distance;
+            const y = 500 - Math.cos(radians) * distance;
+            f.hand.onpointerdown(f.event(100, 500));
+            f.advance(1000 + duration);
+            f.hand.onpointermove(f.event(x, y));
+            f.advance(1000 + duration + hold);
+            f.hand.onpointerup(f.event(x, y));
+            assert.equal(f.state.plays, 0, `${desktop ? "mouse" : "touch"} ${angle}deg/${distance}px/${duration}ms/${mode}`);
+        }
     }
 });
 

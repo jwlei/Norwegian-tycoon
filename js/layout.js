@@ -1906,17 +1906,21 @@ class GameLayout {
                 drag.lastMotionTime = moveTime;
             }
             var distance = drag.lastPointerY - pointerY;
-            if (distance != 0) {
-                var direction = Math.sign(distance);
+            if (deltaX != 0 || distance != 0) {
+                var direction = Math.sign(distance) || drag.flickDirection;
                 if (direction != drag.flickDirection) {
                     drag.flickDirection = direction;
                     drag.flickDistance = distance;
+                    drag.flickDistanceX = deltaX;
                     drag.flickStartTime = drag.lastPointerMoveTime;
                 } else {
                     drag.flickDistance += distance;
+                    drag.flickDistanceX += deltaX;
                 }
-                drag.lastFlickDistance = drag.flickDistance;
-                drag.lastFlickVelocity = drag.flickDistance /
+                drag.lastFlickX = drag.flickDistanceX;
+                drag.lastFlickY = drag.flickDistance;
+                drag.lastFlickDistance = Math.hypot(drag.flickDistanceX, drag.flickDistance);
+                drag.lastFlickVelocity = drag.lastFlickDistance /
                     Math.max(1, moveTime - drag.flickStartTime);
                 drag.lastFlickMoveTime = moveTime;
             }
@@ -1966,6 +1970,7 @@ class GameLayout {
                 lastPointerMoveTime: performance.now(),
                 flickDirection: 0,
                 flickDistance: 0,
+                flickDistanceX: 0,
                 flickStartTime: performance.now(),
                 lastFlickDistance: 0,
                 lastFlickVelocity: 0,
@@ -2018,8 +2023,12 @@ class GameLayout {
                     Math.abs(dragOffsetY) * horizontalScrollRatio;
                 var isVerticalIntent = Math.abs(dragOffsetY) >=
                     Math.max(8, Math.abs(dragOffsetX) * 1.1);
+                var isUpwardFlickIntent = isUpwardFlick(dragOffsetX, -dragOffsetY);
                 if (event.pointerType == "mouse" && handScrollDrag.card != null &&
                     handScrollDrag.canDragToPlay) {
+                    handScrollDrag.axis = "vertical";
+                } else if (handScrollDrag.canSwipeToPlay && handScrollDrag.canDragToPlay &&
+                    handScrollDrag.card != null && isUpwardFlickIntent) {
                     handScrollDrag.axis = "vertical";
                 } else if (isHorizontalIntent) {
                     if (Math.abs(dragOffsetX) >= horizontalScrollDistance) {
