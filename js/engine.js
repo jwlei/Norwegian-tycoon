@@ -1514,14 +1514,14 @@ class PresidentGame extends Game {
         if (this.players.length != 3 || !isAuthorizedPair) {
             throw ("Denne bytteregelen gjelder bare President, Nøytral og Boms i et tre-spillers spill.");
         }
-        var sneaky = hasSneakyConsent(currentOffer);
+        var sneaky = hasSneakyConsent(currentOffer, this);
         if (!sneaky && (!hasLegalTradeCard(this, currentOffer.from, currentOffer) ||
             !hasLegalTradeCard(this, currentOffer.to, currentOffer))) {
             throw ("Begge spillerne må ha et ledig kort fra 7 til J.");
         }
         this.piles.splice(this.piles.indexOf(currentOffer), 1);
         var tradeId = currentOffer.tradeId || `trade:${this.round}:${currentOffer.from}:${currentOffer.to}`;
-        var votes = (currentOffer.sneakyVotes || []).slice();
+        var votes = isSneakyTradeAvailable(this) ? (currentOffer.sneakyVotes || []).slice() : [];
         var createExchange = (from, to) => ({
             id: `${tradeId}:${from}:${to}`,
             tradeId: tradeId,
@@ -1596,6 +1596,7 @@ class PresidentGame extends Game {
         if (current.mode == "Tilbud" && current != activeTradeOffer(this)) {
             throw ("Dette byttet er ikke lenger tilgjengelig.");
         }
+        if (!isSneakyTradeAvailable(this)) { throw ("Sneaky-bytte er ikke tilgjengelig i dette spillet."); }
         if (playerIndex != current.from && playerIndex != current.to) {
             throw ("Bare deltakerne i byttet kan gi sneaky-samtykke.");
         }
@@ -1723,7 +1724,7 @@ class PresidentGame extends Game {
             var key = exchangeCardKey(k);
             if (usedCards.has(key) ||
                 !availableCards.some(card => exchangeCardKey(card) == key) ||
-                !isCardAllowedForExchange(exchange, k)) {
+                !isCardAllowedForExchange(exchange, k, this)) {
                 throw ("Kortene er ikke gyldige for dette byttet.");
             }
             usedCards.add(key);

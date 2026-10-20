@@ -438,7 +438,7 @@ function loadGame(cardStyle = null, globals = {}) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(source, context);
     }
-    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, GamePresence, activeTradeOffer, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage, isCardAllowedForExchange, chooseSuggestedPlayStrength })", context);
+    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, GamePresence, activeTradeOffer, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage, isCardAllowedForExchange, chooseSuggestedPlayStrength, isSneakyTradeAvailable, hasSneakyConsent })", context);
 }
 
 test("clearing card flights cancels and removes overlays from the page", () => {
@@ -654,6 +654,7 @@ test("consent stays private and remains available after a trade starts until car
             from: 0, to: 1, count: 1, cards: [], sneakyVotes: [0, 1] }]
     });
     game.save = () => {};
+    players[2].name = "ekrem";
     const flatten = node => [node, ...node.children.flatMap(flatten)];
     const render = player => {
         GameLayout.updateTable(game, player);
@@ -691,12 +692,22 @@ test("consent stays private and remains available after a trade starts until car
         }
     }
     game.piles = [originalOffer];
+    players[2].name = "Other";
+    for (const player of players.slice(0, 2)) {
+        assert.equal(render(player).some(node => node.className?.includes("exchange-sneaky-toggle")), false);
+    }
+    players[2].name = "ekrem";
     const start = render(players[0]).find(node => node.textContent === "Tving bytte");
     assert.equal(start.disabled, false);
     start.onclick();
     for (const player of players.slice(0, 2)) {
         assert.ok(render(player).some(node => /Trekk sneaky/.test(node.textContent)));
     }
+    players[2].name = "Other";
+    for (const player of players.slice(0, 2)) {
+        assert.equal(render(player).some(node => node.className?.includes("exchange-sneaky-toggle")), false);
+    }
+    players[2].name = "ekrem";
     game.piles.forEach(exchange => { exchange.sneakyLocked = true; });
     for (const player of players.slice(0, 2)) {
         assert.equal(render(player).some(node => /Trekk sneaky|Sneaky bytte$/.test(node.textContent)), false);
@@ -763,9 +774,42 @@ test("the President can start a normal voluntary exchange without sneaky consent
     assert.ok(game.piles.every(exchange => exchange.sneakyVotes.length === 0));
     assert.ok(game.piles.every(exchange => isCardAllowedForExchange(exchange, new PresidentCard(1, 7))));
     assert.ok(game.piles.every(exchange => !isCardAllowedForExchange(exchange, new PresidentCard(1, 14))));
+    assert.throws(() => game.toggleSneakyTrade(game.piles[0], 0), /ikke tilgjengelig/);
+    players[2].name = "joachim";
     game.toggleSneakyTrade(game.piles.find(exchange => exchange.from === 0), 0);
     game.toggleSneakyTrade(game.piles.find(exchange => exchange.from === 1), 1);
     assert.ok(game.piles.every(exchange => isCardAllowedForExchange(exchange, new PresidentCard(1, 14))));
+});
+
+test("sneaky requires exactly three players and a named human, including a non-participating third player", () => {
+    const { isSneakyTradeAvailable, hasSneakyConsent, isCardAllowedForExchange, PresidentCard } = loadGame();
+    const offer = { kind: "playerTrade", from: 0, to: 1, sneakyVotes: [0, 1] };
+    const game = { players: [
+        { name: "Bot", playerKey: "PC" }, { name: "Guest", playerKey: "guest" },
+        { name: "Other", playerKey: "other" }
+    ] };
+    for (const name of ["tåkefyrsten", "h4cker", "mrhotbox", "bjørn", "ekrem", "joachim",
+        " TÅKEFYRSTEN ", "Ta\u030akefyrsten", "H4CKER"]) {
+        game.players[2].name = name;
+        assert.equal(isSneakyTradeAvailable(game), true);
+        assert.equal(hasSneakyConsent(offer, game), true);
+        assert.equal(isCardAllowedForExchange(offer, new PresidentCard(1, 14), game), true);
+        game.players[2].playerKey = "PC";
+        assert.equal(isSneakyTradeAvailable(game), false, "Bot names cannot grant access");
+        assert.equal(hasSneakyConsent(offer, game), false, "Stale votes cannot bypass eligibility");
+        assert.equal(isCardAllowedForExchange(offer, new PresidentCard(1, 14), game), false);
+        game.players[2].playerKey = "other";
+    }
+    for (const name of ["hacker", "h4cker-1", "Guest", ""]) {
+        game.players[2].name = name;
+        assert.equal(isSneakyTradeAvailable(game), false);
+    }
+    game.players[2].name = "ekrem";
+    game.players.push({ name: "Fourth", playerKey: "fourth" });
+    assert.equal(isSneakyTradeAvailable(game), false);
+    game.players.splice(1, 2);
+    game.players[1].name = "ekrem";
+    assert.equal(isSneakyTradeAvailable(game), false);
 });
 
 test("a playable club three is suggested to clear a single-card trick before the final card", () => {
@@ -1349,7 +1393,7 @@ test("normal exchange rendering fades illegal cards while sneaky exchanges allow
                 var player = { cards: [k] };
                 var activeExchange = { id: "trade", kind: "playerTrade", from: 0, to: 1,
                     cards: [], count: 1, mode: "Velg", sneakyVotes: ${sneaky ? "[0, 1]" : "[]"} };
-                var game = { players: [player], piles: [activeExchange] };`, context);
+                var game = { players: [player,{name:"Other",playerKey:"other"},{name:"ekrem",playerKey:"eligible"}], piles: [activeExchange] };`, context);
             context.elemKort = { classList: { add: name => classes.add(name) } };
             vm.runInContext(source.slice(start, end), context);
             const illegal = !sneaky && (rank < 7 || rank > 11);

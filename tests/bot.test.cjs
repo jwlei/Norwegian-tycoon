@@ -58,6 +58,8 @@ function optionalTradeGame() {
         [card(5, 4), card(12, 4), card(15, 4)]
     ]);
     game.status = "G";
+    game.players[2].name = "ekrem";
+    game.players[2].playerKey = "eligible-human";
     game.players.forEach((player, index) => { player.lastPlacement = index + 1; });
     game.piles = [{ id: "offer", tradeId: "trade", kind: "playerTrade", mode: "Tilbud",
         from: 0, to: 1, count: 1, cards: [], sneakyVotes: [] }];
@@ -104,6 +106,16 @@ test("sneaky consent may be added after initiation until a card is given", () =>
     assert.equal(outgoing.mode, "Gitt");
     assert.ok(game.piles.every(exchange => exchange.sneakyLocked));
     assert.throws(() => game.toggleSneakyTrade(incoming, 1), /kan ikke endres/);
+});
+
+test("bots cannot unlock sneaky by using an eligible name and fall back to normal trades", () => {
+    const game = optionalTradeGame();
+    game.players[2].playerKey = "PC";
+    const offer = game.piles[0];
+    assert.throws(() => game.toggleSneakyTrade(offer, 0), /ikke tilgjengelig/);
+    playBotTurn(game, game.players[0], () => 0);
+    assert.ok(game.piles.every(exchange => (exchange.sneakyVotes || []).length == 0));
+    assert.ok(game.piles.every(exchange => exchange.mode != "Tilbud"));
 });
 
 test("mutual consent at initiation allows cards outside 7–J without requiring a legal normal card", () => {

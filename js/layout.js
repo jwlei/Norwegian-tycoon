@@ -1223,8 +1223,11 @@ class GameLayout {
                             var fromRole = game.placementTitle(fromPlayer.lastPlacement).title;
                             var toRole = game.placementTitle(toPlayer.lastPlacement).title;
                             title.textContent = isSender
-                                ? `Du som ${fromRole} kan tvinge bytte av kort mellom 7–J med ${toRole}. Om begge velger sneaky, kan alle kort byttes.`
-                                : `${fromPlayer.name} som ${fromRole} bestemmer om det blir bytte med ${toPlayer.name}. Om begge velger sneaky, kan alle kort byttes.`;
+                                ? `Du som ${fromRole} kan tvinge bytte av kort mellom 7–J med ${toRole}.`
+                                : `${fromPlayer.name} som ${fromRole} bestemmer om det blir bytte med ${toPlayer.name}.`;
+                            if (isSneakyTradeAvailable(game)) {
+                                title.textContent += " Om begge velger sneaky, kan alle kort byttes.";
+                            }
                             break;
                         default:
                             title.textContent = exchange.text;
@@ -1257,7 +1260,7 @@ class GameLayout {
                         var isParticipant = isSender || isRecipient;
                         var canInitiate = isSender;
                         var participantIndex = currentPlayerIndex;
-                        if (isParticipant) {
+                        if (isParticipant && isSneakyTradeAvailable(game)) {
                             var sneakyButton = document.createElement("button");
                             sneakyButton.type = "button";
                             sneakyButton.textContent = "Sneaky?";
@@ -1272,7 +1275,7 @@ class GameLayout {
                             var startButton = document.createElement("button");
                             startButton.type = "button";
                             startButton.textContent = "Tving bytte";
-                            startButton.disabled = !hasSneakyConsent(exchange) &&
+                            startButton.disabled = !hasSneakyConsent(exchange, game) &&
                                 (!hasLegalTradeCard(game, exchange.from, exchange) ||
                                     !hasLegalTradeCard(game, exchange.to, exchange));
                             startButton.title = startButton.disabled
@@ -1313,7 +1316,7 @@ class GameLayout {
                         if (exchange.kind == "playerTrade" && player != null && (isSender || isRecipient)) {
                             var tradeStatus = document.createElement("span");
                             tradeStatus.className = "trade-status";
-                            tradeStatus.textContent = hasSneakyConsent(exchange)
+                            tradeStatus.textContent = hasSneakyConsent(exchange, game)
                                 ? "Sneaky bytte: alle kort kan brukes."
                                 : "Vanlig bytte: kort 7–J.";
                             exchangeStatus.appendChild(tradeStatus);
@@ -1324,7 +1327,7 @@ class GameLayout {
                                     (candidate.cards || []).length == 0 &&
                                     candidate.mode == "Velg"
                                 );
-                            if (exchange.mode == "Velg" && isSender && consentCanChange) {
+                            if (exchange.mode == "Velg" && isSender && consentCanChange && isSneakyTradeAvailable(game)) {
                                 var sneakyButton = document.createElement("button");
                                 var voters = exchange.sneakyVotes || [];
                                 sneakyButton.type = "button";
@@ -2186,7 +2189,7 @@ class GameLayout {
                     );
                     if (!stillAvailable ||
                         activeExchange.cards.length >= activeExchange.count ||
-                        !isCardAllowedForExchange(activeExchange, card)) {
+                        !isCardAllowedForExchange(activeExchange, card, game)) {
                         return;
                     }
                     activeExchange.cards.push(card);
@@ -2459,7 +2462,7 @@ class GameLayout {
                                 var canSelectForExchange = availableCards.some(card =>
                                     card.suit == k.suit && card.rank == k.rank
                                 ) &&
-                                    isCardAllowedForExchange(activeExchange, k) &&
+                                    isCardAllowedForExchange(activeExchange, k, game) &&
                                     activeExchange.cards.length < activeExchange.count;
                                 elemKort.disabled = activeExchange.cards.length != activeExchange.count &&
                                     !isSelectedForExchange && !canSelectForExchange;

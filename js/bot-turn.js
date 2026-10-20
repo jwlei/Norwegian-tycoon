@@ -16,20 +16,25 @@ function playBotTurn(game, player, random = Math.random) {
                 var decision = exchange.botDecisions[seat];
                 if (!decision) {
                     decision = BotAI.chooseOptionalTrade(game, player, exchange, random);
+                    if (decision == "sneaky" && !isSneakyTradeAvailable(game)) {
+                        decision = hasLegalTradeCard(game, exchange.from, exchange) &&
+                            hasLegalTradeCard(game, exchange.to, exchange) ? "normal" : "skip";
+                    }
                     exchange.botDecisions[seat] = decision;
                     game.save();
                 }
-                if (decision == "sneaky" && !(exchange.sneakyVotes || []).includes(seat)) {
+                if (decision == "sneaky" && isSneakyTradeAvailable(game) && !(exchange.sneakyVotes || []).includes(seat)) {
                     game.toggleSneakyTrade(exchange, seat);
                     if (!game.piles.includes(exchange)) { return; }
                 }
                 if (exchange.from != seat) { return; }
-                if ((decision == "sneaky" && hasSneakyConsent(exchange)) ||
+                if ((decision == "sneaky" && hasSneakyConsent(exchange, game)) ||
                     (decision == "normal" && hasLegalTradeCard(game, exchange.from, exchange) &&
                         hasLegalTradeCard(game, exchange.to, exchange))) {
                     game.startOptionalTrade(exchange);
                 } else if (decision == "skip" || decision == "normal" ||
-                    exchange.botDecisions[exchange.to] == "skip") {
+                    exchange.botDecisions[exchange.to] == "skip" ||
+                    (decision == "sneaky" && !isSneakyTradeAvailable(game))) {
                     game.skipOptionalTrade(exchange, seat);
                 }
             });
@@ -37,6 +42,7 @@ function playBotTurn(game, player, random = Math.random) {
         if (game.status == "G") {
             game.piles.slice().filter(exchange =>
                 exchange.kind == "playerTrade" && exchange.mode == "Velg" &&
+                isSneakyTradeAvailable(game) &&
                 GamePresence.isBot(game, game.players[exchange.from]) &&
                 !exchange.sneakyLocked
             ).forEach(exchange => {
@@ -76,12 +82,12 @@ function playBotTurn(game, player, random = Math.random) {
                 );
                 if (exchange.kind == "playerTrade") {
                     availableCards = availableCards.filter(card =>
-                        isCardAllowedForExchange(exchange, card)
+                        isCardAllowedForExchange(exchange, card, game)
                     );
                 } else {
                     availableCards = availableCards.filter(card => !card.isClubThree());
                 }
-                exchange.cards = hasSneakyConsent(exchange)
+                exchange.cards = hasSneakyConsent(exchange, game)
                     ? BotAI.chooseSneakyExchange(game, player, exchange, availableCards, random)
                     : BotAI.chooseExchange(player.cards, availableCards, exchange.count, player.botSkill, random);
                 game.giveExchangeCards(exchange);

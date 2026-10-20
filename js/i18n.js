@@ -6,6 +6,7 @@
     var EN = Object.assign({}, window.I18N_EN || {}, {
         // Static page text
         "Innstillinger": "Settings",
+        "Sneaky er bare tilgjengelig med tre spillere når en menneskelig spiller heter tåkefyrsten, h4cker, mrhotbox, bjørn, ekrem eller joachim.": "Sneaky is only available with three players when a human player is named tåkefyrsten, h4cker, mrhotbox, bjørn, ekrem or joachim.",
         "Åpne spillmeny": "Open game menu",
         "Hovedmeny": "Main menu",
         "Boms og President": "Norwegian Tycoon",
@@ -517,6 +518,8 @@
 
     // [Norwegian template, English template]. Specific rules come before generic ones.
     var RULE_SOURCE = [
+        ["Du som {role} kan tvinge bytte av kort mellom 7–J med {role2}.", "As {role}, you can force an exchange of cards from 7–J with {role2}."],
+        ["{name} som {role} bestemmer om det blir bytte med {name2}.", "{name} as {role} decides whether to exchange with {name2}."],
         ["Dine runder: {n}", "Your rounds: {n}"],
         ["Krever {n} runder", "Requires {n} rounds"],
         ["Krever {n} seire", "Requires {n} wins"],

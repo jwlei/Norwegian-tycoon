@@ -37,16 +37,22 @@ function activeTradeOffer(game) {
     return (game.piles || []).find(exchange => exchange.mode == "Tilbud") || null;
 }
 
-function hasSneakyConsent(exchange) {
-    return exchange.kind == "playerTrade" &&
+function isSneakyTradeAvailable(game) {
+    return game != null && game.players.length == 3 && game.players.some(player =>
+        player.playerKey != "PC" && ["tåkefyrsten", "h4cker", "mrhotbox", "bjørn", "ekrem", "joachim"]
+            .includes((player.name || "").trim().normalize("NFC").toLowerCase()));
+}
+
+function hasSneakyConsent(exchange, game = null) {
+    return (game == null || isSneakyTradeAvailable(game)) && exchange.kind == "playerTrade" &&
         Array.isArray(exchange.sneakyVotes) &&
         exchange.sneakyVotes.includes(exchange.from) &&
         exchange.sneakyVotes.includes(exchange.to);
 }
 
-function isCardAllowedForExchange(exchange, card) {
+function isCardAllowedForExchange(exchange, card, game = null) {
     return exchange.kind != "playerTrade" ||
-        hasSneakyConsent(exchange) ||
+        hasSneakyConsent(exchange, game) ||
         (card.strengthRank >= 7 && card.strengthRank <= 11);
 }
 
@@ -70,7 +76,7 @@ function getAvailableExchangeCards(game, playerIndex, excludedExchange = null) {
         excludedExchange.from == playerIndex &&
         game.players[playerIndex].lastPlacement == 2 &&
         game.players[excludedExchange.to].lastPlacement == 3 &&
-        !hasSneakyConsent(excludedExchange)) {
+        !hasSneakyConsent(excludedExchange, game)) {
         var president = game.players.find(player => player.lastPlacement == 1);
         (game.exchangeReceipts || []).filter(receipt =>
             receipt.sender == president?.name &&

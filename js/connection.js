@@ -845,7 +845,7 @@
             game.piles.forEach(exchange => {
                 if (exchange.kind != "playerTrade" || exchange.mode == "Tilbud") { return; }
                 var key = `${game.shuffleStartedAt}:${game.round}:${exchange.tradeId}`;
-                var sneaky = hasSneakyConsent(exchange);
+                var sneaky = hasSneakyConsent(exchange, game);
                 var sneakyKey = `${key}:sneaky`;
                 if (game.notifiedTrades.has(key) &&
                     (!sneaky || game.notifiedTrades.has(sneakyKey))) { return; }
