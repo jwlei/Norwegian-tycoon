@@ -1841,7 +1841,6 @@ class GameLayout {
                 : null;
             if (cardElement) {
                 cardElement.classList.add("is-pressed");
-                updateCardTilt(cardElement, event);
             }
             handScrollDrag = {
                 pointerId: event.pointerId,
@@ -1879,12 +1878,6 @@ class GameLayout {
         };
         element.onpointermove = function (event) {
             if (!handScrollDrag) {
-                if (event.pointerType != "mouse") { return; }
-                var hoveredCard = event.target instanceof Element ? event.target.closest(".game-card") : null;
-                element.querySelectorAll(".game-card.is-tilting").forEach(card => {
-                    if (card != hoveredCard) { resetCardTilt(card); }
-                });
-                if (hoveredCard) { updateCardTilt(hoveredCard, event); }
                 return;
             }
             if (handScrollDrag.pointerId != event.pointerId) { return; }
@@ -1930,9 +1923,6 @@ class GameLayout {
                     resetCardTilt(handScrollDrag.cardElement);
                 }
                 return;
-            }
-            if (handScrollDrag.cardElement) {
-                updateCardTilt(handScrollDrag.cardElement, event);
             }
             if (handScrollDrag.axis == "vertical" &&
                 handScrollDrag.canDragToPlay &&

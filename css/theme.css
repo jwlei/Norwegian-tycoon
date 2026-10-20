@@ -1821,10 +1821,7 @@ select:focus-visible {
     pointer-events: none;
     transform:
         translate3d(var(--drag-offset-x, 0px), var(--drag-offset-y, 0px), 0)
-        perspective(600px)
-        scale(var(--drag-scale, 1))
-        rotateX(var(--tilt-x, 0deg))
-        rotateY(var(--tilt-y, 0deg));
+        scale(var(--drag-scale, 1));
     transition: transform 90ms ease-out;
 }
 

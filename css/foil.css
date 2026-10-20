@@ -1,5 +1,6 @@
 /* Adapted from the supplied Simey card effects, with local gradient textures. */
 :is(#playerHand .game-card, .card-preview)[data-foil] {
+    isolation: isolate;
     --foil-angle: 133deg;
     --foil-space: 5%;
     --foil-spectrum: repeating-linear-gradient(0deg,
