@@ -627,6 +627,8 @@ class GameLayout {
             var source = (origins && origins.cardOrigins.get(cardKey)) || playerOrigin;
             var target = playElement.querySelector(`[data-card-key="${cardKey}"]`);
             if (!target || typeof target.animate != "function") { return; }
+            var targetImage = target.src ? target : target.querySelector("img");
+            if (targetImage == null) { return; }
             var targetBounds = target.getBoundingClientRect();
             if (targetBounds.width == 0 || targetBounds.height == 0) { return; }
             if (!source || source.width == 0 || source.height == 0) {
@@ -638,7 +640,7 @@ class GameLayout {
                 };
             }
             var flight = document.createElement("img");
-            flight.src = target.src;
+            flight.src = targetImage.src;
             flight.alt = "";
             flight.setAttribute("aria-hidden", "true");
             flight.className = "card-flight";
@@ -764,9 +766,8 @@ class GameLayout {
             var bounds = card.getBoundingClientRect();
             if (bounds.width == 0 || bounds.height == 0) { return; }
             var rotation = parseFloat(card.style.getPropertyValue("--pile-rotation")) || 0;
-            var flight = card.cloneNode(false);
-            flight.className = "card-discard-flight";
-            flight.alt = "";
+            var flight = card.cloneNode(true);
+            flight.classList.add("card-discard-flight");
             flight.setAttribute("aria-hidden", "true");
             if (typeof flight.animate != "function") { return; }
             flight.style.left = `${bounds.left}px`;
@@ -851,21 +852,27 @@ class GameLayout {
             playElement.style.setProperty("--play-index", String(playIndex));
             var playOffset = Math.min(cardsOnTable * 2.5, compactStack ? 18 : 44);
             pile.forEach((card, cardIndex) => {
-                var image = GameLayout.createCardImage(card, null,
-                    GameLayout.styleForPlayer(game, pile.name), GameLayout.foilForPlayer(game, pile.name));
-                image.className = "table-play__card";
+                var style = GameLayout.styleForPlayer(game, pile.name);
+                var foil = GameLayout.foilForPlayer(game, pile.name);
+                var image = GameLayout.createCardImage(card, null, style, foil);
+                var cardElement = document.createElement("div");
+                cardElement.className = `table-play__card card-preview card-preview--${style}`;
+                cardElement.dataset.foil = foil;
                 var cardKey = `${card.suit}:${card.rank}`;
-                image.dataset.cardKey = cardKey;
+                cardElement.dataset.cardKey = cardKey;
+                cardElement.setAttribute("aria-hidden", "true");
+                image.alt = "";
                 image.setAttribute("aria-hidden", "true");
+                cardElement.appendChild(image);
                 if (hiddenCardKeys.has(cardKey)) {
-                    image.style.opacity = "0";
+                    cardElement.style.opacity = "0";
                 }
                 var rotation = GameLayout.pileCardJitter(game, pile, card, cardsOnTable, cardIndex);
-                image.style.left = `calc(5px + ${cardIndex} * var(--pile-fan-step) + ${rotation.x}px)`;
-                image.style.top = `${5 + playOffset + rotation.y}px`;
-                image.style.setProperty("--stack-index", String(cardsOnTable));
-                image.style.setProperty("--pile-rotation", `${rotation.angle}deg`);
-                playElement.appendChild(image);
+                cardElement.style.left = `calc(5px + ${cardIndex} * var(--pile-fan-step) + ${rotation.x}px)`;
+                cardElement.style.top = `${5 + playOffset + rotation.y}px`;
+                cardElement.style.setProperty("--stack-index", String(cardsOnTable));
+                cardElement.style.setProperty("--pile-rotation", `${rotation.angle}deg`);
+                playElement.appendChild(cardElement);
                 cardsOnTable++;
             });
             tablePile.appendChild(playElement);
@@ -1891,6 +1898,8 @@ class GameLayout {
                 var horizontalScrollDistance = handScrollDrag.isSelectedCard ? 18 : 12;
                 var isHorizontalIntent = Math.abs(dragOffsetX) >=
                     Math.abs(dragOffsetY) * horizontalScrollRatio;
+                var isVerticalIntent = Math.abs(dragOffsetY) >=
+                    Math.max(8, Math.abs(dragOffsetX) * 1.1);
                 if (event.pointerType == "mouse" && handScrollDrag.card != null &&
                     handScrollDrag.canDragToPlay) {
                     handScrollDrag.axis = "vertical";
@@ -1898,7 +1907,7 @@ class GameLayout {
                     if (Math.abs(dragOffsetX) >= horizontalScrollDistance) {
                         handScrollDrag.axis = "horizontal";
                     }
-                } else {
+                } else if (isVerticalIntent || handScrollDrag.isSelectedCard) {
                     handScrollDrag.axis = "vertical";
                 }
                 handScrollDrag.didMove = true;

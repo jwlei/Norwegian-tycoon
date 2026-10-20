@@ -18,6 +18,7 @@ function load(globals = {}) {
 test("normal play animation restores the original movement, easing and card stagger", () => {
     const animations = [];
     const image = () => ({
+        src: "data:image/svg+xml,card",
         style: { getPropertyValue: () => "0" },
         setAttribute() {}, remove() {},
         animate(frames, timing) {
@@ -74,7 +75,7 @@ test("discard animation restores the original easing and scales duration and sta
                 style: { getPropertyValue: () => "0" },
                 getBoundingClientRect: () => ({ left: 100, top: 100, width: 80, height: 120 }),
                 cloneNode: () => ({
-                    style: {}, setAttribute() {},
+                    style: {}, setAttribute() {}, classList: { add() {} },
                     animate(frames, timing) { timings.push(timing); return {}; }
                 })
             }))

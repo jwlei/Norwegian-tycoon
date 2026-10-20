@@ -498,7 +498,10 @@ class PresidentGame extends Game {
                     typeof previous.presidentWinGames == "object"
                     ? Object.assign({}, previous.presidentWinGames)
                     : {};
-                var wonGame = player.placement == 1 && winGames[gameId] !== true;
+                var normalizedName = player.name.trim().toLocaleLowerCase();
+                var hasDefaultName = normalizedName == "spiller" || normalizedName == "player";
+                var wonGame = player.placement == 1 && !hasDefaultName &&
+                    winGames[gameId] !== true;
                 if (wonGame) { winGames[gameId] = true; }
                 var wins = Number.isSafeInteger(previous.presidentWins) && previous.presidentWins >= 0
                     ? previous.presidentWins

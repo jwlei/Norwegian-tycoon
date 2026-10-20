@@ -3182,6 +3182,20 @@ test("completed games persist human names and award each president win once, inc
     assert.deepEqual(Array.from(profileRecords["playerStats/human-key"].names), ["Ada", "Ada Lovelace"]);
 });
 
+test("default player names never add president wins", async () => {
+    const { game, players, profileRecords } = setupGame();
+    players[0].name = "Player";
+    players[0].placement = 1;
+    players.push(new players[0].constructor("  SpIlLeR  ", "default-player-key"));
+    players[3].placement = 1;
+
+    await game.recordFinishedPlayerStats();
+    assert.equal(profileRecords["playerStats/human-key"].presidentWins, 0);
+    assert.equal(profileRecords["playerStats/human-key"].presidentWinGames["test"], undefined);
+    assert.equal(profileRecords["playerStats/default-player-key"].presidentWins, 0);
+    assert.equal(profileRecords["playerStats/default-player-key"].presidentWinGames["test"], undefined);
+});
+
 test("playing the final card persists the president placement and completed round placement", () => {
     const { game, players, types } = setupGame();
     const winner = players[0];
@@ -3225,6 +3239,8 @@ test("passing and clearing a pile preserve every displayed card's position and r
     });
     GameLayout.createCardImage = element;
     const { game, players, pile } = setupGame();
+    GameLayout.styleForPlayer = () => "pixel";
+    GameLayout.foilForPlayer = () => "galaxy";
     game.shuffleStartedAt = 123456;
     players.forEach(player => {
         player.cards.push(new PresidentCard(1, 12));
@@ -3242,6 +3258,10 @@ test("passing and clearing a pile preserve every displayed card's position and r
         }))
     }));
     const before = render(game.piles);
+    const firstCard = before.element.children[0].children[0];
+    assert.match(firstCard.className, /table-play__card card-preview card-preview--pixel/);
+    assert.equal(firstCard.dataset.foil, "galaxy");
+    assert.equal(firstCard.children.length, 1);
     const signatures = new Set(before.element.children.map(play => play.dataset.playSignature));
     game.passTurn(players[1]);
     assert.equal(game.turnPause.kind, "pass");

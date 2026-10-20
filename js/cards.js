@@ -185,11 +185,11 @@ class Card {
                 : `<path d="M0 0v24M${3 + index % 5} 0v24" stroke="#fff" stroke-width="${foil == "holo" ? 1 : 0.6}" opacity=".6"/>
                     <path d="m0 0 24 24m-24 0 24-24" stroke="#182244" stroke-width=".6" opacity=".35"/>`;
         const texture = `<pattern id="card-foil-texture" width="${foil == "galaxy" ? 80 : 9 + index}" height="${foil == "galaxy" ? 120 : 9 + index}" patternUnits="userSpaceOnUse" patternTransform="rotate(${angle})">${pattern}</pattern>`;
-        const inset = ["holo", "galaxy"].includes(foil) ? 'x="18" y="27" width="44" height="67" rx="5"' :
-            'x="2" y="2" width="76" height="116" rx="8"';
-        return `<defs>${spectrum}${texture}</defs><g data-foil="${foil}" opacity=".23">
-            <rect ${inset} fill="url(#card-foil-spectrum)"/>
-            <rect ${inset} fill="url(#card-foil-texture)" opacity=".7"/>
+        return `<defs>${spectrum}${texture}<clipPath id="card-foil-clip">
+            <rect x="1.5" y="1.5" width="77" height="117" rx="8"/>
+        </clipPath></defs><g data-foil="${foil}" opacity=".23" clip-path="url(#card-foil-clip)">
+            <rect x="1.5" y="1.5" width="77" height="117" fill="url(#card-foil-spectrum)"/>
+            <rect x="1.5" y="1.5" width="77" height="117" fill="url(#card-foil-texture)" opacity=".7"/>
         </g>`;
     }
     toImageDataUri(style = "normal", cardFoil = "none") {

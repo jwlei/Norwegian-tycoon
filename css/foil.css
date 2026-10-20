@@ -55,12 +55,6 @@
     transition: opacity 180ms ease;
 }
 
-:is(#playerHand .game-card, .card-drag-preview)[data-foil]:not([data-foil="none"])::before,
-:is(#playerHand .game-card, .card-drag-preview)[data-foil]:not([data-foil="none"])::after {
-    inset: 2px;
-    border-radius: 6px;
-}
-
 :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]).is-tilting::before,
 .card-foil-option:hover .card-preview[data-foil]:not([data-foil="none"])::before,
 .card-foil-option:focus-visible .card-preview[data-foil]:not([data-foil="none"])::before {

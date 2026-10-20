@@ -2057,6 +2057,7 @@
             wrapper.addEventListener("pointerdown", event => {
                 pointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
                 dragged = false;
+                updateCardTilt(wrapper, event);
                 if (typeof wrapper.setPointerCapture == "function") {
                     wrapper.setPointerCapture(event.pointerId);
                 }
@@ -2071,7 +2072,10 @@
                 updateCardTilt(wrapper, event);
             });
             wrapper.addEventListener("pointerup", event => {
-                if (pointer != null && pointer.id == event.pointerId) { pointer = null; }
+                if (pointer != null && pointer.id == event.pointerId) {
+                    pointer = null;
+                    resetCardTilt(wrapper);
+                }
             });
             wrapper.addEventListener("pointercancel", event => {
                 if (pointer != null && pointer.id == event.pointerId) {
@@ -2266,7 +2270,7 @@
                 var holder = button.querySelector(".card-style-option__cards");
                 var unlock = button.querySelector(".card-foil-option__unlock");
                 var requiredWins = Card.foilUnlockWins(button.dataset.cardFoil);
-                unlock.textContent = unlocked ? "" : `Krever ${requiredWins} presidentseire`;
+                unlock.textContent = unlocked ? "" : `Krever ${requiredWins} seire`;
                 unlock.hidden = unlocked;
                 if (holder.dataset.style == style) { return; }
                 holder.dataset.style = style;

@@ -66,6 +66,8 @@ function fixture() {
     const nodes = new Map();
     const timers = [];
     const body = new Element();
+    const frames = new Map();
+    let nextFrameId = 0;
     let now = 1000;
     let reducedMotion = false;
     const context = vm.createContext({
@@ -73,6 +75,12 @@ function fixture() {
         setCookie: (key, value) => preferences.set(key, value),
         getPlayerKey: () => "owner", setTimeout(callback, delay) { timers.push({ callback, delay }); return timers.length; }, clearTimeout() {},
         performance: { now: () => now },
+        requestAnimationFrame(callback) {
+            const id = ++nextFrameId;
+            frames.set(id, callback);
+            return id;
+        },
+        cancelAnimationFrame(id) { frames.delete(id); },
         Date: class extends Date { static now() { return now; } },
         window: { matchMedia: () => ({ matches: reducedMotion }), setTimeout() {} },
         localStorage: { getItem: () => "normal" },
@@ -90,7 +98,12 @@ function fixture() {
     }
     const types = vm.runInContext("({ Card, PresidentCard, PresidentPlayer, PresidentGame, GameLayout })", context);
     return { context, types, preferences, nodes, body, timers,
-        set now(value) { now = value; }, set reducedMotion(value) { reducedMotion = value; } };
+        set now(value) { now = value; }, set reducedMotion(value) { reducedMotion = value; },
+        runFrame(time) {
+            const pending = Array.from(frames.values());
+            frames.clear();
+            pending.forEach(callback => callback(time));
+        } };
 }
 
 test("foil lists every supplied variant except reverse holo non-rares and defaults safely", () => {
@@ -212,7 +225,7 @@ test("the foil selector persists independently, updates previews and never regis
     const gold = options.children.find(button => button.dataset.cardFoil == "gold");
     assert.equal(gold.disabled, true);
     assert.equal(gold.querySelector(".card-foil-option__unlock").textContent,
-        "Krever 20 presidentseire");
+        "Krever 20 seire");
     const radiant = options.children.find(child => child.dataset.cardFoil == "radiant");
     assert.equal(radiant.classList.contains("card-style-option"), false);
     radiant.onclick();
@@ -250,17 +263,21 @@ test("foil locks show win requirements, block locked selection and exempt the na
 
     const themeCss = fs.readFileSync(path.join(__dirname, "..", "css", "theme.css"), "utf8");
     assert.match(themeCss, /\.card-foil-option\.is-locked::after\s*\{[^}]*content:\s*"×";/);
+    assert.match(themeCss, /\.card-foil-option__unlock\s*\{[^}]*position:\s*absolute;[^}]*top:\s*50%;[^}]*left:\s*50%;[^}]*text-align:\s*center;/);
     assert.match(themeCss, /\.card-foil-option__unlock\s*\{[^}]*border:\s*1px solid var\(--line\);/);
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
     assert.match(html, /id="cardFoilWins">Your wins: 0<\/p>/);
 });
 
 test("foil overlays cover the full card surface and settings share one card preview", () => {
+    const { types } = fixture();
     const foilCss = fs.readFileSync(path.join(__dirname, "..", "css", "foil.css"), "utf8");
     assert.match(foilCss, /\[data-foil\]:not\(\[data-foil="none"\]\)::before\s*\{[^}]*inset:\s*0;/);
     assert.match(foilCss, /\[data-foil\]:not\(\[data-foil="none"\]\)::after\s*\{[^}]*inset:\s*0;/);
-    assert.match(foilCss, /:is\(#playerHand \.game-card, \.card-drag-preview\)\[data-foil\]:not\(\[data-foil="none"\]\)::before,[\s\S]*?inset:\s*2px;\s*border-radius:\s*6px;/);
-    assert.doesNotMatch(foilCss, /--foil-clip|clip-path:\s*var\(--foil-clip\)/);
+    assert.doesNotMatch(foilCss, /inset:\s*2px;\s*border-radius:\s*6px;/);
+    const svg = decodeURIComponent(new types.PresidentCard(1, 5).toImageDataUri("normal", "holo").split(",")[1]);
+    assert.match(svg, /clipPath id="card-foil-clip"[\s\S]*?<rect x="1\.5" y="1\.5" width="77" height="117" rx="8"\/>/);
+    assert.match(svg, /<g data-foil="holo" opacity="\.23" clip-path="url\(#card-foil-clip\)">[\s\S]*?<rect x="1\.5" y="1\.5" width="77" height="117"/);
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
     const settings = html.slice(html.indexOf('class="setting-card-appearance"'),
         html.indexOf('<h3 class="settings-category">Spill og styring</h3>'));
@@ -273,6 +290,7 @@ test("foil overlays cover the full card surface and settings share one card prev
     assert.match(themeCss, /\.card-appearance-preview \.card-preview\s*\{[^}]*width:\s*clamp\(72px, 19vw, 92px\);[^}]*aspect-ratio:\s*2 \/ 3;[^}]*overflow:\s*visible;/);
     assert.match(themeCss, /\.card-appearance-preview \.card-preview > img\s*\{[^}]*object-fit:\s*contain;/);
     assert.match(themeCss, /\.card-foil-option \.card-preview\s*\{[^}]*touch-action:\s*none;[^}]*transform:\s*perspective\(600px\) rotateX\(var\(--tilt-x, 0deg\)\) rotateY\(var\(--tilt-y, 0deg\)\);/);
+    assert.match(themeCss, /\.table-deck \.table-play__card > img\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%;/);
 });
 
 test("touch-dragging a foil preview tilts the card without selecting its option", () => {
@@ -329,8 +347,8 @@ test("drag previews escape hand clipping, follow both axes without a distance ca
         assert.equal(card._dragPreview.dataset.foil, "radiant");
         assert.equal(card._dragPreview.properties.get("--drag-offset-x"), "250px");
         assert.equal(card._dragPreview.properties.get("--drag-offset-y"), "-400px");
-        assert.equal(card._dragPreview.properties.get("--tilt-x"), "-16deg");
-        assert.equal(card._dragPreview.properties.get("--tilt-y"), "-20deg");
+        assert.equal(card._dragPreview.properties.get("--tilt-x"), "18.0deg");
+        assert.equal(card._dragPreview.properties.get("--tilt-y"), "-20.0deg");
     }
     assert.equal(f.nodes.get("gameTable").classList.contains("is-card-drop-target"), true);
     f.reducedMotion = true;
@@ -353,10 +371,12 @@ test("horizontal drag lifts the card's right edge and reverse drag tilts the opp
     hand.appendChild(card);
     vm.runInContext('selectedCardKeys.add("1:5")', f.context);
     f.context.startCardDragPreview(hand, { clientX: 100, clientY: 100 });
+    f.now = 1020;
     f.context.moveCardDragPreview(hand, { clientX: 200, clientY: 100 }, 100, 100);
-    assert.equal(card._dragPreview.properties.get("--tilt-y"), "-8deg");
+    assert.equal(card._dragPreview.properties.get("--tilt-y"), "-20.0deg");
+    f.now = 1040;
     f.context.moveCardDragPreview(hand, { clientX: 0, clientY: 100 }, 100, 100);
-    assert.equal(card._dragPreview.properties.get("--tilt-y"), "8deg");
+    assert.equal(card._dragPreview.properties.get("--tilt-y"), "20.0deg");
     f.context.clearCardDragPreview(hand);
 });
 
@@ -514,7 +534,7 @@ test("selected cards drag on diagonal gestures and scroll only on deliberate sid
     assert.equal(scroll.state.plays, 0);
 });
 
-test("a dragged card gets a velocity-driven tilt before gliding home", () => {
+test("a dragged card tilts against pointer velocity and eases back as it settles", () => {
     const f = fixture();
     const hand = new Element();
     const card = new Element();
@@ -523,7 +543,16 @@ test("a dragged card gets a velocity-driven tilt before gliding home", () => {
     hand.appendChild(card);
     vm.runInContext('selectedCardKeys.add("1:5")', f.context);
     f.context.startCardDragPreview(hand, { clientX: 100, clientY: 100 });
-    f.now = 1040;
+    f.now = 1020;
+    f.context.moveCardDragPreview(hand, { clientX: 140, clientY: 130 }, 100, 100);
+    let preview = card._dragPreview;
+    assert.ok(parseFloat(preview.style.getPropertyValue("--tilt-x")) < 0);
+    assert.ok(parseFloat(preview.style.getPropertyValue("--tilt-y")) < 0);
+    f.runFrame(1036);
+    for (let time = 1052; time <= 1812; time += 16) { f.runFrame(time); }
+    assert.equal(preview.style.getPropertyValue("--tilt-x"), "0deg");
+    assert.equal(preview.style.getPropertyValue("--tilt-y"), "0deg");
+    f.now = 1540;
     f.context.moveCardDragPreview(hand, { clientX: 160, clientY: 100 }, 100, 100);
     let returnTilt;
     card._dragPreview.getBoundingClientRect = () => {
@@ -534,6 +563,18 @@ test("a dragged card gets a velocity-driven tilt before gliding home", () => {
     assert.notEqual(returnTilt, "0deg");
     assert.equal(card._dragPreview.properties.get("--tilt-y"), "0deg");
     f.timers.at(-1).callback();
+});
+
+test("a brief diagonal drift does not lock a vertical flick into hand scrolling", () => {
+    const flick = pointerFixture();
+    flick.hand.onpointerdown(flick.event(100, 500));
+    flick.advance(1005);
+    flick.hand.onpointermove(flick.event(108, 498));
+    flick.advance(1020);
+    flick.hand.onpointermove(flick.event(110, 488));
+    flick.hand.onpointerup(flick.event(110, 488));
+    assert.equal(flick.state.plays, 1);
+    assert.equal(flick.state.scrolls, 0);
 });
 
 test("flick intent follows the final vertical stroke, not earlier stronger movement", () => {
