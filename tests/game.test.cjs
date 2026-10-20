@@ -42,7 +42,7 @@ test("a direct toast dismissal never clears cards or advances the game pause", (
     assert.equal(context.currentGame.turnPause.until, 123456);
 });
 
-test("a fast toast that has reached its deadline is not cloned behind the next toast", () => {
+test("toast replacements skip archived clones at fast speed", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     let visible = true;
     let clones = 0;
@@ -120,17 +120,14 @@ test("a fast toast that has reached its deadline is not cloned behind the next t
     context.positionArchivedToasts();
     assert.equal(context.archivedToasts.length, 0, "Switching to fast removes the older stacked message");
     toast.textContent = "Current";
+    const cloneCountBeforeFastReplacement = clones;
+    const animationCountBeforeFastReplacement = animations.length;
     vm.runInContext('showGameToast("Fast replacement", game)', context);
-    assert.equal(context.archivedToasts.length, 1, "The outgoing layer exists only for the short transition");
-    assert.equal(timers.at(-2).delay, 180);
-    const outgoing = animations.filter(animation => !animation.incoming).at(-1);
-    assert.equal(outgoing.timing.duration, 180);
-    assert.equal(outgoing.frames[1].transform, "scale(1.12)");
-    assert.equal(outgoing.frames[1].opacity, 0);
-    assert.equal(outgoing.timing.fill, "forwards");
-    assert.equal(animations.at(-1).timing.duration, 180);
-    timers.at(-2).callback();
+    assert.equal(clones, cloneCountBeforeFastReplacement);
     assert.equal(context.archivedToasts.length, 0);
+    assert.equal(animations.length, animationCountBeforeFastReplacement + 1);
+    assert.equal(animations.at(-1).timing.duration, 180);
+    assert.equal(timers.at(-1).delay, 3000);
     reducedMotion = true;
     toast.textContent = "Current";
     const animationCount = animations.length;

@@ -130,14 +130,13 @@ test("board toasts anchor four pixels above the bottom and keep turn controls cl
     assert.doesNotMatch(css, /#gameTable[^{}]*:has\(#gameToastRegion[^{}]*\)[^{}]*\{[^}]*--table-card-height:/);
 });
 
-test("table summary is a single-line backup aligned behind board toasts", () => {
+test("table guidance is text-only and fades in after one second", () => {
     assert.match(css, /\.table-pile-summary\s*\{[^}]*z-index:\s*60;[^}]*bottom:\s*4px;[^}]*width:\s*min\(440px, calc\(100% - 20px\)\);[^}]*height:\s*40px;[^}]*white-space:\s*nowrap;/);
-    assert.match(css, /\.table-pile-summary--required\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/);
-    assert.match(css, /#gameTable:not\(:has\(#gameToastRegion:not\(\[hidden\]\) > \.game-toast\.is-visible\)\) > \.table-pile-summary--required\s*\{[^}]*table-pile-summary-fade-in 240ms ease 1s both;/);
-    assert.match(css, /#gameTable:has\(#gameToastRegion:not\(\[hidden\]\) > \.game-toast\.is-visible\) > \.table-pile-summary--required\s*\{[^}]*opacity:\s*0;[^}]*animation:\s*none;/);
+    assert.match(css, /\.table-pile-summary\s*\{[^}]*border:\s*0;[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/);
+    assert.match(css, /#gameTable:not\(:has\(#gameToastRegion:not\(\[hidden\]\) > \.game-toast\.is-visible\)\) > :is\(\.table-pile-summary, #tableTurnHint\)\s*\{[^}]*table-guidance-fade-in 240ms ease 1s both;/);
+    assert.match(css, /#gameTable:has\(#gameToastRegion:not\(\[hidden\]\) > \.game-toast\.is-visible\) > :is\(\.table-pile-summary, #tableTurnHint\)\s*\{[^}]*opacity:\s*0;[^}]*animation:\s*none;/);
     assert.match(css, /#gameToastRegion\s*\{[^}]*z-index:\s*65;/);
     const layout = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
-    assert.match(layout, /tableSummary\.classList\.toggle\("table-pile-summary--required", mustBeatPile\);/);
     assert.ok(layout.includes('`På bordet ligger: ${describeRequiredPlay(game)}`'));
     assert.ok(layout.includes('`Du må slå: ${describeRequiredPlay(game)}`'));
     assert.match(layout, /tableSummary\.title = tableSummary\.textContent;/);
