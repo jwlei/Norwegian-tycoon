@@ -1436,6 +1436,18 @@ class GameLayout {
             case "S":
                 table.className = "table-deck";
                 this.clearTableContent(table);
+                if (game.exchangeReady != null) {
+                    var exchangeWaiting = document.createElement("p");
+                    exchangeWaiting.className = "exchange-ready-hint";
+                    exchangeWaiting.setAttribute("role", "status");
+                    var waitingCount = GamePresence.exchangeWaitingPlayers(game).filter(candidate =>
+                        candidate != player || game.exchangeSummaryCompletedId != game.exchangeReady.id
+                    ).length;
+                    exchangeWaiting.textContent = waitingCount == 0 ? "Starter runden …" : waitingCount == 1
+                        ? "Venter på 1 spiller …"
+                        : `Venter på ${waitingCount} spillere …`;
+                    table.appendChild(exchangeWaiting);
+                }
                 if (pileView != null) {
                     table.appendChild(pileView.element);
                     if (shouldAnimatePlayedPause) {
@@ -1676,6 +1688,12 @@ class GameLayout {
                     voteWaiting.textContent = "Klargjør avstemning …";
                     gameOver.appendChild(voteWaiting);
                 }
+                if (game.gameEndVote != null || game.roundStartVote != null) {
+                    var voteHint = document.createElement("small");
+                    voteHint.className = "round-start-vote__hint";
+                    voteHint.textContent = "Flertallet bestemmer. Verten avgjør ved uavgjort.";
+                    gameOver.appendChild(voteHint);
+                }
                 table.appendChild(gameOver);
                 break;
             default:
@@ -1849,8 +1867,7 @@ class GameLayout {
         var isPassTurn = player != null &&
             game.status == "S" &&
             player.placement == 0 &&
-            player.turn == 1 &&
-            game.topPile() != null;
+            player.turn == 1;
         var canPass = isPassTurn && !pauseActive && game.canPass(player);
         this.setVisible("passButton", canPass);
         this.setVisible(

@@ -65,6 +65,34 @@ class GamePresence {
         return JSON.stringify([record.shuffleStartedAt || null, record.runde ?? record.round]);
     }
 
+    static exchangeWaitingPlayers(record, now = this.now()) {
+        var gate = record.exchangeReady;
+        if (record.status != "S" || !gate || now >= gate.until) { return []; }
+        return (record.players || record.spillere || []).filter(player =>
+            (player.placement ?? player.plassering) == 0 &&
+            player.gaveUp !== true &&
+            (player.playerKey || player.spillerKey) != "PC" &&
+            !(record.controllers || {})[this.playerId(player)] &&
+            this.disconnectedAt(record.presence, player) == null &&
+            !(gate.ready || {})[this.playerId(player)]);
+    }
+
+    static acknowledgeExchange(record, gateId, playerKey, playerName, now = this.now()) {
+        if (!record || record.status != "S" || record.exchangeReady?.id != gateId) { return; }
+        var player = (record.spillere || []).find(candidate =>
+            candidate.spillerKey == playerKey && candidate.nick == playerName &&
+            candidate.plassering == 0 && candidate.gaveUp !== true);
+        if (!player || player.spillerKey == "PC" || this.isBot(record, player)) { return; }
+        var id = this.playerId(player);
+        if (record.exchangeReady.ready?.[id]) { return; }
+        var next = Object.assign({}, record, {
+            exchangeReady: Object.assign({}, record.exchangeReady, {
+                ready: Object.assign({}, record.exchangeReady.ready, { [id]: true })
+            })
+        });
+        return this.reconcile(next, now) || next;
+    }
+
     static hasExtendedThisRound(record, player) {
         return (record.turnExtensions || {})[this.playerId(player)] === this.roundToken(record);
     }
@@ -84,6 +112,7 @@ class GamePresence {
     }
 
     static isActionPaused(record, now = this.now()) {
+        if (record.status == "S" && record.exchangeReady != null) { return true; }
         if (record.status == "G") {
             return record.shuffleStartedAt != null &&
                 now < Number(record.shuffleStartedAt) + SHUFFLE_DURATION_MS;
@@ -122,6 +151,11 @@ class GamePresence {
         if (changed) { record = Object.assign({}, record, { lastHumanActionAt: baseline }); }
         if (this.isExpired(record, now)) {
             return Object.assign({}, record, { status: "V" });
+        }
+        if (record.status == "S" && record.exchangeReady != null &&
+            this.exchangeWaitingPlayers(record, now).length == 0) {
+            record = Object.assign({}, record, { exchangeReady: null });
+            changed = true;
         }
         var players = (record.spillere || []).slice();
         var controllers = Object.assign({}, record.controllers);

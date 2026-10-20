@@ -242,10 +242,23 @@ function initializeColorTheme() {
     });
 }
 
+function initializeRulesPlayerOptions() {
+    const buttons = Array.from(document.querySelectorAll("[data-rules-players]"));
+    buttons.forEach(button => button.addEventListener("click", () => {
+        buttons.forEach(option => {
+            const selected = option === button;
+            option.setAttribute("aria-pressed", String(selected));
+            document.getElementById(option.getAttribute("aria-controls")).hidden = !selected;
+        });
+    }));
+}
+
 if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initializeRulesPlayerOptions, { once: true });
     document.addEventListener("DOMContentLoaded", initializeThemeToggle, { once: true });
     document.addEventListener("DOMContentLoaded", initializeColorTheme, { once: true });
 } else {
+    initializeRulesPlayerOptions();
     initializeThemeToggle();
     initializeColorTheme();
 }

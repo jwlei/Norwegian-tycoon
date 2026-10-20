@@ -97,7 +97,7 @@ test("toast replacements skip archived clones at fast speed", () => {
     const hideStart = source.indexOf("        function gameToastsHidden(");
     const hideEnd = source.indexOf("        function resetGameLog", hideStart);
     const showStart = source.indexOf("        function showGameToast(");
-    const showEnd = source.indexOf("        var receivedCardQueue", showStart);
+    const showEnd = source.indexOf("        var receivedCardTimer", showStart);
     vm.runInContext(source.slice(hideStart, hideEnd) + source.slice(showStart, showEnd), context);
     vm.runInContext('showGameToast("Next", game)', context);
     assert.equal(clones, 0);
@@ -248,7 +248,7 @@ test("hiding toasts persists locally, clears the stack and hides only message sp
     const start = source.indexOf("        function gameToastsHidden(");
     vm.runInContext(source.slice(start, source.indexOf("        function hideGameToast(", start)), context);
     const listener = source.indexOf('        document.getElementById("hideToastsToggleButton").addEventListener');
-    vm.runInContext(source.slice(listener, source.indexOf('        document.querySelectorAll(".speed-option")', listener)), context);
+    vm.runInContext(source.slice(listener, source.indexOf('        document.querySelectorAll(".speed-option[data-speed]")', listener)), context);
     assert.equal(button["aria-pressed"], "false");
     assert.equal(speed.hidden, false);
     assert.equal(region.hidden, false);
@@ -272,12 +272,11 @@ test("hiding toasts persists locally, clears the stack and hides only message sp
     assert.equal(saved.get("gameSpeed"), "slow", "Hiding must not overwrite the saved message speed");
 });
 
-test("received-card overlays filter recipients, queue receipts and honor every game speed", () => {
+function exchangeSummaryFixture(speed = "fast") {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
-    const start = source.indexOf("        var receivedCardQueue");
+    const start = source.indexOf("        var receivedCardTimer");
     const end = source.indexOf("        function refreshAfterTurnPause", start);
-    const { PresidentCard } = loadGame();
-    for (const [speed, duration] of [["fast", 5000], ["normal", 10000], ["slow", 15000]]) {
+    const { PresidentCard, GamePresence, exchangeSummaryDuration } = loadGame();
         const element = () => ({
             hidden: true, children: [], style: { setProperty() {} },
             append(...children) { this.children.push(...children); },
@@ -289,14 +288,43 @@ test("received-card overlays filter recipients, queue receipts and honor every g
         const content = element();
         const timers = [];
         let listener;
-        const game = { id: "room", players: [{ name: "Sender", displayColor: "#123456" }] };
+        const player = { name: "Recipient", playerKey: "human-key", placement: 0 };
+        const game = {
+            id: "room", status: "G",
+            players: [{ name: "Sender", displayColor: "#123456" }, player],
+            getPlayer: name => name == player.name ? player : null,
+            exchangeReceipts: [
+                { id: "first", recipient: "Recipient", sender: "Sender",
+                    cards: [new PresidentCard(1, 5), new PresidentCard(2, 13)] },
+                { id: "second", recipient: "Recipient", sender: "Sender", cards: [new PresidentCard(3, 3)] },
+                { id: "other", recipient: "Other", sender: "Sender", cards: [new PresidentCard(2, 9)] }
+            ]
+        };
+        let now = 100000;
+        let transactions = 0;
+        let fail = false;
+        const errors = [];
+        game.databaseRef = {
+            transaction(update, _, local) {
+                transactions++;
+                assert.equal(local, false);
+                if (fail) { return Promise.reject(new Error("Offline")); }
+                const record = {
+                    ...game, spillere: [{ nick: player.name, spillerKey: player.playerKey, plassering: 0 }]
+                };
+                const next = update(record);
+                if (next) { game.exchangeReady = next.exchangeReady; }
+                return Promise.resolve({ committed: !!next });
+            }
+        };
         const context = vm.createContext({
             currentGame: game, currentPlayerName: "Recipient",
-            PresidentCard,
-            GAME_SPEED_MS: { fast: 3000, normal: 5000, slow: 8000 },
+            PresidentCard, GamePresence: class extends GamePresence { static now() { return now; } },
+            getPlayerKey: () => "human-key",
+            exchangeSummaryDuration,
             currentGameSpeed: () => speed,
             localizedMessage: message => message,
-            GameLayout: { cardStyle: () => "neon", styleForPlayer: () => "neon", createCardImage: card => {
+            GameLayout: { updateTable() {}, cardStyle: () => "neon", styleForPlayer: () => "neon", createCardImage: card => {
                 assert.ok(card.toImageDataUri("neon").startsWith("data:image/svg+xml"));
                 return element();
             } },
@@ -311,45 +339,103 @@ test("received-card overlays filter recipients, queue receipts and honor every g
                 addEventListener: (type, callback) => { listener = callback; }
             },
             setTimeout: (callback, delay) => { timers.push({ callback, delay }); return timers.length; },
-            clearTimeout: id => { timers[id - 1].cleared = true; }
+            clearTimeout: id => { timers[id - 1].cleared = true; },
+            console: { error: (...args) => errors.push(args) },
+            showGameToast: text => errors.push(text)
         });
         vm.runInContext(source.slice(start, end), context);
-        const receipt = {
-            game, recipient: "Recipient", sender: "Sender",
-            cards: [new PresidentCard(1, 5), new PresidentCard(2, 13)]
-        };
-        listener({ detail: { ...receipt, recipient: "Other" } });
-        listener({ detail: { ...receipt, game: { id: "other-room" } } });
+        return { game, player, overlay, content, timers, errors, context,
+            fire: () => listener({ detail: { game } }),
+            begin: () => {
+                game.status = "S";
+                game.exchangeReady = { id: "round", startedAt: 100000, until: 107000, ready: {} };
+                context.syncExchangeSummary(game);
+            },
+            setNow: value => { now = value; }, setFail: value => { fail = value; },
+            transactions: () => transactions };
+}
+
+test("received-card summaries combine receipts after exchanges and use 3/5/7-second speed settings", async () => {
+    for (const [speed, duration] of [["fast", 3000], ["normal", 5000], ["slow", 7000]]) {
+        const fixture = exchangeSummaryFixture(speed);
+        const { overlay, content, timers, context, game } = fixture;
+        fixture.fire();
         assert.equal(overlay.hidden, true);
-        listener({ detail: receipt });
+        fixture.begin();
         assert.equal(overlay.hidden, false);
         assert.equal(content.children[0].children.length, 2);
         assert.equal(content.children[1].textContent, "Du fikk 5 og Konge fra Sender.");
+        assert.equal(content.children[2].children.length, 1);
+        assert.equal(content.children[3].textContent, "Du fikk Kløver 3 fra Sender.");
+        assert.equal(content.children.length, 5, "Only this recipient's cards and a Continue button");
         assert.equal(timers[0].delay, duration);
-        listener({ detail: { ...receipt, cards: [new PresidentCard(3, 3)] } });
+        fixture.fire();
+        context.syncExchangeSummary(game);
         assert.equal(timers.length, 1);
         timers[0].callback();
-        assert.equal(content.children[0].children.length, 1);
-        assert.equal(content.children[1].textContent, "Du fikk Kløver 3 fra Sender.");
-        assert.equal(timers[1].delay, duration);
+        assert.equal(overlay.hidden, true);
+        assert.equal(fixture.transactions(), 1);
+        await new Promise(resolve => setImmediate(resolve));
+        context.syncExchangeSummary(game);
+        assert.equal(overlay.hidden, true, "Snapshots do not replay a completed summary");
+    }
+});
+
+test("Continue and background dismissal mark readiness early without dismissing on card clicks", () => {
+    for (const method of ["button", "background"]) {
+        const fixture = exchangeSummaryFixture("slow");
+        const { overlay, content, timers } = fixture;
+        fixture.begin();
         overlay.click({ target: content, currentTarget: overlay });
         assert.equal(overlay.hidden, false);
-        overlay.click({ target: overlay, currentTarget: overlay });
-        assert.equal(timers[1].cleared, true);
+        if (method == "button") { content.children.at(-1).onclick(); }
+        else { overlay.click({ target: overlay, currentTarget: overlay }); }
+        assert.equal(timers[0].cleared, true);
         assert.equal(overlay.hidden, true);
-        context.receiveExchangeReceipts(game, []);
-        const remoteReceipt = {
-            id: "optional-trade:1", recipient: "Recipient", sender: "Sender",
-            cards: [{ suit: 2, rank: 9 }]
-        };
-        context.receiveExchangeReceipts(game, [remoteReceipt]);
-        assert.equal(overlay.hidden, false);
-        assert.equal(content.children[1].textContent, "Du fikk 9 fra Sender.");
-        context.receiveExchangeReceipts(game, [remoteReceipt]);
-        listener({ detail: { ...remoteReceipt, game, cards: [new PresidentCard(2, 9)] } });
-        overlay.click({ target: overlay, currentTarget: overlay });
-        assert.equal(overlay.hidden, true, "A receipt from a remote snapshot must only be shown once");
+        assert.equal(fixture.transactions(), 1);
     }
+});
+
+test("late summaries use the shared clock and disappear when the synchronized gate ends", () => {
+    const fixture = exchangeSummaryFixture("slow");
+    fixture.setNow(105000);
+    fixture.begin();
+    assert.equal(fixture.timers[0].delay, 2000);
+    fixture.game.exchangeReady = null;
+    fixture.context.syncExchangeSummary(fixture.game);
+    assert.equal(fixture.overlay.hidden, true);
+    assert.equal(fixture.timers[0].cleared, true);
+    fixture.timers[0].callback();
+    assert.equal(fixture.transactions(), 0, "A stale timer cannot acknowledge another round");
+});
+
+test("spectators and players without receipts do not get a received-cards overlay", () => {
+    const spectator = exchangeSummaryFixture();
+    spectator.context.currentPlayerName = "Spectator";
+    spectator.begin();
+    assert.equal(spectator.overlay.hidden, true);
+    assert.equal(spectator.transactions(), 0);
+    const noCards = exchangeSummaryFixture();
+    noCards.game.exchangeReceipts = [];
+    noCards.begin();
+    assert.equal(noCards.overlay.hidden, true);
+    assert.equal(noCards.transactions(), 1);
+});
+
+test("failed exchange readiness writes are surfaced and retried without replaying the summary", async () => {
+    const fixture = exchangeSummaryFixture();
+    fixture.setFail(true);
+    fixture.begin();
+    fixture.content.children.at(-1).onclick();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(fixture.errors.length, 2, "The failure is logged and shown to the player");
+    assert.equal(fixture.overlay.hidden, true);
+    fixture.context.syncExchangeSummary(fixture.game);
+    assert.equal(fixture.transactions(), 1);
+    fixture.setNow(101000);
+    fixture.setFail(false);
+    fixture.context.syncExchangeSummary(fixture.game);
+    assert.equal(fixture.transactions(), 2);
 });
 
 test("receiving an exchange emits mixed-rank renderable cards before play starts", () => {
@@ -438,7 +524,7 @@ function loadGame(cardStyle = null, globals = {}) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(source, context);
     }
-    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, GamePresence, activeTradeOffer, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage, isCardAllowedForExchange, chooseSuggestedPlayStrength, isSneakyTradeAvailable, hasSneakyConsent })", context);
+    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, GamePresence, exchangeSummaryDuration, activeTradeOffer, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage, isCardAllowedForExchange, chooseSuggestedPlayStrength, isSneakyTradeAvailable, hasSneakyConsent })", context);
 }
 
 test("clearing card flights cancels and removes overlays from the page", () => {
@@ -1171,12 +1257,13 @@ function colorThemeContext(storage = new Map(), storageBlocked = false) {
     return { context, options, elements, events, dialogs };
 }
 
-test("all seventeen color themes have previews and persist without cookies", () => {
+test("all twenty color themes have previews and persist without cookies", () => {
     const storage = new Map();
     const { context, options, elements } = colorThemeContext(storage);
     assert.deepEqual(options.map(option => option.dataset.colorTheme),
-        ["teal", "classic", "blue", "forest", "amethyst", "burgundy", "amber", "gray", "amoled",
-            "solarized", "dark-modern", "material", "darcula", "one-dark", "nord", "monokai", "gradianto"]);
+        ["amoled", "gray", "burgundy", "darcula", "high-contrast-amber", "amber", "classic",
+            "monokai", "forest", "teal", "material", "solarized", "nord", "dark-modern", "blue", "one-dark",
+            "high-contrast-blue", "gradianto", "amethyst", "high-contrast-violet"]);
     assert.equal(context.document.documentElement.dataset.colorTheme, "teal");
     context.document.documentElement.dataset.theme = "light";
     for (const option of options) {
@@ -1658,6 +1745,26 @@ test("a stale room save cannot remove another client's exchange receipt within t
     game.save();
     assert.equal(record.exchangeReceipts.length, 0);
     assert.equal(record.skippedTrades.length, 0);
+});
+
+test("stale game saves preserve shared exchange readiness and cannot revive a completed gate", () => {
+    const { game } = setupGame();
+    const gate = { id: "exchange-round", startedAt: 1, until: 7001, ready: { guest: true } };
+    let record = { status: "S", runde: game.round, shuffleStartedAt: null, exchangeReady: gate };
+    game.databaseRef = { transaction(transform) { record = transform(record); } };
+    game.exchangeReady = { ...gate, ready: {} };
+    game.save();
+    assert.equal(record.exchangeReady.ready.guest, true);
+    record.exchangeReady = null;
+    game.save();
+    assert.equal(record.exchangeReady, null);
+    record.status = "G";
+    game.save();
+    assert.equal(record.exchangeReady.id, gate.id, "The final exchange creates the gate");
+    game.shuffleStartedAt = 123;
+    game.exchangeReady = null;
+    game.save();
+    assert.equal(record.exchangeReady, null, "A new round clears previous readiness");
 });
 
 test("the play button rejects empty and illegal selections without playing", () => {
@@ -3671,9 +3778,9 @@ test("starting a later round deals cards and enters the exchange stage", () => {
     assert.equal(game.status, "G");
     assert.equal(game.dealTotal, 52);
     assert.ok(players.every(player => player.cards.length == 13));
-    assert.equal(game.piles.length, 2);
-    assert.equal(game.piles[0].mode, "Velg");
-    assert.equal(game.piles[1].mode, "Best");
+    assert.equal(game.piles.length, 4);
+    assert.deepEqual(Array.from(game.piles, exchange => exchange.mode), ["Velg", "Velg", "Best", "Best"]);
+    assert.deepEqual(Array.from(game.piles, exchange => exchange.count), [2, 1, 1, 2]);
 });
 
 test("a random player starts if heart three is among the twelve discarded cards", () => {
@@ -3688,6 +3795,107 @@ test("a random player starts if heart three is among the twelve discarded cards"
     assert.ok(game.players.every(player => !player.cards.some(card => card.suit == 2 && card.rank == 3)));
     assert.equal(game.dealStarterStep, null);
     assert.equal(game.players[1].turn, 1);
+});
+
+test("two-player first rounds choose randomly even when the heart three is dealt", () => {
+    let differentStarter = false;
+    for (const random of [0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9]) {
+        const math = Object.create(Math);
+        math.random = () => random;
+        const { PresidentGame, PresidentPlayer } = loadGame(null, { Math: math });
+        const players = [new PresidentPlayer("First", "PC"), new PresidentPlayer("Second", "PC")];
+        const game = Object.assign(Object.create(PresidentGame.prototype), {
+            players, status: "S", round: 1, piles: []
+        });
+        game.prepareRound();
+        const heartOwner = players.findIndex(player =>
+            player.cards.some(card => card.suit == 2 && card.rank == 3));
+        assert.equal(game.turn, Math.floor(random * 2));
+        assert.equal(game.dealStarterStep, null);
+        differentStarter ||= heartOwner >= 0 && heartOwner != game.turn;
+    }
+    assert.equal(differentStarter, true, "The heart-three holder does not force the starter");
+});
+
+test("mandatory exchanges use one card for two players, two for three, and vice-role pairs for four", () => {
+    for (const count of [2, 3, 4]) {
+        const { PresidentGame, PresidentPlayer } = loadGame(null, {
+            clearTimeout() {},
+            document: { dispatchEvent() {}, querySelectorAll: () => [] },
+            CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } }
+        });
+        const players = Array.from({ length: count }, (_, index) => {
+            const player = new PresidentPlayer(`Seat ${index}`, "PC");
+            player.placement = index + 1;
+            return player;
+        });
+        const game = Object.assign(Object.create(PresidentGame.prototype), {
+            id: "exchange", players, status: "S", round: 2, piles: [], rules: {}
+        });
+        game.save = () => {};
+        game.prepareRound();
+        const mandatory = game.piles.filter(exchange => exchange.mode != "Tilbud");
+        const expected = count == 4
+            ? [[0, 3, 2, "Velg"], [1, 2, 1, "Velg"], [2, 1, 1, "Best"], [3, 0, 2, "Best"]]
+            : [[0, count - 1, count == 2 ? 1 : 2, "Velg"],
+                [count - 1, 0, count == 2 ? 1 : 2, "Best"]];
+        assert.deepEqual(Array.from(mandatory, exchange =>
+            [exchange.from, exchange.to, exchange.count, exchange.mode]), expected);
+        const originals = players.map(player => Array.from(player.cards));
+        players[0].playerKey = "human-key";
+        for (const exchange of mandatory) {
+            if (exchange.mode == "Best") {
+                const expectedCards = Array.from(players[exchange.from].cards)
+                    .filter(card => !card.isClubThree()).slice(-exchange.count).reverse();
+                assert.deepEqual(Array.from(exchange.cards), expectedCards);
+            } else {
+                exchange.cards = players[exchange.from].cards.slice(0, exchange.count);
+            }
+        }
+        const transfers = mandatory.map(exchange => ({
+            from: exchange.from, to: exchange.to, cards: Array.from(exchange.cards)
+        }));
+        for (const exchange of mandatory) { game.giveExchangeCards(exchange); }
+        if (count == 3) {
+            assert.equal(game.status, "G");
+            for (const offer of Array.from(game.piles)) { game.skipOptionalTrade(offer, offer.from); }
+        }
+        assert.equal(game.status, "S");
+        assert.equal(game.turn, count - 1, "The Bum starts after the exchange");
+        assert.ok(game.exchangeReady);
+        assert.equal(game.exchangeReady.until - game.exchangeReady.startedAt, 7000);
+        assert.equal(game.isTurnPaused(), true);
+        assert.equal(game.canPass(players[game.turn]), false);
+        assert.equal(game.canPlayRank(players[game.turn], players[game.turn].cards[0].strengthRank), false);
+        for (let index = 0; index < count; index++) {
+            const outgoing = transfers.filter(t => t.from == index).flatMap(t => t.cards);
+            const incoming = transfers.filter(t => t.to == index).flatMap(t => t.cards);
+            const keys = cards => cards.map(c => `${c.suit}:${c.rank}`).sort();
+            assert.deepEqual(keys(Array.from(players[index].cards)),
+                keys(originals[index].filter(c => !outgoing.includes(c)).concat(incoming)));
+        }
+        if (count == 4) {
+            assert.equal(game.placementTitle(2).title, "Visepresident");
+            assert.equal(game.placementTitle(3).title, "Viseboms");
+        }
+    }
+});
+
+test("passing on an empty table advances without excluding players from the next play", () => {
+    const { game, players, pile, types } = setupGame();
+    game.save = () => {};
+    for (const player of players) { player.cards = [pile(player, 7, 1)[0], pile(player, 8, 1)[0]]; }
+    game.setTurn(0);
+    for (let index = 0; index < 6; index++) {
+        const current = players[game.turn];
+        assert.equal(game.canPass(current), true);
+        game.passTurn(current);
+        assert.equal(current.lastPlay, null);
+        game.turnPause = null;
+        assert.equal(game.turn, (index + 1) % players.length);
+    }
+    game.playCards(players[0], new types.CardPile(players[0].name, players[0].cards[0]));
+    assert.equal(game.topPile().strengthRank, 7);
 });
 
 test("a human replaces only a bot when the lobby is full", async () => {

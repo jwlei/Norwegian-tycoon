@@ -153,6 +153,7 @@
         }
         function refreshConnectionView() {
             if (!currentGame || !currentGame.players) { return; }
+            syncExchangeSummary(currentGame);
             var player = currentGame.getPlayer(currentPlayerName);
             var controlled = player && GamePresence.isBot(currentGame, player);
             var online = currentGame.connectionOnline !== false;
@@ -180,7 +181,7 @@
             document.getElementById("gameTable").inert = !online || !!controlled;
             document.getElementById("exchangeActions").inert = !online || !!controlled || currentGame.localWritePending === true;
             if (controlled) { document.getElementById("exchangeActions").hidden = true; }
-            if (!online || controlled || currentGame.localWritePending) {
+            if (!online || controlled || currentGame.localWritePending || currentGame.isTurnPaused()) {
                 document.getElementById("passButton").disabled = true;
             } else {
                 document.getElementById("passButton").disabled = false;
@@ -609,9 +610,7 @@
                 spectatorJoinToastTimer = null;
             }
             document.getElementById("spectatorJoinToast").classList.remove("is-visible");
-            receivedCardQueue = [];
-            if (receivedCardTimer != null) { clearTimeout(receivedCardTimer); receivedCardTimer = null; }
-            document.getElementById("receivedCardsOverlay").hidden = true;
+            clearExchangeSummary();
             if (turnPauseRefreshTimer != null) {
                 clearTimeout(turnPauseRefreshTimer);
                 turnPauseRefreshTimer = null;
@@ -1006,75 +1005,109 @@
             ], { duration: fast ? 180 : 320, easing: "cubic-bezier(.2,.8,.25,1)" });
         }
 
-        var receivedCardQueue = [];
         var receivedCardTimer = null;
-        var seenReceivedCards = new Set();
-        function queueReceivedCards(receipt) {
-            if (currentGame != receipt.game || currentPlayerName != receipt.recipient) { return; }
-            var key = receipt.id == null ? null : `${receipt.game.id}:${receipt.id}`;
-            if (key != null && seenReceivedCards.has(key)) { return; }
-            if (key != null) { seenReceivedCards.add(key); }
-            receivedCardQueue.push(receipt);
-            if (receivedCardTimer == null) { showNextReceivedCards(); }
+        var receivedSummaryId = null;
+        var receivedReadinessInFlight = null;
+        var receivedReadinessRetryAt = 0;
+        function clearExchangeSummary() {
+            if (receivedCardTimer != null) { clearTimeout(receivedCardTimer); }
+            receivedCardTimer = null;
+            receivedSummaryId = null;
+            document.getElementById("receivedCardsOverlay").hidden = true;
         }
-        function receiveExchangeReceipts(game, receipts) {
-            receipts.forEach(receipt => {
-                if (game.exchangeReceipts == null) {
-                    seenReceivedCards.add(`${game.id}:${receipt.id}`);
-                } else {
-                    queueReceivedCards(Object.assign({}, receipt, {
-                        game, cards: receipt.cards.map(card => new PresidentCard(card.suit, card.rank))
-                    }));
-                }
-            });
-            game.exchangeReceipts = receipts;
+        function completeExchangeSummary(game, gateId) {
+            if (currentGame != game || game.exchangeReady?.id != gateId) { return; }
+            clearExchangeSummary();
+            game.exchangeSummaryCompletedId = gateId;
+            syncExchangeSummary(game);
+            GameLayout.updateTable(game, game.getPlayer(currentPlayerName));
         }
-        function showNextReceivedCards() {
+        function publishExchangeReady(game, player, gate) {
+            if (game.connectionOnline === false || game.localWritePending ||
+                receivedReadinessInFlight != null || GamePresence.now() < receivedReadinessRetryAt) { return; }
+            receivedReadinessInFlight = gate.id;
+            game.databaseRef.transaction(record => GamePresence.acknowledgeExchange(
+                record, gate.id, getPlayerKey(), player.name), undefined, false).catch(error => {
+                receivedReadinessRetryAt = GamePresence.now() + 1000;
+                console.error("Kunne ikke lagre klar-status etter kortbytte.", error);
+                showGameToast("Kunne ikke lagre klar-status. Prøver igjen.", game);
+            }).finally(() => { receivedReadinessInFlight = null; });
+        }
+        function syncExchangeSummary(game) {
+            if (currentGame != game) { return; }
+            var gate = game.exchangeReady;
+            var player = game.getPlayer(currentPlayerName);
             var overlay = document.getElementById("receivedCardsOverlay");
-            var receipt = receivedCardQueue.shift();
-            if (receipt == null) {
-                overlay.hidden = true;
-                receivedCardTimer = null;
+            if (game.status != "S" || gate == null || player == null ||
+                player.placement != 0 || player.gaveUp === true ||
+                player.playerKey != getPlayerKey() || GamePresence.isBot(game, player)) {
+                clearExchangeSummary();
                 return;
             }
-            if (currentGame != receipt.game || currentPlayerName != receipt.recipient) {
-                showNextReceivedCards();
+            var id = GamePresence.playerId(player);
+            if (gate.ready?.[id] || game.exchangeSummaryCompletedId == gate.id ||
+                GamePresence.now() >= gate.until) {
+                clearExchangeSummary();
+                game.exchangeSummaryCompletedId = gate.id;
+                if (!gate.ready?.[id]) { publishExchangeReady(game, player, gate); }
                 return;
             }
+            if (receivedSummaryId == gate.id) { return; }
+            var receipts = (game.exchangeReceipts || []).filter(receipt => receipt.recipient == player.name);
+            if (receipts.length == 0) {
+                completeExchangeSummary(game, gate.id);
+                return;
+            }
+            var duration = exchangeSummaryDuration(currentGameSpeed());
+            var remaining = Math.min(gate.until, gate.startedAt + duration) - GamePresence.now();
+            if (remaining <= 0) {
+                completeExchangeSummary(game, gate.id);
+                return;
+            }
+            receivedSummaryId = gate.id;
             var content = document.getElementById("receivedCardsContent");
             content.replaceChildren();
-            var pile = document.createElement("div");
-            pile.className = "received-cards__pile";
-            receipt.cards.forEach((card, index) => {
-                var image = GameLayout.createCardImage(card, null, GameLayout.styleForPlayer(receipt.game, receipt.sender));
-                image.style.setProperty("--received-angle", `${(index - (receipt.cards.length - 1) / 2) * 10}deg`);
-                image.style.setProperty("--received-index", String(index));
-                pile.appendChild(image);
+            receipts.forEach(receipt => {
+                var cards = receipt.cards.map(card => new PresidentCard(card.suit, card.rank));
+                var pile = document.createElement("div");
+                pile.className = "received-cards__pile";
+                cards.forEach((card, index) => {
+                    var image = GameLayout.createCardImage(card, null, GameLayout.styleForPlayer(game, receipt.sender));
+                    image.style.setProperty("--received-angle", `${(index - (cards.length - 1) / 2) * 10}deg`);
+                    image.style.setProperty("--received-index", String(index));
+                    pile.appendChild(image);
+                });
+                var message = document.createElement("p");
+                var names = cards.map(card => localizedMessage(card.getName(card.isClubThree())));
+                var language = document.documentElement.lang;
+                var cardList = new Intl.ListFormat(language, { style: "long", type: "conjunction" }).format(names);
+                var text = language.startsWith("en")
+                    ? `You received ${cardList} from ${receipt.sender}.`
+                    : `Du fikk ${cardList} fra ${receipt.sender}.`;
+                appendColoredGameMessage(message, text, game.players);
+                content.append(pile, message);
             });
-            var message = document.createElement("p");
-            var names = receipt.cards.map(card => localizedMessage(card.getName(card.isClubThree())));
-            var language = document.documentElement.lang;
-            var cardList = new Intl.ListFormat(language, { style: "long", type: "conjunction" }).format(names);
-            var text = language.startsWith("en")
-                ? `You received ${cardList} from ${receipt.sender}.`
-                : `Du fikk ${cardList} fra ${receipt.sender}.`;
-            appendColoredGameMessage(message, text, receipt.game.players);
-            content.append(pile, message);
+            var continueButton = document.createElement("button");
+            continueButton.type = "button";
+            continueButton.textContent = localizedMessage("Fortsett");
+            continueButton.onclick = () => completeExchangeSummary(game, gate.id);
+            content.appendChild(continueButton);
             overlay.hidden = false;
-            receivedCardTimer = setTimeout(showNextReceivedCards,
-                { fast: 5000, normal: 10000, slow: 15000 }[currentGameSpeed()]);
+            receivedCardTimer = setTimeout(() => completeExchangeSummary(game, gate.id), remaining);
         }
         document.addEventListener("exchange-cards-received", function (event) {
-            queueReceivedCards(event.detail);
+            syncExchangeSummary(event.detail.game);
         });
         document.getElementById("receivedCardsOverlay").addEventListener("click", function (event) {
             if (event.target != event.currentTarget) { return; }
-            if (receivedCardTimer != null) { clearTimeout(receivedCardTimer); }
-            showNextReceivedCards();
+            if (currentGame?.exchangeReady) {
+                completeExchangeSummary(currentGame, currentGame.exchangeReady.id);
+            }
         });
 
         function refreshAfterTurnPause(game) {
             if (currentGame != game) { return; }
+            syncExchangeSummary(game);
             var player = game.getPlayer(currentPlayerName);
             GameLayout.updateSharedView(game, player);
             GameLayout.updatePlayerView(game, player);
@@ -1903,12 +1936,14 @@
                     connectingGame.piles = ((connectingGame.status == "G") ? PresidentGame.deserializeExchanges(storedPiles) : PresidentCard.deserializePiles(storedPiles));
                     connectingGame.turn = snapshotRecord["sinTur"];
                     connectingGame.turnPause = snapshotRecord["turnPause"] || null;
+                    connectingGame.exchangeReady = snapshotRecord.exchangeReady || null;
                     connectingGame.fastForward = snapshotRecord.fastForward === true;
                     connectingGame.turnSeconds = gameTurnSeconds(snapshotRecord.turnSeconds);
                     connectingGame.ts = snapshotRecord.ts;
                     connectingGame.lastHumanActionAt = snapshotRecord.lastHumanActionAt ?? null;
-                    receiveExchangeReceipts(connectingGame, snapshotRecord.exchangeReceipts || []);
+                    connectingGame.exchangeReceipts = snapshotRecord.exchangeReceipts || [];
                     connection.receive(snapshotRecord);
+                    syncExchangeSummary(connectingGame);
                     if (connectingGame.status == "F") {
                         var stillActivePlayers = connectingGame.players.filter(player =>
                             player.placement == 0
@@ -2021,7 +2056,7 @@
         function updateSpeedButtons() {
             updateToastVisibility();
             var speed = currentGameSpeed();
-            document.querySelectorAll(".speed-option").forEach(button => {
+            document.querySelectorAll(".speed-option[data-speed]").forEach(button => {
                 button.setAttribute("aria-pressed", String(button.dataset.speed == speed));
                 button.disabled = !!currentGame && currentGame.fastForward === true;
             });
@@ -2372,7 +2407,7 @@
         });
         updateToastVisibility();
 
-        document.querySelectorAll(".speed-option")        .forEach(button => {
+        document.querySelectorAll(".speed-option[data-speed]")        .forEach(button => {
                     button.addEventListener("click", function () {
                         try { localStorage.setItem("gameSpeed", button.dataset.speed); } catch (error) { }
                 updateSpeedButtons();
@@ -2528,6 +2563,7 @@
                 botLoopFastForward = fastForward;
             }
             if (botLoopTimer != null || currentGame == null ||
+                currentGame.exchangeReady != null ||
                 currentGame.localWritePending ||
                 !GamePresence.canDrive(currentGame, connection ? connection.now() : Date.now()) ||
                 (currentGame.status != "S" && currentGame.status != "G")) { return; }
@@ -2551,6 +2587,7 @@
         function runBotLoop() {
             botLoopTimer = null;
             if (currentGame == null ||
+                currentGame.exchangeReady != null ||
                 currentGame.localWritePending ||
                 !GamePresence.canDrive(currentGame, connection ? connection.now() : Date.now())) { return; }
             if (Date.now() < shuffleEndsAt) {

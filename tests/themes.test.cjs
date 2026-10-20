@@ -5,8 +5,32 @@ const path = require("node:path");
 
 const css = fs.readFileSync(path.join(__dirname, "..", "css", "theme.css"), "utf8");
 const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-const themes = ["teal", "classic", "blue", "forest", "amethyst", "burgundy", "amber", "gray", "amoled",
-    "solarized", "dark-modern", "material", "darcula", "one-dark", "nord", "monokai", "gradianto"];
+const themes = ["amoled", "gray", "burgundy", "darcula", "high-contrast-amber", "amber", "classic",
+    "monokai", "forest", "teal", "material", "solarized", "nord", "dark-modern", "blue", "one-dark",
+    "high-contrast-blue", "gradianto", "amethyst", "high-contrast-violet"];
+const highContrastThemes = ["high-contrast-amber", "high-contrast-blue", "high-contrast-violet"];
+
+test("rules separate player counts, keep voting on the voting screen, and translate every paragraph", () => {
+    const rules = html.slice(html.indexOf('id="dialogRegler"'), html.indexOf('id="dialogSpillogg"'));
+    assert.match(rules, /Spill alle kortene dine\./);
+    assert.match(rules, /Kortstyrke:/);
+    assert.doesNotMatch(rules, /Sneaky|h4cker|Lobby|lobby|Flertallet bestemmer/);
+    for (const count of [2, 3, 4]) {
+        assert.match(rules, new RegExp(`data-rules-players="${count}"`));
+        assert.match(rules, new RegExp(`id="rulesPlayers${count}"${count == 3 ? "" : " hidden"}`));
+    }
+    const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
+    for (const [, paragraph] of rules.matchAll(/<p>([^<]+)<\/p>/g)) {
+        assert.ok(translations.includes(`"${paragraph}":`), `Missing translation: ${paragraph}`);
+    }
+    assert.match(translations, /"Boms": "Bum"/);
+    assert.match(translations, /"Viseboms": "Vice Bum"/);
+    const connection = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    assert.doesNotMatch(connection, /querySelectorAll\("\.speed-option"\)/);
+    const layout = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    assert.match(layout, /round-start-vote__hint/);
+    assert.match(layout, /Flertallet bestemmer\. Verten avgjør ved uavgjort\./);
+});
 
 function declarations(selector) {
     const block = Array.from(css.matchAll(/([^{}]+)\{([^{}]*)\}/g))
@@ -50,7 +74,7 @@ function hue(color) {
     return (sector * 60 + 360) % 360;
 }
 
-test("all seventeen themes expose matching previews and complete semantic palettes", () => {
+test("all twenty themes are hue-sorted and expose complete semantic palettes", () => {
     const options = Array.from(html.matchAll(/class="color-theme-option" data-color-theme="([^"]+)"/g),
         match => match[1]);
     assert.deepEqual(options, themes);
@@ -60,6 +84,34 @@ test("all seventeen themes expose matching previews and complete semantic palett
         for (const name of ["accent", "accent-hover", "success", "warning", "danger",
             "success-light", "warning-light", "danger-light"]) {
             assert.ok(palette[`--${name}`], `${theme} is missing ${name}`);
+        }
+    }
+});
+
+test("the three high-contrast themes meet text and status contrast targets in both modes", () => {
+    const lightOverrides = declarations(':root[data-theme="light"][data-color-theme^="high-contrast-"]');
+    for (const theme of highContrastThemes) {
+        const darkPalette = declarations(`[data-color-preview="${theme}"]`);
+        for (const mode of ["dark", "light"]) {
+            const palette = mode === "light" ? { ...darkPalette, ...lightOverrides } : darkPalette;
+            const surface = rgb(mode === "light" ? palette["--theme-light-surface"] : palette["--theme-surface"]);
+            const ink = rgb(palette["--ink"]);
+            const muted = rgb(palette["--muted"]);
+            assert.ok(contrast(ink, surface) >= 7, `${theme}/${mode}: primary text must meet AAA`);
+            assert.ok(contrast(muted, surface) >= 4.5, `${theme}/${mode}: secondary text contrast`);
+            const hues = [];
+            for (const role of ["success", "warning", "danger"]) {
+                const status = rgb(palette[`--${role}${mode === "light" ? "-light" : ""}`]);
+                assert.ok(contrast(status, surface) >= 4.5, `${theme}/${mode}/${role}: status contrast`);
+                hues.push(hue(status));
+            }
+            for (let first = 0; first < hues.length; first++) {
+                for (let second = first + 1; second < hues.length; second++) {
+                    const distance = Math.abs(hues[first] - hues[second]);
+                    assert.ok(Math.min(distance, 360 - distance) >= 25,
+                        `${theme}/${mode}: status hues must remain distinguishable`);
+                }
+            }
         }
     }
 });

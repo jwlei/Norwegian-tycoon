@@ -357,6 +357,78 @@
     --danger-light: #aa2452;
 }
 
+:root[data-color-theme="high-contrast-amber"],
+[data-color-preview="high-contrast-amber"] {
+    --theme-felt: #000;
+    --theme-deep: #000;
+    --theme-surface: #000;
+    --theme-soft: #111;
+    --theme-light-surface: #fff;
+    --accent: #704000;
+    --accent-hover: #573000;
+    --accent-soft: rgb(255 190 70 / 20%);
+    --focus: #ffe080;
+    --menu-glow: rgb(255 190 70 / 16%);
+    --ink: #fff;
+    --muted: #d6d6d6;
+    --success: #72f5a0;
+    --warning: #ffe266;
+    --danger: #ff748c;
+    --success-light: #005a2b;
+    --warning-light: #684900;
+    --danger-light: #a00024;
+}
+
+:root[data-color-theme="high-contrast-blue"],
+[data-color-preview="high-contrast-blue"] {
+    --theme-felt: #000;
+    --theme-deep: #000;
+    --theme-surface: #000;
+    --theme-soft: #111;
+    --theme-light-surface: #fff;
+    --accent: #004a99;
+    --accent-hover: #00366f;
+    --accent-soft: rgb(80 170 255 / 20%);
+    --focus: #80c4ff;
+    --menu-glow: rgb(80 170 255 / 16%);
+    --ink: #fff;
+    --muted: #d6d6d6;
+    --success: #72f5a0;
+    --warning: #ffe266;
+    --danger: #ff748c;
+    --success-light: #005a2b;
+    --warning-light: #684900;
+    --danger-light: #a00024;
+}
+
+:root[data-color-theme="high-contrast-violet"],
+[data-color-preview="high-contrast-violet"] {
+    --theme-felt: #000;
+    --theme-deep: #000;
+    --theme-surface: #000;
+    --theme-soft: #111;
+    --theme-light-surface: #fff;
+    --accent: #54208c;
+    --accent-hover: #3e176b;
+    --accent-soft: rgb(190 145 255 / 20%);
+    --focus: #d0aaff;
+    --menu-glow: rgb(190 145 255 / 16%);
+    --ink: #fff;
+    --muted: #d6d6d6;
+    --success: #72f5a0;
+    --warning: #ffe266;
+    --danger: #ff748c;
+    --success-light: #005a2b;
+    --warning-light: #684900;
+    --danger-light: #a00024;
+}
+
+:root[data-theme="light"][data-color-theme^="high-contrast-"],
+[data-theme="light"] [data-color-preview^="high-contrast-"] {
+    --ink: #000;
+    --muted: #404040;
+}
+
 :root[data-theme="light"]:not([data-color-theme="amoled"]),
 [data-theme="light"] [data-color-preview]:not([data-color-preview="amoled"]) {
     --success: var(--success-light);
@@ -2581,6 +2653,9 @@ select:focus-visible {
 .rules-content ul { margin: 0; padding-left: 20px; }
 .rules-content li + li { margin-top: 6px; }
 .rules-content p { margin: 0; }
+.rules-content p + p { margin-top: 8px; }
+.rules-player-options { margin-bottom: 10px; }
+.round-start-vote__hint { color: var(--muted); font-size: 0.72rem; text-align: center; }
 .rules-content strong { color: var(--ink); }
 
 .game-log {
@@ -3443,6 +3518,16 @@ select:focus-visible {
     border-radius: 18px;
     background: var(--surface);
     color: var(--ink);
+    text-align: center;
+    max-height: 90dvh;
+    overflow-y: auto;
+}
+
+.received-cards__content > button { margin-top: 12px; }
+
+.exchange-ready-hint {
+    color: var(--muted);
+    font-size: .8rem;
     text-align: center;
 }
 

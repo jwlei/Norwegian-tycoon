@@ -224,6 +224,7 @@ class PresidentGame extends Game {
         this.debug = true;
         this.isPublic = isPublic === true;
         this.turnPause = null;
+        this.exchangeReady = null;
         this.fastForward = false;
         this.turnSeconds = gameTurnSeconds();
         this.roundStartVote = null;
@@ -346,6 +347,7 @@ class PresidentGame extends Game {
             "shuffleStartedAt": this.shuffleStartedAt,
             "playedCards": this.playedCards || [],
             "exchangeReceipts": this.exchangeReceipts || [],
+            "exchangeReady": this.exchangeReady || null,
             "skippedTrades": this.skippedTrades || [],
             "dealTotal": this.dealTotal ?? null,
             "dealStarterStep": this.dealStarterStep ?? null,
@@ -403,6 +405,9 @@ class PresidentGame extends Game {
                     var skippedTrades = new Map((current.skippedTrades || []).map(trade => [trade.id, trade]));
                     update.skippedTrades.forEach(trade => skippedTrades.set(trade.id, trade));
                     next.skippedTrades = Array.from(skippedTrades.values());
+                    if (!(current.status == "G" && update.status == "S")) {
+                        next.exchangeReady = current.exchangeReady || null;
+                    }
                 }
                 next.turnSeconds = gameTurnSeconds(current.turnSeconds);
                 next.fastForward = current.fastForward === true &&
@@ -1286,7 +1291,7 @@ class PresidentGame extends Game {
         return 1;
     }
     placementTitle(placement) {
-        if (this.players.length >= 5) {
+        if (this.players.length >= 4) {
             switch (placement) {
                 case 1:
                     return ({ title: "President", img: "president.svg" });
@@ -1315,6 +1320,7 @@ class PresidentGame extends Game {
     }
     prepareRound() {
         this.playedCards = [];
+        this.exchangeReady = null;
         // Build a fresh deck.
         var deck = new CardDeck();
         for (let i = this.deckCount(); i > 0; i--) {
@@ -1364,7 +1370,7 @@ class PresidentGame extends Game {
         }
         this.dealTotal = dealStep;
         var hasPreviousPlacements = this.players.some(player => player.placement != 0);
-        if (hasPreviousPlacements) { this.dealStarterStep = null; }
+        if (hasPreviousPlacements || this.players.length == 2) { this.dealStarterStep = null; }
         if (hasPreviousPlacements) {
             var presidentIndex = this.players.findIndex(player => player.placement == 1);
             var bomsIndex = this.players.findIndex(player => player.placement == this.players.length);
@@ -1389,14 +1395,14 @@ class PresidentGame extends Game {
             this.exchangeReceipts = [];
             this.skippedTrades = [];
             this.setTurn(null);
-            if (this.players.length >= 5) {
+            if (this.players.length >= 4) {
                 if (vicePresidentIndex < 0 || viceBomsIndex < 0) {
                     throw ("Forrige rundes visepresident eller viseboms mangler.");
                 }
                 this.players[presidentIndex].messages.push("Skal gi to kort til bomsen.");
                 this.players[vicePresidentIndex].messages.push("Skal gi ett kort til visebomsen.");
-                this.players[viceBomsIndex].messages.push("Gir sitt dårligste kort til visepresidenten.");
-                this.players[bomsIndex].messages.push("Gir sine to dårligste kort til presidenten.");
+                this.players[viceBomsIndex].messages.push("Gir sitt beste kort til visepresidenten.");
+                this.players[bomsIndex].messages.push("Gir sine to beste kort til presidenten.");
                 this.piles = [{
                     text: "Presidenten skal gi bomsen to kort:",
                     from: presidentIndex,
@@ -1424,16 +1430,16 @@ class PresidentGame extends Game {
                 }];
             } else {
                 this.piles = [{
-                    text: "Presidenten skal velge to kort til Boms:",
+                    text: this.players.length == 2 ? "Presidenten skal velge ett kort til Boms:" : "Presidenten skal velge to kort til Boms:",
                     from: presidentIndex,
                     to: bomsIndex,
-                    count: 2,
+                    count: this.players.length == 2 ? 1 : 2,
                     mode: "Velg"
                 }, {
-                    text: "Boms må gi sine to beste kort til Presidenten:",
+                    text: this.players.length == 2 ? "Boms må gi sitt beste kort til Presidenten:" : "Boms må gi sine to beste kort til Presidenten:",
                     from: bomsIndex,
                     to: presidentIndex,
-                    count: 2,
+                    count: this.players.length == 2 ? 1 : 2,
                     mode: "Best"
                 }];
                 if (this.players.length == 3 && neutralIndex >= 0) {
@@ -1487,7 +1493,7 @@ class PresidentGame extends Game {
             var heartThreePlayerIndex = this.players.findIndex(player =>
                 player.cards.some(card => (card.suit == 2 && card.rank == 3))
             );
-            if (heartThreePlayerIndex >= 0) {
+            if (this.players.length != 2 && heartThreePlayerIndex >= 0) {
                 this.setTurn(heartThreePlayerIndex);
             } else {
                 this.setTurn(Math.floor(Math.random() * this.players.length));
@@ -1672,6 +1678,12 @@ class PresidentGame extends Game {
                 }
                 this.roundStarterName = null;
                 this.setTurn(startIndex);
+                if (activePlayers.some(player => !GamePresence.isBot(this, player) && player.gaveUp !== true)) {
+                    var now = GamePresence.now();
+                    this.exchangeReady = {
+                        id: GamePresence.roundToken(this), startedAt: now, until: now + 7000, ready: {}
+                    };
+                }
             }
         } else {
             var exchangeGroups = new Map();
@@ -1766,6 +1778,7 @@ class PresidentGame extends Game {
         return this.piles[this.piles.length - 1];
     }
     isTurnPaused() {
+        if (this.status == "S" && this.exchangeReady != null) { return true; }
         if (this.turnPause?.presentationVersion == 1) {
             var next = this.players[this.turn];
             if ((next && GamePresence.isBot(this, next)) || this.turnPause.pendingGameEnd) {
@@ -2027,7 +2040,7 @@ class PresidentGame extends Game {
                 this.turnPause.placementMessage = `${player.name} ble President!`;
                 this.turnPause.message = this.turnPause.placementMessage;
             } else if (player.placement > 1 && player.placement < this.players.length) {
-                this.turnPause.placementMessage = `${player.name} gikk ut som Nøytral.`;
+                this.turnPause.placementMessage = `${player.name} gikk ut som ${this.placementTitle(player.placement).title}.`;
                 this.turnPause.message = this.turnPause.placementMessage;
             }
         }
@@ -2039,13 +2052,12 @@ class PresidentGame extends Game {
             player.placement == 0 &&
             this.status == "S" &&
             player.turn == 1 &&
-            this.topPile() != null &&
             !this.isTurnPaused();
     }
     passTurn(player) {
         this.assertSessionActive();
         if (!this.canPass(player)) { throw ("Kan ikke passe nå."); }
-        player.lastPlay = "Pass";
+        player.lastPlay = this.topPile() != null ? "Pass" : null;
         var now = Date.now();
         this.turnPause = {
             presentationVersion: 1,

@@ -286,6 +286,10 @@ function preparePresentationPause(game) {
         ? pause.botUntil : pause.startedAt + 10000;
 }
 
+function exchangeSummaryDuration(speed) {
+    return { fast: 3000, normal: 5000, slow: 7000 }[speed];
+}
+
 function discardAnimationMs(cardCount) {
     return DISCARD_ANIMATION_MS + Math.max(0, cardCount - 1) * 12;
 }

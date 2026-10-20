@@ -27,6 +27,77 @@ function session(record, index, online, changedAt = start) {
     record.presence[Presence.playerId(record.spillere[index])] = { tab: { online, changedAt } };
 }
 
+function exchangeRoom() {
+    const record = room();
+    record.exchangeReady = { id: "round-2", startedAt: start, until: start + 7000, ready: {} };
+    return record;
+}
+
+test("exchange readiness pauses all play clocks until every human is ready, then starts them together", () => {
+    const record = exchangeRoom();
+    const ownerId = Presence.playerId(record.spillere[0]);
+    const guestId = Presence.playerId(record.spillere[1]);
+    assert.equal(Presence.isActionPaused(record, start), true);
+    assert.equal(Presence.actionToken(record, record.spillere[0], 0, start), null);
+    const initial = Presence.reconcile(record, start) || record;
+    assert.deepEqual(Object.keys(initial.actionDeadlines || {}), []);
+    const fast = Presence.acknowledgeExchange(initial, "round-2", "owner", "Owner", start + 3000);
+    assert.equal(fast.exchangeReady.ready[ownerId], true);
+    assert.equal(fast.exchangeReady.ready[guestId], undefined);
+    assert.equal(Presence.exchangeWaitingPlayers(fast, start + 3000).length, 1);
+    assert.deepEqual(Object.keys(fast.actionDeadlines || {}), []);
+    const slow = Presence.acknowledgeExchange(fast, "round-2", "guest", "Guest", start + 6000);
+    assert.equal(slow.exchangeReady, null);
+    assert.equal(Presence.isActionPaused(slow, start + 6000), false);
+    assert.equal(slow.actionDeadlines[ownerId].until, start + 6000 + Presence.actionMs);
+    assert.deepEqual(Object.keys(record.exchangeReady.ready), [], "Transactions do not mutate old snapshots");
+});
+
+test("all players dismissing early starts the round immediately instead of waiting for the slow timeout", () => {
+    const first = Presence.acknowledgeExchange(exchangeRoom(), "round-2", "owner", "Owner", start + 200);
+    const second = Presence.acknowledgeExchange(first, "round-2", "guest", "Guest", start + 400);
+    assert.equal(second.exchangeReady, null);
+    assert.ok(Presence.actionToken(second, second.spillere[0], 0, start + 400));
+});
+
+test("exchange readiness has a shared seven-second deadline so suspended tabs cannot block a round", () => {
+    const record = exchangeRoom();
+    const before = Presence.reconcile(record, start + 6999) || record;
+    assert.ok(before.exchangeReady);
+    const after = Presence.reconcile(record, start + 7000);
+    assert.equal(after.exchangeReady, null);
+    const deadline = after.actionDeadlines[Presence.playerId(record.spillere[0])];
+    assert.equal(deadline.until, start + 7000 + Presence.actionMs);
+});
+
+test("bots, disconnected players and bot-controlled seats never block exchange readiness", () => {
+    for (const mode of ["bot", "offline", "controlled", "gaveUp", "finished"]) {
+        const record = exchangeRoom();
+        const guest = record.spillere[1];
+        if (mode == "bot") { guest.spillerKey = "PC"; }
+        if (mode == "offline") { session(record, 1, false); }
+        if (mode == "controlled") { record.controllers = { [Presence.playerId(guest)]: { since: start } }; }
+        if (mode == "gaveUp") { guest.gaveUp = true; }
+        if (mode == "finished") { guest.plassering = 2; }
+        const ready = Presence.acknowledgeExchange(record, "round-2", "owner", "Owner", start + 1000);
+        assert.equal(ready.exchangeReady, null, mode);
+    }
+});
+
+test("stale, duplicate and non-player exchange readiness acknowledgments are ignored", () => {
+    const record = exchangeRoom();
+    for (const args of [
+        ["old-round", "owner", "Owner"], ["round-2", "owner", "Guest"],
+        ["round-2", "guest", "Spectator"], ["round-2", "PC", "Owner"]
+    ]) {
+        assert.equal(Presence.acknowledgeExchange(record, ...args, start), undefined);
+    }
+    const ready = Presence.acknowledgeExchange(record, "round-2", "owner", "Owner", start);
+    assert.equal(Presence.acknowledgeExchange(ready, "round-2", "owner", "Owner", start), undefined);
+    const completed = { ...ready, exchangeReady: null };
+    assert.equal(Presence.acknowledgeExchange(completed, "round-2", "guest", "Guest", start), undefined);
+});
+
 test("presence IDs support Firebase keys, Unicode and shared-browser named seats", () => {
     const first = Presence.playerId({ name: "ギフテッド.#[]/$", playerKey: "owner" });
     assert.doesNotMatch(first, /[.#\[\]\/$]/);
@@ -655,7 +726,9 @@ test("successful human card plays and passes refresh activity but invalid moves 
     const { game, types } = fixture;
     game.advanceTurn = () => game.save();
     const player = game.players[0];
+    player.turn = 0;
     assert.throws(() => game.passTurn(player));
+    player.turn = 1;
     assert.equal(game.lastHumanActionAt, start);
     fixture.now += 1000;
     game.playCards(player, new types.CardPile(player.name, player.cards[0]));
