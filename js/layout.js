@@ -1855,6 +1855,8 @@ class GameLayout {
                 axis: null,
                 cardElement: cardElement,
                 card: card,
+                isSelectedCard: cardElement != null &&
+                    selectedCardKeys.has(cardElement.dataset.cardKey),
                 canSwipeToPlay: GameLayout.playInputMode() == "flick" && game.status == "S" && isPlayingTurn,
                 canDragToPlay: game.status == "S" && isPlayingTurn &&
                     !game.localWritePending && game.connectionOnline !== false && !GamePresence.isBot(game, player),
@@ -1885,10 +1887,20 @@ class GameLayout {
             var dragOffsetY = event.clientY - handScrollDrag.startY;
             if (handScrollDrag.axis == null &&
                 Math.max(Math.abs(dragOffsetX), Math.abs(dragOffsetY)) >= 8) {
-                handScrollDrag.axis = event.pointerType == "mouse" && handScrollDrag.card != null &&
-                    handScrollDrag.canDragToPlay ? "vertical" : Math.abs(dragOffsetX) > Math.abs(dragOffsetY)
-                    ? "horizontal"
-                    : "vertical";
+                var horizontalScrollRatio = handScrollDrag.isSelectedCard ? 1.7 : 1.35;
+                var horizontalScrollDistance = handScrollDrag.isSelectedCard ? 18 : 12;
+                var isHorizontalIntent = Math.abs(dragOffsetX) >=
+                    Math.abs(dragOffsetY) * horizontalScrollRatio;
+                if (event.pointerType == "mouse" && handScrollDrag.card != null &&
+                    handScrollDrag.canDragToPlay) {
+                    handScrollDrag.axis = "vertical";
+                } else if (isHorizontalIntent) {
+                    if (Math.abs(dragOffsetX) >= horizontalScrollDistance) {
+                        handScrollDrag.axis = "horizontal";
+                    }
+                } else {
+                    handScrollDrag.axis = "vertical";
+                }
                 handScrollDrag.didMove = true;
             }
             if (handScrollDrag.axis == "horizontal") {
@@ -1916,11 +1928,12 @@ class GameLayout {
             if (handScrollDrag.axis == "vertical" &&
                 handScrollDrag.canDragToPlay &&
                 handScrollDrag.card != null &&
-                (dragOffsetY < -4 || handScrollDrag.didPlayDrag || event.pointerType == "mouse")) {
+                (dragOffsetY < -4 || handScrollDrag.didPlayDrag || event.pointerType == "mouse" ||
+                    handScrollDrag.isSelectedCard)) {
                 if (!handScrollDrag.didPlayDrag) {
                     handScrollDrag.didPlayDrag = true;
                     handScrollDrag.canPlay = selectCardsForSwipe(handScrollDrag.card);
-                    if (handScrollDrag.canPlay) {
+                    if (handScrollDrag.canPlay || handScrollDrag.isSelectedCard) {
                         startCardDragPreview(element, {
                             clientX: handScrollDrag.startX, clientY: handScrollDrag.startY
                         });

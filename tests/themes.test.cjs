@@ -200,14 +200,14 @@ test("desktop uses taller two-line toasts and the same shell and toolbar in ever
     assert.match(desktop, /#gameShell > #BnInnstillinger\s*\{/);
     assert.match(desktop, /#gameShell > \.topbar-actions\s*\{[^}]*grid-template-columns:\s*repeat\(3, 44px\);/);
     for (const [id, column] of [["BnFSpillogg", 1], ["BnFRegler", 2], ["homeButton", 3]]) {
-        assert.ok(desktop.includes(`#${id} {\n        grid-column: ${column};`));
+        assert.match(desktop, new RegExp(`#${id} \\{\\s*grid-column: ${column};`));
     }
 });
 
-test("visible release and versioned local assets use version 0.8.14", () => {
-    assert.ok(html.includes('aria-label="Spillversjon 0.8.14">v0.8.14</span>'));
+test("visible release and versioned local assets use version 0.8.15", () => {
+    assert.ok(html.includes('aria-label="Spillversjon 0.8.15">v0.8.15</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"]+)"/g),
         match => match[1]);
     assert.ok(versions.length > 0);
-    assert.ok(versions.every(version => version === "0.8.14"));
+    assert.ok(versions.every(version => version === "0.8.15"));
 });

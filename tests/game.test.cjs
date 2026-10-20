@@ -2769,6 +2769,79 @@ test("new bot names are available and Japanese player names survive input and co
     assert.equal(context.readLastUsedPlayerName(), "ギフテッド");
 });
 
+test("an empty new-game name falls back to player", async () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const elements = new Map();
+    let addedPlayer;
+    const player = { name: "player" };
+    const game = {
+        status: "O",
+        async addPlayer(candidate) {
+            addedPlayer = candidate;
+            return { player };
+        }
+    };
+    const context = vm.createContext({
+        currentGame: game, currentPlayerName: null, pendingNewGameName: true,
+        pendingSpectatorJoinName: null, getPlayerKey: () => "owner",
+        PresidentPlayer: class { constructor(name, key) { this.name = name; this.playerKey = key; } },
+        GameLayout: { updateSharedView() {}, updatePlayerView() {} },
+        clearWaitingSpectator() {}, saveLastUsedPlayerName() {}, showDialog() {},
+        document: {
+            getElementById(id) {
+                if (!elements.has(id)) {
+                    elements.set(id, {
+                        value: "",
+                        textContent: "",
+                        addEventListener(type, callback) { this.click = callback; }
+                    });
+                }
+                return elements.get(id);
+            }
+        }
+    });
+    const start = source.indexOf("        document.getElementById('dialogSporOmNickOk').addEventListener");
+    const end = source.indexOf("        document.getElementById('BnPGiOpp')", start);
+    vm.runInContext(source.slice(start, end), context);
+    await context.document.getElementById("dialogSporOmNickOk").click();
+    assert.equal(addedPlayer.name, "player");
+    assert.equal(context.currentPlayerName, "player");
+    assert.equal(context.pendingNewGameName, false);
+});
+
+test("canceling a new-game name prompt voids the empty lobby after creation and returns to the menu", async () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const state = { created: false, voided: false, left: false, dialogs: [] };
+    let finishCreation;
+    const game = {
+        status: "O", players: [],
+        creation: new Promise(resolve => { finishCreation = resolve; }),
+        save() {
+            assert.equal(state.created, true);
+            state.voided = this.status == "V";
+        }
+    };
+    const cancelButton = { addEventListener(type, callback) { this.click = callback; } };
+    const context = vm.createContext({
+        currentGame: game, pendingNewGameName: true,
+        showDialog: (...args) => state.dialogs.push(args),
+        leaveCurrentGame() { state.left = true; context.currentGame = null; },
+        document: { getElementById: () => cancelButton }
+    });
+    const start = source.indexOf('        document.getElementById("dialogSporOmNickCancel").addEventListener');
+    const end = source.indexOf("        document.getElementById('dialogSporOmNickOk')", start);
+    vm.runInContext(source.slice(start, end), context);
+    const cancel = cancelButton.click();
+    assert.equal(state.dialogs[0][1], false);
+    assert.equal(state.left, true);
+    assert.equal(context.currentGame, null);
+    assert.equal(context.pendingNewGameName, false);
+    state.created = true;
+    finishCreation();
+    await cancel;
+    assert.equal(state.voided, true);
+});
+
 test("secret style remains available on the main menu through the saved name", () => {
     const elements = new Map();
     const document = {
@@ -2825,7 +2898,8 @@ test("lobby capacity counts filled seats for every player count", () => {
 });
 
 test("lobby slots follow player order for every viewer and reuse faded empty seats", () => {
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8")
+        .replace(/\r\n/g, "\n");
     const start = source.indexOf("        var placeElement =");
     const end = source.indexOf("\n    }\n    static capturePlayOrigins", start);
     function element() {

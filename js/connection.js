@@ -2,6 +2,7 @@
     function () {
         var currentGame = null;
         var currentPlayerName = null;
+        var pendingNewGameName = false;
         var currentGameSubscription = null;
         var currentGameListener = null;
         var connection = null;
@@ -272,6 +273,7 @@
                 if (currentGame != joiningGame) { return; }
                 if (result.player) {
                     currentPlayerName = result.player.name;
+                    pendingNewGameName = false;
                     saveLastUsedPlayerName(currentPlayerName);
                     GameLayout.updateSharedView(currentGame, result.player);
                     GameLayout.updatePlayerView(currentGame, result.player);
@@ -514,6 +516,7 @@
         function startNewGame(isPublic = false) {
             currentGame = new PresidentGame(null, isPublic === true);
             currentPlayerName = null;
+            pendingNewGameName = true;
             resetGameLog(currentGame);
             connectAndPromptForPlayerName();
         }
@@ -624,6 +627,7 @@
             currentGame = null;
             forgetActiveGame();
             currentPlayerName = null;
+            pendingNewGameName = false;
             pendingSpectatorJoinName = null;
             resetGameLog(null);
             GameLayout.updateSharedView(null, null);
@@ -2045,6 +2049,52 @@
             updatePlayInputButtons();
             if (currentGame != null) { refreshAfterTurnPause(currentGame); }
         });
+        function bindCardPreviewTilt(wrapper) {
+            var pointer = null;
+            var dragged = false;
+            wrapper.addEventListener("pointerdown", event => {
+                pointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+                dragged = false;
+                if (typeof wrapper.setPointerCapture == "function") {
+                    wrapper.setPointerCapture(event.pointerId);
+                }
+            });
+            wrapper.addEventListener("pointermove", event => {
+                if (pointer != null && pointer.id == event.pointerId) {
+                    if (Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) >= 4) {
+                        dragged = true;
+                    }
+                    if (dragged) { event.preventDefault(); }
+                }
+                updateCardTilt(wrapper, event);
+            });
+            wrapper.addEventListener("pointerup", event => {
+                if (pointer != null && pointer.id == event.pointerId) { pointer = null; }
+            });
+            wrapper.addEventListener("pointercancel", event => {
+                if (pointer != null && pointer.id == event.pointerId) {
+                    pointer = null;
+                    dragged = false;
+                    resetCardTilt(wrapper);
+                }
+            });
+            wrapper.addEventListener("lostpointercapture", event => {
+                if (pointer != null && pointer.id == event.pointerId) {
+                    pointer = null;
+                    dragged = false;
+                    resetCardTilt(wrapper);
+                }
+            });
+            wrapper.addEventListener("pointerleave", () => {
+                if (pointer == null) { resetCardTilt(wrapper); }
+            });
+            wrapper.addEventListener("click", event => {
+                if (!dragged) { return; }
+                event.preventDefault();
+                event.stopPropagation();
+                dragged = false;
+            });
+        }
         function updateCardAppearancePreview() {
             var holder = document.getElementById("cardAppearancePreview");
             var style = GameLayout.cardStyle();
@@ -2058,8 +2108,7 @@
             var image = GameLayout.createCardImage(new PresidentCard(2, 1), null, style, foil);
             image.alt = "";
             wrapper.appendChild(image);
-            wrapper.addEventListener("pointermove", event => updateCardTilt(wrapper, event));
-            wrapper.addEventListener("pointerleave", () => resetCardTilt(wrapper));
+            bindCardPreviewTilt(wrapper);
             holder.replaceChildren(wrapper);
         }
         function updateCardStyleButtons() {
@@ -2193,8 +2242,7 @@
                 var image = GameLayout.createCardImage(card, null, style, button.dataset.cardFoil);
                 image.alt = "";
                 wrapper.appendChild(image);
-                wrapper.addEventListener("pointermove", event => updateCardTilt(wrapper, event));
-                wrapper.addEventListener("pointerleave", () => resetCardTilt(wrapper));
+                bindCardPreviewTilt(wrapper);
                 holder.appendChild(wrapper);
             });
             document.getElementById("cardFoilCurrentName").textContent =
@@ -2444,8 +2492,29 @@
             promptForPlayerName(currentPlayerName != null || currentGame == null);
         });
 
+        document.getElementById("dialogSporOmNickCancel").addEventListener("click", async function () {
+            showDialog("SporOmNick", false);
+            if (!pendingNewGameName) { return; }
+            var game = currentGame;
+            pendingNewGameName = false;
+            var voidEmptyLobby = game != null && game.status == "O" && game.players.length == 0;
+            leaveCurrentGame();
+            if (voidEmptyLobby) {
+                try {
+                    if (game.creation && typeof game.creation.then == "function") { await game.creation; }
+                } catch (error) {
+                    console.error("Kunne ikke fullføre opprettelsen av lobbyen som ble avbrutt.", error);
+                }
+            }
+            if (voidEmptyLobby && game.status == "O" && game.players.length == 0) {
+                game.status = "V";
+                game.save();
+            }
+        });
+
         document.getElementById('dialogSporOmNickOk').addEventListener('click', async function () {
             var requestedName = document.getElementById('dialogSporOmNickTxt').value.trim();
+            if (requestedName == "" && pendingNewGameName) { requestedName = "player"; }
             if (Array.from(requestedName).length > 28) {
                 document.getElementById('playerNameError').textContent = "Navnet kan ha maks 28 tegn.";
                 return;
@@ -2492,6 +2561,7 @@
                     if (currentGame != joiningGame) { return; }
                     if (newPlayerResult.player) {
                         pendingSpectatorJoinName = null;
+                        pendingNewGameName = false;
                         currentPlayerName = newPlayerResult.player.name;
                         clearWaitingSpectator();
                         saveLastUsedPlayerName(currentPlayerName);
