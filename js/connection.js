@@ -2036,6 +2036,8 @@
         }
         function updatePlayInputButtons() {
             var mode = GameLayout.playInputMode();
+            document.getElementById("playInputFlickHint").hidden = mode != "flick";
+            document.getElementById("playInputButtonHint").hidden = mode != "button";
             document.querySelectorAll(".play-input-option").forEach(button => {
                 button.setAttribute("aria-pressed", String(button.dataset.playInput == mode));
                 button.disabled = false;

@@ -248,7 +248,7 @@
                     <span class="setting-row__switch" aria-hidden="true"><span></span></span>
                 </button>
                 <div class="setting-row setting-speed" role="group" aria-label="Meldingsvarighet">
-                    <span class="setting-row__text"><strong>Meldingsvarighet</strong><small>Personlig lesetid. Maks to meldinger, eller én med raske animasjoner, uten å stoppe spillet.</small></span>
+                    <span class="setting-row__text"><strong>Meldingsvarighet</strong><small>Varighet på meldinger om spillhendelser</small></span>
                     <span class="speed-options">
                         <button type="button" class="speed-option" data-speed="fast" aria-pressed="true">Rask</button>
                         <button type="button" class="speed-option" data-speed="normal" aria-pressed="false">Vanlig</button>
@@ -256,7 +256,7 @@
                     </span>
                 </div>
                 <div class="setting-row setting-turn-speed" role="group" aria-label="Animasjonshastighet">
-                    <span class="setting-row__text"><strong>Animasjonshastighet</strong><small>Rask bruker 50 % kortere tid, Sakte 50 % lengre tid enn Vanlig. Botene venter 1 / 2 / 3 sekunder, og alltid til kortanimasjonene er ferdige. I nettspill bestemmes bottempoet av den som styrer botene.</small></span>
+                    <span class="setting-row__text"><strong>Animasjonshastighet</strong></span>
                     <span class="turn-speed-options">
                         <button type="button" class="animation-speed-option" data-animation-speed="fast" aria-pressed="false">Rask</button>
                         <button type="button" class="animation-speed-option" data-animation-speed="normal" aria-pressed="true">Vanlig</button>
@@ -264,13 +264,16 @@
                     </span>
                 </div>
                 <div class="setting-row setting-play-input" role="group" aria-label="Kortstyring">
-                    <span class="setting-row__text"><strong>Kortstyring</strong><small>Velg Flick eller Legg ut på både PC og mobil.</small></span>
+                    <span class="setting-row__text"><strong>Kortstyring</strong></span>
                     <span class="play-input-options">
-                        <button type="button" class="play-input-option" data-play-input="flick" aria-pressed="false">Flick</button>
-                        <button type="button" class="play-input-option" data-play-input="button" aria-pressed="false">Legg ut</button>
+                        <button type="button" class="play-input-option" data-play-input="flick" aria-pressed="false">Flick/Drag</button>
+                        <button type="button" class="play-input-option" data-play-input="button" aria-pressed="false">Knapp</button>
+                    </span>
+                    <span class="setting-row__text" aria-live="polite">
+                        <small id="playInputFlickHint">Dra kort og slipp på brettet, eller flick dem opp.</small>
+                        <small id="playInputButtonHint" hidden>Velg kort og bekreft med spillknappen</small>
                     </span>
                 </div>
-                <p class="color-theme-description">Dra kort og slipp inne på spillbrettet for å spille. Med Flick-styring kan du også flicke opp i en bred 160-graders vinkel, uansett hvor du slipper. Sveip på tom plass i hånden for å bla.</p>
             </div>
             <div class="dialog-footer">
                 <button type="button" onclick="showDialog('Innstillinger',false);">Lukk</button>
@@ -280,7 +283,6 @@
     <div id="dialogFargetema" class="dialog-container">
         <div class="dialog-window">
             <div class="dialog-title">Velg fargetema</div>
-            <p class="color-theme-description">Temaet tilpasser også aktiv tur, pass og feil. Forhåndsvisningen viser temafarge, positiv, pass og negativ. Kort- og spillerfarger beholdes.</p>
             <div class="dialogBody color-theme-list">
                 <button type="button" class="color-theme-option" data-color-theme="teal" aria-pressed="true"><span class="color-theme-preview" data-color-preview="teal" aria-hidden="true"><span></span><span></span></span><strong>Dyp turkis</strong></button>
                 <button type="button" class="color-theme-option" data-color-theme="classic" aria-pressed="false"><span class="color-theme-preview" data-color-preview="classic" aria-hidden="true"><span></span><span></span></span><strong>Classic</strong></button>
@@ -308,7 +310,7 @@
     <div id="dialogKortfolie" class="dialog-container">
         <div class="dialog-window">
             <div class="dialog-title">Velg folie</div>
-            <p class="color-theme-description">Folie legges over kortstilen. Valget gjelder bare din visning av kortene.</p>
+            <p class="color-theme-description">Folie legges over kortstilen</p>
             <p class="card-foil-wins" id="cardFoilWins">Your wins: 0</p>
             <div class="dialogBody card-style-list" id="cardFoilOptions"></div>
             <div class="dialog-footer">

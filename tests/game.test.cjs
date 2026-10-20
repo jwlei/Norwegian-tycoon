@@ -4336,12 +4336,16 @@ test("settings expose animation speed and enable Flick on desktop and mobile", (
             setAttribute(name, value) { this.attributes[name] = value; }
         }));
         const setting = { hidden: true };
+        const hints = {
+            playInputFlickHint: { hidden: true },
+            playInputButtonHint: { hidden: false }
+        };
         const context = vm.createContext({
             currentGame: null, GameLayout,
             document: {
                 querySelectorAll: () => buttons,
                 querySelector: () => setting,
-                getElementById: () => ({})
+                getElementById: id => hints[id] || ({})
             },
             updateSavedPlayerName() {}, updateCardStyleButtons() {}, updateCardFoilButtons() {},
             refreshPlayerPresidentWins() {},
@@ -4359,6 +4363,13 @@ test("settings expose animation speed and enable Flick on desktop and mobile", (
         assert.equal(buttons[0].disabled, false);
         assert.equal(buttons[1].disabled, false);
         assert.equal(buttons[0].attributes["aria-pressed"], "true");
+        assert.equal(hints.playInputFlickHint.hidden, false);
+        assert.equal(hints.playInputButtonHint.hidden, true);
+        GameLayout.playInputMode = () => "button";
+        context.updatePlayInputButtons();
+        assert.equal(buttons[1].attributes["aria-pressed"], "true");
+        assert.equal(hints.playInputFlickHint.hidden, true);
+        assert.equal(hints.playInputButtonHint.hidden, false);
     }
 });
 

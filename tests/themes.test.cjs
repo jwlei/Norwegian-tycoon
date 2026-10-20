@@ -269,3 +269,23 @@ test("required cards pulse for one second then rest for two, without competing w
     assert.match(css, /@keyframes required-pile-pulse\s*\{\s*0%, 33\.333%, 100% \{ opacity: 0; \}\s*16\.667% \{ opacity: 0\.55; \}/);
     assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*#gameTable \.table-play__beat-outline\s*\{\s*animation:\s*none !important;/);
 });
+
+test("settings use concise hints and mode-specific card control descriptions inside the option", () => {
+    const settings = html.slice(html.indexOf('id="dialogInnstillinger"'), html.indexOf('id="dialogFargetema"'));
+    assert.match(settings, /<strong>Meldingsvarighet<\/strong><small>Varighet på meldinger om spillhendelser<\/small>/);
+    assert.match(settings, /<strong>Animasjonshastighet<\/strong><\/span>/);
+    assert.match(settings, /<strong>Kortstyring<\/strong><\/span>/);
+    assert.match(settings, /data-play-input="flick"[^>]*>Flick\/Drag<\/button>/);
+    assert.match(settings, /data-play-input="button"[^>]*>Knapp<\/button>/);
+    assert.match(settings, /<\/span>\s*<span class="setting-row__text" aria-live="polite">\s*<small id="playInputFlickHint">Dra kort og slipp på brettet, eller flick dem opp\.<\/small>\s*<small id="playInputButtonHint" hidden>Velg kort og bekreft med spillknappen<\/small>\s*<\/span>\s*<\/div>/);
+    assert.doesNotMatch(settings, /<p class="color-theme-description">/);
+    const themes = html.slice(html.indexOf('id="dialogFargetema"'), html.indexOf('id="dialogKortfolie"'));
+    assert.doesNotMatch(themes, /color-theme-description/);
+    const foils = html.slice(html.indexOf('id="dialogKortfolie"'), html.indexOf('id="dialogKobleSpill"'));
+    assert.match(foils, /<p class="color-theme-description">Folie legges over kortstilen<\/p>/);
+    const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
+    for (const text of ["Duration of game event messages", "Drag cards and release on the board or flick them up.",
+        "Choose cards and confirm with the play button", "Foil overlays the card style"]) {
+        assert.ok(translations.includes(`"${text}"`));
+    }
+});
