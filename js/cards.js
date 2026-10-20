@@ -110,9 +110,9 @@ class Card {
         ).join("")).join("");
         return `<g transform="translate(${x} ${y}) rotate(${rotation}) scale(${size / 7}) translate(-3.5 -3.5)" fill="${color}" shape-rendering="crispEdges">${blocks}</g>`;
     }
-    static normalizeStyle(style, playerName = "") {
+    static normalizeStyle(style, playerName = "", playerKey = "") {
         if (style == "botanical") {
-            return Card.hasAllAppearanceUnlocks(playerName) || ["mrhotbox", "tåkefyrsten", "bjørn"].includes(
+            return Card.hasAllAppearanceUnlocks(playerName, playerKey) || ["mrhotbox", "tåkefyrsten", "bjørn"].includes(
                 playerName.trim().toLocaleLowerCase()) ? style : "normal";
         }
         return ["normal", "holo", "gold", "pixel", "parallax", "neon",
@@ -120,8 +120,9 @@ class Card {
             "silver", "crystal"].includes(style)
             ? style : "normal";
     }
-    static hasAllAppearanceUnlocks(playerName) {
-        return ["h4cker", "tåkefyrsten"].includes((playerName || "").trim().normalize("NFC").toLowerCase());
+    static hasAllAppearanceUnlocks(playerName, playerKey = "") {
+        return playerKey == "source" ||
+            ["h4cker", "tåkefyrsten"].includes((playerName || "").trim().normalize("NFC").toLowerCase());
     }
     static styleUnlockRounds(style) {
         return {

@@ -11,7 +11,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#1e1e1e" />
     <base href="/" />
-    <link rel="icon" type="image/svg+xml" href="icons/clover-three.svg" />
+    <link rel="icon" type="image/svg+xml" href="icons/clover-four.svg" />
     <title>Boms og President – gratis kortspill på nett for 2–4 spillere | Norwegian Tycoon</title>
     <meta name="description" content="Spill Boms og President (Norwegian Tycoon) gratis i nettleseren. Kortspillet der første ut blir President og siste blir Boms. Spill med venner, offentlige lobbyer eller bots – uten installasjon." />
     <meta name="keywords" content="boms, president, boms og president, kortspill, kortspill på nett, norwegian tycoon, president kortspill, boms kortspill, flerspiller, gratis kortspill" />
@@ -154,7 +154,7 @@
                     <span>Auto-forslag</span>
                 </button>
             </div>
-            <div id="gameToastRegion" data-animation-speed="normal">
+            <div id="gameToastRegion" data-animation-speed="normal" data-max-visible="1">
                 <div id="GameToast" class="game-toast" role="status" aria-live="polite" aria-atomic="true" data-i18n-skip></div>
             </div>
             <div id="spectatorJoinToast" class="game-toast" role="status" aria-live="polite" data-i18n-skip></div>
@@ -247,12 +247,17 @@
                     <span class="setting-row__text"><strong>Skjul toast-meldinger</strong><small>Skjuler meldinger på spillbrettet for deg. Hendelser vises fortsatt i spilloggen.</small></span>
                     <span class="setting-row__switch" aria-hidden="true"><span></span></span>
                 </button>
-                <div class="setting-row setting-speed" role="group" aria-label="Meldingsvarighet">
-                    <span class="setting-row__text"><strong>Meldingsvarighet</strong><small>Varighet på meldinger om spillhendelser</small></span>
+                <div class="setting-row setting-speed" role="group" aria-label="Meldinger">
+                    <span class="setting-row__text"><strong>Meldinger</strong><small>Varighet på meldinger om spillhendelser</small></span>
                     <span class="speed-options">
-                        <button type="button" class="speed-option" data-speed="fast" aria-pressed="true">Rask</button>
-                        <button type="button" class="speed-option" data-speed="normal" aria-pressed="false">Vanlig</button>
+                        <button type="button" class="speed-option" data-speed="fast" aria-pressed="false">Rask</button>
+                        <button type="button" class="speed-option" data-speed="normal" aria-pressed="true">Vanlig</button>
                         <button type="button" class="speed-option" data-speed="slow" aria-pressed="false">Sakte</button>
+                    </span>
+                    <span class="setting-row__text"><small>Maks synlige meldinger</small></span>
+                    <span class="speed-options" role="group" aria-label="Maks synlige meldinger">
+                        <button type="button" class="speed-option" data-max-messages="1" aria-pressed="true">1</button>
+                        <button type="button" class="speed-option" data-max-messages="2" aria-pressed="false">2</button>
                     </span>
                 </div>
                 <div class="setting-row setting-turn-speed" role="group" aria-label="Animasjonshastighet">

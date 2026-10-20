@@ -332,7 +332,11 @@ test("required cards pulse for one second then rest for two, without competing w
 
 test("settings use concise hints and mode-specific card control descriptions inside the option", () => {
     const settings = html.slice(html.indexOf('id="dialogInnstillinger"'), html.indexOf('id="dialogFargetema"'));
-    assert.match(settings, /<strong>Meldingsvarighet<\/strong><small>Varighet på meldinger om spillhendelser<\/small>/);
+    assert.match(settings, /<strong>Meldinger<\/strong><small>Varighet på meldinger om spillhendelser<\/small>/);
+    assert.match(settings, /<small>Maks synlige meldinger<\/small>/);
+    for (const value of [1, 2]) {
+        assert.ok(settings.includes(`class="speed-option" data-max-messages="${value}"`));
+    }
     assert.match(settings, /<strong>Animasjonshastighet<\/strong><\/span>/);
     assert.match(settings, /<strong>Kortstyring<\/strong><\/span>/);
     assert.match(settings, /data-play-input="flick"[^>]*>Flick\/Drag<\/button>/);
@@ -344,8 +348,27 @@ test("settings use concise hints and mode-specific card control descriptions ins
     const foils = html.slice(html.indexOf('id="dialogKortfolie"'), html.indexOf('id="dialogKobleSpill"'));
     assert.match(foils, /<p class="color-theme-description">Folie legges over kortstilen<\/p>/);
     const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
-    for (const text of ["Duration of game event messages", "Drag cards and release on the board or flick them up.",
+    for (const text of ["Messages", "Max visible messages", "Duration of game event messages", "Drag cards and release on the board or flick them up.",
         "Choose cards and confirm with the play button", "Foil overlays the card style"]) {
         assert.ok(translations.includes(`"${text}"`));
     }
+});
+
+test("settings and appearance close buttons use the same centered layout as rules", () => {
+    for (const id of ["dialogInnstillinger", "dialogKorttype", "dialogKortfolie"]) {
+        assert.match(css, new RegExp(`#${id} \\.dialog-footer,[\\s\\S]*?float: none;[\\s\\S]*?justify-content: center;`));
+        assert.match(css, new RegExp(`#${id} \\.dialog-footer > button,[\\s\\S]*?width: min\\(100%, 240px\\);`));
+    }
+    assert.match(css, /#gameToastRegion\[data-max-visible="1"\]\s*\{[^}]*height: var\(--board-toast-height\);/);
+    assert.doesNotMatch(css, /#gameToastRegion\[data-animation-speed="fast"\][^{]*\{[^}]*height:/);
+});
+
+test("the favicon layers a four-leaf clover emoji in front of an ace of spades", () => {
+    assert.ok(html.includes('rel="icon" type="image/svg+xml" href="icons/clover-four.svg"'));
+    const icon = fs.readFileSync(path.join(__dirname, "..", "icons", "clover-four.svg"), "utf8");
+    assert.match(icon, /&#x1F340;/);
+    assert.match(icon, /Segoe UI Emoji/);
+    assert.match(icon, />A<\/text>/);
+    assert.match(icon, /&#x2660;/);
+    assert.ok(icon.indexOf("&#x1F340;") > icon.indexOf("&#x2660;"));
 });

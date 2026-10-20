@@ -1804,7 +1804,7 @@ class PresidentGame extends Game {
     async setPlayerCardAppearance(style, foil = "none") {
         var name = this.localPlayerName;
         if (this.connectionOnline === false ||
-            Card.normalizeStyle(style, name || "") != style ||
+            Card.normalizeStyle(style, name || "", getPlayerKey()) != style ||
             Card.normalizeFoil(foil) != foil) {
             throw new Error("Kan ikke lagre kortutseendet nå.");
         }

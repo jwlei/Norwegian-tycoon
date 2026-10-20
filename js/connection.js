@@ -662,6 +662,10 @@
             return getCookie("HideGameToasts") == "true";
         }
 
+        function maxVisibleMessages() {
+            return getCookie("MaxVisibleMessages") == "2" ? 2 : 1;
+        }
+
         function updateToastVisibility() {
             var hidden = gameToastsHidden();
             document.getElementById("hideToastsToggleButton").setAttribute("aria-pressed", String(hidden));
@@ -872,7 +876,7 @@
             }
 
             if (!gameToastsHidden() &&
-                document.getElementById("gameToastRegion").dataset.animationSpeed != "fast" &&
+                maxVisibleMessages() == 2 &&
                 toast.classList.contains("is-visible") && toast.textContent != "") {
                 archiveGameToast(toast);
             }
@@ -931,15 +935,7 @@
             region.querySelectorAll(".game-toast--exiting").forEach(node => node.remove());
             archivedToasts.forEach(entry => {
                 clearTimeout(entry.timer);
-                if (fast || reduced) { entry.node.remove(); return; }
-                entry.node.classList.add("game-toast--exiting");
-                var frames = toastExitFrames();
-                var exit = entry.node.animate([
-                    { ...frames[0], transform: getComputedStyle(entry.node).transform, opacity: 1 },
-                    { ...frames[1], transform: `translateY(-${toast.getBoundingClientRect().height + 6}px)`, opacity: 0 }
-                ], { duration: 320, easing: "cubic-bezier(.2,.8,.25,1)", fill: "forwards" });
-                exit.onfinish = () => entry.node.remove();
-                exit.oncancel = () => entry.node.remove();
+                entry.node.remove();
             });
             archivedToasts = [];
             var node = toast.cloneNode(true);
@@ -949,48 +945,37 @@
             node.style.height = `${toast.getBoundingClientRect().height}px`;
             var entry = { node, expiresAt: gameToastExpiresAt, timer: null };
             region.appendChild(node);
-            node.style.bottom = fast ? "0px" : "calc(var(--board-toast-height) + 6px)";
+            node.style.bottom = "calc(var(--board-toast-height) + 6px)";
             node.style.height = "";
             node.style.width = "";
             node.style.left = "";
             node.style.top = "";
             entry.timer = setTimeout(() => {
                 archivedToasts = archivedToasts.filter(item => item != entry);
-                if (fast) {
-                    node.remove();
-                } else {
-                    node.classList.add("game-toast--exiting");
-                    fadeOutToast(node, () => node.remove());
-                }
+                node.classList.add("game-toast--exiting");
+                fadeOutToast(node, () => node.remove());
                 positionArchivedToasts();
-            }, fast ? 180 : Math.max(0, entry.expiresAt - Date.now()));
+            }, Math.max(0, entry.expiresAt - Date.now()));
             archivedToasts.push(entry);
             if (!reduced) {
                 var height = toast.getBoundingClientRect().height;
-                var frames = toastExitFrames();
-                node.animate(fast ? [
-                    { ...frames[0], transform: "scale(1)", opacity: 1 },
-                    { ...frames[1], transform: "scale(1.12)", opacity: 0 }
-                ] : [
+                node.animate([
                     { transform: `translateY(${height + 6}px)`, opacity: 1 },
                     { transform: "translateY(0)", opacity: 1 }
-                ], { duration: fast ? 180 : 320, easing: "cubic-bezier(.2,.8,.25,1)", fill: "forwards" });
-            } else if (fast) {
-                clearTimeout(entry.timer);
-                node.remove();
-                archivedToasts = [];
+                ], { duration: fast ? 180 : 320, easing: "cubic-bezier(.2,.8,.25,1)" });
             }
         }
 
         function positionArchivedToasts() {
             var region = document.getElementById("gameToastRegion");
             if (!region) { return; }
-            var previousSpeed = region.dataset.animationSpeed;
             region.dataset.animationSpeed = currentGame?.fastForward
                 ? "fast" : getCookie("AnimationSpeed") || "normal";
-            if (region.dataset.animationSpeed == "fast" && previousSpeed != "fast") {
+            region.dataset.maxVisible = String(maxVisibleMessages());
+            if (maxVisibleMessages() == 1) {
                 archivedToasts.forEach(entry => { clearTimeout(entry.timer); entry.node.remove(); });
                 archivedToasts = [];
+                region.querySelectorAll(".game-toast--exiting").forEach(node => node.remove());
             }
         }
 
@@ -2051,7 +2036,7 @@
             if (currentGame && currentGame.fastForward === true) { return "fast"; }
             var stored = null;
             try { stored = localStorage.getItem("gameSpeed"); } catch (error) { }
-            return GAME_SPEED_MS[stored] != null ? stored : "fast";
+            return GAME_SPEED_MS[stored] != null ? stored : "normal";
         }
         function updateSpeedButtons() {
             updateToastVisibility();
@@ -2069,6 +2054,22 @@
                 button.disabled = currentGame?.fastForward === true;
             });
         }
+        function updateMaxMessageButtons() {
+            positionArchivedToasts();
+            document.querySelectorAll(".speed-option[data-max-messages]").forEach(button => {
+                button.setAttribute("aria-pressed", String(Number(button.dataset.maxMessages) == maxVisibleMessages()));
+            });
+        }
+        document.querySelectorAll(".speed-option[data-max-messages]").forEach(button => {
+            button.addEventListener("click", function () {
+                setCookie("MaxVisibleMessages", button.dataset.maxMessages, 1000);
+                updateMaxMessageButtons();
+            });
+        });
+        window.addEventListener("storage", function (event) {
+            if (event.key == "norwegian-tycoon-cookie-MaxVisibleMessages") { updateMaxMessageButtons(); }
+        });
+        updateMaxMessageButtons();
         function updatePlayInputButtons() {
             var mode = GameLayout.playInputMode();
             document.getElementById("playInputFlickHint").hidden = mode != "flick";
@@ -2195,7 +2196,7 @@
             }
         }
         function isCardFoilUnlocked(foil, playerName) {
-            if (Card.hasAllAppearanceUnlocks(playerName)) { return true; }
+            if (Card.hasAllAppearanceUnlocks(playerName, getPlayerKey())) { return true; }
             var requiredWins = Card.foilUnlockWins(foil);
             if (requiredWins == 0) { return true; }
             return !playerWinsLoading && !playerWinsError &&
@@ -2203,7 +2204,7 @@
                 requiredWins != null && playerPresidentWins >= requiredWins;
         }
         function isCardStyleUnlocked(style, playerName) {
-            if (Card.hasAllAppearanceUnlocks(playerName)) { return true; }
+            if (Card.hasAllAppearanceUnlocks(playerName, getPlayerKey())) { return true; }
             if (style == "botanical") { return Card.normalizeStyle(style, playerName) == style; }
             var requiredRounds = Card.styleUnlockRounds(style);
             if (requiredRounds == 0) { return true; }

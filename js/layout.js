@@ -30,7 +30,7 @@ class GameLayout {
     static playInputMode() {
         var stored = getCookie("PlayInputMode");
         if (stored == "flick" || stored == "button") { return stored; }
-        return "flick";
+        return this.usesDesktopControls() ? "button" : "flick";
     }
     static isShuffling(game) {
         return game != null && (game.status == "G" || game.status == "S") && game.shuffleStartedAt != null &&
@@ -139,7 +139,7 @@ class GameLayout {
     static cardStyle() {
         var stored = null;
         try { stored = localStorage.getItem("cardStyle"); } catch (error) { }
-        return Card.normalizeStyle(stored, GameLayout.cardStylePlayerName || "");
+        return Card.normalizeStyle(stored, GameLayout.cardStylePlayerName || "", getPlayerKey());
     }
     static cardStyleScope() {
         return getCookie("CardStyleScope") == "own" ? "own" : "player";
@@ -152,7 +152,7 @@ class GameLayout {
             return GameLayout.cardStyle();
         }
         var player = game.players.find(player => player.name == name);
-        return player ? Card.normalizeStyle((game.cardStyles || {})[GamePresence.playerId(player)], name) : "normal";
+        return player ? Card.normalizeStyle((game.cardStyles || {})[GamePresence.playerId(player)], name, player.playerKey) : "normal";
     }
     static foilForPlayer(game, name) {
         if (GameLayout.cardStyleScope() == "own" || name == GameLayout.viewerName) {
@@ -164,7 +164,7 @@ class GameLayout {
             : "none";
     }
     static canUseBotanicalStyle() {
-        return Card.normalizeStyle("botanical", GameLayout.cardStylePlayerName || "") == "botanical";
+        return Card.normalizeStyle("botanical", GameLayout.cardStylePlayerName || "", getPlayerKey()) == "botanical";
     }
     static cardImageHtml(K, width = null, rotering = null, style = "normal", foil = GameLayout.cardFoil()) {
         return `<img draggable="false" src='${K.toImageDataUri(style, foil)}' ${((width != null) ? "width='" + width + "'" : "")} alt='${K.getName()}' ${((rotering != null) ? "transform: translateX(" + rotering + "px) rotate(" + rotering + "deg);" : "")} />`;

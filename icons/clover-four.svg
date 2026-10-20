@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Ace of spades with a four-leaf clover</title>
+  <g transform="rotate(-7 28 31)">
+    <rect x="6" y="3" width="44" height="56" rx="5" fill="#fff" stroke="#bac9d4" stroke-width="2"/>
+    <text x="12" y="19" font-size="17" font-weight="bold" font-family="Georgia, serif" fill="#14212b">A</text>
+    <text x="28" y="45" text-anchor="middle" font-size="36" font-family="Georgia, serif" fill="#14212b">&#x2660;</text>
+  </g>
+  <text x="43" y="59" text-anchor="middle" font-size="39" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">&#x1F340;</text>
+</svg>

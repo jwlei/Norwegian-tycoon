@@ -2514,7 +2514,11 @@ select:focus-visible {
 
 #dialogRegler .dialog-footer,
 #dialogSpillogg .dialog-footer,
+#dialogInnstillinger .dialog-footer,
+#dialogKorttype .dialog-footer,
+#dialogKortfolie .dialog-footer,
 #dialogLeaderboard .dialog-footer {
+    float: none;
     flex: 0 0 auto;
     justify-content: center;
     border-top: 1px solid var(--line);
@@ -2522,6 +2526,9 @@ select:focus-visible {
 
 #dialogRegler .dialog-footer > button,
 #dialogSpillogg .dialog-footer > button,
+#dialogInnstillinger .dialog-footer > button,
+#dialogKorttype .dialog-footer > button,
+#dialogKortfolie .dialog-footer > button,
 #dialogLeaderboard .dialog-footer > button {
     width: min(100%, 240px);
     flex: 0 1 auto;
@@ -3005,7 +3012,7 @@ select:focus-visible {
     border-radius: 10px;
 }
 
-#gameToastRegion[data-animation-speed="fast"] {
+#gameToastRegion[data-max-visible="1"] {
     height: var(--board-toast-height);
 }
 
@@ -3039,10 +3046,6 @@ select:focus-visible {
 #gameToastRegion > #GameToast.is-visible {
     pointer-events: auto;
     cursor: pointer;
-}
-
-#gameToastRegion[data-animation-speed="fast"] > .game-toast--archived {
-    bottom: 0;
 }
 
 .exchange-flight-target {
@@ -4777,7 +4780,7 @@ select:focus-visible {
         --toast-stack-height: 102px;
     }
 
-    #gameShell #gameTable:has(#gameToastRegion[data-animation-speed="fast"]) {
+    #gameShell #gameTable:has(#gameToastRegion[data-max-visible="1"]) {
         --toast-stack-height: 48px;
     }
 
@@ -4810,7 +4813,7 @@ select:focus-visible {
     --toast-stack-height: 86px;
 }
 
-#gameTable:has(#gameToastRegion[data-animation-speed="fast"]) {
+#gameTable:has(#gameToastRegion[data-max-visible="1"]) {
     --toast-stack-height: 40px;
 }
 

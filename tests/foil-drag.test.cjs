@@ -310,7 +310,7 @@ test("foil locks show win requirements, block locked selection and exempt the na
         playerPresidentWins: 0,
         playerWinsName: "Ada", currentPlayerName: "Ada",
         playerWinsLoading: false, playerWinsError: false,
-        Card: fixture().types.Card
+        Card: fixture().types.Card, getPlayerKey: () => "owner"
     });
     vm.runInContext(connection.slice(start, end), context);
     assert.equal(context.isCardFoilUnlocked("holo", "Ada"), false);
@@ -409,6 +409,36 @@ test("card styles preserve their order and unlock five at 5 rounds, five at 15 a
     context.playerWinsLoading = false;
     context.playerWinsName = "Grace";
     assert.equal(context.isCardStyleUnlocked("glitched", "Ada"), false);
+});
+
+test("the source player ID always unlocks all appearances without depending on name or loaded stats", () => {
+    const { context, types } = fixture();
+    context.getPlayerKey = () => "source";
+    Object.assign(context, {
+        playerPresidentWins: 0, playerRoundsPlayed: 0,
+        playerWinsName: null, currentPlayerName: "New name",
+        playerWinsLoading: true, playerWinsError: true
+    });
+    const connection = source("connection.js");
+    vm.runInContext(connection.slice(connection.indexOf("        function isCardFoilUnlocked("),
+        connection.indexOf("        function updateCardStyleButtons()")), context);
+    for (const name of ["Ada", "Changed name", ""]) {
+        assert.equal(types.Card.hasAllAppearanceUnlocks(name, "source"), true);
+        assert.equal(types.Card.hasAllAppearanceUnlocks("source", "owner"), false,
+            "The exception is tied to player ID, not display name");
+        for (const foil of types.Card.foilOptions()) {
+            assert.equal(context.isCardFoilUnlocked(foil.id, name), true, foil.id);
+        }
+        for (const style of ["botanical", "normal", "gold", "glitched", "cosmic"]) {
+            assert.equal(context.isCardStyleUnlocked(style, name), true, style);
+            assert.equal(types.Card.normalizeStyle(style, name, "source"), style);
+        }
+    }
+    context.getPlayerKey = () => "owner";
+    assert.equal(context.isCardFoilUnlocked("gold", "Ada"), false);
+    assert.equal(context.isCardStyleUnlocked("glitched", "Ada"), false);
+    context.getPlayerKey = () => "source";
+    assert.equal(types.GameLayout.canUseBotanicalStyle(), true);
 });
 
 test("locked card styles disable only selection while their previews stay interactive", () => {

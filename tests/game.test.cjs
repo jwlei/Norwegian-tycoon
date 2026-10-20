@@ -42,13 +42,14 @@ test("a direct toast dismissal never clears cards or advances the game pause", (
     assert.equal(context.currentGame.turnPause.until, 123456);
 });
 
-test("toast replacements skip archived clones at fast speed", () => {
+test("toast visibility limit is independent of animation speed and keeps at most two messages", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     let visible = true;
     let clones = 0;
     let animationSpeed = "normal";
     let hideToasts = false;
     let reducedMotion = false;
+    let maxVisible = "1";
     const animations = [];
     const timers = [];
     const toast = {
@@ -76,7 +77,8 @@ test("toast replacements skip archived clones at fast speed", () => {
     const region = { dataset: { animationSpeed: "normal" }, appendChild() {}, querySelectorAll: () => [] };
     const context = vm.createContext({
         currentGame: null, spectatorJoinToastTimer: null,
-        getCookie: key => key == "HideGameToasts" ? String(hideToasts) : animationSpeed,
+        getCookie: key => key == "HideGameToasts" ? String(hideToasts) :
+            key == "MaxVisibleMessages" ? maxVisible : animationSpeed,
         getComputedStyle: () => ({ transform: "matrix(1, 0, 0, 1, 0, 23)" }),
         window: { matchMedia: () => ({ matches: reducedMotion }) },
         Date: { now: () => 3000 }, gameToastExpiresAt: 3000,
@@ -104,6 +106,11 @@ test("toast replacements skip archived clones at fast speed", () => {
     assert.equal(context.gameToastExpiresAt, 6000);
     assert.equal(visible, true);
     toast.textContent = "Current";
+    vm.runInContext('showGameToast("Replace without stacking", game)', context);
+    assert.equal(clones, 0, "Default limit replaces the previous message");
+    assert.equal(region.dataset.maxVisible, "1");
+    maxVisible = "2";
+    toast.textContent = "Current";
     vm.runInContext('showGameToast("Early next", game)', context);
     assert.equal(clones, 1);
     assert.equal(context.archivedToasts[0].expiresAt, 6000);
@@ -112,28 +119,30 @@ test("toast replacements skip archived clones at fast speed", () => {
         vm.runInContext('showGameToast("New message", game)', context);
     }
     assert.equal(context.archivedToasts.length, 1, "At most two messages including the current toast");
-    const oldestExit = animations.filter(animation => !animation.incoming).at(-2);
-    assert.equal(oldestExit.frames[0].transform, "matrix(1, 0, 0, 1, 0, 23)",
-        "A message pushed out mid-animation must continue from its current position");
     assert.equal(animations.filter(animation => !animation.incoming).at(-1).timing.duration, 320);
     animationSpeed = "fast";
     context.positionArchivedToasts();
-    assert.equal(context.archivedToasts.length, 0, "Switching to fast removes the older stacked message");
+    assert.equal(context.archivedToasts.length, 1, "Fast animations must honor the two-message setting");
     toast.textContent = "Current";
     const cloneCountBeforeFastReplacement = clones;
     const animationCountBeforeFastReplacement = animations.length;
     vm.runInContext('showGameToast("Fast replacement", game)', context);
-    assert.equal(clones, cloneCountBeforeFastReplacement);
-    assert.equal(context.archivedToasts.length, 0);
-    assert.equal(animations.length, animationCountBeforeFastReplacement + 1);
+    assert.equal(clones, cloneCountBeforeFastReplacement + 1);
+    assert.equal(context.archivedToasts.length, 1);
+    assert.equal(animations.length, animationCountBeforeFastReplacement + 2);
     assert.equal(animations.at(-1).timing.duration, 180);
     assert.equal(timers.at(-1).delay, 3000);
     reducedMotion = true;
     toast.textContent = "Current";
     const animationCount = animations.length;
     vm.runInContext('showGameToast("Reduced replacement", game)', context);
-    assert.equal(context.archivedToasts.length, 0);
+    assert.equal(context.archivedToasts.length, 1, "Reduced motion disables movement, not message stacking");
     assert.equal(animations.length, animationCount);
+    maxVisible = "1";
+    context.positionArchivedToasts();
+    assert.equal(context.archivedToasts.length, 0, "Lowering the limit immediately clears the older message");
+    assert.equal(region.dataset.maxVisible, "1");
+    maxVisible = "2";
     hideToasts = true;
     const cloneCount = clones;
     const timerCount = timers.length;
@@ -1630,6 +1639,58 @@ test("fast forward temporarily shows the fastest message speed without overwriti
             enabled ? "fast" : "slow");
         assert.ok(buttons.every(button => button.disabled == enabled));
     }
+});
+
+test("new players use normal message duration while saved speeds remain unchanged", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    for (const saved of [null, "invalid", "fast", "normal", "slow"]) {
+        const context = vm.createContext({
+            currentGame: null, localStorage: { getItem: () => saved }
+        });
+        vm.runInContext(source.slice(source.indexOf("        var GAME_SPEED_MS"),
+            source.indexOf("        function updateSpeedButtons")), context);
+        assert.equal(context.currentGameSpeed(),
+            ["fast", "normal", "slow"].includes(saved) ? saved : "normal");
+    }
+});
+
+test("the max-visible selector persists independently and updates across tabs", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const saved = new Map();
+    let storage;
+    let reconciliations = 0;
+    const buttons = ["1", "2"].map(value => ({
+        dataset: { maxMessages: value },
+        setAttribute(key, value) { this[key] = value; },
+        addEventListener(type, callback) { this.click = callback; }
+    }));
+    const context = vm.createContext({
+        getCookie: key => saved.get(key),
+        setCookie: (key, value) => saved.set(key, value),
+        positionArchivedToasts: () => reconciliations++,
+        document: { querySelectorAll: selector => {
+            assert.equal(selector, ".speed-option[data-max-messages]");
+            return buttons;
+        } },
+        window: { addEventListener(type, callback) { storage = callback; } }
+    });
+    vm.runInContext(source.slice(source.indexOf("        function maxVisibleMessages()"),
+        source.indexOf("        function updateToastVisibility()")) +
+        source.slice(source.indexOf("        function updateMaxMessageButtons()"),
+            source.indexOf("        function updatePlayInputButtons()")), context);
+    assert.equal(context.maxVisibleMessages(), 1);
+    assert.equal(buttons[0]["aria-pressed"], "true");
+    buttons[1].click();
+    assert.equal(saved.get("MaxVisibleMessages"), "2");
+    assert.equal(buttons[1]["aria-pressed"], "true");
+    assert.equal(saved.has("AnimationSpeed"), false);
+    assert.equal(saved.has("gameSpeed"), false);
+    saved.set("MaxVisibleMessages", "1");
+    storage({ key: "norwegian-tycoon-cookie-MaxVisibleMessages" });
+    assert.equal(buttons[0]["aria-pressed"], "true");
+    saved.set("MaxVisibleMessages", "invalid");
+    assert.equal(context.maxVisibleMessages(), 1);
+    assert.equal(reconciliations, 3);
 });
 
 test("forced exchange offers expire at 120 seconds without surrendering a human seat", () => {
@@ -4560,7 +4621,7 @@ test("desktop and mobile both honor saved Flick and Play control choices", () =>
             });
 
             assert.equal(GameLayout.playInputMode(),
-                saved == "button" ? "button" : "flick");
+                saved == "flick" || saved == "button" ? saved : desktop ? "button" : "flick");
         }
     }
     assert.equal(playButtonContext({ playInput: "flick" }).playButton.hidden, true);
@@ -4604,9 +4665,9 @@ test("settings expose animation speed and enable Flick on desktop and mobile", (
         assert.equal(setting.hidden, false);
         assert.equal(buttons[0].disabled, false);
         assert.equal(buttons[1].disabled, false);
-        assert.equal(buttons[0].attributes["aria-pressed"], "true");
-        assert.equal(hints.playInputFlickHint.hidden, false);
-        assert.equal(hints.playInputButtonHint.hidden, true);
+        assert.equal(buttons[0].attributes["aria-pressed"], String(!desktop));
+        assert.equal(hints.playInputFlickHint.hidden, desktop);
+        assert.equal(hints.playInputButtonHint.hidden, !desktop);
         GameLayout.playInputMode = () => "button";
         context.updatePlayInputButtons();
         assert.equal(buttons[1].attributes["aria-pressed"], "true");
@@ -4674,6 +4735,27 @@ test("publishing a player's style and foil updates only their seat and survives 
     await assert.rejects(game.setPlayerCardAppearance("pixel"), /kortutseendet/);
 });
 
+test("the source player ID can publish and display the secret style under any name", async () => {
+    const context = loadGame(null, { getPlayerKey: () => "source" });
+    const { PresidentGame, PresidentPlayer, GamePresence, GameLayout } = context;
+    const player = new PresidentPlayer("Renamed player", "source");
+    const game = Object.assign(Object.create(PresidentGame.prototype), {
+        localPlayerName: player.name, players: [player]
+    });
+    let record = { status: "O", spillere: [player.toRecord()] };
+    game.databaseRef = { async transaction(transform) {
+        const next = transform(record);
+        if (next) { record = next; }
+        return { committed: !!next, snapshot: { val: () => record } };
+    } };
+    await game.setPlayerCardAppearance("botanical", "gold");
+    const id = GamePresence.playerId(player);
+    assert.equal(record.cardStyles[id], "botanical");
+    assert.equal(record.cardFoils[id], "gold");
+    GameLayout.viewerName = "Different viewer";
+    assert.equal(GameLayout.styleForPlayer(game, player.name), "botanical");
+    assert.equal(GameLayout.foilForPlayer(game, player.name), "gold");
+});
 test("a stale save refreshes the local speed before republishing the lobby", () => {
     const { game } = setupGame();
     game.turnSeconds = 3;
