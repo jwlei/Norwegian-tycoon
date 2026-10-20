@@ -101,6 +101,14 @@ test("foil lists every supplied variant except reverse holo non-rares and defaul
     const names = Array.from(types.Card.foilOptions(), option => option.name);
     assert.deepEqual(names, ["Ingen folie", "Stripet", "Stjernestøv", "Prisme", "Bølger", "Fasetter",
         "Ringer", "Vev", "Regnbue", "Kontrast", "Gullglans", "Rutenett", "Fargespill", "Perlemor", "Stråler"]);
+    assert.deepEqual(Array.from(types.Card.foilOptionsByUnlock(), option => option.id),
+        ["none", "holo", "galaxy", "v", "vmax", "vstar", "full-art", "trainer-full-art",
+            "radiant", "rainbow-alt", "gallery-holo", "gallery-v", "gallery-vmax", "rainbow", "gold"]);
+    assert.deepEqual([1, 2, 5, 10, 15].map(wins =>
+        types.Card.foilOptions().filter(option => types.Card.foilUnlockWins(option.id) == wins).length
+    ), [3, 2, 3, 2, 2]);
+    assert.equal(types.Card.foilUnlockWins("rainbow"), 20);
+    assert.equal(types.Card.foilUnlockWins("gold"), 20);
     assert.ok(names.every(name => name.length <= 11));
     for (const invalid of [undefined, null, "", "reverse-holo", "<script>"]) {
         assert.equal(types.Card.normalizeFoil(invalid), "none");
@@ -168,7 +176,19 @@ test("the foil selector persists independently, updates previews and never regis
     const { context, preferences, nodes } = fixture();
     const dialogs = [];
     context.currentGame = null;
+    context.currentPlayerName = null;
     context.localizedMessage = text => text;
+    context.readLastUsedPlayerName = () => "Ada";
+    context.playerPresidentWins = 5;
+    context.playerStatsSubscription = null;
+    context.firebase = {
+        database: () => ({
+            ref(path) {
+                assert.equal(path, "playerStats/owner");
+                return { on(event, listener) { listener({ val: () => ({ presidentWins: 5 }) }); } };
+            }
+        })
+    };
     context.showDialog = (...args) => dialogs.push(args);
     let styleUpdates = 0;
     context.updateCardStyleButtons = () => styleUpdates++;
@@ -177,12 +197,22 @@ test("the foil selector persists independently, updates previews and never regis
     const helperStart = connection.indexOf("        function bindCardPreviewTilt(wrapper)");
     vm.runInContext(connection.slice(helperStart,
         connection.indexOf("        function updateCardAppearancePreview()", helperStart)), context);
+    const watcherStart = connection.indexOf("        function watchPlayerPresidentWins()");
+    const watcherEnd = connection.indexOf("        function updateCardStyleButtons()", watcherStart);
+    vm.runInContext(connection.slice(watcherStart, watcherEnd), context);
     const start = connection.indexOf("        function updateCardFoilButtons()");
     const end = connection.indexOf('        document.getElementById("hideToastsToggleButton")', start);
     vm.runInContext(connection.slice(start, end), context);
     const options = nodes.get("cardFoilOptions");
     assert.equal(options.childElementCount, 15);
     assert.ok(options.children.every(button => button.querySelectorAll(".card-preview").length == 1));
+    assert.deepEqual(options.children.slice(0, 5).map(button => button.dataset.cardFoil),
+        ["none", "holo", "galaxy", "v", "vmax"]);
+    assert.equal(nodes.get("cardFoilWins").textContent, "Your wins: 5");
+    const gold = options.children.find(button => button.dataset.cardFoil == "gold");
+    assert.equal(gold.disabled, true);
+    assert.equal(gold.querySelector(".card-foil-option__unlock").textContent,
+        "Krever 20 presidentseire");
     const radiant = options.children.find(child => child.dataset.cardFoil == "radiant");
     assert.equal(radiant.classList.contains("card-style-option"), false);
     radiant.onclick();
@@ -193,10 +223,36 @@ test("the foil selector persists independently, updates previews and never regis
     assert.equal(radiant.attributes["aria-pressed"], "true");
     assert.equal(options.children[0].attributes["aria-pressed"], "false");
     assert.deepEqual(dialogs.slice(-2), [["Kortfolie", false], ["Innstillinger", true]]);
+    gold.onclick();
+    assert.equal(preferences.get("CardFoil"), "radiant");
     nodes.get("cardFoilOpenButton").onclick();
     assert.deepEqual(dialogs.slice(-2), [["Innstillinger", false], ["Kortfolie", true]]);
     nodes.get("cardFoilCloseButton").onclick();
     assert.deepEqual(dialogs.slice(-2), [["Kortfolie", false], ["Innstillinger", true]]);
+});
+
+test("foil locks show win requirements, block locked selection and exempt the named players", () => {
+    const connection = source("connection.js");
+    const start = connection.indexOf("        function isCardFoilUnlocked(");
+    const end = connection.indexOf("        function updateCardStyleButtons()", start);
+    const context = vm.createContext({
+        playerPresidentWins: 0,
+        Card: fixture().types.Card
+    });
+    vm.runInContext(connection.slice(start, end), context);
+    assert.equal(context.isCardFoilUnlocked("holo", "Ada"), false);
+    assert.equal(context.isCardFoilUnlocked("holo", "Ada"), false);
+    context.playerPresidentWins = 1;
+    assert.equal(context.isCardFoilUnlocked("holo", "Ada"), true);
+    assert.equal(context.isCardFoilUnlocked("gold", "Ada"), false);
+    assert.equal(context.isCardFoilUnlocked("gold", "h4cker"), true);
+    assert.equal(context.isCardFoilUnlocked("rainbow", "TÅKEFYRSTEN"), true);
+
+    const themeCss = fs.readFileSync(path.join(__dirname, "..", "css", "theme.css"), "utf8");
+    assert.match(themeCss, /\.card-foil-option\.is-locked::after\s*\{[^}]*content:\s*"×";/);
+    assert.match(themeCss, /\.card-foil-option__unlock\s*\{[^}]*border:\s*1px solid var\(--line\);/);
+    const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    assert.match(html, /id="cardFoilWins">Your wins: 0<\/p>/);
 });
 
 test("foil overlays cover the full card surface and settings share one card preview", () => {
@@ -352,10 +408,10 @@ test("slow drops play only on the board, and a short, lighter flick works", () =
     drag.lastFlickDistance = 100;
     drag.lastFlickVelocity = 0.1;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 400 }), false);
-    drag.lastFlickDistance = 15;
-    drag.lastFlickVelocity = 0.45;
+    drag.lastFlickDistance = 11;
+    drag.lastFlickVelocity = 0.38;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), false);
-    drag.lastFlickDistance = 16;
+    drag.lastFlickDistance = 12;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), true);
     drag.lastFlickDistance = -16;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), false);
@@ -508,7 +564,7 @@ test("flick intent follows the final vertical stroke, not earlier stronger movem
     weakFinal.hand.onpointermove(weakFinal.event(100, 470));
     weakFinal.advance(1050);
     weakFinal.hand.onpointermove(weakFinal.event(100, 490));
-    weakFinal.advance(1110);
+    weakFinal.advance(1120);
     weakFinal.hand.onpointermove(weakFinal.event(100, 466));
     weakFinal.hand.onpointerup(weakFinal.event(100, 466));
     assert.equal(weakFinal.state.plays, 0);

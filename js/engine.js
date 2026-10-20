@@ -477,9 +477,43 @@ class PresidentGame extends Game {
         var finished = super.finishGame();
         if (finished) {
             this.save();
+            this.recordFinishedPlayerStats().catch(error => {
+                console.error("Kunne ikke lagre spillerstatistikk.", error);
+            });
             this.beginGameEndVote();
         }
         return finished;
+    }
+    async recordFinishedPlayerStats() {
+        var gameId = this.id;
+        await Promise.all(this.players.filter(player => player.playerKey != "PC").map(player =>
+            firebase.database().ref(`playerStats/${player.playerKey}`).transaction(record => {
+                var previous = record && typeof record == "object" ? record : {};
+                var names = Array.isArray(previous.names)
+                    ? previous.names.filter(name => typeof name == "string")
+                    : [];
+                var nameAdded = !names.includes(player.name);
+                if (nameAdded) { names.push(player.name); }
+                var winGames = previous.presidentWinGames &&
+                    typeof previous.presidentWinGames == "object"
+                    ? Object.assign({}, previous.presidentWinGames)
+                    : {};
+                var wonGame = player.placement == 1 && winGames[gameId] !== true;
+                if (wonGame) { winGames[gameId] = true; }
+                var wins = Number.isSafeInteger(previous.presidentWins) && previous.presidentWins >= 0
+                    ? previous.presidentWins
+                    : 0;
+                if (previous.name == player.name && !wonGame && !nameAdded) {
+                    return;
+                }
+                return Object.assign({}, previous, {
+                    name: player.name,
+                    names,
+                    presidentWins: wins + Number(wonGame),
+                    presidentWinGames: winGames
+                });
+            }, undefined, false)
+        ));
     }
     beginGameEndVote() {
         if (!isLobbyHost(this)) { return null; }

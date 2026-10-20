@@ -142,6 +142,30 @@ class Card {
     static normalizeFoil(foil) {
         return Card.foilOptions().some(option => option.id == foil) ? foil : "none";
     }
+    static foilUnlockWins(foil) {
+        return {
+            none: 0,
+            holo: 1,
+            galaxy: 1,
+            v: 1,
+            vmax: 2,
+            vstar: 2,
+            "full-art": 5,
+            "trainer-full-art": 5,
+            radiant: 5,
+            "rainbow-alt": 10,
+            "gallery-holo": 10,
+            "gallery-v": 15,
+            "gallery-vmax": 15,
+            rainbow: 20,
+            gold: 20
+        }[foil] ?? null;
+    }
+    static foilOptionsByUnlock() {
+        return Card.foilOptions().slice().sort((first, second) =>
+            Card.foilUnlockWins(first.id) - Card.foilUnlockWins(second.id)
+        );
+    }
     static foilOverlay(foil) {
         foil = Card.normalizeFoil(foil);
         if (foil == "none") { return ""; }

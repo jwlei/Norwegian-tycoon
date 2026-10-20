@@ -1545,6 +1545,54 @@ select:focus-visible {
     background: var(--success-soft);
 }
 
+.card-style-list .card-foil-option.is-locked {
+    position: relative;
+    flex-wrap: wrap;
+    overflow: hidden;
+    cursor: not-allowed;
+}
+
+.card-foil-option.is-locked .card-style-option__cards,
+.card-foil-option.is-locked > strong {
+    filter: grayscale(1);
+    opacity: 0.42;
+}
+
+.card-foil-option.is-locked::after {
+    position: absolute;
+    top: 50%;
+    left: 42px;
+    color: var(--danger);
+    content: "×";
+    font-size: 3rem;
+    font-weight: 700;
+    line-height: 1;
+    pointer-events: none;
+    transform: translate(-50%, -55%);
+}
+
+.card-foil-option__unlock {
+    margin-left: auto;
+    padding: 3px 7px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface-soft);
+    color: var(--muted);
+    font-size: 0.68rem;
+}
+
+.card-foil-option__unlock[hidden] {
+    display: none;
+}
+
+.card-foil-wins {
+    margin: 0;
+    padding: 0 18px 10px;
+    color: var(--ink);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
 .card-foil-option > strong,
 .card-style-option > strong {
     font-size: 0.8rem;

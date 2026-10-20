@@ -3117,7 +3117,25 @@ test("secret card style requires an exact case-insensitive eligible player name"
 });
 
 function setupGame() {
-    const types = loadGame();
+    const profileRecords = {};
+    const types = loadGame(null, {
+        firebase: {
+            database: () => ({
+                ref(path) {
+                    return {
+                        transaction(update) {
+                            const next = update(profileRecords[path]);
+                            if (next !== undefined) { profileRecords[path] = next; }
+                            return Promise.resolve({
+                                committed: next !== undefined,
+                                snapshot: { val: () => profileRecords[path] }
+                            });
+                        }
+                    };
+                }
+            })
+        }
+    });
     const game = Object.create(types.PresidentGame.prototype);
     const players = [
         new types.PresidentPlayer("Human", "human-key"),
@@ -3135,8 +3153,34 @@ function setupGame() {
         owner.name, ...Array.from({ length: count }, (_, suit) =>
             new types.PresidentCard(suit + 1, rank))
     );
-    return { game, players, pile, types };
+    return { game, players, pile, types, profileRecords };
 }
+
+test("completed games persist human names and award each president win once, including against bots", async () => {
+    const { game, players, profileRecords } = setupGame();
+    game.id = "completed-game";
+    players[0].name = "Ada";
+    players[0].placement = 1;
+    players[1].placement = 2;
+    players[2].placement = 3;
+    players.push(new players[0].constructor("Grace", "other-human"));
+    players[3].placement = 4;
+
+    await game.recordFinishedPlayerStats();
+    await game.recordFinishedPlayerStats();
+    assert.equal(profileRecords["playerStats/human-key"].presidentWins, 1);
+    assert.deepEqual(Array.from(profileRecords["playerStats/human-key"].names), ["Ada"]);
+    assert.equal(profileRecords["playerStats/human-key"].presidentWinGames["completed-game"], true);
+    assert.equal(profileRecords["playerStats/other-human"].presidentWins, 0);
+    assert.deepEqual(Array.from(profileRecords["playerStats/other-human"].names), ["Grace"]);
+    assert.equal(profileRecords["playerStats/PC"], undefined);
+
+    players[0].name = "Ada Lovelace";
+    game.id = "second-game";
+    await game.recordFinishedPlayerStats();
+    assert.equal(profileRecords["playerStats/human-key"].presidentWins, 2);
+    assert.deepEqual(Array.from(profileRecords["playerStats/human-key"].names), ["Ada", "Ada Lovelace"]);
+});
 
 test("playing the final card persists the president placement and completed round placement", () => {
     const { game, players, types } = setupGame();
@@ -3589,7 +3633,7 @@ test("a retry at full capacity preserves the concurrent human and rejects the bo
 });
 
 function finishedVotingGame(sharedKey = false) {
-    const { game, players } = setupGame();
+    const { game, players, profileRecords } = setupGame();
     if (sharedKey) { players[1].playerKey = players[0].playerKey; }
     players.forEach((player, i) => { player.placement = i + 1; });
     game.status = "F";
@@ -3625,7 +3669,7 @@ function finishedVotingGame(sharedKey = false) {
             };
         }
     };
-    return { game, players, stored, snapshots };
+    return { game, players, stored, snapshots, profileRecords };
 }
 
 test("one human and bots can vote to return to lobby atomically", () => {
@@ -3811,8 +3855,8 @@ test("the host starts a voted next round without exposing a finished game with n
     assert.equal(snapshots.some(snapshot => snapshot.status === "F" && snapshot.vote == null), false);
 });
 
-test("finished status is saved before creating the result vote", () => {
-    const { game, stored, snapshots } = finishedVotingGame();
+test("finished status and human president wins are saved before creating the result vote", async () => {
+    const { game, stored, snapshots, profileRecords } = finishedVotingGame();
     game.status = stored.status = "S";
     game.gameEndVote = stored.gameEndVote = null;
     assert.equal(game.finishGame(), true);
@@ -3820,6 +3864,8 @@ test("finished status is saved before creating the result vote", () => {
     assert.ok(stored.gameEndVote);
     assert.equal(snapshots[0].status, "F");
     assert.equal(snapshots.some(snapshot => snapshot.status === "S" && snapshot.vote != null), false);
+    assert.equal(profileRecords["playerStats/human-key"].presidentWins, 1);
+    assert.deepEqual(Array.from(profileRecords["playerStats/human-key"].names), ["Human"]);
 });
 
 test("host start waits for a second human to be ready too", () => {

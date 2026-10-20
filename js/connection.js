@@ -2,6 +2,8 @@
     function () {
         var currentGame = null;
         var currentPlayerName = null;
+        var playerPresidentWins = 0;
+        var playerStatsSubscription = null;
         var pendingNewGameName = false;
         var currentGameSubscription = null;
         var currentGameListener = null;
@@ -2111,6 +2113,24 @@
             bindCardPreviewTilt(wrapper);
             holder.replaceChildren(wrapper);
         }
+        function watchPlayerPresidentWins() {
+            if (playerStatsSubscription != null) { return; }
+            playerStatsSubscription = firebase.database().ref(`playerStats/${getPlayerKey()}`);
+            playerStatsSubscription.on("value", snapshot => {
+                var record = snapshot.val();
+                var wins = Number(record && record.presidentWins);
+                playerPresidentWins = Number.isSafeInteger(wins) && wins > 0 ? wins : 0;
+                updateCardFoilButtons();
+            }, error => {
+                console.error("Kunne ikke hente spillerstatistikk.", error);
+            });
+        }
+        function isCardFoilUnlocked(foil, playerName) {
+            var normalizedName = (playerName || "").trim().toLocaleLowerCase();
+            if (normalizedName == "h4cker" || normalizedName == "tåkefyrsten") { return true; }
+            var requiredWins = Card.foilUnlockWins(foil);
+            return requiredWins != null && playerPresidentWins >= requiredWins;
+        }
         function updateCardStyleButtons() {
             document.querySelectorAll(".card-style-scope-option").forEach(button => {
                 button.setAttribute("aria-pressed", String(button.dataset.scope == GameLayout.cardStyleScope()));
@@ -2200,11 +2220,12 @@
         });
 
         function updateCardFoilButtons() {
+            watchPlayerPresidentWins();
             var foil = GameLayout.cardFoil();
             var style = GameLayout.cardStyle();
             var options = document.getElementById("cardFoilOptions");
             if (options.childElementCount == 0) {
-                Card.foilOptions().forEach(option => {
+                Card.foilOptionsByUnlock().forEach(option => {
                     var button = document.createElement("button");
                     button.type = "button";
                     button.className = "card-foil-option";
@@ -2213,8 +2234,13 @@
                     cards.className = "card-style-option__cards";
                     var name = document.createElement("strong");
                     name.textContent = option.name;
-                    button.append(cards, name);
+                    var unlock = document.createElement("small");
+                    unlock.className = "card-foil-option__unlock";
+                    button.append(cards, name, unlock);
                     button.addEventListener("click", function () {
+                        if (!isCardFoilUnlocked(option.id, currentPlayerName || readLastUsedPlayerName())) {
+                            return;
+                        }
                         setCookie("CardFoil", option.id, 1000);
                         updateCardStyleButtons();
                         updateCardFoilButtons();
@@ -2231,7 +2257,17 @@
             }
             options.querySelectorAll(".card-foil-option").forEach(button => {
                 button.setAttribute("aria-pressed", String(button.dataset.cardFoil == foil));
+                var unlocked = isCardFoilUnlocked(
+                    button.dataset.cardFoil,
+                    currentPlayerName || readLastUsedPlayerName()
+                );
+                button.disabled = !unlocked;
+                button.classList.toggle("is-locked", !unlocked);
                 var holder = button.querySelector(".card-style-option__cards");
+                var unlock = button.querySelector(".card-foil-option__unlock");
+                var requiredWins = Card.foilUnlockWins(button.dataset.cardFoil);
+                unlock.textContent = unlocked ? "" : `Krever ${requiredWins} presidentseire`;
+                unlock.hidden = unlocked;
                 if (holder.dataset.style == style) { return; }
                 holder.dataset.style = style;
                 holder.replaceChildren();
@@ -2247,6 +2283,7 @@
             });
             document.getElementById("cardFoilCurrentName").textContent =
                 localizedMessage(Card.foilOptions().find(option => option.id == foil).name);
+            document.getElementById("cardFoilWins").textContent = `Your wins: ${playerPresidentWins}`;
             updateCardAppearancePreview();
         }
         updateCardFoilButtons();

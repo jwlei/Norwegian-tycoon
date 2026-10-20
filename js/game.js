@@ -404,8 +404,8 @@ function shouldPlayCardDrag(drag, event) {
     if (!drag.canDragToPlay || drag.axis == "horizontal") { return false; }
     if (drag.didPlayDrag && isCardDropOnTable(event)) { return true; }
     return drag.canSwipeToPlay &&
-        drag.lastFlickDistance >= 16 &&
-        drag.lastFlickVelocity >= 0.45;
+        drag.lastFlickDistance >= 12 &&
+        drag.lastFlickVelocity >= 0.38;
 }
 
 function clearCardDragPreview(hand) {
