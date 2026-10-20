@@ -90,6 +90,40 @@ test("discard animation restores the original easing and scales duration and sta
     }
 });
 
+test("discarded foil previews retain their clipped card layer and are removed after flight", () => {
+    let animation;
+    const flight = {
+        className: "table-play__card card-preview card-preview--normal",
+        dataset: { foil: "galaxy" },
+        style: {},
+        classList: { add(name) { this[name] = true; } },
+        setAttribute() {},
+        animate() { animation = {}; return animation; },
+        remove() { this.removed = true; }
+    };
+    const card = {
+        style: { getPropertyValue: () => "0", set opacity(value) { this.opacityValue = value; } },
+        getBoundingClientRect: () => ({ left: 100, top: 100, width: 80, height: 120 }),
+        cloneNode() { return flight; }
+    };
+    const context = load({
+        window: { innerHeight: 800, matchMedia: () => ({ matches: false }) },
+        document: { body: { appendChild() {} } },
+        requestAnimationFrame(callback) { callback(); }
+    });
+    context.table = { querySelectorAll: () => [card] };
+    context.completed = 0;
+    vm.runInContext("GameLayout.animateDiscardedCards(table, () => { completed++; })", context);
+    assert.equal(flight.classList["card-discard-flight"], true);
+    assert.match(flight.className, /card-preview/);
+    assert.equal(flight.dataset.foil, "galaxy");
+    assert.equal(card.style.opacityValue, "0");
+    animation.onfinish();
+    assert.equal(flight.removed, true);
+    assert.equal(card.style.opacityValue, "");
+    assert.equal(context.completed, 1);
+});
+
 test("giving exchange cards animates mixed ranks toward the recipient and cleans up the hidden target", () => {
     const targets = [];
     const target = {

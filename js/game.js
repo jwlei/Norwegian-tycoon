@@ -383,9 +383,12 @@ function isCardDropOnTable(event) {
 function shouldPlayCardDrag(drag, event) {
     if (!drag.canDragToPlay || drag.axis == "horizontal") { return false; }
     if (drag.didPlayDrag && isCardDropOnTable(event)) { return true; }
+    var swipeDistance = drag.startY - event.clientY;
+    var cardHeight = drag.cardElement ? drag.cardElement.getBoundingClientRect().height : 0;
+    var swipeThreshold = Math.max(48, Math.min(72, cardHeight * 0.35));
     return drag.canSwipeToPlay &&
-        drag.lastFlickDistance >= 24 &&
-        drag.lastFlickVelocity >= 0.55;
+        (swipeDistance >= swipeThreshold ||
+            (drag.lastFlickDistance >= 24 && drag.lastFlickVelocity >= 0.55));
 }
 
 function clearCardDragPreview(hand) {

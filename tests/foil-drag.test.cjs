@@ -294,7 +294,7 @@ test("foil overlays cover the full card surface and settings share one card prev
     assert.match(themeCss, /\.table-deck \.table-play__card > img\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%;/);
 });
 
-test("touch-dragging a foil preview tilts the card without selecting its option", () => {
+test("touch-dragging a foil preview tracks its pointer without selecting its option", () => {
     const f = fixture();
     const connection = source("connection.js");
     const start = connection.indexOf("        function bindCardPreviewTilt(wrapper)");
@@ -429,7 +429,7 @@ test("slow drops play only on the board and flicking keeps its original sensitiv
     drag.canSwipeToPlay = true;
     drag.lastFlickDistance = 100;
     drag.lastFlickVelocity = 0.1;
-    assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 400 }), false);
+    assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 400 }), true);
     drag.lastFlickDistance = 23;
     drag.lastFlickVelocity = 0.55;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), false);
@@ -440,6 +440,12 @@ test("slow drops play only on the board and flicking keeps its original sensitiv
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), true);
     drag.lastFlickDistance = -16;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), false);
+    drag.didPlayDrag = false;
+    drag.cardElement = { getBoundingClientRect: () => ({ height: 120 }) };
+    drag.lastFlickDistance = 0;
+    drag.lastFlickVelocity = 0;
+    assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 453 }), false);
+    assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 452 }), true);
     drag.axis = "horizontal";
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 200 }), false);
     drag.axis = "vertical";
@@ -564,8 +570,8 @@ test("a brief diagonal drift does not lock a vertical flick into hand scrolling"
     flick.advance(1005);
     flick.hand.onpointermove(flick.event(108, 498));
     flick.advance(1020);
-    flick.hand.onpointermove(flick.event(110, 488));
-    flick.hand.onpointerup(flick.event(110, 488));
+    flick.hand.onpointermove(flick.event(110, 474));
+    flick.hand.onpointerup(flick.event(110, 474));
     assert.equal(flick.state.plays, 1);
     assert.equal(flick.state.scrolls, 0);
 });
