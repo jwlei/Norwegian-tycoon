@@ -2119,6 +2119,10 @@ select:focus-visible {
     color: var(--danger) !important;
 }
 
+#playerUsePin {
+    margin: 8px 0;
+}
+
 .dialog-footer {
     display: flex;
     justify-content: flex-end;

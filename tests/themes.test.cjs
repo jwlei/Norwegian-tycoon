@@ -204,6 +204,10 @@ test("desktop uses taller two-line toasts and the same shell and toolbar in ever
     }
 });
 
+test("PIN toggle aligns with the full-width name field without horizontal button margins", () => {
+    assert.match(css, /#playerUsePin\s*\{\s*margin:\s*8px 0;\s*\}/);
+});
+
 test("visible release and versioned local assets use version 0.9.3", () => {
     assert.ok(html.includes('aria-label="Spillversjon 0.9.3">v0.9.3</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"]+)"/g),
