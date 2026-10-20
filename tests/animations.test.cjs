@@ -15,6 +15,17 @@ function load(globals = {}) {
     return context;
 }
 
+test("card flights use the unrotated card size centred on a rotated card's bounds", () => {
+    const context = load();
+    context.card = {
+        offsetWidth: 80,
+        offsetHeight: 120,
+        getBoundingClientRect: () => ({ left: 100, top: 100, width: 100, height: 136 })
+    };
+    const bounds = vm.runInContext("GameLayout.unrotatedCardBounds(card)", context);
+    assert.deepEqual({ ...bounds }, { left: 110, top: 108, width: 80, height: 120 });
+});
+
 test("normal play animation restores the original movement, easing and card stagger", () => {
     const animations = [];
     const flights = [];

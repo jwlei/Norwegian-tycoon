@@ -629,7 +629,7 @@ class GameLayout {
             if (!target || typeof target.animate != "function") { return; }
             var targetImage = target.src ? target : target.querySelector("img");
             if (targetImage == null) { return; }
-            var targetBounds = target.getBoundingClientRect();
+            var targetBounds = GameLayout.unrotatedCardBounds(target);
             if (targetBounds.width == 0 || targetBounds.height == 0) { return; }
             if (!source || source.width == 0 || source.height == 0) {
                 source = {
@@ -696,6 +696,19 @@ class GameLayout {
             animation.oncancel = finishAnimation;
         });
         if (pendingAnimations == 0 && onComplete) { onComplete(); }
+    }
+    // getBoundingClientRect returns the enlarged axis-aligned box of a rotated card; flights rotate
+    // themselves, so they need the card's own layout size centred on that box.
+    static unrotatedCardBounds(element) {
+        var bounds = element.getBoundingClientRect();
+        var width = element.offsetWidth || bounds.width;
+        var height = element.offsetHeight || bounds.height;
+        return {
+            left: bounds.left + (bounds.width - width) / 2,
+            top: bounds.top + (bounds.height - height) / 2,
+            width: width,
+            height: height
+        };
     }
     static clearCardFlights() {
         document.querySelectorAll(".card-flight, .card-discard-flight").forEach(flight => {
@@ -774,7 +787,7 @@ class GameLayout {
             return;
         }
         table.querySelectorAll(".table-play__card").forEach((card, index) => {
-            var bounds = card.getBoundingClientRect();
+            var bounds = GameLayout.unrotatedCardBounds(card);
             if (bounds.width == 0 || bounds.height == 0) { return; }
             var rotation = parseFloat(card.style.getPropertyValue("--pile-rotation")) || 0;
             var flight = card.cloneNode(true);
