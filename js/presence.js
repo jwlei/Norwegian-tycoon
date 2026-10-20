@@ -113,9 +113,9 @@ class GamePresence {
 
     static isActionPaused(record, now = this.now()) {
         if (record.status == "S" && record.exchangeReady != null) { return true; }
-        if (record.status == "G") {
-            return record.shuffleStartedAt != null &&
-                now < Number(record.shuffleStartedAt) + SHUFFLE_DURATION_MS;
+        if ((record.status == "S" || record.status == "G") && record.shuffleStartedAt != null &&
+            now < Number(record.shuffleStartedAt) + SHUFFLE_DURATION_MS) {
+            return true;
         }
         var pause = record.turnPause;
         if (record.status == "S" && pause?.presentationVersion == 1) {

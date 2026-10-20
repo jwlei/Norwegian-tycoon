@@ -2048,7 +2048,7 @@ test("a gift requires the same owner on the first and fourth consecutive singles
     assert.equal(isGiftPackage(piles), false);
 });
 
-test("exchange rendering waits for the exact shuffle deadline", () => {
+test("first-round and exchange rendering wait for the exact shuffle deadline", () => {
     let now = 1000;
     const elements = new Map();
     const { GameLayout } = loadGame(null, {
@@ -2059,16 +2059,50 @@ test("exchange rendering waits for the exact shuffle deadline", () => {
         } }
     });
     const game = { status: "G", shuffleStartedAt: 1000 };
-    assert.equal(GameLayout.isShufflingExchange(game), true);
+    assert.equal(GameLayout.isShuffling(game), true);
     GameLayout.updateTable(game, null);
     assert.equal(elements.get("gameTable").cleared, true);
     now = 3999;
-    assert.equal(GameLayout.isShufflingExchange(game), true);
+    assert.equal(GameLayout.isShuffling(game), true);
     now = 4000;
-    assert.equal(GameLayout.isShufflingExchange(game), false);
+    assert.equal(GameLayout.isShuffling(game), false);
     game.status = "S";
     now = 1000;
-    assert.equal(GameLayout.isShufflingExchange(game), false);
+    assert.equal(GameLayout.isShuffling(game), true);
+    now = 4000;
+    assert.equal(GameLayout.isShuffling(game), false);
+});
+
+test("the hand stays unrendered until shuffle presentation finishes, including first rounds", () => {
+    let now = 1000;
+    let waitingClass = false;
+    const node = {
+        classList: { contains: name => name == "is-dealing-wait" && waitingClass },
+        hidden: false
+    };
+    const { GameLayout } = loadGame(null, {
+        Date: { now: () => now },
+        setClass() {},
+        document: { getElementById: () => node }
+    });
+    const hands = [];
+    GameLayout.updatePlayerButtons = () => {};
+    GameLayout.updateHand = (game, player) => hands.push([game, player]);
+    const player = { name: "Human", playerKey: "human-key" };
+    for (const status of ["S", "G"]) {
+        const game = { status, shuffleStartedAt: 1000, rules: {} };
+        now = 1000;
+        waitingClass = false;
+        GameLayout.updatePlayerView(game, player);
+        assert.deepEqual(hands.at(-1), [null, null]);
+        now = 4000;
+        waitingClass = true;
+        GameLayout.updatePlayerView(game, player);
+        assert.deepEqual(hands.at(-1), [null, null], "Deadline snapshots cannot reveal the hand before the deal ticker");
+        waitingClass = false;
+        GameLayout.updatePlayerView(game, player);
+        assert.deepEqual(hands.at(-1), [game, player]);
+    }
 });
 
 test("the initial splash preserves the turn hint for the first empty-table turn", () => {

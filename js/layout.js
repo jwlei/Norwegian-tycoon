@@ -32,8 +32,8 @@ class GameLayout {
         if (stored == "flick" || stored == "button") { return stored; }
         return "flick";
     }
-    static isShufflingExchange(game) {
-        return game != null && game.status == "G" && game.shuffleStartedAt != null &&
+    static isShuffling(game) {
+        return game != null && (game.status == "G" || game.status == "S") && game.shuffleStartedAt != null &&
             Date.now() < game.shuffleStartedAt + SHUFFLE_DURATION_MS;
     }
     static fitName(name) {
@@ -1026,7 +1026,7 @@ class GameLayout {
         if (this.turnTimerElement == null) {
             this.turnTimerElement = document.getElementById("turnTimer");
         }
-        if (this.isShufflingExchange(game)) {
+        if (this.isShuffling(game)) {
             table.className = "table-explanation";
             this.clearTableContent(table);
             this.keepTurnTimer(table);
@@ -1755,7 +1755,8 @@ class GameLayout {
     static updatePlayerView(game, player) {
         setClass(document.getElementById("gameShell"), "spectator-mode", (player == null));
         setClass(document.getElementById("gameShell"), "cards-only-mode", (game != null && game.rules.showCardsOnly && player != null));
-        var waitingForShuffle = this.isShufflingExchange(game);
+        var waitingForShuffle = this.isShuffling(game) ||
+            (game != null && document.getElementById("playerHand").classList.contains("is-dealing-wait"));
         this.updatePlayerButtons(waitingForShuffle ? null : game, waitingForShuffle ? null : player);
         this.updateHand(waitingForShuffle ? null : game, waitingForShuffle ? null : player, null, true);
         var blocked = game != null && player != null &&
@@ -1895,6 +1896,7 @@ class GameLayout {
         }
         element._handSignature = null;
         element._rebindHand = null;
+        element.classList.remove("is-dealing-in");
         clearCardDragPreview(element);
         if (element.onpointercancel) { element.onpointercancel(); }
         var previousScrollLeft = element.scrollLeft;
@@ -1961,6 +1963,10 @@ class GameLayout {
         var recordFlickMovement = function (drag, pointerX, pointerY, moveTime) {
             var deltaX = pointerX - drag.lastPointerX;
             var deltaY = pointerY - drag.lastPointerY;
+            if (deltaX == 0 && deltaY == 0 &&
+                moveTime - drag.lastPointerMoveTime > 80) {
+                drag.flickSamples = [];
+            }
             if (deltaX != 0 || deltaY != 0) {
                 var elapsed = Math.max(1, moveTime - drag.lastPointerMoveTime);
                 drag.velocityX = drag.velocityX * 0.35 + deltaX / elapsed * 0.65;
@@ -2061,6 +2067,7 @@ class GameLayout {
                 lastMoveTime: performance.now(),
                 startScrollLeft: element.scrollLeft,
                 scrollVelocity: 0,
+                scrollSamples: [{ x: element.scrollLeft, time: performance.now() }],
                 axis: null,
                 cardElement: cardElement,
                 card: card,
@@ -2100,23 +2107,11 @@ class GameLayout {
             var dragOffsetY = event.clientY - handScrollDrag.startY;
             if (handScrollDrag.axis == null &&
                 Math.max(Math.abs(dragOffsetX), Math.abs(dragOffsetY)) >= 8) {
-                var horizontalScrollDistance = 12;
-                var isUpwardIntent = isUpwardFlick(dragOffsetX, -dragOffsetY, 150);
-                var isHorizontalIntent = Math.abs(dragOffsetY) <=
-                    Math.abs(dragOffsetX) * Math.tan(Math.PI / 12);
-                var isVerticalIntent = Math.abs(dragOffsetY) >=
-                    Math.max(8, Math.abs(dragOffsetX) * 1.1);
                 if (handScrollDrag.pointerType == "mouse" && handScrollDrag.card != null &&
                     handScrollDrag.canDragToPlay) {
                     handScrollDrag.axis = "vertical";
-                } else if (isUpwardIntent) {
-                    handScrollDrag.axis = "vertical";
-                } else if (isHorizontalIntent) {
-                    if (Math.abs(dragOffsetX) >= horizontalScrollDistance) {
-                        handScrollDrag.axis = "horizontal";
-                    }
-                } else if (isVerticalIntent) {
-                    handScrollDrag.axis = "vertical";
+                } else {
+                    handScrollDrag.axis = cardTouchDragAxis(dragOffsetX, dragOffsetY);
                 }
                 handScrollDrag.didMove = true;
             }
@@ -2126,16 +2121,29 @@ class GameLayout {
                 event.preventDefault();
                 element.classList.add("is-hand-dragging");
                 var moveTime = performance.now();
-                var elapsed = moveTime - handScrollDrag.lastMoveTime;
-                if (elapsed > 0) {
-                    var velocity = -(event.clientX - handScrollDrag.lastX) / elapsed;
-                    velocity = Math.max(-2.4, Math.min(2.4, velocity));
-                    handScrollDrag.scrollVelocity =
-                        handScrollDrag.scrollVelocity * 0.15 + velocity * 0.85;
+                var previousScroll = element.scrollLeft;
+                var maxScroll = Math.max(0, element.scrollWidth - element.clientWidth);
+                element.scrollLeft = Math.max(0, Math.min(maxScroll,
+                    previousScroll - (event.clientX - handScrollDrag.lastX)));
+                if (element.scrollLeft != previousScroll) {
+                    var samples = handScrollDrag.scrollSamples;
+                    samples.push({ x: element.scrollLeft, time: moveTime });
+                    var cutoff = moveTime - 80;
+                    while (samples.length > 2 && samples[1].time <= cutoff) { samples.shift(); }
+                    var first = samples[0];
+                    var next = samples[1];
+                    var startTime = Math.max(first.time, cutoff);
+                    var fraction = next.time > first.time
+                        ? Math.max(0, Math.min(1, (startTime - first.time) / (next.time - first.time))) : 0;
+                    var startX = first.x + (next.x - first.x) * fraction;
+                    handScrollDrag.scrollVelocity = Math.max(-2.4, Math.min(2.4,
+                        (element.scrollLeft - startX) / Math.max(1, moveTime - startTime)));
+                    handScrollDrag.lastMoveTime = moveTime;
+                } else if (event.clientX != handScrollDrag.lastX) {
+                    handScrollDrag.scrollVelocity = 0;
+                    handScrollDrag.scrollSamples = [{ x: element.scrollLeft, time: moveTime }];
                 }
                 handScrollDrag.lastX = event.clientX;
-                handScrollDrag.lastMoveTime = moveTime;
-                element.scrollLeft = handScrollDrag.startScrollLeft - dragOffsetX;
                 if (handScrollDrag.cardElement) {
                     resetCardTilt(handScrollDrag.cardElement);
                 }
@@ -2785,9 +2793,10 @@ class GameLayout {
     }
     static scrollHandCardsIntoView(element, ownerKey, cardKeys, turnKey) {
         stopCardHandInertia();
+        var scrollVersion = cardHandScrollVersion;
         window.requestAnimationFrame(function () {
             window.requestAnimationFrame(function () {
-                if (selectedCardOwner != ownerKey ||
+                if (scrollVersion != cardHandScrollVersion || selectedCardOwner != ownerKey ||
                     autoSelectedTurnKey != turnKey ||
                     autoScrollEmptyTurnKey != turnKey) {
                     return;
@@ -2822,9 +2831,10 @@ class GameLayout {
     }
     static centerHandSelection(element, ownerKey, cardKeys, turnKey = null) {
         stopCardHandInertia();
+        var scrollVersion = cardHandScrollVersion;
         window.requestAnimationFrame(function () {
             window.requestAnimationFrame(function () {
-                if (selectedCardOwner != ownerKey ||
+                if (scrollVersion != cardHandScrollVersion || selectedCardOwner != ownerKey ||
                     (turnKey != null && autoSelectedTurnKey != turnKey)) {
                     return;
                 }

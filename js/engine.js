@@ -1778,6 +1778,8 @@ class PresidentGame extends Game {
         return this.piles[this.piles.length - 1];
     }
     isTurnPaused() {
+        if ((this.status == "S" || this.status == "G") && this.shuffleStartedAt != null &&
+            GamePresence.now() < Number(this.shuffleStartedAt) + SHUFFLE_DURATION_MS) { return true; }
         if (this.status == "S" && this.exchangeReady != null) { return true; }
         if (this.turnPause?.presentationVersion == 1) {
             var next = this.players[this.turn];

@@ -725,13 +725,16 @@ test("slow drops play only on the board and flicks require 10 pixels at 0.4 pixe
 function pointerFixture({ desktop = false, valid = true, mode = "flick", blocked = false } = {}) {
     const f = fixture();
     const hand = new Element();
+    hand.scrollLeft = 200;
+    hand.scrollWidth = 1200;
+    hand.clientWidth = 400;
     const card = new Element();
     card.className = "game-card";
     card.dataset = { cardKey: "1:5", cardStyle: "normal", foil: "none" };
     hand.appendChild(card);
     const player = new f.types.PresidentPlayer("Owner", "owner");
     player.cards.push(new f.types.PresidentCard(1, 5));
-    const state = { plays: 0, warnings: 0, scrolls: 0 };
+    const state = { plays: 0, warnings: 0, scrolls: 0, releaseVelocity: 0 };
     const context = f.context;
     context.element = hand;
     context.player = player;
@@ -745,7 +748,10 @@ function pointerFixture({ desktop = false, valid = true, mode = "flick", blocked
     };
     context.playSelectedCards = () => { state.plays++; return true; };
     context.showInvalidCardWarning = () => state.warnings++;
-    context.startCardHandInertia = () => state.scrolls++;
+    context.startCardHandInertia = (element, velocity) => {
+        state.scrolls++;
+        state.releaseVelocity = velocity;
+    };
     context.clearDragStyles = () => {};
     const layout = source("layout.js");
     const start = layout.indexOf("        var handScrollDrag = null;");
@@ -769,6 +775,20 @@ test("the hand cancels native dragstart before it can interrupt pointer gestures
     let prevented = false;
     hand.ondragstart({ preventDefault() { prevented = true; } });
     assert.equal(prevented, true);
+});
+
+test("unchanged snapshots preserve the initial deal but a real hand rebuild never restarts it", () => {
+    const f = fixture();
+    const hand = new Element();
+    f.nodes.set("playerHand", hand);
+    hand.classList.add("is-dealing-in");
+    hand._handSignature = "same";
+    hand._rebindHand = () => {};
+    f.types.GameLayout.handSignature = () => "same";
+    f.types.GameLayout.updateHand({}, {}, null, true);
+    assert.equal(hand.classList.contains("is-dealing-in"), true);
+    f.types.GameLayout.updateHand(null, null);
+    assert.equal(hand.classList.contains("is-dealing-in"), false);
 });
 
 test("mouse pickup is immediate, touch waits for direction, and taps or cancellation restore selection", () => {
@@ -838,9 +858,9 @@ test("short flicks work throughout the upward 160 degree cone on mouse and touch
     }
 });
 
-test("touch pickup accepts the full initial 150-degree cone from the contact point", () => {
+test("touch pickup accepts the full initial 145-degree cone from the contact point", () => {
     for (const selected of [false, true]) {
-        for (const angle of [-75, -74, -60, -45, 0, 45, 60, 74, 75]) {
+        for (const angle of [-72.5, -72, -60, -45, 0, 45, 60, 72, 72.5]) {
             const f = pointerFixture();
             if (selected) { vm.runInContext('selectedCardKeys.add("1:5")', f.context); }
             const radians = angle * Math.PI / 180;
@@ -858,9 +878,23 @@ test("touch pickup accepts the full initial 150-degree cone from the contact poi
     }
 });
 
+test("touch strokes in the narrow gap between pickup and horizontal scrolling remain undecided", () => {
+    for (const angle of [-74.5, -73, 73, 74.5]) {
+        const f = pointerFixture();
+        const radians = angle * Math.PI / 180;
+        f.hand.onpointerdown(f.event(200, 500));
+        f.advance(1030);
+        f.hand.onpointermove(f.event(200 + Math.sin(radians) * 30, 500 - Math.cos(radians) * 30));
+        assert.equal(f.body.children.length, 0);
+        assert.equal(f.hand.classList.contains("is-hand-dragging"), false);
+        f.hand.onpointerup(f.event(200 + Math.sin(radians) * 30, 500 - Math.cos(radians) * 30));
+        assert.equal(f.state.plays, 0);
+        assert.equal(f.state.scrolls, 0);
+    }
+});
 test("touch strokes outside the pickup cone scroll near horizontal in either direction", () => {
     for (const selected of [false, true]) {
-        for (const angle of [-104, -90, -80, -76, 76, 80, 90, 104]) {
+        for (const angle of [-105, -104, -90, -80, -75, 75, 80, 90, 104, 105]) {
             const f = pointerFixture();
             if (selected) { vm.runInContext('selectedCardKeys.add("1:5")', f.context); }
             const radians = angle * Math.PI / 180;
@@ -1011,6 +1045,107 @@ test("a scrolling stroke cannot turn into an accidental play when the finger mov
     }
 });
 
+test("fast scrolling momentum keeps its direction despite a tiny release recoil", () => {
+    for (const direction of [-1, 1]) {
+        const f = pointerFixture();
+        f.hand.onpointerdown(f.event(200, 500));
+        for (const [time, distance] of [[1016, 30], [1032, 70], [1048, 120], [1049, 119]]) {
+            f.advance(time);
+            f.hand.onpointermove(f.event(200 + distance * direction, 500));
+        }
+        f.hand.onpointerup(f.event(200 + 119 * direction, 500));
+        assert.equal(Math.sign(f.state.releaseVelocity), -direction);
+        assert.ok(Math.abs(f.state.releaseVelocity) > 1);
+        assert.equal(f.state.plays, 0);
+    }
+});
+
+test("intentional scroll reversals follow the recent stroke instead of the original direction", () => {
+    const f = pointerFixture();
+    f.hand.onpointerdown(f.event(200, 500));
+    for (const [time, x] of [[1020, 160], [1040, 120], [1080, 150], [1120, 190], [1140, 220]]) {
+        f.advance(time);
+        f.hand.onpointermove(f.event(x, 500));
+    }
+    f.hand.onpointerup(f.event(220, 500));
+    assert.ok(f.state.releaseVelocity < 0);
+    assert.equal(f.state.plays, 0);
+});
+
+test("dragging back from a scroll boundary responds immediately without an overscroll dead zone", () => {
+    const f = pointerFixture();
+    f.hand.scrollLeft = 10;
+    f.hand.onpointerdown(f.event(200, 500));
+    f.advance(1020);
+    f.hand.onpointermove(f.event(250, 500));
+    assert.equal(f.hand.scrollLeft, 0);
+    f.advance(1040);
+    f.hand.onpointermove(f.event(270, 500));
+    assert.equal(f.hand.scrollLeft, 0);
+    f.advance(1060);
+    f.hand.onpointermove(f.event(260, 500));
+    assert.equal(f.hand.scrollLeft, 10);
+    f.hand.onpointerup(f.event(260, 500));
+    assert.ok(f.state.releaseVelocity > 0);
+});
+
+test("holding after scrolling decays momentum instead of keeping the fast swipe speed", () => {
+    const f = pointerFixture();
+    f.hand.onpointerdown(f.event(200, 500));
+    f.advance(1020);
+    f.hand.onpointermove(f.event(150, 500));
+    f.advance(1700);
+    f.hand.onpointermove(f.event(150, 500));
+    f.hand.onpointerup(f.event(150, 500));
+    assert.ok(Math.abs(f.state.releaseVelocity) < 0.04);
+});
+
+test("touching the hand cancels queued auto-centering before it can fight a manual swipe", () => {
+    for (const method of ["centerHandSelection", "scrollHandCardsIntoView"]) {
+        for (const cancel of [false, true]) {
+            const f = fixture();
+            const hand = new Element();
+            hand.scrollLeft = 100;
+            hand.scrollWidth = 1200;
+            hand.clientWidth = 400;
+            const card = new Element();
+            card.dataset.cardKey = "1:5";
+            card.bounds = { left: -40, right: 40, top: 0, bottom: 120, width: 80, height: 120 };
+            hand.querySelectorAll = () => [card];
+            let animations = 0;
+            f.context.window.requestAnimationFrame = f.context.requestAnimationFrame;
+            f.context.animateHandScroll = () => animations++;
+            vm.runInContext(`selectedCardOwner = "room:owner";
+                autoSelectedTurnKey = "turn"; autoScrollEmptyTurnKey = "turn";`, f.context);
+            f.types.GameLayout[method](hand, "room:owner", ["1:5"], "turn");
+            f.runFrame(1000);
+            if (cancel) { f.context.stopCardHandInertia(); }
+            f.runFrame(1016);
+            assert.equal(animations, cancel ? 0 : 1, `${method}/${cancel}`);
+        }
+    }
+});
+
+test("scroll inertia advances monotonically and stops at the hand boundary without bouncing", () => {
+    for (const direction of [-1, 1]) {
+        const f = fixture();
+        const hand = new Element();
+        hand.scrollLeft = 200;
+        hand.scrollWidth = 800;
+        hand.clientWidth = 400;
+        f.context.startCardHandInertia(hand, direction * 2);
+        let previous = hand.scrollLeft;
+        for (let time = 1000; time < 2500; time += 16) {
+            f.runFrame(time);
+            assert.ok((hand.scrollLeft - previous) * direction >= 0);
+            assert.ok(hand.scrollLeft >= 0 && hand.scrollLeft <= 400);
+            previous = hand.scrollLeft;
+        }
+        assert.equal(hand.scrollLeft, direction > 0 ? 400 : 0);
+        assert.equal(f.pendingFrames, 0);
+    }
+});
+
 test("mouse sideways pickup still drags cards instead of scrolling the hand", () => {
     const f = pointerFixture({ desktop: true });
     f.hand.onpointerdown(f.event(100, 500));
@@ -1074,6 +1209,31 @@ test("a held card uses its recent upward acceleration rather than the whole slow
     }
 });
 
+test("a card can be held for many seconds before finishing with an upward flick", () => {
+    const f = pointerFixture();
+    f.hand.onpointerdown(f.event(200, 500));
+    f.advance(1100);
+    f.hand.onpointermove(f.event(200, 480));
+    f.advance(10000);
+    f.hand.onpointermove(f.event(200, 480));
+    f.advance(10020);
+    f.hand.onpointermove(f.event(200, 468));
+    f.hand.onpointerup(f.event(200, 468));
+    assert.equal(f.state.plays, 1);
+});
+
+test("resuming movement after a long hold needs no new pickup or drag deadline reset", () => {
+    const f = pointerFixture();
+    f.hand.onpointerdown(f.event(200, 500));
+    f.advance(1100);
+    f.hand.onpointermove(f.event(200, 480));
+    f.advance(10000);
+    f.hand.onpointermove(f.event(200, 470));
+    f.advance(10020);
+    f.hand.onpointermove(f.event(200, 458));
+    f.hand.onpointerup(f.event(200, 458));
+    assert.equal(f.state.plays, 1);
+});
 test("recent flick detection is consistent across pointer sampling rates at the new speed threshold", () => {
     for (const interval of [4, 8, 16, 32]) {
         for (const speed of [0.3, 0.45, 0.75]) {

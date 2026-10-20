@@ -115,6 +115,15 @@ test("the human turn clock waits for animation readiness, with a ten-second fall
     const ready = Object.assign({}, record, {
         turnPause: Object.assign({}, record.turnPause, { until: start + 800, readyAt: start + 800 })
     });
+
+    test("the first round waits for shuffling before starting the human turn clock", () => {
+        const record = room();
+        record.shuffleStartedAt = start;
+        const player = record.spillere[0];
+        assert.equal(Presence.actionToken(record, player, 0, start + 3499), null);
+        const next = Presence.reconcile(record, start + 3500);
+        assert.equal(next.actionDeadlines[Presence.playerId(player)].until, start + 3500 + Presence.actionMs);
+    });
     const next = Presence.reconcile(ready, start + 800);
     assert.equal(next.actionDeadlines[Presence.playerId(record.spillere[0])].until,
         start + 800 + Presence.actionMs);
@@ -427,6 +436,9 @@ test("one extension per round survives turns, pauses, exchange stages, reconnect
     assert.equal(fixture.messages.length, 2);
     fixture.stored = Presence.reconcile({ ...fixture.stored, status: "S", spillBunke: [],
         runde: 2, shuffleStartedAt: start + 5000 }, start + 5000);
+    assert.equal(fixture.stored.actionDeadlines[id], undefined, "A new first-round shuffle has no turn deadline yet");
+    fixture.now = start + 8500;
+    fixture.stored = Presence.reconcile(fixture.stored, start + 8500);
     assert.equal(fixture.stored.actionDeadlines[id].extended, false);
     await fixture.client.changeControl();
     assert.equal(fixture.stored.actionDeadlines[id].extended, true);

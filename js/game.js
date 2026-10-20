@@ -23,6 +23,7 @@ function markReceivedCards(owner, cards) {
     }, 8000);
 }
 var cardHandInertiaFrame = null;
+var cardHandScrollVersion = 0;
 var invalidCardAttemptRound = null;
 var invalidCardAttemptCount = 0;
 var invalidCardWarningShown = false;
@@ -445,11 +446,22 @@ function isUpwardFlick(x, y, coneDegrees = 160) {
         Math.tan((180 - coneDegrees) * Math.PI / 360);
 }
 
+const CARD_TOUCH_PICKUP_CONE = 145;
 const CARD_FLICK_MIN_DISTANCE = 10;
 const CARD_FLICK_MIN_VELOCITY = 0.4;
 
+function cardTouchDragAxis(x, y) {
+    if (Math.max(Math.abs(x), Math.abs(y)) < 8) { return null; }
+    if (isUpwardFlick(x, -y, CARD_TOUCH_PICKUP_CONE)) { return "vertical"; }
+    if (Math.abs(y) <= Math.abs(x) * Math.tan(Math.PI / 12) + 1e-6) {
+        return Math.abs(x) >= 12 ? "horizontal" : null;
+    }
+    return Math.abs(y) >= Math.max(8, Math.abs(x) * 1.1) ? "vertical" : null;
+}
+
 function shouldPlayCardDrag(drag, event) {
-    if (!drag.canDragToPlay || drag.axis == "horizontal") { return false; }
+    if (!drag.canDragToPlay || drag.axis == "horizontal" ||
+        (drag.axis == null && drag.pointerType != "mouse")) { return false; }
     if (drag.didPlayDrag && isCardDropOnTable(event)) { return true; }
     var flickX = drag.lastFlickX || 0;
     var flickY = drag.lastFlickY ?? drag.lastFlickDistance;
@@ -501,6 +513,7 @@ function returnCardDragPreview(hand) {
 }
 
 function stopCardHandInertia() {
+    cardHandScrollVersion++;
     if (cardHandInertiaFrame != null) {
         cancelAnimationFrame(cardHandInertiaFrame);
         cardHandInertiaFrame = null;
