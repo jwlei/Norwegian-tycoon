@@ -2567,7 +2567,7 @@ select:focus-visible {
     }
 
     .leaderboard-table td:first-child {
-        max-width: clamp(44px, 14vw, 68px);
+        max-width: clamp(64px, 22vw, 112px);
     }
 
     .leaderboard-table th button {
@@ -2678,15 +2678,26 @@ select:focus-visible {
 .table-card-pile {
     --table-card-height: clamp(96px, 25vh, 190px);
     --table-card-width: calc(var(--table-card-height) * 2 / 3);
-    --pile-fan-step: min(max(34px, min(60px, calc(var(--table-card-width) * 0.42))),
-        max(0px, calc((var(--board-width, 100vw) - var(--table-card-width) - var(--pile-depth, 0px) - 160px) / max(1, var(--pile-fan-count, 0)))));
+    --pile-edge-space: max(128px, calc(var(--table-card-height) * 0.75));
+    --landing-limit-x: 110px;
+    --landing-limit-y: 90px;
+    --pile-fan-step: min(max(30px, min(48px, calc(var(--table-card-width) * 0.38))),
+        max(0px, calc((var(--board-width, 100vw) - var(--table-card-width) - var(--pile-depth, 0px) - var(--pile-edge-space)) / max(1, var(--pile-fan-count, 0)))));
     --pile-fan-width: calc(var(--pile-fan-count, 0) * var(--pile-fan-step));
-    --landing-space-x: max(0px, calc((var(--board-width, 0px) - var(--table-card-width) - var(--pile-fan-width) - var(--pile-depth) - 160px) / 2));
-    --landing-space-y: max(0px, calc((var(--board-height, 0px) - var(--table-card-height) - var(--pile-depth) - 140px) / 2));
+    --landing-space-x: clamp(0px, calc((var(--board-width, 0px) - var(--table-card-width) - var(--pile-fan-width) - var(--pile-depth) - var(--pile-edge-space)) / 2), var(--landing-limit-x));
+    --landing-space-y: clamp(0px, calc((var(--board-height, 0px) - var(--table-card-height) - var(--pile-depth) - 120px) / 2), var(--landing-limit-y));
     position: relative;
     flex: 0 0 auto;
     width: calc(var(--table-card-width) + var(--pile-fan-width) + var(--pile-depth) + 10px);
     height: calc(var(--table-card-height) + var(--pile-depth) + 10px);
+}
+
+@media (max-width: 600px) {
+    .table-card-pile {
+        --pile-edge-space: max(112px, calc(var(--table-card-height) * 0.75));
+        --landing-limit-x: 140px;
+        --landing-limit-y: 160px;
+    }
 }
 
 .table-pile-summary {
@@ -2757,6 +2768,32 @@ select:focus-visible {
     max-width: none;
     border-radius: inherit;
     object-fit: fill;
+}
+
+.table-play__beat-outline {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 2px var(--success);
+    opacity: 0;
+    pointer-events: none;
+}
+
+#gameTable:has(> .table-pile-summary--required:not([hidden])):not(:has(#gameToastRegion:not([hidden]) > .game-toast.is-visible)) .table-play__beat-outline {
+    animation: required-pile-pulse 3s ease-in-out infinite;
+    animation-delay: 6s;
+}
+
+@keyframes required-pile-pulse {
+    0%, 33.333%, 100% { opacity: 0; }
+    16.667% { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #gameTable .table-play__beat-outline {
+        animation: none !important;
+    }
 }
 
 .table-card-pile__count {

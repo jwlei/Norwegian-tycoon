@@ -242,14 +242,15 @@ test("leaderboard uses a centered title and no visible hint text", () => {
     const headers = [...dialog.matchAll(/data-leaderboard-sort="([^"]+)"[^>]*>([^<]+)<\/button>/g)]
         .map(match => [match[1], match[2]]);
     assert.deepEqual(headers, [
-        ["name", "Spiller"], ["roundsPlayed", "Runder"], ["presidentWins", "👑"],
-        ["bomsCount", "🗑️"], ["placementScore", "Snittscore"],
+        ["name", "Spiller"], ["roundsPlayed", "↻"], ["presidentWins", "👑"],
+        ["bomsCount", "🗑️"], ["placementScore", "Score"],
         ["longestPresidentStreak", "🔥👑"], ["longestBomsStreak", "🔥🗑️"]
     ]);
     const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
     assert.match(translations, /"Spiller": "Player"/);
-    assert.match(translations, /"Runder": "Rounds"/);
-    assert.match(translations, /"Snittscore": "Avg\. score"/);
+    assert.match(translations, /"Antall runder spilt": "Rounds played"/);
+    assert.match(dialog, /data-leaderboard-sort="roundsPlayed" title="Antall runder spilt" aria-label="Antall runder spilt">↻/);
+    assert.match(translations, /"Score": "Score"/);
     assert.match(dialog, /role="status" aria-live="polite"/);
 });
 
@@ -259,5 +260,12 @@ test("leaderboard has smaller text and compact mobile cells without shrinking so
     const mobile = css.slice(css.indexOf("@media (max-width: 480px)", css.indexOf(".leaderboard-table {")));
     assert.match(mobile, /\.leaderboard-table\s*\{[^}]*font-size:\s*0\.75rem;/);
     assert.match(mobile, /\.leaderboard-table th button\s*\{[^}]*font-size:\s*0\.6875rem;/);
-    assert.match(mobile, /max-width:\s*clamp\(44px, 14vw, 68px\);/);
+    assert.match(mobile, /max-width:\s*clamp\(64px, 22vw, 112px\);/);
+});
+
+test("required cards pulse for one second then rest for two, without competing with foil", () => {
+    assert.match(css, /\.table-play__beat-outline\s*\{[^}]*box-shadow:\s*inset 0 0 0 2px var\(--success\);[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;/);
+    assert.match(css, /:has\(> \.table-pile-summary--required:not\(\[hidden\]\)\):not\(:has\(#gameToastRegion:not\(\[hidden\]\) > \.game-toast\.is-visible\)\) \.table-play__beat-outline\s*\{[^}]*animation:\s*required-pile-pulse 3s ease-in-out infinite;/);
+    assert.match(css, /@keyframes required-pile-pulse\s*\{\s*0%, 33\.333%, 100% \{ opacity: 0; \}\s*16\.667% \{ opacity: 0\.55; \}/);
+    assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*#gameTable \.table-play__beat-outline\s*\{\s*animation:\s*none !important;/);
 });

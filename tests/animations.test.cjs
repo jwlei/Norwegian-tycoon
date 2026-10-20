@@ -151,7 +151,7 @@ test("throw metadata survives both pile deserializers and clamps finite motion v
     assert.equal(vm.runInContext('new CardPile("").fromRecord({nick:"Legacy",verdiBoms:7}).motion', context), undefined);
 });
 
-test("hard throws spread cards further and every client computes the same landing jitter", () => {
+test("hard throws spread cards further and clients in the same board-size class share landing jitter", () => {
     const context = load();
     const result = vm.runInContext(`
         var game = {shuffleStartedAt:123,players:[{name:"Owner"},{name:"Other"}]};
@@ -164,11 +164,36 @@ test("hard throws spread cards further and every client computes the same landin
         var repeated = remote.map((card,index)=>GameLayout.pileCardJitter(game,remote,card,index,index));
         ({gentle,hard,repeated});
     `, context);
-    assert.equal(result.hard[0].x, result.gentle[0].x - 18);
-    assert.equal(result.hard[3].x, result.gentle[3].x + 18);
-    assert.equal(result.hard[0].angle, Math.round((result.gentle[0].angle - 9) * 10) / 10);
-    assert.equal(result.hard[3].angle, Math.round((result.gentle[3].angle + 9) * 10) / 10);
+    assert.equal(result.hard[0].x, result.gentle[0].x - 12);
+    assert.equal(result.hard[3].x, result.gentle[3].x + 12);
+    assert.equal(result.hard[0].angle, Math.max(-30, Math.round((result.gentle[0].angle - 6) * 10) / 10));
+    assert.equal(result.hard[3].angle, Math.min(30, Math.round((result.gentle[3].angle + 6) * 10) / 10));
     assert.deepEqual(JSON.parse(JSON.stringify(result.hard)), JSON.parse(JSON.stringify(result.repeated)));
+});
+
+test("small boards allow more directional inertia while large-board rotation stays bounded", () => {
+    const context = load();
+    const result = vm.runInContext(`
+        var game = {shuffleStartedAt:123,players:[{name:"Owner"}]};
+        var pile = new CardPile("Owner", new PresidentCard(1,7));
+        var rotations = [-20, 0, 20].map(spin => {
+            pile.motion = {x:0,y:0,power:1,spin,pitch:0,yaw:0};
+            return {
+                desktop: GameLayout.pileCardJitter(game,pile,pile[0],0,0,false),
+                mobile: GameLayout.pileCardJitter(game,pile,pile[0],0,0,true)
+            };
+        });
+        rotations;
+    `, context);
+    assert.ok(result[0].mobile.angle < result[0].desktop.angle);
+    assert.ok(result[2].mobile.angle > result[2].desktop.angle);
+    assert.equal(result[1].mobile.angle, result[1].desktop.angle);
+    for (const { mobile, desktop } of result) {
+        assert.ok(Math.abs(desktop.angle) <= 30);
+        assert.ok(Math.abs(mobile.angle) <= 40);
+        assert.equal(mobile.x, desktop.x);
+        assert.equal(mobile.y, desktop.y);
+    }
 });
 
 test("played flights retain source tilt, scale and foil position and settle level before cleanup", () => {

@@ -437,7 +437,7 @@ function isCardDropOnTable(event) {
 }
 
 function isUpwardFlick(x, y) {
-    return y > 0 && y + 1e-6 >= Math.abs(x) * Math.tan(Math.PI / 9);
+    return y > 0 && y + 1e-6 >= Math.abs(x) * Math.tan(Math.PI / 18);
 }
 
 function shouldPlayCardDrag(drag, event) {

@@ -200,6 +200,46 @@ test("opponents default to normal cards without local foil unless own style appl
     assert.equal(types.GameLayout.foilForPlayer(game, "Opponent"), "radiant");
 });
 
+test("required top cards retain their pulse clock across redraws and restart after guidance becomes visible", () => {
+    const f = fixture();
+    const { GameLayout, PresidentCard, PresidentPlayer } = f.types;
+    const player = new PresidentPlayer("Owner", "owner");
+    player.turn = 1;
+    const top = vm.runInContext('new CardPile("Other", new PresidentCard(1,7), new PresidentCard(2,7))', f.context);
+    const older = vm.runInContext('new CardPile("Other", new PresidentCard(1,6))', f.context);
+    const game = { id: "pulse", round: 1, status: "S", players: [player],
+        piles: [older, top], isTurnPaused: () => false, topPile: () => top };
+    GameLayout.updateTable(game, player);
+    const table = f.nodes.get("gameTable");
+    const summary = table._pileSummary;
+    const outlines = table.querySelectorAll(".table-play__beat-outline");
+    assert.equal(outlines.length, 2, "Only the top pair gets an outline");
+    const animation = { currentTime: 1000 };
+    outlines[0].getAnimations = () => [animation];
+    assert.equal(table.querySelectorAll(".table-play")[0].dataset.topPlay, "false");
+    assert.equal(table.querySelectorAll(".table-play")[1].dataset.topPlay, "true");
+    f.now = 2000;
+    summary.onanimationstart({ animationName: "table-guidance-fade-in" });
+    assert.equal(table._beatPulseStartsAt, 7000, "Wait exactly 5 seconds after guidance appears");
+    assert.equal(animation.currentTime, 0, "Reanchor the delay when guidance appears, not at card creation");
+    f.now = 4000;
+    GameLayout.updateTable(game, player);
+    assert.equal(table._pileSummary, summary, "Guidance must not be detached or recreated on snapshots");
+    assert.equal(table._beatPulseStartsAt, 7000);
+    assert.equal(table.querySelector(".table-play__beat-outline").style.animationDelay, "3000ms");
+    f.now = 8000;
+    GameLayout.updateTable(game, player);
+    assert.equal(table.querySelector(".table-play__beat-outline").style.animationDelay, "-1000ms");
+    summary.onanimationstart({ animationName: "table-guidance-fade-in" });
+    assert.equal(table._beatPulseStartsAt, 13000, "Restart the wait when a toast gives way to guidance");
+    player.turn = 0;
+    GameLayout.updateTable(game, player);
+    assert.equal(summary.classList.contains("table-pile-summary--required"), false);
+    game.status = "O";
+    GameLayout.clearTableContent(table);
+    assert.equal(summary.hidden, true);
+});
+
 test("the foil selector persists independently, updates previews and never registers card-style actions", () => {
     const { context, preferences, nodes } = fixture();
     const dialogs = [];
@@ -773,9 +813,9 @@ test("slow long drags outside the board never play, but fresh upward flicks do o
     }
 });
 
-test("short flicks work throughout the upward 140 degree cone on mouse and touch", () => {
+test("short flicks work throughout the upward 160 degree cone on mouse and touch", () => {
     for (const desktop of [false, true]) {
-        for (const angle of [-70, -60, -45, 0, 45, 60, 70]) {
+        for (const angle of [-80, -75, -70, -60, -45, 0, 45, 60, 70, 75, 80]) {
             const f = pointerFixture({ desktop });
             const radians = angle * Math.PI / 180;
             const x = 100 + Math.sin(radians) * 13;
@@ -793,7 +833,7 @@ test("short flicks work throughout the upward 140 degree cone on mouse and touch
 test("flicks outside the cone, too short, too slow, held or in button mode never play off-board", () => {
     for (const desktop of [false, true]) {
         for (const [angle, distance, duration, mode, hold] of [
-            [-71, 40, 30, "flick", 0], [71, 40, 30, "flick", 0],
+            [-81, 40, 30, "flick", 0], [81, 40, 30, "flick", 0],
             [-90, 40, 30, "flick", 0], [90, 40, 30, "flick", 0],
             [180, 40, 30, "flick", 0], [0, 11, 16, "flick", 0],
             [60, 30, 200, "flick", 0], [60, 30, 20, "flick", 150],

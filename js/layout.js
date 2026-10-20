@@ -882,9 +882,9 @@ class GameLayout {
         });
         completeIfReady();
     }
-    // Deterministic, so every client draws the same pile; the player's seat biases the tilt.
+    // Deterministic within each board-size class; the player's seat biases the tilt.
     // All cards in one play share the tilt and fan out evenly, so the play stays readable as a pair, triple, etc.
-    static pileCardJitter(game, pile, card, stackIndex, cardIndex = 0) {
+    static pileCardJitter(game, pile, card, stackIndex, cardIndex = 0, smallScreen = false) {
         var seed = 2166136261;
         var first = pile[0];
         var text = `${game.shuffleStartedAt || ""}:${pile.name}:${first.suit}:${first.rank}:${stackIndex - cardIndex}`;
@@ -900,13 +900,15 @@ class GameLayout {
             ? 0
             : ((seat / (seatCount - 1)) - 0.5) * 24;
         var power = pile.motion ? pile.motion.power : 0;
-        var spread = 7 + power * 6;
+        var spread = 6 + power * 4;
         var fanAngle = (cardIndex - (pile.length - 1) / 2) * spread;
         var arc = Math.abs(cardIndex - (pile.length - 1) / 2);
         return {
-            angle: Math.round((seatBias + unit(0) * 24 + fanAngle + (pile.motion ? pile.motion.spin : 0)) * 10) / 10,
-            x: Math.round(unit(8) * 14 + (cardIndex - (pile.length - 1) / 2) * power * 12),
-            y: Math.round(unit(16) * 10 + arc * (3 + power * 6))
+            angle: Math.round(Math.max(smallScreen ? -40 : -30, Math.min(smallScreen ? 40 : 30,
+                seatBias + unit(0) * 20 + fanAngle +
+                (pile.motion ? pile.motion.spin * (smallScreen ? 1.4 : 1) : 0))) * 10) / 10,
+            x: Math.round(unit(8) * 14 + (cardIndex - (pile.length - 1) / 2) * power * 8),
+            y: Math.round(unit(16) * 10 + arc * (3 + power * 4))
         };
     }
     static createTablePile(game, piles, existingPileSignatures, hiddenCardKeys = new Set()) {
@@ -937,6 +939,7 @@ class GameLayout {
             var signature = `${game.shuffleStartedAt || ""}:${pile.name}:${pile.map(card => `${card.suit}:${card.rank}`).join(",")}`;
             var playElement = document.createElement("div");
             playElement.className = "table-play";
+            playElement.dataset.topPlay = String(playIndex == piles.length - 1);
             playElement.dataset.playSignature = signature;
             playElement.style.setProperty("--play-index", String(playIndex));
             if (pile.motion) {
@@ -961,7 +964,14 @@ class GameLayout {
                 if (hiddenCardKeys.has(cardKey)) {
                     cardElement.style.opacity = "0";
                 }
-                var rotation = GameLayout.pileCardJitter(game, pile, card, cardsOnTable, cardIndex);
+                if (playIndex == piles.length - 1) {
+                    var outline = document.createElement("span");
+                    outline.className = "table-play__beat-outline";
+                    outline.setAttribute("aria-hidden", "true");
+                    cardElement.appendChild(outline);
+                }
+                var rotation = GameLayout.pileCardJitter(game, pile, card, cardsOnTable, cardIndex,
+                    boardBounds.width <= 600);
                 cardElement.style.left = `calc(5px + ${cardIndex} * var(--pile-fan-step) + ${rotation.x}px + var(--landing-x, 0px))`;
                 cardElement.style.top = `calc(${5 + playOffset + rotation.y}px + var(--landing-y, 0px))`;
                 cardElement.style.setProperty("--stack-index", String(cardsOnTable));
@@ -1452,7 +1462,18 @@ class GameLayout {
                     }
                 }
                 if (game.topPile() != null) {
-                    var tableSummary = document.createElement("div");
+                    var tableSummary = table._pileSummary || document.createElement("div");
+                    if (!table._pileSummary) {
+                        table._pileSummary = tableSummary;
+                        tableSummary.onanimationstart = event => {
+                            if (event.animationName == "table-guidance-fade-in" &&
+                                tableSummary.classList.contains("table-pile-summary--required")) {
+                                table._beatPulseStartsAt = performance.now() + 5000;
+                                this.syncRequiredPilePulse(table);
+                            }
+                        };
+                    }
+                    tableSummary.hidden = false;
                     tableSummary.className = "table-pile-summary";
                     var mustBeatPile = player != null && player.turn == 1;
                     tableSummary.classList.toggle("table-pile-summary--required", mustBeatPile);
@@ -1460,7 +1481,16 @@ class GameLayout {
                         ? `Du må slå: ${describeRequiredPlay(game)}`
                         : `På bordet ligger: ${describeRequiredPlay(game)}`;
                     tableSummary.title = tableSummary.textContent;
-                    table.appendChild(tableSummary);
+                    var topPile = game.topPile();
+                    var pulseKey = mustBeatPile
+                        ? `${game.id}:${game.round}:${player.name}:${game.piles.length}:${topPile.name}:${topPile.map(card => `${card.suit}:${card.rank}`).join(",")}`
+                        : null;
+                    if (table._beatPulseKey != pulseKey) {
+                        table._beatPulseKey = pulseKey;
+                        table._beatPulseStartsAt = performance.now() + 6000;
+                    }
+                    if (tableSummary.parentElement != table) { table.appendChild(tableSummary); }
+                    this.syncRequiredPilePulse(table);
                 }
                 if (isNewPause && !shouldAnimatePlayedPause && !isAnimatingPlayedPause) {
                     this.flashClubThree(game, table, pauseId);
@@ -1655,12 +1685,13 @@ class GameLayout {
         this.keepTurnTimer(table);
     }
     static clearTableContent(table) {
+        if (table._pileSummary) { table._pileSummary.hidden = true; }
         if (!table.children) {
             if (typeof table.replaceChildren == "function") { table.replaceChildren(); }
             else { table.innerHTML = ""; }
             return;
         }
-        var persistent = new Set([this.toastRegion, this.turnTimerElement, this.tableTurnHint]);
+        var persistent = new Set([this.toastRegion, this.turnTimerElement, this.tableTurnHint, table._pileSummary]);
         var dynamic = Array.from(table.children).filter(element => !persistent.has(element));
         if (dynamic.every(element => typeof element.remove == "function")) {
             dynamic.forEach(element => element.remove());
@@ -1669,6 +1700,16 @@ class GameLayout {
         } else {
             table.innerHTML = "";
         }
+    }
+    static syncRequiredPilePulse(table) {
+        var delay = (table._beatPulseStartsAt || performance.now() + 6000) - performance.now();
+        table.querySelectorAll(".table-play__beat-outline").forEach(outline => {
+            outline.style.animationDelay = `${delay}ms`;
+            // The remaining delay is relative to now, not to when this card was created.
+            if (typeof outline.getAnimations == "function") {
+                outline.getAnimations().forEach(animation => { animation.currentTime = 0; });
+            }
+        });
     }
     static setTableContent(table, html) {
         this.clearTableContent(table);
