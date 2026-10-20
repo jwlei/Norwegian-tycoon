@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mouse drag and flick sandbox</title>
+    <link rel="stylesheet" href="../css/common.css">
+    <link rel="stylesheet" href="../css/game.css">
+    <link rel="stylesheet" href="../css/theme.css">
+    <link rel="stylesheet" href="../css/foil.css">
+    <style>
+        body { padding: 20px; background: #122b30; color: #edf8f5; font: 16px system-ui, sans-serif; }
+        main { max-width: 900px; margin: auto; }
+        h1 { font-size: 1.5rem; }
+        p { line-height: 1.5; }
+        .controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+        select, .controls button { font: inherit; padding: 8px; }
+        #gameTable { position: relative; height: 240px; margin: 18px 0; border: 2px dashed #70958f; border-radius: 16px; }
+        #gameTable > p { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+        #playerHand.card-hand { position: relative; display: flex; justify-content: center; margin: 24px 0; min-height: 180px; --hand-card-height: 150px; }
+        #playerHand .game-card { cursor: grab; }
+        #metrics { display: block; white-space: pre-wrap; padding: 12px; background: #0c2024; border-radius: 8px; font: 13px monospace; }
+        #events { max-height: 180px; overflow: auto; white-space: pre-wrap; font: 12px monospace; }
+        #result { min-height: 24px; color: #9aefbe; }
+        small { color: #b4cec8; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Mouse drag and flick sandbox</h1>
+    <p>Uses the game's real hand, drag preview, flick detection and landing animations.
+        Drag a card slowly onto the board, or flick upwards (12 px, within a 140-degree cone).
+        Release slowly outside the board to return it. Click Reset to restore the hand.</p>
+    <div class="controls">
+        <label for="method">Method</label>
+        <select id="method">
+            <option value="baseline">1. Current game (native image drag allowed)</option>
+            <option value="dragstart">2. Disable native drag + cancel dragstart</option>
+            <option value="pointerdown" selected>3. Prevent mouse pointerdown default</option>
+            <option value="mouse">4. Mouse events + document move/up listeners</option>
+        </select>
+        <button type="button" id="reset">Reset hand / clear log</button>
+    </div>
+    <p id="description"></p>
+    <div id="gameTable" class="table-deck" aria-label="Drop cards here"><p>Drop cards here</p></div>
+    <div id="playerHand" class="card-hand is-my-turn" aria-label="Test cards"></div>
+    <div hidden><button id="passButton">Pass</button><button id="playButton">Play</button><span id="selectionCount"></span></div>
+    <p id="result" role="status"></p>
+    <output id="metrics"></output>
+    <pre id="events" aria-label="Pointer and native drag event log"></pre>
+    <small>No Firebase, network profile requests or saved settings. Method 1 intentionally leaves the
+        suspected native-drag conflict in place. Methods 2-4 are sandbox-only experiments.
+        Native dragstart followed by pointercancel indicates the browser took over the drag.</small>
+</main>
+<script>
+    function getCookie() { return null; }
+    function getPlayerKey() { return "sandbox"; }
+    function setClass(element, name, enabled = true) { element.classList.toggle(name, enabled); }
+</script>
+<script src="../js/cards.js"></script>
+<script src="../js/player.js"></script>
+<script src="../js/presence.js"></script>
+<script src="../js/game.js"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/engine.js"></script>
+<script>
+    const hand = document.getElementById("playerHand");
+    const table = document.getElementById("gameTable");
+    const method = document.getElementById("method");
+    const result = document.getElementById("result");
+    const metrics = document.getElementById("metrics");
+    const events = document.getElementById("events");
+    const descriptions = {
+        baseline: "Control: unmodified production pointer handlers. Try dragging from the image itself.",
+        dragstart: "Keep production pointer handlers; set draggable=false on cards/images and cancel native dragstart.",
+        pointerdown: "Keep production pointer handlers; preventDefault immediately on mouse pointerdown, before movement.",
+        mouse: "Feed the same production handlers with mouse events instead of pointer events. Track move/up on document and block native drag."
+    };
+    let counters;
+    let game;
+    let player;
+    let mouseActive = false;
+    let mouseHandlers = null;
+    let lastPointerLog = 0;
+    const originalUpdateHand = GameLayout.updateHand;
+    GameLayout.playInputMode = () => "flick";
+    GameLayout.styleForPlayer = () => "normal";
+    GameLayout.foilForPlayer = () => "rainbow";
+    autoSuggestPlayableCards = false;
+
+    function log(type, detail = "") {
+        events.textContent = `${performance.now().toFixed(0)} ${type} ${detail}\n${events.textContent}`.slice(0, 6500);
+    }
+    function updateMetrics() {
+        metrics.textContent = `Method: ${method.value}\n` +
+            `Starts: ${counters.starts} | Moves: ${counters.moves} | Releases: ${counters.releases}\n` +
+            `Native dragstart: ${counters.native} | Cancellations: ${counters.cancelled} | Played: ${counters.played}`;
+    }
+    function pointerEvent(event) {
+        return {
+            pointerId: 1, pointerType: "mouse", isPrimary: true, button: event.button,
+            clientX: event.clientX, clientY: event.clientY, target: event.target,
+            preventDefault: () => event.preventDefault()
+        };
+    }
+    GameLayout.updateHand = function (...args) {
+        originalUpdateHand.apply(this, args);
+        if (method.value == "dragstart" || method.value == "mouse") {
+            hand.querySelectorAll(".game-card, img").forEach(card => { card.draggable = false; });
+        }
+        if (method.value == "mouse") {
+            mouseHandlers = { down: hand.onpointerdown, move: hand.onpointermove, up: hand.onpointerup,
+                cancel: hand.onpointercancel };
+            hand.onpointerdown = hand.onpointermove = hand.onpointerup = null;
+            hand.onpointercancel = hand.onlostpointercapture = null;
+        }
+    };
+    hand.addEventListener("pointerdown", event => {
+        if (event.button != 0 || method.value == "mouse") { return; }
+        counters.starts++;
+        log(event.type, event.pointerType);
+        if (method.value == "pointerdown" && event.pointerType == "mouse") { event.preventDefault(); }
+        updateMetrics();
+    }, true);
+    for (const type of ["pointermove", "pointerup", "pointercancel", "lostpointercapture", "dragstart", "dragend"]) {
+        hand.addEventListener(type, event => {
+            if (type == "dragstart") {
+                counters.native++;
+                if (method.value == "dragstart" || method.value == "mouse") { event.preventDefault(); }
+            }
+            if (method.value != "mouse") {
+                if (type == "pointermove" && event.buttons) { counters.moves++; }
+                if (type == "pointerup") { counters.releases++; }
+                if (type == "pointercancel") { counters.cancelled++; }
+            }
+            if (type != "pointermove" || (event.buttons && performance.now() - lastPointerLog > 80)) {
+                log(type, `prevented=${event.defaultPrevented}`);
+                lastPointerLog = performance.now();
+            }
+            updateMetrics();
+        }, true);
+    }
+    hand.addEventListener("mousedown", event => {
+        if (method.value != "mouse" || event.button != 0 || !event.target.closest(".game-card")) { return; }
+        event.preventDefault();
+        mouseActive = true;
+        counters.starts++;
+        log("mousedown");
+        mouseHandlers.down(pointerEvent(event));
+        updateMetrics();
+    });
+    document.addEventListener("mousemove", event => {
+        if (!mouseActive) { return; }
+        if (!(event.buttons & 1)) { cancelMouse(); return; }
+        event.preventDefault();
+        counters.moves++;
+        mouseHandlers.move(pointerEvent(event));
+        updateMetrics();
+    });
+    document.addEventListener("mouseup", event => {
+        if (!mouseActive || event.button != 0) { return; }
+        mouseActive = false;
+        counters.releases++;
+        log("mouseup");
+        mouseHandlers.up(pointerEvent(event));
+        updateMetrics();
+    });
+    function cancelMouse() {
+        if (!mouseActive) { return; }
+        mouseActive = false;
+        counters.cancelled++;
+        mouseHandlers.cancel();
+        log("mouse cancelled");
+        updateMetrics();
+    }
+    window.addEventListener("blur", () => {
+        cancelMouse();
+        if (hand.onpointercancel) { hand.onpointercancel(); }
+    });
+
+    function reset() {
+        cancelMouse();
+        if (mouseHandlers) { mouseHandlers.cancel(); }
+        if (hand.onpointercancel) { hand.onpointercancel(); }
+        clearCardDragPreview(hand);
+        clearCardSelection();
+        selectedCardOwner = null;
+        hand.replaceChildren();
+        counters = { starts: 0, moves: 0, releases: 0, native: 0, cancelled: 0, played: 0 };
+        result.textContent = "";
+        events.textContent = "";
+        table.innerHTML = "<p>Drop cards here</p>";
+        document.getElementById("description").textContent = descriptions[method.value];
+        player = new PresidentPlayer("Sandbox", "sandbox");
+        player.turn = 1;
+        player.cards = [1, 2, 3, 4].map(suit => new PresidentCard(suit, 7));
+        game = {
+            id: "mouse-sandbox", status: "S", round: 1, turn: 0,
+            players: [player], piles: [], shuffleStartedAt: 1,
+            connectionOnline: true, localWritePending: false,
+            isTurnPaused: () => false, topPile: () => null,
+            canPlayRank(actor, rank, info) {
+                info.pile = actor.cards.filter(card => card.strengthRank == rank).slice(0, 1);
+                return info.pile.length > 0;
+            },
+            canPlayPile: (actor, pile) => pile.length > 0,
+            playCards(actor, pile) {
+                const origins = GameLayout.capturePlayOrigins();
+                pile.forEach(card => { actor.cards = actor.cards.filter(value => value !== card); });
+                game.piles.push(pile);
+                const rendered = GameLayout.createTablePile(game, game.piles, new Set());
+                table.replaceChildren(rendered.element);
+                rendered.newlyPlayed.forEach(play => GameLayout.animatePlayedCards(play.element, play.pile, origins));
+                counters.played++;
+                result.textContent = `Played ${pile.length} card(s). Reset to try again.`;
+                log("PLAY", JSON.stringify(pile.motion));
+                updateMetrics();
+                setTimeout(() => {
+                    if (game.players[0] === actor) { GameLayout.updateHand(game, actor); }
+                }, 0);
+            }
+        };
+        GameLayout.updateHand(game, player);
+        updateMetrics();
+    }
+    method.addEventListener("change", reset);
+    document.getElementById("reset").addEventListener("click", reset);
+    reset();
+</script>
+</body>
+</html>
