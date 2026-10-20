@@ -61,6 +61,25 @@ const PlayerIdentity = {
         return getCookie("playerPinKey") == playerKey && /^[a-f0-9]{64}$/.test(credential)
             ? credential : null;
     },
+    async registrationKey(playerKey) {
+        const stats = (await firebase.database().ref(`playerStats/${playerKey}`).once("value")).val();
+        if (stats) { return playerKey; }
+        if (/^[A-Za-z0-9]{6}$/.test(playerKey)) { return this.allocatePlayerKey(playerKey); }
+        // A saved login may outlive a database reset. Verify its alias before reusing a legacy ID.
+        const savedProfile = getCookie("playerPinProfile");
+        if (savedProfile) {
+            const profile = JSON.parse(decodeURIComponent(savedProfile));
+            if (Array.isArray(profile) && profile[1] == playerKey && typeof profile[0] == "string") {
+                const record = (await firebase.database().ref(`playerNames/${await this.nameKey(profile[0])}`)
+                    .once("value")).val();
+                if (record && (record.playerKey == playerKey || record.noPinPlayerKey == playerKey ||
+                    Object.values(record.pinProfiles || {}).some(value => value.playerKey == playerKey))) {
+                    return playerKey;
+                }
+            }
+        }
+        return this.allocatePlayerKey();
+    },
     async updatePlayerName(name, playerKey) {
         const updatedAt = Date.now();
         await firebase.database().ref(`playerStats/${playerKey}`).transaction(record => {
@@ -130,14 +149,13 @@ const PlayerIdentity = {
             )) {
                 throw new Error("Navnet har en eldre PIN-profil. Skriv inn PIN for å registrere navnebyttet.");
             }
-            resolvedKey = playerKey;
+            resolvedKey = resolvedKey || await this.registrationKey(playerKey);
         }
         if (!resolvedKey) {
             if (!previous) {
                 resolvedKey = await this.findLegacyKey(name, playerKey);
                 if (!resolvedKey) {
-                    resolvedKey = getCookie("playerKeyPending") == playerKey
-                        ? await this.allocatePlayerKey(playerKey) : playerKey;
+                    resolvedKey = await this.registrationKey(playerKey);
                 }
             } else if (pin && unprotectedKey && Object.keys(profiles).length == 0 && !previous.pinHash) {
                 resolvedKey = unprotectedKey;

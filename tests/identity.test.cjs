@@ -148,6 +148,56 @@ test("new six-character IDs are reserved and collisions retry without overwritin
     assert.equal((await f.identity.resolve("Ada", "fresh", "000123")).playerKey, "New123");
 });
 
+test("fresh registration replaces old long browser IDs with reserved six-character IDs", async () => {
+    for (const pin of ["", "000123"]) {
+        const f = clientFixture();
+        const oldKey = "A".repeat(100);
+        f.context.setCookie("SpillerKey", oldKey);
+        if (pin) {
+            f.context.document.getElementById("playerUsePin").setAttribute("aria-pressed", "true");
+            f.context.document.getElementById("playerRecoveryPin").value = pin;
+        }
+        await f.context.applyPlayerIdentity("Ada");
+        assert.match(f.key, /^[A-Za-z0-9]{6}$/);
+        assert.notEqual(f.key, oldKey);
+        assert.ok(f.records[`playerIds/${f.key}`]);
+        const registered = f.key;
+        assert.equal((await f.identity.resolve("Ada", "different-browser", pin)).playerKey, registered);
+        const record = f.records[`playerNames/${await f.identity.nameKey("Ada")}`];
+        assert.ok(!JSON.stringify(record).includes(oldKey));
+    }
+});
+
+test("a database reset cannot resurrect an old long ID through a remembered PIN login", async () => {
+    const f = clientFixture();
+    const oldKey = "x".repeat(50);
+    f.context.setCookie("SpillerKey", oldKey);
+    f.context.setCookie("playerPinProfile", encodeURIComponent(JSON.stringify(["old name", oldKey])));
+    f.context.setCookie("playerPinKey", oldKey);
+    const credential = await f.identity.pinHash("000123", "norwegian-tycoon-profile-pin-v1");
+    f.context.setCookie("playerPinCredential", credential);
+    await f.context.applyPlayerIdentity("New name");
+    assert.match(f.key, /^[A-Za-z0-9]{6}$/);
+    assert.equal((await f.identity.resolve("New name", "another-browser", "000123")).playerKey, f.key);
+    assert.equal(f.cookies.get("playerPinKey"), f.key);
+});
+
+test("a real legacy PIN profile without played rounds retains its ID when adding aliases", async () => {
+    const f = clientFixture();
+    const oldKey = "x".repeat(50);
+    const credential = await f.identity.pinHash("000123", "norwegian-tycoon-profile-pin-v1");
+    f.records[`playerNames/${await f.identity.nameKey("Ada")}`] = {
+        name: "Ada", pinProfiles: { [credential]: { playerKey: oldKey, pinVersion: 2 } }
+    };
+    f.context.setCookie("SpillerKey", oldKey);
+    f.context.setCookie("playerPinProfile", encodeURIComponent(JSON.stringify(["ada", oldKey])));
+    f.context.setCookie("playerPinKey", oldKey);
+    f.context.setCookie("playerPinCredential", credential);
+    await f.context.applyPlayerIdentity("Grace");
+    assert.equal(f.key, oldKey);
+    assert.equal((await f.identity.resolve("Grace", "fresh", "000123")).playerKey, oldKey);
+});
+
 test("registration keeps an available new ID and reuses its reservation on retries", async () => {
     const f = fixture();
     f.cookies.set("playerKeyPending", "AbC123");
@@ -246,23 +296,23 @@ test("existing salted PIN records migrate on matching login without changing the
 
 test("turning PIN off uses a separate name-only profile without exposing the PIN profile's statistics", async () => {
     const { identity, records } = fixture();
-    await identity.resolve("Ada", "original", "123456");
-    records["playerStats/original"] = { name: "Ada", roundsPlayed: 100, presidentWins: 50 };
-    const withoutPin = await identity.resolve("Ada", "original");
-    assert.notEqual(withoutPin.playerKey, "original");
+    const registered = await identity.resolve("Ada", "original", "123456");
+    records[`playerStats/${registered.playerKey}`] = { name: "Ada", roundsPlayed: 100, presidentWins: 50 };
+    const withoutPin = await identity.resolve("Ada", registered.playerKey);
+    assert.notEqual(withoutPin.playerKey, registered.playerKey);
     assert.equal(withoutPin.hasPin, false);
     assert.equal((await identity.resolve("Ada", "fresh")).playerKey, withoutPin.playerKey);
-    assert.equal((await identity.resolve("Ada", "fresh", "123456")).playerKey, "original");
+    assert.equal((await identity.resolve("Ada", "fresh", "123456")).playerKey, registered.playerKey);
     assert.equal(await identity.winsForName("Ada", withoutPin.playerKey), 0);
 });
 
 test("enabling PIN on an existing name-only profile preserves its statistics", async () => {
     const { identity, records } = fixture();
-    await identity.resolve("Ada", "original");
-    records["playerStats/original"] = { name: "Ada", presidentWins: 15, roundsPlayed: 30 };
-    assert.equal((await identity.resolve("Ada", "original", "000123")).playerKey, "original");
+    const registered = await identity.resolve("Ada", "original");
+    records[`playerStats/${registered.playerKey}`] = { name: "Ada", presidentWins: 15, roundsPlayed: 30 };
+    assert.equal((await identity.resolve("Ada", registered.playerKey, "000123")).playerKey, registered.playerKey);
     const restored = await identity.resolve("Ada", "fresh", "000123");
-    assert.equal(restored.playerKey, "original");
+    assert.equal(restored.playerKey, registered.playerKey);
     assert.equal((await identity.statsForName("Ada", restored.playerKey)).roundsPlayed, 30);
 });
 
@@ -404,7 +454,7 @@ test("legacy PIN recovery supports automatic renaming with the same old PIN", as
 
 test("automatic renaming cannot take over an existing name and matching PIN belonging to another ID", async () => {
     const f = clientFixture();
-    await f.identity.resolve("Grace", "other-player", "000123");
+    const other = await f.identity.resolve("Grace", "other-player", "000123");
     f.context.document.getElementById("playerUsePin").setAttribute("aria-pressed", "true");
     f.context.document.getElementById("playerRecoveryPin").value = "000123";
     await f.context.applyPlayerIdentity("Ada");
@@ -415,7 +465,7 @@ test("automatic renaming cannot take over an existing name and matching PIN belo
     await assert.rejects(f.context.applyPlayerIdentity("Grace"), /Velg et annet navn/);
     assert.equal(f.key, originalKey);
     assert.equal(JSON.stringify(f.records[recordKey]), previous);
-    assert.equal((await f.identity.resolve("Grace", "new-device", "000123")).playerKey, "other-player");
+    assert.equal((await f.identity.resolve("Grace", "new-device", "000123")).playerKey, other.playerKey);
 });
 
 test("remembered PIN credentials only apply to the matching logged-in player ID", async () => {
