@@ -30,6 +30,7 @@
         "Bytt navn": "Change name",
         "Bruk PIN": "Use PIN",
         "PIN (6 sifre)": "PIN (6 digits)",
+        "Nettleseren gir ikke tilgang til Web Crypto. Åpne https://playboms.eu direkte i en oppdatert nettleser og prøv igjen.": "The browser does not provide Web Crypto access. Open https://playboms.eu directly in an up-to-date browser and try again.",
         "Ikke gjenbruk en viktig PIN fra andre steder, dette er enkel spillgjenoppretting.": "Do not reuse an important PIN from elsewhere, this is simple game recovery.",
         "Bruk PIN for å hente tilbake opplåsinger og statistikk.": "Use PIN to restore your unlocks and statistics.",
         "PIN må ha 6 sifre. Eldre PIN kan fortsatt brukes til gjenoppretting.": "The PIN must have 6 digits. Older PINs can still be used for recovery.",

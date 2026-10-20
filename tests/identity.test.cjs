@@ -62,6 +62,35 @@ test("names are case-insensitive and Unicode-normalized, with Firebase-safe keys
     for (const name of ["", " SpIlLeR ", "PLAYER"]) { assert.equal(identity.isDefaultName(name), true); }
 });
 
+test("unavailable Web Crypto gives actionable errors before reading or writing profiles", async () => {
+    for (const crypto of [undefined, {}, { subtle: {} }]) {
+        const f = fixture();
+        f.context.crypto = crypto;
+        await assert.rejects(f.identity.resolve("Ada", "original", "000123"), /Web Crypto.*https:\/\/playboms\.eu/);
+        await assert.rejects(f.identity.nameKey("Ada"), /Web Crypto/);
+        await assert.rejects(f.identity.pinHash("000123", "salt"), /Web Crypto/);
+        assert.deepEqual(Object.keys(f.records), []);
+    }
+});
+
+test("production HTTP redirects to HTTPS preserving game links without redirecting local development", () => {
+    const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    const script = html.match(/<script id="requireProductionHttps">([\s\S]*?)<\/script>/)[1];
+    for (const [protocol, hostname, redirect] of [
+        ["http:", "playboms.eu", true], ["https:", "playboms.eu", false],
+        ["http:", "localhost", false], ["http:", "192.168.1.2", false],
+        ["file:", "", false], ["http:", "another.example", false]
+    ]) {
+        const calls = [];
+        vm.runInNewContext(script, { location: {
+            protocol, hostname, pathname: "/index.html", search: "?game=123456", hash: "#join",
+            replace: url => calls.push(url)
+        } });
+        assert.deepEqual(calls, redirect ? ["https://playboms.eu/index.html?game=123456#join"] : []);
+    }
+    assert.ok(html.indexOf('id="requireProductionHttps"') < html.indexOf('src="js/identity.js'));
+});
+
 test("a name restores its existing player ID and statistics on a clean browser", async () => {
     const { identity, records } = fixture();
     records["playerStats/original"] = { name: "Ada", names: ["Ada"], presidentWins: 50 };

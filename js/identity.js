@@ -5,9 +5,18 @@ const PlayerIdentity = {
     isDefaultName(name) {
         return ["", "player", "spiller"].includes(this.normalizeName(name));
     },
+    cryptoApi() {
+        const subtle = globalThis.crypto && globalThis.crypto.subtle;
+        if (!subtle || typeof subtle.digest != "function" ||
+            typeof subtle.importKey != "function" || typeof subtle.deriveBits != "function") {
+            throw new Error("Nettleseren gir ikke tilgang til Web Crypto. Åpne https://playboms.eu direkte i en oppdatert nettleser og prøv igjen.");
+        }
+        return subtle;
+    },
     async nameKey(name) {
+        const subtle = this.cryptoApi();
         const bytes = new TextEncoder().encode(this.normalizeName(name));
-        const hash = await crypto.subtle.digest("SHA-256", bytes);
+        const hash = await subtle.digest("SHA-256", bytes);
         return this.hex(new Uint8Array(hash));
     },
     hex(bytes) {
@@ -36,9 +45,10 @@ const PlayerIdentity = {
     },
     async pinHash(pin, salt) {
         if (!this.isRecoveryPin(pin)) { throw new Error("PIN må ha 6 sifre. Eldre PIN kan fortsatt brukes til gjenoppretting."); }
-        const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin),
+        const subtle = this.cryptoApi();
+        const key = await subtle.importKey("raw", new TextEncoder().encode(pin),
             "PBKDF2", false, ["deriveBits"]);
-        const bits = await crypto.subtle.deriveBits({
+        const bits = await subtle.deriveBits({
             name: "PBKDF2", salt: new TextEncoder().encode(salt), iterations: 210000, hash: "SHA-256"
         }, key, 256);
         return this.hex(new Uint8Array(bits));

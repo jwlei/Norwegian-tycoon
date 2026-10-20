@@ -3,6 +3,11 @@
 
 <head>
     <meta charset='utf-8' />
+    <script id="requireProductionHttps">
+        if (location.protocol === "http:" && location.hostname === "playboms.eu") {
+            location.replace("https://playboms.eu" + location.pathname + location.search + location.hash);
+        }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#1e1e1e" />
     <base href="/" />
