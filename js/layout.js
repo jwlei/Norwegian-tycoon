@@ -155,6 +155,15 @@ class GameLayout {
         var player = game.players.find(player => player.name == name);
         return player ? Card.normalizeStyle((game.cardStyles || {})[GamePresence.playerId(player)], name) : "normal";
     }
+    static foilForPlayer(game, name) {
+        if (GameLayout.cardStyleScope() == "own" || name == GameLayout.viewerName) {
+            return GameLayout.cardFoil();
+        }
+        var player = game.players.find(player => player.name == name);
+        return player
+            ? Card.normalizeFoil((game.cardFoils || {})[GamePresence.playerId(player)])
+            : "none";
+    }
     static canUseBotanicalStyle() {
         return Card.normalizeStyle("botanical", GameLayout.cardStylePlayerName || "") == "botanical";
     }
@@ -704,7 +713,7 @@ class GameLayout {
         pile.name = game.players[exchange.from].name;
         pile.forEach((card, index) => {
             var image = GameLayout.createCardImage(card, null,
-                GameLayout.styleForPlayer(game, pile.name));
+                GameLayout.styleForPlayer(game, pile.name), GameLayout.foilForPlayer(game, pile.name));
             image.dataset.cardKey = `${card.suit}:${card.rank}`;
             image.style.position = "fixed";
             image.style.width = "48px";
@@ -842,7 +851,8 @@ class GameLayout {
             playElement.style.setProperty("--play-index", String(playIndex));
             var playOffset = Math.min(cardsOnTable * 2.5, compactStack ? 18 : 44);
             pile.forEach((card, cardIndex) => {
-                var image = GameLayout.createCardImage(card, null, GameLayout.styleForPlayer(game, pile.name));
+                var image = GameLayout.createCardImage(card, null,
+                    GameLayout.styleForPlayer(game, pile.name), GameLayout.foilForPlayer(game, pile.name));
                 image.className = "table-play__card";
                 var cardKey = `${card.suit}:${card.rank}`;
                 image.dataset.cardKey = cardKey;
@@ -1246,7 +1256,9 @@ class GameLayout {
                         previewCards.className = "exchange-preview";
                         exchange.cards.forEach(card => {
                             var previewModel = new Card(card.suit, card.rank);
-                            var previewImage = GameLayout.createCardImage(previewModel, null, GameLayout.styleForPlayer(game, fromPlayer.name));
+                            var previewImage = GameLayout.createCardImage(previewModel, null,
+                                GameLayout.styleForPlayer(game, fromPlayer.name),
+                                GameLayout.foilForPlayer(game, fromPlayer.name));
                             previewImage.className = "exchange-selection__card";
                             previewImage.alt = previewModel.getName();
                             previewCards.appendChild(previewImage);
@@ -1718,6 +1730,7 @@ class GameLayout {
         }
         element._handSignature = null;
         element._rebindHand = null;
+        clearCardDragPreview(element);
         if (element.onpointercancel) { element.onpointercancel(); }
         var previousScrollLeft = element.scrollLeft;
         var shouldCenterAutoSelection = false;
@@ -1772,6 +1785,24 @@ class GameLayout {
         }
         var handScrollDrag = null;
         var selectExchangeCard = null;
+        var recordFlickMovement = function (drag, pointerY, moveTime) {
+            var distance = drag.lastPointerY - pointerY;
+            if (distance != 0) {
+                var direction = Math.sign(distance);
+                if (direction != drag.flickDirection) {
+                    drag.flickDirection = direction;
+                    drag.flickDistance = distance;
+                    drag.flickStartTime = drag.lastPointerMoveTime;
+                } else {
+                    drag.flickDistance += distance;
+                }
+                drag.lastFlickDistance = drag.flickDistance;
+                drag.lastFlickVelocity = drag.flickDistance /
+                    Math.max(1, moveTime - drag.flickStartTime);
+            }
+            drag.lastPointerY = pointerY;
+            drag.lastPointerMoveTime = moveTime;
+        };
         element.classList.remove("is-hand-dragging");
         element.classList.remove("hand-finished");
         element.onclick = function (event) {
@@ -1809,6 +1840,13 @@ class GameLayout {
                 pointerId: event.pointerId,
                 startX: event.clientX,
                 startY: event.clientY,
+                lastPointerY: event.clientY,
+                lastPointerMoveTime: performance.now(),
+                flickDirection: 0,
+                flickDistance: 0,
+                flickStartTime: performance.now(),
+                lastFlickDistance: 0,
+                lastFlickVelocity: 0,
                 lastX: event.clientX,
                 startTime: Date.now(),
                 lastMoveTime: performance.now(),
@@ -1841,6 +1879,8 @@ class GameLayout {
                 return;
             }
             if (handScrollDrag.pointerId != event.pointerId) { return; }
+            var pointerMoveTime = performance.now();
+            recordFlickMovement(handScrollDrag, event.clientY, pointerMoveTime);
             var dragOffsetX = event.clientX - handScrollDrag.startX;
             var dragOffsetY = event.clientY - handScrollDrag.startY;
             if (handScrollDrag.axis == null &&
@@ -1895,6 +1935,8 @@ class GameLayout {
         element.onpointerup = function (event) {
             var activeDrag = handScrollDrag;
             if (!activeDrag || activeDrag.pointerId != event.pointerId) { return; }
+            var pointerUpTime = performance.now();
+            recordFlickMovement(activeDrag, event.clientY, pointerUpTime);
             handScrollDrag = null;
             element.classList.remove("is-hand-dragging");
             if (activeDrag.didMove) {
@@ -1923,8 +1965,10 @@ class GameLayout {
             }
             if (!keepDragPosition) {
                 clearDragStyles();
+                returnCardDragPreview(element);
+            } else {
+                clearCardDragPreview(element);
             }
-            clearCardDragPreview(element);
             if (activeDrag.cardElement) {
                 activeDrag.cardElement.classList.remove("is-pressed");
                 resetCardTilt(activeDrag.cardElement);
@@ -1938,6 +1982,7 @@ class GameLayout {
             handScrollDrag = null;
             element.classList.remove("is-hand-dragging");
             clearDragStyles();
+            clearCardDragPreview(element);
         };
         element.onlostpointercapture = function (event) {
             if (handScrollDrag && handScrollDrag.pointerId == event.pointerId) { element.onpointercancel(); }
@@ -2161,7 +2206,6 @@ class GameLayout {
             return true;
         };
         var clearDragStyles = function () {
-            clearCardDragPreview(element);
             element.querySelectorAll(".game-card.is-dragging").forEach(draggedCard => {
                 draggedCard.classList.remove("is-dragging");
                 draggedCard.style.removeProperty("--drag-base-y");

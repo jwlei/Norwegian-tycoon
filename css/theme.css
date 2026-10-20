@@ -1385,14 +1385,71 @@ select:focus-visible {
     box-shadow: 0 0 10px rgb(240 190 60 / 45%);
 }
 
-.card-style-current {
-    flex: 0 0 auto;
+.setting-card-appearance {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: stretch;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    background: var(--surface-soft);
 }
 
-.card-style-current .card-preview {
-    width: 30px;
-    height: 45px;
-    border-radius: 5px;
+.setting-card-appearance__controls {
+    display: grid;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    min-width: 0;
+}
+
+.setting-card-appearance__button,
+.setting-card-appearance__button:hover,
+.setting-card-appearance__button:active,
+.setting-card-appearance__button:focus {
+    display: grid;
+    align-content: center;
+    gap: 2px;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--control-border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    text-align: left;
+    box-shadow: none;
+    transform: none;
+}
+
+.setting-card-appearance__button strong {
+    font-size: 0.84rem;
+}
+
+.setting-card-appearance__button small {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 0.75rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.card-appearance-preview {
+    display: grid;
+    place-items: center;
+    min-width: 54px;
+    padding: 4px;
+}
+
+.card-appearance-preview .card-preview {
+    width: clamp(48px, 13vw, 64px);
+    height: 100%;
+    min-height: 96px;
+}
+
+.card-appearance-preview .card-preview > img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .secret-style-header {
@@ -1484,6 +1541,11 @@ select:focus-visible {
 .card-foil-option .card-preview,
 .card-style-option .card-preview {
     width: clamp(30px, 10vw, 52px);
+}
+
+.card-style-list .card-foil-option .card-preview {
+    width: clamp(64px, 18vw, 82px);
+    flex: 0 0 auto;
 }
 
 .color-theme-list .color-theme-option[aria-pressed="true"] {
@@ -1670,6 +1732,7 @@ select:focus-visible {
 
 .game-card.is-drag-source {
     opacity: 0;
+    transition: none;
 }
 
 .card-drag-layer {
@@ -1695,6 +1758,10 @@ select:focus-visible {
         rotateX(var(--tilt-x, 0deg))
         rotateY(var(--tilt-y, 0deg));
     transition: transform 90ms ease-out;
+}
+
+.card-drag-layer > .game-card.is-returning {
+    transition: transform 320ms cubic-bezier(.2,.8,.25,1);
 }
 
 .card-drag-preview > img {

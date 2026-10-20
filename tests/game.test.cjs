@@ -2181,24 +2181,23 @@ test("club three glints once per played pause, with a muted loss color and no mo
     assert.deepEqual([...classes], ["club-three-glint", "club-three-glint--loss"]);
 });
 
-test("settings show the localized selected style name alongside its preview", () => {
+test("settings show the localized selected style name and refresh the shared preview", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const { PresidentCard } = loadGame();
     const label = {};
-    const preview = { replaceChildren(child) { this.child = child; } };
-    const cards = {};
+    let previewUpdates = 0;
     const context = vm.createContext({
         PresidentCard, style: "holo", selectedName: "Holo",
         GameLayout: { cardStyle: () => context.style, canUseBotanicalStyle: () => true },
         localizedMessage: text => "Translated " + text,
+        updateCardAppearancePreview: () => previewUpdates++,
         document: {
             documentElement: { dataset: {} },
-            getElementById: id => id == "cardStyleCurrent" ? preview :
-                (id == "cardStyleCurrentName" ? label : {}),
+            getElementById: id => id == "cardStyleCurrentName" ? label : {},
             querySelectorAll: () => [],
             querySelector: () => ({
                 textContent: context.selectedName,
-                parentElement: { querySelector: () => ({ cloneNode: () => cards }) }
+                parentElement: {}
             })
         }
     });
@@ -2208,8 +2207,8 @@ test("settings show the localized selected style name alongside its preview", ()
         context.selectedName = name;
         context.updateCardStyleButtons();
         assert.equal(label.textContent, "Translated " + name);
-        assert.equal(preview.child, cards);
     }
+    assert.equal(previewUpdates, 7);
 });
 
 test("rank icons show streaks only for consecutive presidents and boms", () => {
@@ -3992,38 +3991,45 @@ test("card style display defaults to player-specific styles and preserves the ow
     }
 });
 
-test("publishing a card style changes only the current named seat and survives stale game saves", async () => {
+test("publishing a player's style and foil updates only their seat and survives stale saves", async () => {
     const { game, players } = setupGame();
     game.localPlayerName = players[0].name;
     const { GamePresence } = loadGame();
     const id = GamePresence.playerId(players[0]);
     let record = {
         status: "O", spillere: players.map(player => player.toRecord()),
-        cardStyles: { another: "neon" }
+        cardStyles: { another: "neon" },
+        cardFoils: { another: "gold" }
     };
     game.databaseRef = { async transaction(transform) {
         const next = transform(record);
         if (next) { record = next; }
         return { committed: !!next, snapshot: { val: () => record } };
     } };
-    await game.setPlayerCardStyle("gold");
+    await game.setPlayerCardAppearance("gold");
     assert.equal(record.cardStyles[id], "gold");
     assert.equal(record.cardStyles.another, "neon");
+    assert.equal(record.cardFoils[id], "none");
+    assert.equal(record.cardFoils.another, "gold");
     game.save();
     assert.equal(record.cardStyles[id], "gold");
+    assert.equal(record.cardFoils[id], "none");
     for (const style of ["monochrome", "minimalist", "cyberpunk", "glitched", "cosmic",
         "origami", "gothic", "silver", "crystal"]) {
-        await game.setPlayerCardStyle(style);
+        await game.setPlayerCardAppearance(style, "rainbow");
         assert.equal(record.cardStyles[id], style);
+        assert.equal(record.cardFoils[id], "rainbow");
         assert.equal(record.cardStyles.another, "neon");
+        assert.equal(record.cardFoils.another, "gold");
     }
-    await assert.rejects(game.setPlayerCardStyle("botanical"), /kortstilen/);
-    await assert.rejects(game.setPlayerCardStyle("unknown"), /kortstilen/);
+    await assert.rejects(game.setPlayerCardAppearance("botanical"), /kortutseendet/);
+    await assert.rejects(game.setPlayerCardAppearance("unknown"), /kortutseendet/);
+    await assert.rejects(game.setPlayerCardAppearance("gold", "invalid"), /kortutseendet/);
     game.localPlayerName = players[1].name;
-    await assert.rejects(game.setPlayerCardStyle("pixel"), /kortstilen/);
+    await assert.rejects(game.setPlayerCardAppearance("pixel"), /kortutseendet/);
     game.localPlayerName = players[0].name;
     game.connectionOnline = false;
-    await assert.rejects(game.setPlayerCardStyle("pixel"), /kortstilen/);
+    await assert.rejects(game.setPlayerCardAppearance("pixel"), /kortutseendet/);
 });
 
 test("a stale save refreshes the local speed before republishing the lobby", () => {

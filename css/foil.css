@@ -13,7 +13,6 @@
     --foil-blend: screen, hue, hard-light;
     --foil-filter: brightness(.8) contrast(2.95) saturate(.5);
     --foil-mix: soft-light;
-    --foil-clip: inset(2% round 6%);
     --foil-size: 60%, 200% 700%, 300%, 200%;
 }
 
@@ -25,12 +24,11 @@
 
 :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"])::before {
     position: absolute;
-    inset: 2px;
+    inset: 0;
     z-index: 1;
     border-radius: inherit;
     content: "";
     pointer-events: none;
-    clip-path: var(--foil-clip);
     background-image: var(--foil-texture), var(--foil-spectrum), var(--foil-bars), var(--foil-light);
     background-size: var(--foil-size);
     background-position: center, 0% var(--pointer-y, 50%),
@@ -45,7 +43,7 @@
 
 :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"])::after {
     position: absolute;
-    inset: 2px;
+    inset: 0;
     z-index: 2;
     border-radius: inherit;
     content: "";
@@ -64,7 +62,6 @@
 }
 
 :is(#playerHand .game-card, .card-preview)[data-foil="holo"] {
-    --foil-clip: inset(22% 22% round 5%);
     --foil-texture: repeating-linear-gradient(90deg, #ff3780 0 2px, #000 2px 4px,
         #56cfff 4px 6px, #000 6px 8px, #eedf10 8px 10px, #000 10px 12px);
     --foil-spectrum: repeating-linear-gradient(90deg, #c929f1, #0dbde9, #21e985, #eedf10, #f80e7b, #c929f1);
@@ -76,7 +73,6 @@
 }
 
 :is(#playerHand .game-card, .card-preview)[data-foil="galaxy"] {
-    --foil-clip: inset(22% 22% round 5%);
     --foil-texture: radial-gradient(circle at 20% 30%, #fff 0 1px, transparent 3px),
         radial-gradient(circle at 65% 70%, #ffb9f9 0 2px, transparent 5px);
     --foil-spectrum: repeating-linear-gradient(82deg, #da3832, #dbcc56, #79c73a, #3ac0b7, #4762cf, #aa45d1, #da3832);

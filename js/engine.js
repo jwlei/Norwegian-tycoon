@@ -1703,10 +1703,12 @@ class PresidentGame extends Game {
                 (this.status == "S" && this.turnPause?.pendingGameEnd))
             ? 1000 : gameTurnSeconds(this.turnSeconds) * 1000;
     }
-    async setPlayerCardStyle(style) {
+    async setPlayerCardAppearance(style, foil = "none") {
         var name = this.localPlayerName;
-        if (this.connectionOnline === false || Card.normalizeStyle(style, name || "") != style) {
-            throw new Error("Kan ikke lagre kortstilen nå.");
+        if (this.connectionOnline === false ||
+            Card.normalizeStyle(style, name || "") != style ||
+            Card.normalizeFoil(foil) != foil) {
+            throw new Error("Kan ikke lagre kortutseendet nå.");
         }
         var result = await this.databaseRef.transaction(record => {
             if (!record || GamePresence.isExpired(record)) { return; }
@@ -1714,11 +1716,13 @@ class PresidentGame extends Game {
                 player.spillerKey == getPlayerKey() && player.nick == name);
             if (!player) { return; }
             return Object.assign({}, record, {
-                cardStyles: Object.assign({}, record.cardStyles, { [GamePresence.playerId(player)]: style })
+                cardStyles: Object.assign({}, record.cardStyles, { [GamePresence.playerId(player)]: style }),
+                cardFoils: Object.assign({}, record.cardFoils, { [GamePresence.playerId(player)]: foil })
             });
         }, undefined, false);
-        if (!result.committed) { throw new Error("Kan ikke lagre kortstilen nå."); }
+        if (!result.committed) { throw new Error("Kan ikke lagre kortutseendet nå."); }
         this.cardStyles = result.snapshot.val().cardStyles;
+        this.cardFoils = result.snapshot.val().cardFoils;
     }
     async setTurnSeconds(seconds) {
         if (![1, 2, 3].includes(seconds)) {

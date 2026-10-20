@@ -64,13 +64,14 @@ class Element {
 function fixture() {
     const preferences = new Map();
     const nodes = new Map();
+    const timers = [];
     const body = new Element();
     let now = 1000;
     let reducedMotion = false;
     const context = vm.createContext({
         console, Element, getCookie: key => preferences.get(key),
         setCookie: (key, value) => preferences.set(key, value),
-        getPlayerKey: () => "owner", setTimeout() {}, clearTimeout() {},
+        getPlayerKey: () => "owner", setTimeout(callback, delay) { timers.push({ callback, delay }); return timers.length; }, clearTimeout() {},
         performance: { now: () => now },
         Date: class extends Date { static now() { return now; } },
         window: { matchMedia: () => ({ matches: reducedMotion }), setTimeout() {} },
@@ -88,7 +89,7 @@ function fixture() {
         vm.runInContext(source(name), context);
     }
     const types = vm.runInContext("({ Card, PresidentCard, PresidentPlayer, PresidentGame, GameLayout })", context);
-    return { context, types, preferences, nodes, body,
+    return { context, types, preferences, nodes, body, timers,
         set now(value) { now = value; }, set reducedMotion(value) { reducedMotion = value; } };
 }
 
@@ -139,6 +140,30 @@ test("foil is applied to shared image helpers without changing card backs", () =
     assert.doesNotMatch(decodeURIComponent(types.GameLayout.createCardImage(types.Card.createBack()).src), /data-foil=/);
 });
 
+test("opponents default to normal cards without local foil unless own style applies globally", () => {
+    const { context, types, preferences } = fixture();
+    const viewer = new types.PresidentPlayer("Viewer", "viewer");
+    const opponent = new types.PresidentPlayer("Opponent", "opponent");
+    context.testOpponent = opponent;
+    const opponentId = vm.runInContext("GamePresence.playerId(testOpponent)", context);
+    const game = { players: [viewer, opponent], cardStyles: { [opponentId]: "pixel" } };
+    const vanillaGame = { players: [viewer, opponent] };
+    types.GameLayout.viewerName = "Viewer";
+    preferences.set("CardFoil", "radiant");
+
+    assert.equal(types.GameLayout.styleForPlayer(vanillaGame, "Opponent"), "normal");
+    assert.equal(types.GameLayout.foilForPlayer(vanillaGame, "Opponent"), "none");
+    assert.equal(types.GameLayout.styleForPlayer(game, "Opponent"), "pixel");
+    assert.equal(types.GameLayout.foilForPlayer(game, "Opponent"), "none");
+    game.cardFoils = { [opponentId]: "galaxy" };
+    assert.equal(types.GameLayout.foilForPlayer(game, "Opponent"), "galaxy");
+    assert.equal(types.GameLayout.foilForPlayer(game, "Viewer"), "radiant");
+
+    preferences.set("CardStyleScope", "own");
+    assert.equal(types.GameLayout.styleForPlayer(game, "Opponent"), "normal");
+    assert.equal(types.GameLayout.foilForPlayer(game, "Opponent"), "radiant");
+});
+
 test("the foil selector persists independently, updates previews and never registers card-style actions", () => {
     const { context, preferences, nodes } = fixture();
     const dialogs = [];
@@ -147,6 +172,7 @@ test("the foil selector persists independently, updates previews and never regis
     context.showDialog = (...args) => dialogs.push(args);
     let styleUpdates = 0;
     context.updateCardStyleButtons = () => styleUpdates++;
+    context.updateCardAppearancePreview = () => {};
     const connection = source("connection.js");
     const start = connection.indexOf("        function updateCardFoilButtons()");
     const end = connection.indexOf('        document.getElementById("hideToastsToggleButton")', start);
@@ -170,6 +196,25 @@ test("the foil selector persists independently, updates previews and never regis
     assert.deepEqual(dialogs.slice(-2), [["Kortfolie", false], ["Innstillinger", true]]);
 });
 
+test("foil overlays cover the full card surface and settings share one card preview", () => {
+    const foilCss = fs.readFileSync(path.join(__dirname, "..", "css", "foil.css"), "utf8");
+    assert.match(foilCss, /\[data-foil\]:not\(\[data-foil="none"\]\)::before\s*\{[^}]*inset:\s*0;/);
+    assert.match(foilCss, /\[data-foil\]:not\(\[data-foil="none"\]\)::after\s*\{[^}]*inset:\s*0;/);
+    assert.doesNotMatch(foilCss, /--foil-clip|clip-path:\s*var\(--foil-clip\)/);
+    const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    const settings = html.slice(html.indexOf('class="setting-card-appearance"'),
+        html.indexOf('<h3 class="settings-category">Spill og styring</h3>'));
+    assert.equal((settings.match(/id="cardAppearancePreview"/g) || []).length, 1);
+    assert.equal((settings.match(/class="setting-card-appearance__button"/g) || []).length, 2);
+    assert.doesNotMatch(settings, /id="cardStyleCurrent"|id="cardFoilCurrent"/);
+    assert.match(html, /Bruk valgt stil og folie på alle kort, eller vis andre spilleres valgte stil og folie\./);
+});
+
+test("drag source cards disappear immediately instead of leaving a shadow at the hand position", () => {
+    const styles = fs.readFileSync(path.join(__dirname, "..", "css", "theme.css"), "utf8");
+    assert.match(styles, /\.game-card\.is-drag-source\s*\{\s*opacity:\s*0;\s*transition:\s*none;/);
+});
+
 test("drag previews escape hand clipping, follow both axes without a distance cap and clean up", () => {
     const f = fixture();
     const hand = new Element();
@@ -190,7 +235,8 @@ test("drag previews escape hand clipping, follow both axes without a distance ca
         assert.equal(card._dragPreview.dataset.foil, "radiant");
         assert.equal(card._dragPreview.properties.get("--drag-offset-x"), "250px");
         assert.equal(card._dragPreview.properties.get("--drag-offset-y"), "-400px");
-        assert.equal(card._dragPreview.properties.get("--tilt-x"), "28deg");
+        assert.equal(card._dragPreview.properties.get("--tilt-x"), "-16deg");
+        assert.equal(card._dragPreview.properties.get("--tilt-y"), "-20deg");
     }
     assert.equal(f.nodes.get("gameTable").classList.contains("is-card-drop-target"), true);
     f.reducedMotion = true;
@@ -204,19 +250,75 @@ test("drag previews escape hand clipping, follow both axes without a distance ca
     assert.equal(f.nodes.get("gameTable").classList.contains("is-card-drop-target"), false);
 });
 
+test("horizontal drag lifts the card's right edge and reverse drag tilts the opposite way", () => {
+    const f = fixture();
+    const hand = new Element();
+    const card = new Element();
+    card.dataset = { cardKey: "1:5", cardStyle: "normal", foil: "none" };
+    card.className = "game-card";
+    hand.appendChild(card);
+    vm.runInContext('selectedCardKeys.add("1:5")', f.context);
+    f.context.startCardDragPreview(hand, { clientX: 100, clientY: 100 });
+    f.context.moveCardDragPreview(hand, { clientX: 200, clientY: 100 }, 100, 100);
+    assert.equal(card._dragPreview.properties.get("--tilt-y"), "-8deg");
+    f.context.moveCardDragPreview(hand, { clientX: 0, clientY: 100 }, 100, 100);
+    assert.equal(card._dragPreview.properties.get("--tilt-y"), "8deg");
+    f.context.clearCardDragPreview(hand);
+});
+
+test("a non-board release glides drag previews back before restoring the hand cards", () => {
+    const f = fixture();
+    const hand = new Element();
+    const card = new Element();
+    card.dataset = { cardKey: "1:5", cardStyle: "normal", foil: "none" };
+    card.className = "game-card";
+    hand.appendChild(card);
+    vm.runInContext('selectedCardKeys.add("1:5")', f.context);
+    f.context.startCardDragPreview(hand, { clientX: 100, clientY: 100 });
+    f.context.moveCardDragPreview(hand, { clientX: 230, clientY: 170 }, 100, 100);
+    f.context.returnCardDragPreview(hand);
+    assert.equal(card._dragPreview.classList.contains("is-returning"), true);
+    assert.equal(card._dragPreview.properties.get("--drag-offset-x"), "0px");
+    assert.equal(card._dragPreview.properties.get("--drag-offset-y"), "0px");
+    assert.equal(card._dragPreview.properties.get("--tilt-y"), "0deg");
+    assert.equal(card.classList.contains("is-drag-source"), true);
+    assert.equal(f.timers.at(-1).delay, 340);
+    f.timers.at(-1).callback();
+    assert.equal(hand._cardDragPreview, null);
+    assert.equal(card.classList.contains("is-drag-source"), false);
+});
+
+test("releasing a dragged hand outside the board animates the preview back", () => {
+    const f = pointerFixture({ desktop: true, mode: "button" });
+    f.hand.onpointerdown(f.event(100, 500));
+    f.hand.onpointermove(f.event(230, 350));
+    f.hand.onpointerup(f.event(230, 350));
+    assert.equal(f.state.plays, 0);
+    assert.equal(f.body.children.length, 1);
+    assert.equal(f.body.children[0].children[0].classList.contains("is-returning"), true);
+    assert.equal(f.card.classList.contains("is-drag-source"), true);
+    f.timers.at(-1).callback();
+    assert.equal(f.body.children.length, 0);
+    assert.equal(f.card.classList.contains("is-drag-source"), false);
+});
+
 test("slow drops play only on the board, while the original 24px fast flick still works", () => {
     const f = fixture();
     f.context.document.getElementById("gameTable");
     const drag = { canDragToPlay: true, canSwipeToPlay: false, didPlayDrag: true,
-        axis: "vertical", startX: 100, startY: 500, startTime: 0 };
+        axis: "vertical", startX: 100, startY: 500 };
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 200 }), true);
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 401, clientY: 200 }), false);
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 400 }), false);
     drag.canSwipeToPlay = true;
+    drag.lastFlickDistance = 100;
+    drag.lastFlickVelocity = 0.1;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 400 }), false);
-    f.now = 40;
+    drag.lastFlickDistance = 24;
+    drag.lastFlickVelocity = 0.55;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), true);
-    assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 477 }), false);
+    drag.lastFlickDistance = -24;
+    assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), false);
     drag.axis = "horizontal";
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 200 }), false);
     drag.axis = "vertical";
@@ -248,7 +350,7 @@ function pointerFixture({ desktop = false, valid = true, mode = "flick", blocked
     context.playSelectedCards = () => { state.plays++; return true; };
     context.showInvalidCardWarning = () => state.warnings++;
     context.startCardHandInertia = () => state.scrolls++;
-    context.clearDragStyles = () => context.clearCardDragPreview(hand);
+    context.clearDragStyles = () => {};
     const layout = source("layout.js");
     const start = layout.indexOf("        var handScrollDrag = null;");
     vm.runInContext(layout.slice(start, layout.indexOf("        var selectableExchanges", start)), context);
@@ -293,6 +395,61 @@ test("touch flick plays outside the board while sideways touch scrolling never p
     scroll.hand.onpointerup(scroll.event(170, 100));
     assert.equal(scroll.state.plays, 0);
     assert.equal(scroll.state.scrolls, 1);
+});
+
+test("flick intent follows the final vertical stroke, not earlier stronger movement", () => {
+    const reversed = pointerFixture();
+    reversed.hand.onpointerdown(reversed.event(100, 500));
+    reversed.advance(1030);
+    reversed.hand.onpointermove(reversed.event(100, 470));
+    reversed.advance(1050);
+    reversed.hand.onpointermove(reversed.event(100, 490));
+    reversed.hand.onpointerup(reversed.event(100, 490));
+    assert.equal(reversed.state.plays, 0);
+
+    const finalFlick = pointerFixture();
+    finalFlick.hand.onpointerdown(finalFlick.event(100, 500));
+    finalFlick.advance(1030);
+    finalFlick.hand.onpointermove(finalFlick.event(100, 470));
+    finalFlick.advance(1050);
+    finalFlick.hand.onpointermove(finalFlick.event(100, 490));
+    finalFlick.advance(1080);
+    finalFlick.hand.onpointermove(finalFlick.event(100, 464));
+    finalFlick.hand.onpointerup(finalFlick.event(100, 464));
+    assert.equal(finalFlick.state.plays, 1);
+    assert.equal(finalFlick.state.warnings, 0);
+
+    const weakFinal = pointerFixture();
+    weakFinal.hand.onpointerdown(weakFinal.event(100, 500));
+    weakFinal.advance(1030);
+    weakFinal.hand.onpointermove(weakFinal.event(100, 470));
+    weakFinal.advance(1050);
+    weakFinal.hand.onpointermove(weakFinal.event(100, 490));
+    weakFinal.advance(1110);
+    weakFinal.hand.onpointermove(weakFinal.event(100, 466));
+    weakFinal.hand.onpointerup(weakFinal.event(100, 466));
+    assert.equal(weakFinal.state.plays, 0);
+});
+
+test("release at the last upward flick position uses that final stroke", () => {
+    const flick = pointerFixture();
+    flick.hand.onpointerdown(flick.event(100, 500));
+    flick.advance(1030);
+    flick.hand.onpointermove(flick.event(100, 470));
+    flick.hand.onpointerup(flick.event(100, 470));
+    assert.equal(flick.state.plays, 1);
+    assert.equal(flick.state.warnings, 0);
+});
+
+test("the final flick stroke can span several pointer events", () => {
+    const flick = pointerFixture();
+    flick.hand.onpointerdown(flick.event(100, 500));
+    for (const [time, y] of [[1008, 494], [1016, 488], [1024, 482], [1032, 476], [1040, 470]]) {
+        flick.advance(time);
+        flick.hand.onpointermove(flick.event(100, y));
+    }
+    flick.hand.onpointerup(flick.event(100, 470));
+    assert.equal(flick.state.plays, 1);
 });
 
 test("hover tilts without pressing, and cancellation or lost capture clears all drag visuals", () => {
