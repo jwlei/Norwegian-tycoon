@@ -46,6 +46,8 @@
         "Ingen registrerte runder ennå.": "No rounds recorded yet.",
         "Kunne ikke hente leaderboard. Lukk og åpne igjen for å prøve på nytt.": "Could not load the leaderboard. Close and reopen it to retry.",
         "Sorterbart leaderboard": "Sortable leaderboard",
+        "Runder": "Rounds",
+        "Snittscore": "Avg. score",
         "Antall runder spilt": "Rounds played",
         "Antall ganger president": "Times president",
         "Antall ganger boms": "Times bum",

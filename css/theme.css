@@ -2463,13 +2463,14 @@ select:focus-visible {
 .leaderboard-table {
     width: 100%;
     border-collapse: collapse;
+    font-size: 0.8125rem;
     font-variant-numeric: tabular-nums;
     text-align: right;
 }
 
 .leaderboard-table th,
 .leaderboard-table td {
-    padding: 8px 6px;
+    padding: 7px 4px;
     border-bottom: 1px solid var(--line);
     white-space: nowrap;
 }
@@ -2486,9 +2487,11 @@ select:focus-visible {
 }
 
 .leaderboard-table th button {
-    min-width: 36px;
+    min-width: 0;
     min-height: 40px;
-    padding: 4px;
+    margin: 0;
+    padding: 4px 2px;
+    font: inherit;
     color: inherit;
     background: transparent;
     border: 0;
@@ -2502,6 +2505,31 @@ select:focus-visible {
     color: var(--accent);
     text-decoration: underline;
     text-underline-offset: 5px;
+}
+
+@media (max-width: 480px) {
+    #dialogLeaderboard .leaderboard-content {
+        padding-right: 6px;
+        padding-left: 6px;
+    }
+
+    .leaderboard-table {
+        font-size: 0.75rem;
+    }
+
+    .leaderboard-table th,
+    .leaderboard-table td {
+        padding: 6px 2px;
+    }
+
+    .leaderboard-table td:first-child {
+        max-width: clamp(44px, 14vw, 68px);
+    }
+
+    .leaderboard-table th button {
+        font-size: 0.6875rem;
+        padding: 4px 0;
+    }
 }
 
 .rules-content section + section { margin-top: 16px; }

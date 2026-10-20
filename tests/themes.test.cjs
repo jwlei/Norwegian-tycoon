@@ -217,6 +217,25 @@ test("leaderboard uses a centered title and no visible hint text", () => {
     assert.match(dialog, /class="dialog-title">Leaderboard<\/div>/);
     assert.match(css, /#dialogLeaderboard \.dialog-title\s*\{[^}]*text-align:\s*center;/);
     assert.doesNotMatch(dialog, /leaderboard-description/);
-    assert.match(dialog, /data-leaderboard-sort="roundsPlayed"[^>]*>#<\/button>/);
+    const headers = [...dialog.matchAll(/data-leaderboard-sort="([^"]+)"[^>]*>([^<]+)<\/button>/g)]
+        .map(match => [match[1], match[2]]);
+    assert.deepEqual(headers, [
+        ["name", "Spiller"], ["roundsPlayed", "Runder"], ["presidentWins", "👑"],
+        ["bomsCount", "🗑️"], ["placementScore", "Snittscore"],
+        ["longestPresidentStreak", "🔥👑"], ["longestBomsStreak", "🔥🗑️"]
+    ]);
+    const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
+    assert.match(translations, /"Spiller": "Player"/);
+    assert.match(translations, /"Runder": "Rounds"/);
+    assert.match(translations, /"Snittscore": "Avg\. score"/);
     assert.match(dialog, /role="status" aria-live="polite"/);
+});
+
+test("leaderboard has smaller text and compact mobile cells without shrinking sorting tap heights", () => {
+    assert.match(css, /\.leaderboard-table\s*\{[^}]*font-size:\s*0\.8125rem;/);
+    assert.match(css, /\.leaderboard-table th button\s*\{[^}]*min-height:\s*40px;[^}]*font:\s*inherit;/);
+    const mobile = css.slice(css.indexOf("@media (max-width: 480px)", css.indexOf(".leaderboard-table {")));
+    assert.match(mobile, /\.leaderboard-table\s*\{[^}]*font-size:\s*0\.75rem;/);
+    assert.match(mobile, /\.leaderboard-table th button\s*\{[^}]*font-size:\s*0\.6875rem;/);
+    assert.match(mobile, /max-width:\s*clamp\(44px, 14vw, 68px\);/);
 });
