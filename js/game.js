@@ -433,12 +433,9 @@ function isCardDropOnTable(event) {
 function shouldPlayCardDrag(drag, event) {
     if (!drag.canDragToPlay || drag.axis == "horizontal") { return false; }
     if (drag.didPlayDrag && isCardDropOnTable(event)) { return true; }
-    var swipeDistance = drag.startY - event.clientY;
-    var cardHeight = drag.cardElement ? drag.cardElement.getBoundingClientRect().height : 0;
-    var swipeThreshold = Math.max(48, Math.min(72, cardHeight * 0.35));
     return drag.canSwipeToPlay &&
-        (swipeDistance >= swipeThreshold ||
-            (drag.lastFlickDistance >= 24 && drag.lastFlickVelocity >= 0.55));
+        drag.lastFlickDistance >= 24 && drag.lastFlickVelocity >= 0.55 &&
+        (drag.lastFlickMoveTime == null || performance.now() - drag.lastFlickMoveTime <= 120);
 }
 
 function clearCardDragPreview(hand) {
@@ -462,16 +459,19 @@ function returnCardDragPreview(hand) {
         return;
     }
     drag.returning = true;
-    if (drag.frame == null) {
-        drag.frame = requestAnimationFrame(time => animateCardDragTilt(drag, time));
-    }
+    if (drag.frame != null) { cancelAnimationFrame(drag.frame); drag.frame = null; }
     drag.cards.forEach(card => {
         var preview = card._dragPreview;
+        preview.getBoundingClientRect();
         preview.classList.add("is-returning");
         preview.style.setProperty("--drag-offset-x", "0px");
         preview.style.setProperty("--drag-offset-y", "0px");
         preview.style.setProperty("--drag-scale", "1");
-        preview.getBoundingClientRect();
+        preview.style.setProperty("--tilt-x", "0deg");
+        preview.style.setProperty("--tilt-y", "0deg");
+        preview.style.setProperty("--pointer-x", "50%");
+        preview.style.setProperty("--pointer-y", "50%");
+        preview.classList.remove("is-tilting");
     });
     document.getElementById("gameTable").classList.remove("is-card-drop-target");
     setTimeout(() => {

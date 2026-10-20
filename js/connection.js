@@ -3,7 +3,11 @@
         var currentGame = null;
         var currentPlayerName = null;
         var playerPresidentWins = 0;
-        var playerStatsSubscription = null;
+        var playerRoundsPlayed = 0;
+        var playerWinsRequest = 0;
+        var playerWinsName = null;
+        var playerWinsLoading = false;
+        var playerWinsError = false;
         var pendingNewGameName = false;
         var currentGameSubscription = null;
         var currentGameListener = null;
@@ -244,6 +248,11 @@
                     : readLastUsedPlayerName();
             document.getElementById("playerNameError").textContent = errorMessage;
             document.getElementById("dialogSporOmNickTxt").classList.remove("input-soft-error");
+            document.getElementById("playerRecoveryPin").value = "";
+            document.getElementById("playerNewPin").value = "";
+            document.getElementById("playerConfirmPin").value = "";
+            document.getElementById("playerSetPin").checked = false;
+            document.getElementById("playerNewPinFields").hidden = true;
             document.getElementById("dialogSporOmNickOk").textContent =
                 isRename ? "Lagre navn" : "Bli spiller";
             showDialog("SporOmNick", true);
@@ -2025,7 +2034,7 @@
             var mode = GameLayout.playInputMode();
             document.querySelectorAll(".play-input-option").forEach(button => {
                 button.setAttribute("aria-pressed", String(button.dataset.playInput == mode));
-                button.disabled = button.dataset.playInput == "flick" && GameLayout.usesDesktopControls();
+                button.disabled = false;
             });
         }
         document.querySelectorAll(".animation-speed-option").forEach(button => {
@@ -2117,23 +2126,49 @@
             bindCardPreviewTilt(wrapper);
             holder.replaceChildren(wrapper);
         }
-        function watchPlayerPresidentWins() {
-            if (playerStatsSubscription != null) { return; }
-            playerStatsSubscription = firebase.database().ref(`playerStats/${getPlayerKey()}`);
-            playerStatsSubscription.on("value", snapshot => {
-                var record = snapshot.val();
-                var wins = Number(record && record.presidentWins);
-                playerPresidentWins = Number.isSafeInteger(wins) && wins > 0 ? wins : 0;
-                updateCardFoilButtons();
-            }, error => {
+        async function refreshPlayerPresidentWins() {
+            var request = ++playerWinsRequest;
+            var name = currentPlayerName || readLastUsedPlayerName();
+            playerWinsName = name;
+            playerPresidentWins = 0;
+            playerRoundsPlayed = 0;
+            playerWinsLoading = true;
+            playerWinsError = false;
+            updateCardFoilButtons();
+            updateCardStyleButtons();
+            try {
+                var stats = await PlayerIdentity.statsForName(name, getPlayerKey());
+                if (request != playerWinsRequest) { return; }
+                playerPresidentWins = stats.presidentWins;
+                playerRoundsPlayed = stats.roundsPlayed;
+            } catch (error) {
+                if (request != playerWinsRequest) { return; }
+                playerWinsError = true;
                 console.error("Kunne ikke hente spillerstatistikk.", error);
-            });
+            } finally {
+                if (request == playerWinsRequest) {
+                    playerWinsLoading = false;
+                    updateCardFoilButtons();
+                    updateCardStyleButtons();
+                }
+            }
         }
         function isCardFoilUnlocked(foil, playerName) {
-            var normalizedName = (playerName || "").trim().toLocaleLowerCase();
-            if (normalizedName == "h4cker" || normalizedName == "tåkefyrsten") { return true; }
+            if (Card.hasAllAppearanceUnlocks(playerName)) { return true; }
             var requiredWins = Card.foilUnlockWins(foil);
-            return requiredWins != null && playerPresidentWins >= requiredWins;
+            if (requiredWins == 0) { return true; }
+            return !playerWinsLoading && !playerWinsError &&
+                playerWinsName == (currentPlayerName || readLastUsedPlayerName()) &&
+                requiredWins != null && playerPresidentWins >= requiredWins;
+        }
+        function isCardStyleUnlocked(style, playerName) {
+            if (Card.hasAllAppearanceUnlocks(playerName)) { return true; }
+            if (style == "botanical") { return Card.normalizeStyle(style, playerName) == style; }
+            var requiredRounds = Card.styleUnlockRounds(style);
+            if (requiredRounds == 0) { return true; }
+            return !playerWinsLoading && !playerWinsError &&
+                playerWinsName == (currentPlayerName || readLastUsedPlayerName()) &&
+                requiredRounds != null && playerRoundsPlayed >= requiredRounds;
         }
         function updateCardStyleButtons() {
             document.querySelectorAll(".card-style-scope-option").forEach(button => {
@@ -2143,24 +2178,38 @@
             var style = GameLayout.cardStyle();
             document.documentElement.dataset.cardStyle = style;
             var previewCards = [new PresidentCard(2, 1), new PresidentCard(1, 12), new PresidentCard(4, 7)];
-            document.querySelectorAll(".card-style-option").forEach(button => {
-                button.hidden = button.dataset.cardStyle == "botanical" && !GameLayout.canUseBotanicalStyle();
-                button.setAttribute("aria-pressed", String(button.dataset.cardStyle == style));
-                var holder = button.querySelector(".card-style-option__cards");
+            document.querySelectorAll(".card-style-option").forEach(row => {
+                row.hidden = row.dataset.cardStyle == "botanical" && !GameLayout.canUseBotanicalStyle();
+                var button = row.querySelector(".card-style-option__select");
+                button.setAttribute("aria-pressed", String(row.dataset.cardStyle == style));
+                var unlocked = isCardStyleUnlocked(row.dataset.cardStyle, currentPlayerName || readLastUsedPlayerName());
+                button.disabled = !unlocked;
+                row.classList.toggle("is-locked", !unlocked);
+                var unlock = button.querySelector(".card-style-option__unlock");
+                unlock.textContent = unlocked ? "" : localizedMessage(`Krever ${Card.styleUnlockRounds(row.dataset.cardStyle)} runder`);
+                unlock.hidden = unlocked;
+                var holder = row.querySelector(".card-style-option__cards");
                 if (holder != null && (holder.childElementCount == 0 || holder.dataset.foil != GameLayout.cardFoil())) {
                     holder.replaceChildren();
                     holder.dataset.foil = GameLayout.cardFoil();
                     previewCards.forEach(card => {
                         var wrapper = document.createElement("span");
-                        wrapper.className = "card-preview card-preview--" + button.dataset.cardStyle;
+                        wrapper.className = "card-preview card-preview--" + row.dataset.cardStyle;
                         wrapper.dataset.foil = GameLayout.cardFoil();
-                        var image = GameLayout.createCardImage(card, null, button.dataset.cardStyle);
+                        wrapper.tabIndex = 0;
+                        wrapper.setAttribute("aria-label", localizedMessage(button.querySelector("strong").textContent));
+                        var image = GameLayout.createCardImage(card, null, row.dataset.cardStyle);
                         image.alt = "";
                         wrapper.appendChild(image);
+                        bindCardPreviewTilt(wrapper);
                         holder.appendChild(wrapper);
                     });
                 }
             });
+            document.getElementById("cardStyleRounds").textContent = playerWinsLoading
+                ? localizedMessage("Henter runder…")
+                : playerWinsError ? localizedMessage("Kunne ikke hente runder. Åpne menyen igjen for å prøve på nytt.")
+                : localizedMessage(`Dine runder: ${playerRoundsPlayed}`);
             var selected = document.querySelector(`.card-style-option[data-card-style="${style}"] strong`);
             if (selected != null) {
                 document.getElementById("cardStyleCurrentName").textContent =
@@ -2172,7 +2221,7 @@
         document.addEventListener("languagechange", updateCardStyleButtons);
 
         document.getElementById("cardStyleOpenButton").addEventListener("click", function () {
-            updateCardStyleButtons();
+            refreshPlayerPresidentWins();
             showDialog("Innstillinger", false);
             showDialog("Korttype", true);
         });
@@ -2224,23 +2273,25 @@
         });
 
         function updateCardFoilButtons() {
-            watchPlayerPresidentWins();
             var foil = GameLayout.cardFoil();
             var style = GameLayout.cardStyle();
             var options = document.getElementById("cardFoilOptions");
             if (options.childElementCount == 0) {
                 Card.foilOptionsByUnlock().forEach(option => {
+                    var row = document.createElement("div");
+                    row.className = "card-foil-option";
+                    row.dataset.cardFoil = option.id;
                     var button = document.createElement("button");
                     button.type = "button";
-                    button.className = "card-foil-option";
-                    button.dataset.cardFoil = option.id;
+                    button.className = "card-foil-option__select";
                     var cards = document.createElement("span");
                     cards.className = "card-style-option__cards";
                     var name = document.createElement("strong");
                     name.textContent = option.name;
                     var unlock = document.createElement("small");
                     unlock.className = "card-foil-option__unlock";
-                    button.append(cards, name, unlock);
+                    button.append(name, unlock);
+                    row.append(cards, button);
                     button.addEventListener("click", function () {
                         if (!isCardFoilUnlocked(option.id, currentPlayerName || readLastUsedPlayerName())) {
                             return;
@@ -2256,20 +2307,21 @@
                         showDialog("Kortfolie", false);
                         showDialog("Innstillinger", true);
                     });
-                    options.appendChild(button);
+                    options.appendChild(row);
                 });
             }
-            options.querySelectorAll(".card-foil-option").forEach(button => {
-                button.setAttribute("aria-pressed", String(button.dataset.cardFoil == foil));
+            options.querySelectorAll(".card-foil-option").forEach(row => {
+                var button = row.querySelector(".card-foil-option__select");
+                button.setAttribute("aria-pressed", String(row.dataset.cardFoil == foil));
                 var unlocked = isCardFoilUnlocked(
-                    button.dataset.cardFoil,
+                    row.dataset.cardFoil,
                     currentPlayerName || readLastUsedPlayerName()
                 );
                 button.disabled = !unlocked;
-                button.classList.toggle("is-locked", !unlocked);
-                var holder = button.querySelector(".card-style-option__cards");
+                row.classList.toggle("is-locked", !unlocked);
+                var holder = row.querySelector(".card-style-option__cards");
                 var unlock = button.querySelector(".card-foil-option__unlock");
-                var requiredWins = Card.foilUnlockWins(button.dataset.cardFoil);
+                var requiredWins = Card.foilUnlockWins(row.dataset.cardFoil);
                 unlock.textContent = unlocked ? "" : `Krever ${requiredWins} seire`;
                 unlock.hidden = unlocked;
                 if (holder.dataset.style == style) { return; }
@@ -2277,9 +2329,12 @@
                 holder.replaceChildren();
                 var card = new PresidentCard(2, 1);
                 var wrapper = document.createElement("span");
-                wrapper.className = "card-preview";
-                wrapper.dataset.foil = button.dataset.cardFoil;
-                var image = GameLayout.createCardImage(card, null, style, button.dataset.cardFoil);
+                wrapper.className = "card-preview card-preview--" + style;
+                wrapper.dataset.foil = row.dataset.cardFoil;
+                wrapper.tabIndex = 0;
+                wrapper.setAttribute("aria-label", localizedMessage(
+                    Card.foilOptions().find(option => option.id == row.dataset.cardFoil).name));
+                var image = GameLayout.createCardImage(card, null, style, row.dataset.cardFoil);
                 image.alt = "";
                 wrapper.appendChild(image);
                 bindCardPreviewTilt(wrapper);
@@ -2287,13 +2342,16 @@
             });
             document.getElementById("cardFoilCurrentName").textContent =
                 localizedMessage(Card.foilOptions().find(option => option.id == foil).name);
-            document.getElementById("cardFoilWins").textContent = `Your wins: ${playerPresidentWins}`;
+            document.getElementById("cardFoilWins").textContent = playerWinsLoading
+                ? localizedMessage("Henter seire…")
+                : playerWinsError ? localizedMessage("Kunne ikke hente seire. Åpne menyen igjen for å prøve på nytt.")
+                : `Your wins: ${playerPresidentWins}`;
             updateCardAppearancePreview();
         }
         updateCardFoilButtons();
         document.addEventListener("languagechange", updateCardFoilButtons);
         document.getElementById("cardFoilOpenButton").addEventListener("click", function () {
-            updateCardFoilButtons();
+            refreshPlayerPresidentWins();
             showDialog("Innstillinger", false);
             showDialog("Kortfolie", true);
         });
@@ -2315,10 +2373,11 @@
             });
         });
 
-        document.querySelectorAll(".card-style-option").forEach(button => {
+        document.querySelectorAll(".card-style-option__select").forEach(button => {
             button.addEventListener("click", function () {
-                if (button.dataset.cardStyle == "botanical" && !GameLayout.canUseBotanicalStyle()) { return; }
-                try { localStorage.setItem("cardStyle", button.dataset.cardStyle); } catch (error) { }
+                var style = button.closest(".card-style-option").dataset.cardStyle;
+                if (!isCardStyleUnlocked(style, currentPlayerName || readLastUsedPlayerName())) { return; }
+                try { localStorage.setItem("cardStyle", style); } catch (error) { }
                 if (currentGame) {
                     currentGame.cardStyleSyncFailed = null;
                     syncPlayerCardAppearance(currentGame);
@@ -2335,7 +2394,7 @@
             var inGame = currentGame != null;
             updateSavedPlayerName();
             updateCardStyleButtons();
-            updateCardFoilButtons();
+            refreshPlayerPresidentWins();
             GameLayout.setVisible("BnPByttNavn", !inGame || currentGame.status == "O");
             document.querySelector(".setting-turn-speed").hidden = false;
             document.getElementById("settingsGameId").hidden = !inGame;
@@ -2533,6 +2592,46 @@
             promptForPlayerName(currentPlayerName != null || currentGame == null);
         });
 
+        document.getElementById("playerSetPin").addEventListener("change", function () {
+            document.getElementById("playerNewPinFields").hidden = !this.checked;
+        });
+
+        async function applyPlayerIdentity(name) {
+            var game = currentGame;
+            var previousName = currentPlayerName;
+            var oldKey = getPlayerKey();
+            var pin = document.getElementById("playerRecoveryPin").value;
+            var newPin = document.getElementById("playerSetPin").checked
+                ? document.getElementById("playerNewPin").value : "";
+            if (document.getElementById("playerSetPin").checked &&
+                (!/^\d{3,4}$/.test(newPin) || newPin != document.getElementById("playerConfirmPin").value)) {
+                throw new Error("PIN må ha 3–4 sifre og være lik i begge feltene.");
+            }
+            var identity = await PlayerIdentity.resolve(name, oldKey, pin, newPin,
+                previousName != null ? oldKey : null);
+            if (currentGame != game || currentPlayerName != previousName) {
+                throw new Error("Spillet ble endret. Åpne navnevalget på nytt.");
+            }
+            if (identity.playerKey == oldKey) { return; }
+            if (currentPlayerName != null) {
+                throw new Error("Dette navnet tilhører en annen spiller-ID. Gå til hovedmenyen før du henter profilen.");
+            }
+            if (game && pendingNewGameName && game.status == "O" && game.players.length == 0) {
+                await game.creation;
+                var result = await game.databaseRef.transaction(record => {
+                    if (!record || record.status != "O" || record.hostKey != oldKey ||
+                        (record.spillere || []).length > 0) { return; }
+                    return Object.assign({}, record, { hostKey: identity.playerKey });
+                }, undefined, false);
+                if (!result.committed) { throw new Error("Lobbyen ble endret. Opprett et nytt spill fra hovedmenyen."); }
+                game.hostKey = identity.playerKey;
+            }
+            setCookie("SpillerKey", identity.playerKey, 1000);
+            playerWinsName = null;
+            playerPresidentWins = 0;
+            playerRoundsPlayed = 0;
+        }
+
         document.getElementById("dialogSporOmNickCancel").addEventListener("click", async function () {
             showDialog("SporOmNick", false);
             if (!pendingNewGameName) { return; }
@@ -2561,57 +2660,74 @@
                 return;
             }
             if (requestedName != "") {
-                if (currentGame == null) {
-                    saveLastUsedPlayerName(requestedName);
-                    showDialog("SporOmNick", false);
-                    return;
-                }
-                if (currentPlayerName != null) {
-                    if (currentGame.status != "O") {
-                        document.getElementById('playerNameError').textContent = "Kan ikke endre navn under spill.";
-                        return;
+                var submit = document.getElementById("dialogSporOmNickOk");
+                if (submit.disabled) { return; }
+                submit.disabled = true;
+                try {
+                    if (currentPlayerName != null && currentGame != null && currentGame.status != "O") {
+                        throw new Error("Kan ikke endre navn under spill.");
                     }
-                    var playerToRename = currentGame.getPlayer(currentPlayerName);
-                    if (playerToRename == null) {
-                        document.getElementById('playerNameError').textContent = "Spilleren finnes ikke lenger.";
-                        return;
-                    }
-                    var renamingGame = currentGame;
-                    var renameResult = await renamingGame.renamePlayer(playerToRename, requestedName);
-                    if (currentGame != renamingGame) { return; }
-                    if (!renameResult.player) {
-                        document.getElementById('playerNameError').textContent = renameResult.text;
-                        return;
-                    }
-                    currentPlayerName = renameResult.player.name;
-                    saveLastUsedPlayerName(currentPlayerName);
-                    GameLayout.updateSharedView(currentGame, renameResult.player);
-                    GameLayout.updatePlayerView(currentGame, renameResult.player);
-                    showDialog("SporOmNick", false);
-                } else {
-                    if (currentGame.status == "S" || currentGame.status == "G") {
-                        pendingSpectatorJoinName = requestedName;
+                    await applyPlayerIdentity(requestedName);
+                    if (currentGame == null) {
                         saveLastUsedPlayerName(requestedName);
-                        registerWaitingSpectator(currentGame);
                         showDialog("SporOmNick", false);
                         return;
                     }
-                    var key = getPlayerKey();
-                    var joiningGame = currentGame;
-                    var newPlayerResult = await joiningGame.addPlayer(new PresidentPlayer(requestedName, key));
-                    if (currentGame != joiningGame) { return; }
-                    if (newPlayerResult.player) {
-                        pendingSpectatorJoinName = null;
-                        pendingNewGameName = false;
-                        currentPlayerName = newPlayerResult.player.name;
-                        clearWaitingSpectator();
+                    if (currentPlayerName != null) {
+                        if (currentGame.status != "O") {
+                            document.getElementById('playerNameError').textContent = "Kan ikke endre navn under spill.";
+                            return;
+                        }
+                        var playerToRename = currentGame.getPlayer(currentPlayerName);
+                        if (playerToRename == null) {
+                            document.getElementById('playerNameError').textContent = "Spilleren finnes ikke lenger.";
+                            return;
+                        }
+                        var renamingGame = currentGame;
+                        var renameResult = await renamingGame.renamePlayer(playerToRename, requestedName);
+                        if (currentGame != renamingGame) { return; }
+                        if (!renameResult.player) {
+                            document.getElementById('playerNameError').textContent = renameResult.text;
+                            return;
+                        }
+                        currentPlayerName = renameResult.player.name;
                         saveLastUsedPlayerName(currentPlayerName);
-                        GameLayout.updateSharedView(currentGame, newPlayerResult.player);
-                        GameLayout.updatePlayerView(currentGame, newPlayerResult.player);
+                        GameLayout.updateSharedView(currentGame, renameResult.player);
+                        GameLayout.updatePlayerView(currentGame, renameResult.player);
                         showDialog("SporOmNick", false);
                     } else {
-                        document.getElementById('playerNameError').textContent = newPlayerResult.text;
+                        if (currentGame.status == "S" || currentGame.status == "G") {
+                            pendingSpectatorJoinName = requestedName;
+                            saveLastUsedPlayerName(requestedName);
+                            registerWaitingSpectator(currentGame);
+                            showDialog("SporOmNick", false);
+                            return;
+                        }
+                        var key = getPlayerKey();
+                        var joiningGame = currentGame;
+                        var newPlayerResult = await joiningGame.addPlayer(new PresidentPlayer(requestedName, key));
+                        if (currentGame != joiningGame) { return; }
+                        if (newPlayerResult.player) {
+                            pendingSpectatorJoinName = null;
+                            pendingNewGameName = false;
+                            currentPlayerName = newPlayerResult.player.name;
+                            clearWaitingSpectator();
+                            saveLastUsedPlayerName(currentPlayerName);
+                            GameLayout.updateSharedView(currentGame, newPlayerResult.player);
+                            GameLayout.updatePlayerView(currentGame, newPlayerResult.player);
+                            showDialog("SporOmNick", false);
+                        } else {
+                            document.getElementById('playerNameError').textContent = newPlayerResult.text;
+                        }
                     }
+                } catch (error) {
+                    console.error("Kunne ikke hente eller lagre spillerprofilen.", error);
+                    document.getElementById("playerNameError").textContent = error.message;
+                } finally {
+                    submit.disabled = false;
+                    document.getElementById("playerRecoveryPin").value = "";
+                    document.getElementById("playerNewPin").value = "";
+                    document.getElementById("playerConfirmPin").value = "";
                 }
             }
         });

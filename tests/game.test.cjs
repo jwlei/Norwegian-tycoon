@@ -1382,7 +1382,7 @@ function playButtonContext(options = {}) {
         showInvalidCardWarning: () => { warnings++; }
     });
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
-    const start = source.indexOf("        var playSelectedCards = function ()");
+    const start = source.indexOf("        var playSelectedCards = function (");
     const end = source.indexOf("        var selectCardsForSwipe", start);
     vm.runInContext(source.slice(start, end), context);
     return { game, player, playButton, played, selectedCardKeys, warnings: () => warnings };
@@ -2188,6 +2188,7 @@ test("settings show the localized selected style name and refresh the shared pre
     let previewUpdates = 0;
     const context = vm.createContext({
         PresidentCard, style: "holo", selectedName: "Holo",
+        playerRoundsPlayed: 0, playerWinsLoading: false, playerWinsError: false,
         GameLayout: { cardStyle: () => context.style, canUseBotanicalStyle: () => true },
         localizedMessage: text => "Translated " + text,
         updateCardAppearancePreview: () => previewUpdates++,
@@ -2201,8 +2202,8 @@ test("settings show the localized selected style name and refresh the shared pre
             })
         }
     });
-    vm.runInContext(source.slice(source.indexOf("        function updateCardStyleButtons()"),
-        source.indexOf("        updateCardStyleButtons();")), context);
+    const start = source.indexOf("        function updateCardStyleButtons()");
+    vm.runInContext(source.slice(start, source.indexOf("        updateCardStyleButtons();", start)), context);
     for (const name of ["Holo", "Gull", "Pixel Art", "Parallax", "Neon", "Vanlig", "Grønn tåke"]) {
         context.selectedName = name;
         context.updateCardStyleButtons();
@@ -2787,6 +2788,7 @@ test("an empty new-game name falls back to player", async () => {
         PresidentPlayer: class { constructor(name, key) { this.name = name; this.playerKey = key; } },
         GameLayout: { updateSharedView() {}, updatePlayerView() {} },
         clearWaitingSpectator() {}, saveLastUsedPlayerName() {}, showDialog() {},
+        applyPlayerIdentity: async () => {},
         document: {
             getElementById(id) {
                 if (!elements.has(id)) {
@@ -3116,20 +3118,26 @@ test("secret card style requires an exact case-insensitive eligible player name"
     }
 });
 
-function setupGame() {
+function setupGame({ deferProfileTransactions = false } = {}) {
     const profileRecords = {};
+    const pendingProfileTransactions = [];
     const types = loadGame(null, {
         firebase: {
             database: () => ({
                 ref(path) {
                     return {
                         transaction(update) {
-                            const next = update(profileRecords[path]);
-                            if (next !== undefined) { profileRecords[path] = next; }
-                            return Promise.resolve({
-                                committed: next !== undefined,
-                                snapshot: { val: () => profileRecords[path] }
-                            });
+                            const commit = () => {
+                                const next = update(profileRecords[path]);
+                                if (next !== undefined) { profileRecords[path] = next; }
+                                return {
+                                    committed: next !== undefined,
+                                    snapshot: { val: () => profileRecords[path] }
+                                };
+                            };
+                            return deferProfileTransactions
+                                ? new Promise(resolve => pendingProfileTransactions.push(() => resolve(commit())))
+                                : Promise.resolve(commit());
                         }
                     };
                 }
@@ -3153,7 +3161,7 @@ function setupGame() {
         owner.name, ...Array.from({ length: count }, (_, suit) =>
             new types.PresidentCard(suit + 1, rank))
     );
-    return { game, players, pile, types, profileRecords };
+    return { game, players, pile, types, profileRecords, pendingProfileTransactions };
 }
 
 test("completed games persist human names and award each president win once, including against bots", async () => {
@@ -3194,6 +3202,93 @@ test("default player names never add president wins", async () => {
     assert.equal(profileRecords["playerStats/human-key"].presidentWinGames["test"], undefined);
     assert.equal(profileRecords["playerStats/default-player-key"].presidentWins, 0);
     assert.equal(profileRecords["playerStats/default-player-key"].presidentWinGames["test"], undefined);
+    assert.equal(profileRecords["playerStats/human-key"].lastActiveAt, undefined);
+});
+
+test("round statistics normalize 2, 3 and 4-player placements to 1–3 and count every round exactly once", async () => {
+    for (const count of [2, 3, 4]) {
+        const { game, players, profileRecords } = setupGame();
+        players.splice(1);
+        while (players.length < count) {
+            players.push(new players[0].constructor(`Human ${players.length}`, `key-${players.length}`));
+        }
+        players.forEach((player, index) => { player.placement = index + 1; });
+        game.endTime = 10000;
+        await game.recordFinishedPlayerStats();
+        await game.recordFinishedPlayerStats();
+        for (const player of players) {
+            const stats = profileRecords[`playerStats/${player.playerKey}`];
+            assert.equal(stats.roundsPlayed, 1);
+            assert.equal(stats.placementScore, 1 + 2 * (player.placement - 1) / (count - 1));
+            assert.equal(stats.bomsCount, Number(player.placement == count));
+            assert.equal(stats.lastActiveAt, 10000);
+        }
+        game.round++;
+        game.endTime = 20000;
+        players[0].presidentStreak = 2;
+        players.at(-1).bomsStreak = 2;
+        await game.recordFinishedPlayerStats();
+        await game.recordFinishedPlayerStats();
+        const winner = profileRecords["playerStats/human-key"];
+        const loser = profileRecords[`playerStats/${players.at(-1).playerKey}`];
+        assert.equal(winner.roundsPlayed, 2);
+        assert.equal(winner.presidentWins, 2, "Multiple wins in one room must all count");
+        assert.equal(winner.longestPresidentStreak, 2);
+        assert.equal(loser.longestBomsStreak, 2);
+        assert.equal(loser.bomsCount, 2);
+        assert.equal(winner.lastActiveAt, 20000);
+    }
+});
+
+test("a delayed profile transaction keeps the finished placement even after the next round resets the player", async () => {
+    const { game, players, profileRecords, pendingProfileTransactions } =
+        setupGame({ deferProfileTransactions: true });
+    players[0].placement = 1;
+    players[0].presidentStreak = 3;
+    game.endTime = 10000;
+    const saving = game.recordFinishedPlayerStats();
+    players[0].placement = 0;
+    players[0].presidentStreak = 0;
+    players[0].name = "Changed";
+    game.round++;
+    game.endTime = null;
+    pendingProfileTransactions.forEach(commit => commit());
+    await saving;
+    const stats = profileRecords["playerStats/human-key"];
+    assert.equal(stats.name, "Human");
+    assert.equal(stats.presidentWins, 1);
+    assert.equal(stats.roundsPlayed, 1);
+    assert.equal(stats.longestPresidentStreak, 3);
+    assert.equal(stats.placementScore, 1);
+    assert.equal(stats.lastActiveAt, 10000);
+});
+
+test("historical wins are retained without awarding an already counted room again, and scores average across player counts", async () => {
+    const { game, players, profileRecords } = setupGame();
+    profileRecords["playerStats/human-key"] = {
+        name: players[0].name, presidentWins: 20, presidentWinGames: { test: true }
+    };
+    players.forEach((player, index) => { player.placement = index + 1; });
+    await game.recordFinishedPlayerStats();
+    assert.equal(profileRecords["playerStats/human-key"].presidentWins, 20);
+    game.round++;
+    players[0].placement = 2;
+    players[1].placement = 1;
+    await game.recordFinishedPlayerStats();
+    assert.equal(profileRecords["playerStats/human-key"].placementScore, 1.5);
+    assert.equal(profileRecords["playerStats/human-key"].roundsPlayed, 2);
+    game.round++;
+    players.splice(2);
+    await game.recordFinishedPlayerStats();
+    const stats = profileRecords["playerStats/human-key"];
+    assert.equal(stats.placementScore, 2);
+    assert.equal(stats.normalizedPlacementTotal, 6);
+    assert.equal(stats.roundsPlayed, 3);
+    assert.equal(stats.bomsCount, 1);
+    game.round++;
+    players[0].placement = 1;
+    await game.recordFinishedPlayerStats();
+    assert.equal(profileRecords["playerStats/human-key"].presidentWins, 21);
 });
 
 test("playing the final card persists the president placement and completed round placement", () => {
@@ -3234,7 +3329,9 @@ test("passing and clearing a pile preserve every displayed card's position and r
         appendChild(child) { this.children.push(child); }
     });
     const { GameLayout, PresidentCard } = loadGame(null, {
-        document: { createElement: element },
+        document: { createElement: element, getElementById: () => ({
+            getBoundingClientRect: () => ({ width: 600, height: 400 })
+        }) },
         window: { matchMedia: () => ({ matches: false }) }
     });
     GameLayout.createCardImage = element;
@@ -4061,7 +4158,7 @@ test("stale saves preserve host-selected speed and adjust new pause lengths, not
     assert.equal(record.turnPause.until, now + 1000);
 });
 
-test("desktop always uses the Play button while mobile honors saved control choices", () => {
+test("desktop and mobile both honor saved Flick and Play control choices", () => {
     for (const desktop of [false, true]) {
         for (const saved of [null, "invalid", "flick", "button"]) {
             const { GameLayout } = loadGame(null, {
@@ -4070,14 +4167,14 @@ test("desktop always uses the Play button while mobile honors saved control choi
             });
 
             assert.equal(GameLayout.playInputMode(),
-                desktop ? "button" : saved == "button" ? "button" : "flick");
+                saved == "button" ? "button" : "flick");
         }
     }
     assert.equal(playButtonContext({ playInput: "flick" }).playButton.hidden, true);
     assert.equal(playButtonContext({ playInput: "button" }).playButton.hidden, false);
 });
 
-test("settings expose animation speed from the main menu and disable Flick only on desktop", () => {
+test("settings expose animation speed and enable Flick on desktop and mobile", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     for (const desktop of [false, true]) {
         const { GameLayout } = loadGame(null, {
@@ -4096,6 +4193,7 @@ test("settings expose animation speed from the main menu and disable Flick only 
                 getElementById: () => ({})
             },
             updateSavedPlayerName() {}, updateCardStyleButtons() {}, updateCardFoilButtons() {},
+            refreshPlayerPresidentWins() {},
             updateAutoSuggestionButton() {}, updateSpeedButtons() {},
             updateTurnSpeedButtons() {}, showDialog() {}
         });
@@ -4107,9 +4205,9 @@ test("settings expose animation speed from the main menu and disable Flick only 
             source.indexOf('        document.getElementById("BnInnstillinger")', settingsStart)), context);
         context.openSettings();
         assert.equal(setting.hidden, false);
-        assert.equal(buttons[0].disabled, desktop);
+        assert.equal(buttons[0].disabled, false);
         assert.equal(buttons[1].disabled, false);
-        assert.equal(buttons[desktop ? 1 : 0].attributes["aria-pressed"], "true");
+        assert.equal(buttons[0].attributes["aria-pressed"], "true");
     }
 });
 

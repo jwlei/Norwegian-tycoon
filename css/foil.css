@@ -1,4 +1,19 @@
 /* Adapted from the supplied Simey card effects, with local gradient textures. */
+@property --pointer-x {
+    syntax: "<percentage>";
+    inherits: true;
+    initial-value: 50%;
+}
+@property --pointer-y {
+    syntax: "<percentage>";
+    inherits: true;
+    initial-value: 50%;
+}
+@property --foil-activity {
+    syntax: "<number>";
+    inherits: true;
+    initial-value: 0;
+}
 :is(#playerHand .game-card, .card-preview)[data-foil] {
     isolation: isolate;
     /* Match the SVG card outline: its 1.5-unit stroke at x/y 1.5 leaves 0.75 of 80×120 units transparent,
@@ -29,7 +44,8 @@
     --foil-radius: 0;
 }
 
-.card-foil-option > strong {
+.card-foil-option__select > strong,
+.card-style-option__select > strong {
     min-width: 0;
     white-space: normal;
     text-align: right;
@@ -72,6 +88,11 @@
 .card-foil-option:hover .card-preview[data-foil]:not([data-foil="none"])::before,
 .card-foil-option:focus-visible .card-preview[data-foil]:not([data-foil="none"])::before {
     opacity: .72;
+}
+
+:is(#playerHand .game-card, .card-preview).card-flight[data-foil]:not([data-foil="none"])::before {
+    opacity: calc(.48 + var(--foil-activity) * .24);
+    transition: none;
 }
 
 :is(#playerHand .game-card, .card-preview)[data-foil="holo"] {

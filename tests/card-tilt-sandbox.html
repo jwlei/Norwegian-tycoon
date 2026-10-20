@@ -15,7 +15,7 @@
         .controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
         label { display: flex; align-items: center; gap: 8px; }
         select { font: inherit; padding: 8px; }
-        #gameTable { margin-top: 24px; min-height: 160px; border: 1px dashed #70958f; border-radius: 16px; padding: 20px; }
+        #gameTable { position: relative; margin-top: 24px; height: 320px; border: 1px dashed #70958f; border-radius: 16px; padding: 20px; }
         #playerHand.card-hand { display: flex; justify-content: center; overflow: visible; margin: 40px 0; --hand-card-height: 180px; }
         #playerHand .game-card { cursor: grab; }
         #metrics { display: block; min-height: 3em; font: 14px monospace; }
@@ -27,7 +27,8 @@
     <h1>Kortrotasjon - sandbox</h1>
     <p>Dra ett kort eller hele tressen med mus eller finger. Raske bevegelser gir mer vipp
         (maks 18 grader). Hold pekeren stille for &aring; se kortene rette seg opp,
-        eller slipp for &aring; sende dem tilbake. Kortene har litt ulik pitch.
+        eller slipp utenfor bordet for &aring; sende dem tilbake. Slipp inne i bordet
+        for &aring; teste landing med moment, vipp og refleksjoner. Kortene har litt ulik pitch.
         Foliebevegelsen er dempet med 20 % og har 400 ms easing.</p>
     <div class="controls">
         <label>Utvalg
@@ -38,23 +39,32 @@
         </label>
         <label>Folie <select id="foil"></select></label>
     </div>
-    <div id="gameTable">Testomr&aring;de - ingen kort spilles eller lagres her.</div>
+    <div id="gameTable" class="table-deck" aria-label="Testbord"></div>
     <div id="playerHand" class="card-hand is-my-turn" aria-label="Valgte testkort"></div>
     <output id="metrics" aria-label="Rotasjon"></output>
-    <small>Samme rotasjonskode og kortgrafikk som i spillet. Sandboxen starter drag direkte;
-        spillets flick- og scrollregler er uendret. Redusert bevegelse sl&aring;r av vipp.</small>
+    <small>Samme rotasjonskode, landinger og kortgrafikk som i spillet. Ingen database eller lagring.
+        Sandboxen starter drag direkte og tester bare slipp p&aring; bordet.
+        Redusert bevegelse sl&aring;r av vipp og flygeanimasjon.</small>
 </main>
 <script>
     function getCookie() { return null; }
 </script>
 <script src="../js/cards.js"></script>
+<script src="../js/player.js"></script>
 <script src="../js/game.js"></script>
+<script src="../js/layout.js"></script>
+<script src="../js/engine.js"></script>
 <script>
     const hand = document.getElementById("playerHand");
     const count = document.getElementById("count");
     const foil = document.getElementById("foil");
     const metrics = document.getElementById("metrics");
+    const table = document.getElementById("gameTable");
+    const game = { players: [{ name: "Sandbox" }], shuffleStartedAt: 1 };
+    GameLayout.styleForPlayer = () => "normal";
+    GameLayout.foilForPlayer = () => foil.value;
     let pointer = null;
+    let lastThrow = "";
 
     for (const option of Card.foilOptions()) {
         foil.add(new Option(option.name, option.id));
@@ -67,7 +77,7 @@
         selectedCardKeys.clear();
         hand.replaceChildren();
         for (let suit = 1; suit <= Number(count.value); suit++) {
-            const card = new Card(suit, 7);
+            const card = new PresidentCard(suit, 7);
             const element = document.createElement("button");
             element.type = "button";
             element.className = "game-card";
@@ -86,20 +96,44 @@
 
     function finishDrag(event) {
         if (!pointer || pointer.id != event.pointerId) { return; }
+        if (event.type == "pointerup" && isCardDropOnTable(event)) {
+            const origins = GameLayout.capturePlayOrigins();
+            const pile = new CardPile("Sandbox", ...Array.from({ length: Number(count.value) },
+                (_, index) => new PresidentCard(index + 1, 7)));
+            pile.motion = GameLayout.cardThrowMotion(pointer, event, hand);
+            game.shuffleStartedAt++;
+            const result = GameLayout.createTablePile(game, [pile], new Set());
+            table.replaceChildren(result.element);
+            GameLayout.animatePlayedCards(result.newlyPlayed[0].element, pile, origins);
+            lastThrow = `Moment: ${pile.motion.power.toFixed(2)} | plass: ${pile.motion.x.toFixed(2)}, ${pile.motion.y.toFixed(2)}`;
+            clearCardDragPreview(hand);
+        } else {
+            returnCardDragPreview(hand);
+        }
         pointer = null;
-        returnCardDragPreview(hand);
     }
 
     hand.addEventListener("pointerdown", event => {
         if (pointer || event.button != 0 || !event.target.closest(".game-card")) { return; }
         event.preventDefault();
-        pointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+        pointer = { id: event.pointerId, x: event.clientX, y: event.clientY,
+            lastX: event.clientX, lastY: event.clientY, velocityX: 0, velocityY: 0,
+            lastMotionTime: performance.now() };
         hand.setPointerCapture(event.pointerId);
         startCardDragPreview(hand, event);
     });
     hand.addEventListener("pointermove", event => {
         if (!pointer || pointer.id != event.pointerId) { return; }
         event.preventDefault();
+        const time = performance.now();
+        const elapsed = Math.max(1, time - pointer.lastMotionTime);
+        if (event.clientX != pointer.lastX || event.clientY != pointer.lastY) {
+            pointer.velocityX = pointer.velocityX * 0.35 + (event.clientX - pointer.lastX) / elapsed * 0.65;
+            pointer.velocityY = pointer.velocityY * 0.35 + (event.clientY - pointer.lastY) / elapsed * 0.65;
+            pointer.lastMotionTime = time;
+            pointer.lastX = event.clientX;
+            pointer.lastY = event.clientY;
+        }
         moveCardDragPreview(hand, event, pointer.x, pointer.y);
     });
     hand.addEventListener("pointerup", finishDrag);
@@ -115,7 +149,7 @@
         const drag = hand._cardDragPreview;
         metrics.textContent = drag
             ? `${drag.cards.length} kort | pitch: ${drag.pitch.toFixed(2)} grader | yaw: ${drag.yaw.toFixed(2)} grader`
-            : "Dra kortene for \u00e5 teste.";
+            : lastThrow || "Dra kortene for \u00e5 teste.";
         requestAnimationFrame(showMetrics);
     }
     renderCards();

@@ -83,6 +83,103 @@ test("normal play animation restores the original movement, easing and card stag
     }
 });
 
+test("throw metadata survives both pile deserializers and clamps finite motion values", () => {
+    const context = load();
+    const result = vm.runInContext(`
+        var pile = new CardPile("Owner", new PresidentCard(1, 7));
+        pile.motion = { x: 2, y: -2, power: 3, spin: 40, pitch: -40, yaw: 40 };
+        var record = JSON.parse(JSON.stringify(pile));
+        var restored = PresidentCard.deserializePiles([record])[0];
+        var lastPlay = new CardPile("").fromRecord(record);
+        ({ record, restored, lastPlay });
+    `, context);
+    const expected = { x: 1, y: -1, power: 1, spin: 20, pitch: -18, yaw: 18 };
+    assert.deepEqual({ ...result.record.motion }, expected);
+    assert.deepEqual({ ...result.restored.motion }, expected);
+    assert.deepEqual({ ...result.lastPlay.motion }, expected);
+    assert.equal(result.restored[0].rank, 7);
+    assert.equal(result.lastPlay[0].suit, 1);
+    for (const value of [NaN, Infinity, "1", undefined]) {
+        context.bad = value;
+        assert.throws(() => vm.runInContext(
+            "CardPile.normalizeMotion({x:bad,y:0,power:0,spin:0,pitch:0,yaw:0})", context), /Ugyldig bevegelse/);
+    }
+    assert.equal(vm.runInContext('new CardPile("").fromRecord({nick:"Legacy",verdiBoms:7}).motion', context), undefined);
+});
+
+test("hard throws spread cards further and every client computes the same landing jitter", () => {
+    const context = load();
+    const result = vm.runInContext(`
+        var game = {shuffleStartedAt:123,players:[{name:"Owner"},{name:"Other"}]};
+        var pile = new CardPile("Owner", ...[1,2,3,4].map(suit=>new PresidentCard(suit,7)));
+        pile.motion = {x:0,y:0,power:0,spin:0,pitch:0,yaw:0};
+        var gentle = pile.map((card,index)=>GameLayout.pileCardJitter(game,pile,card,index,index));
+        pile.motion.power = 1;
+        var hard = pile.map((card,index)=>GameLayout.pileCardJitter(game,pile,card,index,index));
+        var remote = PresidentCard.deserializePiles([JSON.parse(JSON.stringify(pile))])[0];
+        var repeated = remote.map((card,index)=>GameLayout.pileCardJitter(game,remote,card,index,index));
+        ({gentle,hard,repeated});
+    `, context);
+    assert.equal(result.hard[0].x, result.gentle[0].x - 18);
+    assert.equal(result.hard[3].x, result.gentle[3].x + 18);
+    assert.equal(result.hard[0].angle, Math.round((result.gentle[0].angle - 9) * 10) / 10);
+    assert.equal(result.hard[3].angle, Math.round((result.gentle[3].angle + 9) * 10) / 10);
+    assert.deepEqual(JSON.parse(JSON.stringify(result.hard)), JSON.parse(JSON.stringify(result.repeated)));
+});
+
+test("played flights retain source tilt, scale and foil position and settle level before cleanup", () => {
+    const flights = [];
+    const animations = [];
+    const element = () => ({
+        dataset: {}, style: {}, children: [], setAttribute() {},
+        appendChild(child) { this.children.push(child); },
+        cloneNode() { return element(); },
+        remove() { this.removed = true; },
+        animate(frames, timing) {
+            const animation = {};
+            animations.push({ frames, timing, animation });
+            return animation;
+        }
+    });
+    const target = {
+        offsetWidth: 80, offsetHeight: 120, style: { getPropertyValue: () => "15" },
+        dataset: { cardStyle: "normal", foil: "rainbow" }, animate() {},
+        querySelector: () => element(),
+        getBoundingClientRect: () => ({ left: 200, top: 200, width: 100, height: 140 })
+    };
+    const context = load({
+        window: { innerWidth: 1000, innerHeight: 800, matchMedia: () => ({ matches: false }) },
+        document: { createElement: element, body: { appendChild: flight => flights.push(flight) } }
+    });
+    Object.assign(context, { target, completed: 0 });
+    vm.runInContext(`
+        var pile = new CardPile("Owner",new PresidentCard(1,7));
+        pile.motion = {x:.5,y:-.5,power:1,spin:10,pitch:12,yaw:-10};
+        GameLayout.animatePlayedCards({querySelector:()=>target},pile,{
+            playerOrigins:new Map(),cardOrigins:new Map([["1:7",{
+                left:0,top:500,width:120,height:180,rotation:0,pitch:12,yaw:-10,
+                pointerX:"25%",pointerY:"20%"
+            }]])
+        },()=>completed++);
+    `, context);
+    const { frames, animation } = animations[0];
+    assert.match(frames[0].transform, /rotateX\(12deg\) rotateY\(-10deg\) rotate\(0deg\) scale\(1.5\)/);
+    assert.equal(frames[0]["--pointer-x"], "25%");
+    assert.equal(frames[0]["--pointer-y"], "20%");
+    assert.match(frames[1].transform, /rotateX\(8\.2deg\) rotateY\(-5\.5deg\)/);
+    assert.equal(frames[1]["--pointer-x"], "36.25%");
+    assert.match(frames[2].transform, /rotateX\(0deg\) rotateY\(0deg\) rotate\(15deg\) scale\(1\)/);
+    assert.equal(frames[2]["--pointer-x"], "50%");
+    assert.equal(frames[2]["--pointer-y"], "50%");
+    assert.equal(frames[2]["--foil-activity"], 0);
+    assert.equal(target.style.opacity, "0");
+    animation.onfinish();
+    animation.oncancel();
+    assert.equal(target.style.opacity, "");
+    assert.equal(flights[0].removed, true);
+    assert.equal(context.completed, 1);
+});
+
 test("clear animation scheduling includes the original duration and every card's stagger", () => {
     const context = load();
     assert.equal(vm.runInContext("discardAnimationMs(1)", context), 720);

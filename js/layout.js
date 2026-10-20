@@ -28,7 +28,6 @@ class GameLayout {
             window.matchMedia("(hover: hover) and (pointer: fine)").matches;
     }
     static playInputMode() {
-        if (GameLayout.usesDesktopControls()) { return "button"; }
         var stored = getCookie("PlayInputMode");
         if (stored == "flick" || stored == "button") { return stored; }
         return "flick";
@@ -591,13 +590,21 @@ class GameLayout {
         var cardOrigins = new Map();
         document.querySelectorAll("#playerHand .game-card[data-card-key] img").forEach(image => {
             var cardElement = image.closest(".game-card");
-            var bounds = (cardElement._dragPreview || image).getBoundingClientRect();
+            var preview = cardElement._dragPreview;
+            var bounds = (preview || image).getBoundingClientRect();
+            var scale = preview ? parseFloat(preview.style.getPropertyValue("--drag-scale")) || 1 : 1;
+            var width = preview && preview.offsetWidth ? preview.offsetWidth * scale : bounds.width;
+            var height = preview && preview.offsetHeight ? preview.offsetHeight * scale : bounds.height;
             cardOrigins.set(cardElement.dataset.cardKey, {
-                left: bounds.left,
-                top: bounds.top,
-                width: bounds.width,
-                height: bounds.height,
-                rotation: parseFloat(cardElement.style.getPropertyValue("--card-rotation")) || 0
+                left: bounds.left + (bounds.width - width) / 2,
+                top: bounds.top + (bounds.height - height) / 2,
+                width: width,
+                height: height,
+                rotation: preview ? 0 : parseFloat(cardElement.style.getPropertyValue("--card-rotation")) || 0,
+                pitch: preview ? parseFloat(preview.style.getPropertyValue("--tilt-x")) || 0 : 0,
+                yaw: preview ? parseFloat(preview.style.getPropertyValue("--tilt-y")) || 0 : 0,
+                pointerX: preview ? preview.style.getPropertyValue("--pointer-x") || "50%" : "50%",
+                pointerY: preview ? preview.style.getPropertyValue("--pointer-y") || "50%" : "50%"
             });
         });
         var playerOrigins = new Map();
@@ -605,6 +612,21 @@ class GameLayout {
             playerOrigins.set(element.dataset.playerName, element.getBoundingClientRect());
         });
         return { cardOrigins: cardOrigins, playerOrigins: playerOrigins };
+    }
+    static cardThrowMotion(drag, event, hand) {
+        var bounds = document.getElementById("gameTable").getBoundingClientRect();
+        var decay = Math.exp(-Math.max(0, performance.now() - drag.lastMotionTime) / 90);
+        var velocityX = drag.velocityX * decay;
+        var velocityY = drag.velocityY * decay;
+        var tilt = hand._cardDragPreview;
+        return CardPile.normalizeMotion({
+            x: (event.clientX + velocityX * 160 - bounds.left - bounds.width / 2) / Math.max(1, bounds.width / 2),
+            y: (event.clientY + velocityY * 160 - bounds.top - bounds.height / 2) / Math.max(1, bounds.height / 2),
+            power: Math.hypot(velocityX, velocityY) / 2.5,
+            spin: velocityX * 5,
+            pitch: tilt ? tilt.pitch : 0,
+            yaw: tilt ? tilt.yaw : 0
+        });
     }
     static animatePlayedCards(playElement, pile, origins, onComplete = null) {
         if (playElement.isConnected === false) {
@@ -657,6 +679,24 @@ class GameLayout {
             var startRotation = sourceRotation * 0.45 + (Math.random() - 0.5) * 40;
             var middleRotation = startRotation + (targetRotation - startRotation) * 0.35 +
                 (Math.random() - 0.5) * 50;
+            var hasTilt = source.pitch != null || pile.motion != null;
+            var pitch = source.pitch ?? (pile.motion ? pile.motion.pitch : 0);
+            var yaw = source.yaw ?? (pile.motion ? pile.motion.yaw : 0);
+            if (hasTilt) {
+                startRotation = sourceRotation;
+                middleRotation = startRotation + (targetRotation - startRotation) * 0.7 +
+                    (pile.motion ? pile.motion.spin * 0.2 : 0);
+            }
+            var flightTransform = function (x, y, rotation, amount, tiltPitch = pitch * amount, tiltYaw = yaw * amount) {
+                var translation = `translate(${x}px, ${y}px)`;
+                if (!hasTilt) {
+                    return `${x == 0 && y == 0 ? "translate(0, 0)" : translation} rotate(${rotation}deg)`;
+                }
+                var scale = 1 + (source.width / targetBounds.width - 1) * amount;
+                return `${translation} perspective(900px) rotateX(${tiltPitch}deg) rotateY(${tiltYaw}deg) rotate(${rotation}deg) scale(${scale})`;
+            };
+            var middlePitch = pitch * 0.35 + (pile.motion ? Math.sign(-flightY) * pile.motion.power * 4 : 0);
+            var middleYaw = yaw * 0.35 - (pile.motion ? pile.motion.spin * 0.2 : 0);
             flight.style.left = `${flightLeft}px`;
             flight.style.top = `${flightTop}px`;
             flight.style.width = `${targetBounds.width}px`;
@@ -666,16 +706,25 @@ class GameLayout {
             pendingAnimations++;
             var animation = flight.animate([
                 {
-                    transform: `translate(0, 0) rotate(${startRotation}deg)`,
+                    transform: flightTransform(0, 0, startRotation, 1),
+                    "--pointer-x": source.pointerX || `${50 + yaw / 18 * 45}%`,
+                    "--pointer-y": source.pointerY || `${50 - pitch / 18 * 45}%`,
+                    "--foil-activity": hasTilt ? 1 : 0,
                     opacity: 1
                 },
                 {
-                    transform: `translate(${flightX * 0.65}px, ${flightY * 0.65}px) rotate(${middleRotation}deg)`,
+                    transform: flightTransform(flightX * 0.65, flightY * 0.65, middleRotation, 0.35, middlePitch, middleYaw),
+                    "--pointer-x": `${50 + middleYaw / 18 * 45}%`,
+                    "--pointer-y": `${50 - middlePitch / 18 * 45}%`,
+                    "--foil-activity": hasTilt ? 0.35 : 0,
                     opacity: 1,
                     offset: 0.68
                 },
                 {
-                    transform: `translate(${flightX}px, ${flightY}px) rotate(${targetRotation}deg)`,
+                    transform: flightTransform(flightX, flightY, targetRotation, 0),
+                    "--pointer-x": "50%",
+                    "--pointer-y": "50%",
+                    "--foil-activity": 0,
                     opacity: 1
                 }
             ], {
@@ -849,18 +898,33 @@ class GameLayout {
         var seatBias = (seat < 0 || seatCount < 2)
             ? 0
             : ((seat / (seatCount - 1)) - 0.5) * 24;
-        var spread = 7;
+        var power = pile.motion ? pile.motion.power : 0;
+        var spread = 7 + power * 6;
         var fanAngle = (cardIndex - (pile.length - 1) / 2) * spread;
         var arc = Math.abs(cardIndex - (pile.length - 1) / 2);
         return {
-            angle: Math.round((seatBias + unit(0) * 24 + fanAngle) * 10) / 10,
-            x: Math.round(unit(8) * 14),
-            y: Math.round(unit(16) * 10 + arc * 3)
+            angle: Math.round((seatBias + unit(0) * 24 + fanAngle + (pile.motion ? pile.motion.spin : 0)) * 10) / 10,
+            x: Math.round(unit(8) * 14 + (cardIndex - (pile.length - 1) / 2) * power * 12),
+            y: Math.round(unit(16) * 10 + arc * (3 + power * 6))
         };
     }
     static createTablePile(game, piles, existingPileSignatures, hiddenCardKeys = new Set()) {
         var tablePile = document.createElement("div");
         tablePile.className = "table-card-pile";
+        var boardBounds = document.getElementById("gameTable").getBoundingClientRect();
+        tablePile.style.setProperty("--board-width", `${boardBounds.width}px`);
+        tablePile.style.setProperty("--board-height", `${boardBounds.height}px`);
+        if (GameLayout.tableSizeObserver == null && typeof ResizeObserver != "undefined") {
+            var board = document.getElementById("gameTable");
+            GameLayout.tableSizeObserver = new ResizeObserver(() => {
+                var bounds = board.getBoundingClientRect();
+                board.querySelectorAll(".table-card-pile").forEach(pile => {
+                    pile.style.setProperty("--board-width", `${bounds.width}px`);
+                    pile.style.setProperty("--board-height", `${bounds.height}px`);
+                });
+            });
+            GameLayout.tableSizeObserver.observe(board);
+        }
         var cardsOnTable = 0;
         var newlyPlayed = [];
         var totalCardCount = piles.reduce((total, pile) => total + pile.length, 0);
@@ -874,6 +938,10 @@ class GameLayout {
             playElement.className = "table-play";
             playElement.dataset.playSignature = signature;
             playElement.style.setProperty("--play-index", String(playIndex));
+            if (pile.motion) {
+                playElement.style.setProperty("--landing-x", `calc(${pile.motion.x} * var(--landing-space-x))`);
+                playElement.style.setProperty("--landing-y", `calc(${pile.motion.y} * var(--landing-space-y))`);
+            }
             var playOffset = Math.min(cardsOnTable * 2.5, compactStack ? 18 : 44);
             pile.forEach((card, cardIndex) => {
                 var style = GameLayout.styleForPlayer(game, pile.name);
@@ -893,8 +961,8 @@ class GameLayout {
                     cardElement.style.opacity = "0";
                 }
                 var rotation = GameLayout.pileCardJitter(game, pile, card, cardsOnTable, cardIndex);
-                cardElement.style.left = `calc(5px + ${cardIndex} * var(--pile-fan-step) + ${rotation.x}px)`;
-                cardElement.style.top = `${5 + playOffset + rotation.y}px`;
+                cardElement.style.left = `calc(5px + ${cardIndex} * var(--pile-fan-step) + ${rotation.x}px + var(--landing-x, 0px))`;
+                cardElement.style.top = `calc(${5 + playOffset + rotation.y}px + var(--landing-y, 0px))`;
                 cardElement.style.setProperty("--stack-index", String(cardsOnTable));
                 cardElement.style.setProperty("--pile-rotation", `${rotation.angle}deg`);
                 playElement.appendChild(cardElement);
@@ -1817,7 +1885,23 @@ class GameLayout {
         }
         var handScrollDrag = null;
         var selectExchangeCard = null;
-        var recordFlickMovement = function (drag, pointerY, moveTime) {
+        var restorePointerSelection = function (drag) {
+            if (!drag.selectionBeforeDrag || drag.selectionRestored) { return; }
+            clearCardSelection();
+            drag.selectionBeforeDrag.forEach(key => selectedCardKeys.add(key));
+            drag.suggestionsBeforeDrag.forEach(key => autoSuggestedCardKeys.add(key));
+            selectedCardStrength = drag.strengthBeforeDrag;
+            drag.selectionRestored = true;
+        };
+        var recordFlickMovement = function (drag, pointerX, pointerY, moveTime) {
+            var deltaX = pointerX - drag.lastPointerX;
+            var deltaY = pointerY - drag.lastPointerY;
+            if (deltaX != 0 || deltaY != 0) {
+                var elapsed = Math.max(1, moveTime - drag.lastPointerMoveTime);
+                drag.velocityX = drag.velocityX * 0.35 + deltaX / elapsed * 0.65;
+                drag.velocityY = drag.velocityY * 0.35 + deltaY / elapsed * 0.65;
+                drag.lastMotionTime = moveTime;
+            }
             var distance = drag.lastPointerY - pointerY;
             if (distance != 0) {
                 var direction = Math.sign(distance);
@@ -1831,8 +1915,10 @@ class GameLayout {
                 drag.lastFlickDistance = drag.flickDistance;
                 drag.lastFlickVelocity = drag.flickDistance /
                     Math.max(1, moveTime - drag.flickStartTime);
+                drag.lastFlickMoveTime = moveTime;
             }
             drag.lastPointerY = pointerY;
+            drag.lastPointerX = pointerX;
             drag.lastPointerMoveTime = moveTime;
         };
         element.classList.remove("is-hand-dragging");
@@ -1872,6 +1958,8 @@ class GameLayout {
                 startX: event.clientX,
                 startY: event.clientY,
                 lastPointerY: event.clientY,
+                lastPointerX: event.clientX,
+                velocityX: 0, velocityY: 0, lastMotionTime: performance.now(),
                 lastPointerMoveTime: performance.now(),
                 flickDirection: 0,
                 flickDistance: 0,
@@ -1893,8 +1981,17 @@ class GameLayout {
                     !game.localWritePending && game.connectionOnline !== false && !GamePresence.isBot(game, player),
                 didMove: false,
                 didPlayDrag: false,
-                canPlay: false
+                canPlay: false,
+                selectionBeforeDrag: Array.from(selectedCardKeys),
+                suggestionsBeforeDrag: Array.from(autoSuggestedCardKeys),
+                strengthBeforeDrag: selectedCardStrength
             };
+            if (card && handScrollDrag.canDragToPlay) {
+                handScrollDrag.canPlay = selectCardsForSwipe(card);
+                if (handScrollDrag.canPlay || handScrollDrag.isSelectedCard) {
+                    startCardDragPreview(element, event);
+                }
+            }
             if (cardElement && typeof cardElement.setPointerCapture == "function") {
                 cardElement.setPointerCapture(event.pointerId);
             } else if (typeof element.setPointerCapture == "function") {
@@ -1907,7 +2004,7 @@ class GameLayout {
             }
             if (handScrollDrag.pointerId != event.pointerId) { return; }
             var pointerMoveTime = performance.now();
-            recordFlickMovement(handScrollDrag, event.clientY, pointerMoveTime);
+            recordFlickMovement(handScrollDrag, event.clientX, event.clientY, pointerMoveTime);
             var dragOffsetX = event.clientX - handScrollDrag.startX;
             var dragOffsetY = event.clientY - handScrollDrag.startY;
             if (handScrollDrag.axis == null &&
@@ -1931,6 +2028,8 @@ class GameLayout {
                 handScrollDrag.didMove = true;
             }
             if (handScrollDrag.axis == "horizontal") {
+                restorePointerSelection(handScrollDrag);
+                clearCardDragPreview(element);
                 event.preventDefault();
                 element.classList.add("is-hand-dragging");
                 var moveTime = performance.now();
@@ -1951,13 +2050,11 @@ class GameLayout {
             }
             if (handScrollDrag.axis == "vertical" &&
                 handScrollDrag.canDragToPlay &&
-                handScrollDrag.card != null &&
-                (dragOffsetY < -4 || handScrollDrag.didPlayDrag || event.pointerType == "mouse" ||
-                    handScrollDrag.isSelectedCard)) {
+                handScrollDrag.card != null) {
                 if (!handScrollDrag.didPlayDrag) {
                     handScrollDrag.didPlayDrag = true;
-                    handScrollDrag.canPlay = selectCardsForSwipe(handScrollDrag.card);
-                    if (handScrollDrag.canPlay || handScrollDrag.isSelectedCard) {
+                    if (!element._cardDragPreview &&
+                        (handScrollDrag.canPlay || handScrollDrag.isSelectedCard)) {
                         startCardDragPreview(element, {
                             clientX: handScrollDrag.startX, clientY: handScrollDrag.startY
                         });
@@ -1968,12 +2065,15 @@ class GameLayout {
                     moveCardDragPreview(element, event, handScrollDrag.startX, handScrollDrag.startY);
                 }
             }
+            if (handScrollDrag.axis == null && element._cardDragPreview) {
+                moveCardDragPreview(element, event, handScrollDrag.startX, handScrollDrag.startY);
+            }
         };
         element.onpointerup = function (event) {
             var activeDrag = handScrollDrag;
             if (!activeDrag || activeDrag.pointerId != event.pointerId) { return; }
             var pointerUpTime = performance.now();
-            recordFlickMovement(activeDrag, event.clientY, pointerUpTime);
+            recordFlickMovement(activeDrag, event.clientX, event.clientY, pointerUpTime);
             handScrollDrag = null;
             element.classList.remove("is-hand-dragging");
             if (activeDrag.didMove) {
@@ -1983,12 +2083,12 @@ class GameLayout {
                 }, 0);
             }
             var keepDragPosition = false;
-            if (shouldPlayCardDrag(activeDrag, event)) {
+            if (activeDrag.card != null && shouldPlayCardDrag(activeDrag, event)) {
                 if ((activeDrag.didPlayDrag && activeDrag.canPlay) ||
                     (!activeDrag.didPlayDrag &&
                         activeDrag.card != null &&
                         selectCardsForSwipe(activeDrag.card))) {
-                    keepDragPosition = playSelectedCards();
+                    keepDragPosition = playSelectedCards(GameLayout.cardThrowMotion(activeDrag, event, element));
                 } else {
                     showInvalidCardWarning(game);
                 }
@@ -2002,7 +2102,12 @@ class GameLayout {
             }
             if (!keepDragPosition) {
                 clearDragStyles();
-                returnCardDragPreview(element);
+                if (!activeDrag.didMove) {
+                    restorePointerSelection(activeDrag);
+                    clearCardDragPreview(element);
+                } else {
+                    returnCardDragPreview(element);
+                }
             } else {
                 clearCardDragPreview(element);
             }
@@ -2012,6 +2117,7 @@ class GameLayout {
             }
         };
         element.onpointercancel = function () {
+            if (handScrollDrag) { restorePointerSelection(handScrollDrag); }
             if (handScrollDrag && handScrollDrag.cardElement) {
                 handScrollDrag.cardElement.classList.remove("is-pressed");
                 resetCardTilt(handScrollDrag.cardElement);
@@ -2183,7 +2289,7 @@ class GameLayout {
             }
         }
         element.classList.toggle("HasHandSelection", isPlayingTurn && selectedCardKeys.size > 0);
-        var playSelectedCards = function () {
+        var playSelectedCards = function (motion = null) {
             if (game.localWritePending || game.status != "S" || player.turn != 1 || player.placement != 0 ||
                 game.isTurnPaused() || game.connectionOnline === false ||
                 GamePresence.isBot(game, player)) {
@@ -2198,6 +2304,7 @@ class GameLayout {
                 showInvalidCardWarning(game);
                 return false;
             }
+            if (motion && typeof motion.x == "number") { pile.motion = CardPile.normalizeMotion(motion); }
             clearCardSelection();
             game.playCards(player, pile);
             return true;
@@ -2211,7 +2318,7 @@ class GameLayout {
         playButton.disabled = game.localWritePending || playButton.hidden || !isPlayingTurn ||
             game.connectionOnline === false || selectedPile.length == 0 ||
             !game.canPlayPile(player, selectedPile);
-        playButton.onclick = playSelectedCards;
+        playButton.onclick = () => playSelectedCards();
         var selectCardsForSwipe = function (card) {
             if (!playableStrengths.has(card.strengthRank)) { return false; }
             autoSuggestedCardKeys.clear();
@@ -2386,7 +2493,7 @@ class GameLayout {
                                 elemKort.title = isPlayable
                                     ? (GameLayout.playInputMode() == "button"
                                         ? "Klikk for å velge. Trykk Legg ut, Enter eller mellomrom for å spille."
-                                        : "Klikk for å velge. Trykk Enter eller mellomrom for å legge ut; på mobil kan du flicke kortet opp.")
+                                        : "Klikk for å velge. Dra til brettet, flick opp eller trykk Enter eller mellomrom for å legge ut.")
                                     : "Dette kortet kan ikke spilles nå";
                                 elemKort.setAttribute("aria-pressed", String(isSelected));
                                 elemKort.onclick = function () {

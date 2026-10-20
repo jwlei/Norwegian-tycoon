@@ -204,10 +204,19 @@ test("desktop uses taller two-line toasts and the same shell and toolbar in ever
     }
 });
 
-test("visible release and versioned local assets use version 0.8.20", () => {
-    assert.ok(html.includes('aria-label="Spillversjon 0.8.20">v0.8.20</span>'));
+test("visible release and versioned local assets use version 0.9.0", () => {
+    assert.ok(html.includes('aria-label="Spillversjon 0.9.0">v0.9.0</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"]+)"/g),
         match => match[1]);
     assert.ok(versions.length > 0);
-    assert.ok(versions.every(version => version === "0.8.20"));
+    assert.ok(versions.every(version => version === "0.9.0"));
+});
+
+test("leaderboard uses a centered title and no visible hint text", () => {
+    const dialog = html.slice(html.indexOf('id="dialogLeaderboard"'), html.indexOf('id="dialogResultater"'));
+    assert.match(dialog, /class="dialog-title">Leaderboard<\/div>/);
+    assert.match(css, /#dialogLeaderboard \.dialog-title\s*\{[^}]*text-align:\s*center;/);
+    assert.doesNotMatch(dialog, /leaderboard-description/);
+    assert.match(dialog, /data-leaderboard-sort="roundsPlayed"[^>]*>#<\/button>/);
+    assert.match(dialog, /role="status" aria-live="polite"/);
 });

@@ -112,13 +112,24 @@ class Card {
     }
     static normalizeStyle(style, playerName = "") {
         if (style == "botanical") {
-            return ["mrhotbox", "tåkefyrsten", "bjørn"].includes(
+            return Card.hasAllAppearanceUnlocks(playerName) || ["mrhotbox", "tåkefyrsten", "bjørn"].includes(
                 playerName.trim().toLocaleLowerCase()) ? style : "normal";
         }
         return ["normal", "holo", "gold", "pixel", "parallax", "neon",
             "monochrome", "minimalist", "cyberpunk", "glitched", "cosmic", "origami", "gothic",
             "silver", "crystal"].includes(style)
             ? style : "normal";
+    }
+    static hasAllAppearanceUnlocks(playerName) {
+        return ["h4cker", "tåkefyrsten"].includes((playerName || "").trim().normalize("NFC").toLowerCase());
+    }
+    static styleUnlockRounds(style) {
+        return {
+            normal: 0, botanical: 0,
+            monochrome: 5, minimalist: 5, origami: 5, gothic: 5, silver: 5,
+            gold: 15, crystal: 15, holo: 15, parallax: 15, cosmic: 15,
+            pixel: 30, neon: 30, cyberpunk: 30, glitched: 30
+        }[style] ?? null;
     }
     static foilOptions() {
         return [
@@ -145,26 +156,28 @@ class Card {
     static foilUnlockWins(foil) {
         return {
             none: 0,
-            holo: 1,
-            galaxy: 1,
-            v: 1,
-            vmax: 2,
-            vstar: 2,
-            "full-art": 5,
-            "trainer-full-art": 5,
+            holo: 3,
+            galaxy: 20,
+            v: 10,
+            vmax: 5,
+            vstar: 5,
+            "full-art": 3,
+            "trainer-full-art": 3,
             radiant: 5,
-            "rainbow-alt": 10,
-            "gallery-holo": 10,
-            "gallery-v": 15,
-            "gallery-vmax": 15,
-            rainbow: 20,
-            gold: 20
+            "rainbow-alt": 50,
+            "gallery-holo": 100,
+            "gallery-v": 10,
+            "gallery-vmax": 20,
+            rainbow: 50,
+            gold: 100
         }[foil] ?? null;
     }
     static foilOptionsByUnlock() {
-        return Card.foilOptions().slice().sort((first, second) =>
-            Card.foilUnlockWins(first.id) - Card.foilUnlockWins(second.id)
-        );
+        // Fixed English alphabetical order within each unlock tier, independent of UI language.
+        const order = ["none", "full-art", "holo", "trainer-full-art", "vstar", "radiant", "vmax",
+            "gallery-v", "v", "gallery-vmax", "galaxy", "rainbow-alt", "rainbow", "gold", "gallery-holo"];
+        const options = Card.foilOptions();
+        return order.map(id => options.find(option => option.id == id));
     }
     static foilOverlay(foil) {
         foil = Card.normalizeFoil(foil);

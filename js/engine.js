@@ -61,6 +61,7 @@ class PresidentCard extends Card {
             if (pile.length == 0) {
                 pile.strengthRank = element["verdiBoms"];
             }
+            if (element.motion != null) { pile.motion = CardPile.normalizeMotion(element.motion); }
             result.push(pile);
         });
         return result;
@@ -68,6 +69,15 @@ class PresidentCard extends Card {
 }
 
 class CardPile extends Array {
+    static normalizeMotion(motion) {
+        const limits = { x: 1, y: 1, power: 1, spin: 20, pitch: 18, yaw: 18 };
+        const result = {};
+        for (const [key, limit] of Object.entries(limits)) {
+            if (!Number.isFinite(motion[key])) { throw new Error("Ugyldig bevegelse for spilte kort."); }
+            result[key] = Math.max(key == "power" ? 0 : -limit, Math.min(limit, motion[key]));
+        }
+        return result;
+    }
     constructor(name, ...cards) {
         super(...cards);
         if (this.length > 0) {
@@ -82,6 +92,7 @@ class CardPile extends Array {
     }
     toRecord() {
         var record = { "nick": this.name, "verdiBoms": this.strengthRank };
+        if (this.motion != null) { record.motion = CardPile.normalizeMotion(this.motion); }
         this.forEach((card, index) => {
             record[index] = { "farge": card.suit, "verdi": card.rank };
         });
@@ -100,6 +111,8 @@ class CardPile extends Array {
     }
     fromRecord(pile) {
         this.name = pile["nick"];
+        if (pile.motion != null) { this.motion = CardPile.normalizeMotion(pile.motion); }
+        else { delete this.motion; }
         var i = 0;
         while (pile[i]) {
             var card = pile[i];
@@ -486,7 +499,14 @@ class PresidentGame extends Game {
     }
     async recordFinishedPlayerStats() {
         var gameId = this.id;
-        await Promise.all(this.players.filter(player => player.playerKey != "PC").map(player =>
+        var roundKey = `${gameId}:${this.round || 1}:${this.shuffleStartedAt || 0}`;
+        var finishedAt = this.endTime || Date.now();
+        var playerCount = this.players.length;
+        var players = this.players.filter(player => player.playerKey != "PC").map(player => ({
+            playerKey: player.playerKey, name: player.name, placement: player.placement,
+            presidentStreak: player.presidentStreak, bomsStreak: player.bomsStreak
+        }));
+        await Promise.all(players.map(player =>
             firebase.database().ref(`playerStats/${player.playerKey}`).transaction(record => {
                 var previous = record && typeof record == "object" ? record : {};
                 var names = Array.isArray(previous.names)
@@ -500,21 +520,44 @@ class PresidentGame extends Game {
                     : {};
                 var normalizedName = player.name.trim().toLocaleLowerCase();
                 var hasDefaultName = normalizedName == "spiller" || normalizedName == "player";
-                var wonGame = player.placement == 1 && !hasDefaultName &&
-                    winGames[gameId] !== true;
-                if (wonGame) { winGames[gameId] = true; }
+                var completedRounds = Object.assign({}, previous.completedRounds || {});
+                var newRound = !completedRounds[roundKey] && playerCount >= 2 &&
+                    Number.isInteger(player.placement) && player.placement >= 1 && player.placement <= playerCount;
+                var legacyWin = previous.completedRounds == null && winGames[gameId] === true;
+                var wonGame = newRound && player.placement == 1 && !hasDefaultName && !legacyWin;
+                if (wonGame) { winGames[gameId] = true; winGames[roundKey] = true; }
                 var wins = Number.isSafeInteger(previous.presidentWins) && previous.presidentWins >= 0
                     ? previous.presidentWins
                     : 0;
-                if (previous.name == player.name && !wonGame && !nameAdded) {
+                if (previous.name == player.name && !newRound && !nameAdded) {
                     return;
+                }
+                var roundStats = {};
+                if (newRound) {
+                    completedRounds[roundKey] = true;
+                    var number = value => Number.isFinite(value) && value >= 0 ? value : 0;
+                    var roundsPlayed = number(previous.roundsPlayed) + 1;
+                    var placementTotal = number(previous.normalizedPlacementTotal) +
+                        1 + 2 * (player.placement - 1) / (playerCount - 1);
+                    var isPresident = player.placement == 1;
+                    var isBoms = player.placement == playerCount;
+                    roundStats = {
+                        completedRounds, roundsPlayed, normalizedPlacementTotal: placementTotal,
+                        placementScore: placementTotal / roundsPlayed,
+                        bomsCount: number(previous.bomsCount) + Number(isBoms),
+                        longestPresidentStreak: Math.max(number(previous.longestPresidentStreak),
+                            isPresident ? Math.max(1, number(player.presidentStreak)) : 0),
+                        longestBomsStreak: Math.max(number(previous.longestBomsStreak),
+                            isBoms ? Math.max(1, number(player.bomsStreak)) : 0),
+                        ...(!hasDefaultName ? { lastActiveAt: Math.max(number(previous.lastActiveAt), finishedAt) } : {})
+                    };
                 }
                 return Object.assign({}, previous, {
                     name: player.name,
                     names,
                     presidentWins: wins + Number(wonGame),
                     presidentWinGames: winGames
-                });
+                }, roundStats);
             }, undefined, false)
         ));
     }

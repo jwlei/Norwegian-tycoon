@@ -1,0 +1,102 @@
+const PlayerLeaderboard = {
+    async load() {
+        // Add .indexOn: ["lastActiveAt"] at /playerStats in the existing database rules.
+        const ref = firebase.database().ref("playerStats");
+        const rows = [];
+        let cursor = null;
+        while (rows.length < 50) {
+            let query = ref.orderByChild("lastActiveAt");
+            if (cursor) { query = query.endBefore(cursor.time, cursor.id); }
+            const snapshot = await query.limitToLast(50).once("value");
+            const entries = [];
+            snapshot.forEach(child => { entries.push({ ...child.val(), id: child.key }); });
+            entries.reverse();
+            for (const record of entries) {
+                if (record.id != "PC" && typeof record.name == "string" && !PlayerIdentity.isDefaultName(record.name) &&
+                    Number.isFinite(record.lastActiveAt) && record.lastActiveAt > 0) {
+                    rows.push(record);
+                    if (rows.length == 50) { break; }
+                }
+            }
+            const last = entries[entries.length - 1];
+            if (entries.length < 50 || !last || !(last.lastActiveAt > 0)) { break; }
+            cursor = { time: last.lastActiveAt, id: last.id };
+        }
+        return rows;
+    },
+    sort(rows, column, direction) {
+        return rows.slice().sort((a, b) => {
+            const first = a[column];
+            const second = b[column];
+            if (column == "placementScore") {
+                if (!Number.isFinite(first)) { return Number.isFinite(second) ? 1 : a.name.localeCompare(b.name); }
+                if (!Number.isFinite(second)) { return -1; }
+            }
+            const difference = column == "name"
+                ? a.name.localeCompare(b.name, "nb")
+                : (Number(first) || 0) - (Number(second) || 0);
+            return difference * (direction == "ascending" ? 1 : -1) ||
+                a.name.localeCompare(b.name, "nb") || a.id.localeCompare(b.id, "en");
+        });
+    }
+};
+
+function initializeLeaderboard() {
+    const message = text => window.I18n ? window.I18n.msg(text) : text;
+    let rows = [];
+    let column = "roundsPlayed";
+    let direction = "descending";
+    let requestId = 0;
+    const body = document.getElementById("leaderboardRows");
+    const status = document.getElementById("leaderboardStatus");
+    const headers = Array.from(document.querySelectorAll("[data-leaderboard-sort]"));
+    function render() {
+        headers.forEach(button => button.closest("th").setAttribute("aria-sort",
+            button.dataset.leaderboardSort == column ? direction : "none"));
+        body.replaceChildren();
+        PlayerLeaderboard.sort(rows, column, direction).forEach(record => {
+            const row = document.createElement("tr");
+            for (const field of ["name", "roundsPlayed", "presidentWins", "bomsCount",
+                "placementScore", "longestPresidentStreak", "longestBomsStreak"]) {
+                const cell = document.createElement("td");
+                cell.textContent = field == "name" ? record.name : field == "placementScore"
+                    ? Number.isFinite(record[field]) ? record[field].toFixed(2) : "–"
+                    : String(Number.isSafeInteger(record[field]) && record[field] >= 0 ? record[field] : 0);
+                cell.dataset.i18nSkip = "";
+                row.appendChild(cell);
+            }
+            body.appendChild(row);
+        });
+    }
+    headers.forEach(button => button.addEventListener("click", () => {
+        const next = button.dataset.leaderboardSort;
+        direction = next == column
+            ? direction == "descending" ? "ascending" : "descending"
+            : next == "placementScore" || next == "name" ? "ascending" : "descending";
+        column = next;
+        render();
+    }));
+    document.getElementById("leaderboardOpenButton").addEventListener("click", async event => {
+        event.preventDefault();
+        const request = ++requestId;
+        column = "roundsPlayed";
+        direction = "descending";
+        rows = [];
+        render();
+        status.textContent = message("Henter leaderboard…");
+        showDialog("Leaderboard", true);
+        try {
+            const result = await PlayerLeaderboard.load();
+            if (request != requestId) { return; }
+            rows = result;
+            status.textContent = rows.length == 0 ? message("Ingen registrerte runder ennå.") : "";
+            render();
+        } catch (error) {
+            if (request != requestId) { return; }
+            console.error("Kunne ikke hente leaderboard.", error);
+            status.textContent = message("Kunne ikke hente leaderboard. Lukk og åpne igjen for å prøve på nytt.");
+        }
+    });
+}
+
+initializeLeaderboard();

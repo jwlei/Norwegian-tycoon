@@ -507,10 +507,33 @@ button {
     text-decoration: underline;
 }
 
+.splash-footer {
+    position: absolute;
+    bottom: calc(env(safe-area-inset-bottom) + 10px);
+    left: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    transform: translateX(-50%);
+}
+
+.splash-footer .app-version {
+    position: static;
+    transform: none;
+}
+
+.leaderboard-link {
+    color: var(--muted);
+    font-size: 0.8rem;
+    opacity: 0.68;
+    text-decoration: underline;
+}
+
 #mainMenu {
     overflow-y: auto;
     align-content: safe center;
-    padding-bottom: 44px;
+    padding-bottom: 76px;
 }
 
 #mainMenu .public-lobby-list {
@@ -1540,29 +1563,29 @@ select:focus-visible {
     transform: none;
 }
 
-.card-style-list .card-style-option[aria-pressed="true"],
-.card-style-list .card-foil-option[aria-pressed="true"] {
+.card-style-list .card-style-option__select[aria-pressed="true"],
+.card-style-list .card-foil-option__select[aria-pressed="true"] {
     border-color: var(--success);
     background: var(--success-soft);
 }
 
-.card-style-list .card-foil-option.is-locked {
-    position: relative;
-    flex-wrap: wrap;
-    overflow: hidden;
+.card-style-list .card-foil-option.is-locked,
+.card-style-list .card-style-option.is-locked {
+    overflow: visible;
+}
+
+.card-foil-option.is-locked .card-foil-option__select,
+.card-style-option.is-locked .card-style-option__select {
+    filter: grayscale(1);
+    opacity: 0.42;
     cursor: not-allowed;
 }
 
-.card-foil-option.is-locked .card-style-option__cards,
-.card-foil-option.is-locked > strong {
-    filter: grayscale(1);
-    opacity: 0.42;
-}
-
-.card-foil-option.is-locked::after {
+.card-style-option.is-locked .card-style-option__select::after,
+.card-foil-option.is-locked .card-foil-option__select::after {
     position: absolute;
     top: 50%;
-    left: 42px;
+    right: 4px;
     color: var(--danger);
     content: "×";
     font-size: 3rem;
@@ -1572,6 +1595,20 @@ select:focus-visible {
     transform: translate(-50%, -55%);
 }
 
+.card-style-list .card-foil-option__select,
+.card-style-list .card-style-option__select {
+    position: relative;
+    align-self: stretch;
+    min-width: 100px;
+    flex: 1;
+    padding: 12px 24px 12px 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink);
+}
+
+.card-style-option__unlock,
 .card-foil-option__unlock {
     position: absolute;
     z-index: 3;
@@ -1589,7 +1626,8 @@ select:focus-visible {
     pointer-events: none;
 }
 
-.card-foil-option__unlock[hidden] {
+.card-foil-option__unlock[hidden],
+.card-style-option__unlock[hidden] {
     display: none;
 }
 
@@ -1602,6 +1640,7 @@ select:focus-visible {
 }
 
 .card-foil-option > strong,
+.card-style-option__select > strong,
 .card-style-option > strong {
     font-size: 0.8rem;
     white-space: nowrap;
@@ -2371,7 +2410,8 @@ select:focus-visible {
 }
 
 #dialogRegler .dialog-window,
-#dialogSpillogg .dialog-window {
+#dialogSpillogg .dialog-window,
+#dialogLeaderboard .dialog-window {
     display: flex;
     flex-direction: column;
     height: min(80dvh, 640px);
@@ -2379,13 +2419,15 @@ select:focus-visible {
 }
 
 #dialogRegler .dialog-title,
-#dialogSpillogg .dialog-title {
+#dialogSpillogg .dialog-title,
+#dialogLeaderboard .dialog-title {
     flex: 0 0 auto;
     padding-bottom: 12px;
 }
 
 #dialogRegler .rules-content,
-#dialogSpillogg .game-log {
+#dialogSpillogg .game-log,
+#dialogLeaderboard .leaderboard-content {
     flex: 1 1 auto;
     min-height: 0;
     max-height: none;
@@ -2395,16 +2437,71 @@ select:focus-visible {
 }
 
 #dialogRegler .dialog-footer,
-#dialogSpillogg .dialog-footer {
+#dialogSpillogg .dialog-footer,
+#dialogLeaderboard .dialog-footer {
     flex: 0 0 auto;
     justify-content: center;
     border-top: 1px solid var(--line);
 }
 
 #dialogRegler .dialog-footer > button,
-#dialogSpillogg .dialog-footer > button {
+#dialogSpillogg .dialog-footer > button,
+#dialogLeaderboard .dialog-footer > button {
     width: min(100%, 240px);
     flex: 0 1 auto;
+}
+
+#dialogLeaderboard .dialog-title {
+    text-align: center;
+}
+
+.leaderboard-table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.leaderboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.leaderboard-table th,
+.leaderboard-table td {
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+}
+
+.leaderboard-table th:first-child,
+.leaderboard-table td:first-child {
+    text-align: left;
+}
+
+.leaderboard-table td:first-child {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.leaderboard-table th button {
+    min-width: 36px;
+    min-height: 40px;
+    padding: 4px;
+    color: inherit;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    white-space: nowrap;
+}
+
+.leaderboard-table th[aria-sort="descending"] button,
+.leaderboard-table th[aria-sort="ascending"] button {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 5px;
 }
 
 .rules-content section + section { margin-top: 16px; }
@@ -2509,8 +2606,11 @@ select:focus-visible {
 .table-card-pile {
     --table-card-height: clamp(96px, 25vh, 190px);
     --table-card-width: calc(var(--table-card-height) * 2 / 3);
-    --pile-fan-step: max(34px, min(60px, calc(var(--table-card-width) * 0.42)));
+    --pile-fan-step: min(max(34px, min(60px, calc(var(--table-card-width) * 0.42))),
+        max(0px, calc((var(--board-width, 100vw) - var(--table-card-width) - var(--pile-depth, 0px) - 160px) / max(1, var(--pile-fan-count, 0)))));
     --pile-fan-width: calc(var(--pile-fan-count, 0) * var(--pile-fan-step));
+    --landing-space-x: max(0px, calc((var(--board-width, 0px) - var(--table-card-width) - var(--pile-fan-width) - var(--pile-depth) - 160px) / 2));
+    --landing-space-y: max(0px, calc((var(--board-height, 0px) - var(--table-card-height) - var(--pile-depth) - 140px) / 2));
     position: relative;
     flex: 0 0 auto;
     width: calc(var(--table-card-width) + var(--pile-fan-width) + var(--pile-depth) + 10px);
