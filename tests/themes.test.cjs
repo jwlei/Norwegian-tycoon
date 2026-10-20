@@ -204,6 +204,17 @@ test("desktop uses taller two-line toasts and the same shell and toolbar in ever
     }
 });
 
+test("portrait layouts keep the player name row above the table at phone and tablet widths", () => {
+    const start = css.indexOf("@media (orientation: portrait) {");
+    assert.notEqual(start, -1);
+    const end = css.indexOf("\n@media", start + 1);
+    const portrait = css.slice(start, end);
+    assert.match(portrait, /#gameShell\.game-active\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/);
+    for (const [id, row] of [["playerList", 2], ["gameTable", 3], ["playerActions", 4], ["playerHand", 5]]) {
+        assert.match(portrait, new RegExp(`#gameShell\\.game-active > #${id}\\s*\\{[^}]*grid-column:\\s*1 / -1;[^}]*grid-row:\\s*${row} / ${row + 1};`));
+    }
+});
+
 test("PIN toggle aligns with the full-width name field without horizontal button margins", () => {
     assert.match(css, /#playerUsePin\s*\{\s*margin:\s*8px 0;\s*\}/);
 });

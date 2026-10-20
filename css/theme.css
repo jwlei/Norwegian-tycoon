@@ -3705,7 +3705,7 @@ select:focus-visible {
     }
 }
 
-@media (max-width: 760px) and (orientation: portrait) {
+@media (orientation: portrait) {
     #gameShell.game-active #playerHand.card-hand > .game-card > img,
     #gameShell.game-active.cards-only-mode > #playerHand > .game-card > img {
         height: var(--hand-card-height);
