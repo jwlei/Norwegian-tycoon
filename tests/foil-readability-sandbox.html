@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-color-theme="teal">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Foil readability comparisons</title>
+    <link rel="stylesheet" href="../css/theme.css?v=0.9.6">
+    <link rel="stylesheet" href="../css/foil.css?v=0.9.6">
+    <link rel="stylesheet" href="foil-readability-sandbox.css">
+</head>
+<body>
+<main>
+    <h1>Foil readability comparisons</h1>
+    <p>Three candidates for every foil, alongside the current effect and a plain card reference.
+        A keeps a softer full-card finish. B keeps a stronger foil around a clear central window.
+        C keeps vivid foil texture with a softer central fade.
+        All three restore the original corner ranks and suits above the foil.</p>
+    <p>These are experiments only: the game's foils are unchanged. Compare both red and black suits,
+        small cards, and dark card styles before choosing. Move over a card or use the shared light controls.
+        Tap a candidate's label to save a local preference. No account or game connection is used.</p>
+    <div class="controls">
+        <label>Card style <select id="style"></select></label>
+        <label>Test card
+            <select id="card">
+                <option value="1:7">7 of spades</option>
+                <option value="2:13">King of hearts</option>
+                <option value="3:3">3 of clubs</option>
+                <option value="4:1">Ace of diamonds</option>
+                <option value="2:10">10 of hearts</option>
+            </select>
+        </label>
+        <label>Size <select id="size">
+            <option value="96">Small (96px)</option>
+            <option value="136" selected>Medium (136px)</option>
+            <option value="184">Large (184px)</option>
+        </select></label>
+        <label>Background <select id="background">
+            <option value="dark">Dark</option><option value="light">Light</option>
+        </select></label>
+        <label>Light X <input id="lightX" type="range" min="0" max="100" value="50"></label>
+        <label>Light Y <input id="lightY" type="range" min="0" max="100" value="50"></label>
+        <label><input id="active" type="checkbox" checked> Active shine</label>
+        <label><input id="animate" type="checkbox"> Sweep light</label>
+    </div>
+    <details>
+        <summary>View / copy my choices</summary>
+        <p>Use foil IDs and A/B/C when telling me which versions to keep. Unselected foils are omitted.</p>
+        <textarea id="choices" aria-label="Selected foil variants" rows="6" readonly></textarea>
+        <button id="copy" type="button">Copy choices</button>
+    </details>
+    <p id="status" role="status" aria-live="polite"></p>
+    <div id="comparisons"></div>
+</main>
+<script src="../js/cards.js?v=0.9.6"></script>
+<script src="foil-readability-sandbox.js"></script>
+</body>
+</html>
