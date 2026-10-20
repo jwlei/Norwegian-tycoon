@@ -204,10 +204,10 @@ test("desktop uses taller two-line toasts and the same shell and toolbar in ever
     }
 });
 
-test("visible release and versioned local assets use version 0.8.17", () => {
-    assert.ok(html.includes('aria-label="Spillversjon 0.8.17">v0.8.17</span>'));
+test("visible release and versioned local assets use version 0.8.18", () => {
+    assert.ok(html.includes('aria-label="Spillversjon 0.8.18">v0.8.18</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"]+)"/g),
         match => match[1]);
     assert.ok(versions.length > 0);
-    assert.ok(versions.every(version => version === "0.8.17"));
+    assert.ok(versions.every(version => version === "0.8.18"));
 });
