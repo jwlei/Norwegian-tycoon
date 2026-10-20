@@ -440,8 +440,9 @@ function isCardDropOnTable(event) {
         event.clientY >= bounds.top && event.clientY <= bounds.bottom;
 }
 
-function isUpwardFlick(x, y) {
-    return y > 0 && y + 1e-6 >= Math.abs(x) * Math.tan(Math.PI / 18);
+function isUpwardFlick(x, y, coneDegrees = 160) {
+    return y > 0 && y + 1e-6 >= Math.abs(x) *
+        Math.tan((180 - coneDegrees) * Math.PI / 360);
 }
 
 const CARD_FLICK_MIN_DISTANCE = 10;

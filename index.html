@@ -198,7 +198,7 @@
     </div>
     <div id="DivKort_Kortforklaring" style="display: none;">
         <div id="Kortforklaring1" class="tips">
-            <div>Trykk på et kort for å velge det; like kort velges sammen. Trykk på et valgt sett for å beholde bare kortet du trykker på, og legg til flere kort ett om gangen. Sveip vannrett over kortene for å bla. Dra opp for å løfte kortene, og flick eller slipp på bordet for å spille, eller bruk Legg ut eller Enter. Under bytte velger du kort ved å trykke på dem.</div>
+            <div>Trykk på et kort for å velge det; like kort velges sammen. Trykk på et valgt sett for å beholde bare kortet du trykker på, og legg til flere kort ett om gangen. Sveip vannrett over kortene for å bla. Dra eller flick opp innenfor en 150-graders vinkel fra berøringspunktet for å løfte kortene. Slipp på bordet eller avslutt med en flick innenfor en 160-graders vinkel oppover for å spille, eller bruk Legg ut eller Enter. Under bytte velger du kort ved å trykke på dem.</div>
             <button type="button" onclick="document.getElementById('Kortforklaring1').style.display='none';">Lukk tips</button>
         </div>
     </div>
@@ -568,6 +568,7 @@
                     <h3>Slik spiller du</h3>
                     <ul>
                         <li><strong>Mål:</strong> <span>Spill alle kortene dine.</span></li>
+                        <li><strong>Hvem starter:</strong> <span>Hjerter 3 starter første runde, eller en tilfeldig spiller med to spillere. Deretter starter Boms.</span></li>
                         <li><strong>Legg ut:</strong> <span>Match antall og lik/høyere verdi. Tomt bord: singel, par, tress eller fire like.</span></li>
                         <li><strong>Kortstyrke:</strong> <span>3–10, knekt, dame, konge, ess, 2.</span></li>
                         <li><strong>Pass:</strong> <span>Du kan passe på enhver hånd, også når bordet er tomt. Når alle andre passer på en bunke, ryddes bordet; siste utspiller starter igjen, eller neste aktive spiller hvis hen er ferdig.</span></li>
@@ -581,24 +582,23 @@
                     </ul>
                 </section>
                 <section class="rules-player-box">
-                    <h3>Kortbytte og rundestart</h3>
+                    <h3>Kortbytte og spillerantall</h3>
                     <div class="rules-player-options speed-options" role="group" aria-label="Antall spillere i reglene">
                         <button type="button" class="speed-option" data-rules-players="2" aria-pressed="false" aria-controls="rulesPlayers2">2 spillere</button>
                         <button type="button" class="speed-option" data-rules-players="3" aria-pressed="true" aria-controls="rulesPlayers3">3 spillere</button>
                         <button type="button" class="speed-option" data-rules-players="4" aria-pressed="false" aria-controls="rulesPlayers4">4 spillere</button>
                     </div>
                     <div id="rulesPlayers2" hidden>
-                        <p>12 tilfeldige kort fjernes. En tilfeldig spiller starter første runde; deretter starter Boms.</p>
+                        <p>12 tilfeldige kort fjernes.</p>
                         <p>Presidenten får Boms sitt beste kort, unntatt Kløver 3, og velger ett kort å gi tilbake.</p>
                         <p>Treerne uten kløver rydder bordet når de samles øverst.</p>
                     </div>
                     <div id="rulesPlayers3">
-                        <p>Ruter 3 fjernes. Hjerter 3 starter første runde; deretter starter Boms. Hjerter 3 og Spar 3 sammen øverst rydder bordet.</p>
+                        <p>Ruter 3 fjernes. Hjerter 3 og Spar 3 sammen øverst rydder bordet.</p>
                         <p>Presidenten får Boms sine to beste kort, unntatt Kløver 3, og velger to kort å gi tilbake.</p>
                         <p>Deretter kan Presidenten tvinge et ettkortsbytte med Nøytral, og til slutt kan Nøytral tvinge et ettkortsbytte med Boms. Bare den som starter byttet kan velge å hoppe over; mottakeren kan ikke avslå. Begge velger et kort mellom 7 og knekt. Nøytral kan ikke gi kortet fra Presidenten videre til Boms.</p>
                     </div>
                     <div id="rulesPlayers4" hidden>
-                        <p>Hjerter 3 starter første runde; deretter starter Boms.</p>
                         <p>Presidenten får Boms sine to beste kort, unntatt Kløver 3, og velger to kort å gi tilbake. Visepresidenten får Viseboms sitt beste kort, unntatt Kløver 3, og velger ett kort å gi tilbake.</p>
                     </div>
                 </section>

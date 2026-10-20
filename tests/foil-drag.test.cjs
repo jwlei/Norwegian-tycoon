@@ -838,6 +838,61 @@ test("short flicks work throughout the upward 160 degree cone on mouse and touch
     }
 });
 
+test("touch pickup accepts the full initial 150-degree cone from the contact point", () => {
+    for (const selected of [false, true]) {
+        for (const angle of [-75, -74, -60, -45, 0, 45, 60, 74, 75]) {
+            const f = pointerFixture();
+            if (selected) { vm.runInContext('selectedCardKeys.add("1:5")', f.context); }
+            const radians = angle * Math.PI / 180;
+            const x = 200 + Math.sin(radians) * 20;
+            const y = 500 - Math.cos(radians) * 20;
+            f.hand.onpointerdown(f.event(200, 500));
+            f.advance(1030);
+            f.hand.onpointermove(f.event(x, y));
+            assert.equal(f.body.children.length, 1, `Pickup ${angle}/${selected}`);
+            assert.equal(f.hand.classList.contains("is-hand-dragging"), false);
+            f.hand.onpointerup(f.event(x, y));
+            assert.equal(f.state.plays, 1, `Flick ${angle}/${selected}`);
+            assert.equal(f.state.scrolls, 0);
+        }
+    }
+});
+
+test("touch strokes outside the pickup cone scroll near horizontal in either direction", () => {
+    for (const selected of [false, true]) {
+        for (const angle of [-104, -90, -80, -76, 76, 80, 90, 104]) {
+            const f = pointerFixture();
+            if (selected) { vm.runInContext('selectedCardKeys.add("1:5")', f.context); }
+            const radians = angle * Math.PI / 180;
+            const x = 200 + Math.sin(radians) * 30;
+            const y = 500 - Math.cos(radians) * 30;
+            f.hand.onpointerdown(f.event(200, 500));
+            f.advance(1030);
+            f.hand.onpointermove(f.event(x, y));
+            assert.equal(f.body.children.length, 0);
+            assert.equal(f.hand.classList.contains("is-hand-dragging"), true, `${angle}/${selected}`);
+            f.hand.onpointerup(f.event(x, y));
+            assert.equal(f.state.plays, 0);
+            assert.equal(f.state.scrolls, 1);
+        }
+    }
+});
+
+test("initial touch jitter stays undecided and slow diagonal pickup does not auto-play", () => {
+    const f = pointerFixture();
+    f.hand.onpointerdown(f.event(200, 500));
+    f.advance(1010);
+    f.hand.onpointermove(f.event(206, 498));
+    assert.equal(f.body.children.length, 0);
+    assert.equal(f.hand.classList.contains("is-hand-dragging"), false);
+    f.advance(1500);
+    f.hand.onpointermove(f.event(225, 490));
+    assert.equal(f.body.children.length, 1);
+    f.hand.onpointerup(f.event(225, 490));
+    assert.equal(f.state.plays, 0);
+    assert.equal(f.state.scrolls, 0);
+});
+
 test("flicks outside the cone, too short, too slow, held or in button mode never play off-board", () => {
     for (const desktop of [false, true]) {
         for (const [angle, distance, duration, mode, hold] of [

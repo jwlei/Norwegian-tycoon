@@ -14,10 +14,12 @@ test("rules separate player counts, keep voting on the voting screen, and transl
     const rules = html.slice(html.indexOf('id="dialogRegler"'), html.indexOf('id="dialogSpillogg"'));
     assert.match(rules, /Spill alle kortene dine\./);
     assert.match(rules, /Kortstyrke:/);
+    assert.match(rules, /<strong>Hvem starter:<\/strong> <span>Hjerter 3 starter første runde, eller en tilfeldig spiller med to spillere\. Deretter starter Boms\.<\/span>/);
     assert.doesNotMatch(rules, /Sneaky|h4cker|Lobby|lobby|Flertallet bestemmer/);
     const playerBox = rules.match(/<section class="rules-player-box">([\s\S]*?)<\/section>/);
     assert.ok(playerBox, "Player-count controls and rules share a bordered section");
     assert.match(playerBox[1], /class="rules-player-options speed-options"/);
+    assert.doesNotMatch(playerBox[1], /starter første runde|starter Boms/);
     const boxStyles = css.match(/\.rules-player-box\s*\{([^}]+)\}/)[1];
     assert.match(boxStyles, /border: 1px solid var\(--line\)/);
     assert.match(boxStyles, /background: var\(--surface-soft\)/);

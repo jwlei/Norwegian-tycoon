@@ -2100,14 +2100,16 @@ class GameLayout {
             var dragOffsetY = event.clientY - handScrollDrag.startY;
             if (handScrollDrag.axis == null &&
                 Math.max(Math.abs(dragOffsetX), Math.abs(dragOffsetY)) >= 8) {
-                var horizontalScrollRatio = 1.35;
                 var horizontalScrollDistance = 12;
-                var isHorizontalIntent = Math.abs(dragOffsetX) >=
-                    Math.abs(dragOffsetY) * horizontalScrollRatio;
+                var isUpwardIntent = isUpwardFlick(dragOffsetX, -dragOffsetY, 150);
+                var isHorizontalIntent = Math.abs(dragOffsetY) <=
+                    Math.abs(dragOffsetX) * Math.tan(Math.PI / 12);
                 var isVerticalIntent = Math.abs(dragOffsetY) >=
                     Math.max(8, Math.abs(dragOffsetX) * 1.1);
                 if (handScrollDrag.pointerType == "mouse" && handScrollDrag.card != null &&
                     handScrollDrag.canDragToPlay) {
+                    handScrollDrag.axis = "vertical";
+                } else if (isUpwardIntent) {
                     handScrollDrag.axis = "vertical";
                 } else if (isHorizontalIntent) {
                     if (Math.abs(dragOffsetX) >= horizontalScrollDistance) {
