@@ -687,7 +687,7 @@ test("releasing a dragged hand outside the board animates the preview back", () 
     assert.equal(f.card.classList.contains("is-drag-source"), false);
 });
 
-test("slow drops play only on the board and flicks require 12 pixels at the existing velocity", () => {
+test("slow drops play only on the board and flicks require 10 pixels at 0.4 pixels per millisecond", () => {
     const f = fixture();
     f.context.document.getElementById("gameTable");
     const drag = { canDragToPlay: true, canSwipeToPlay: false, didPlayDrag: true,
@@ -699,13 +699,13 @@ test("slow drops play only on the board and flicks require 12 pixels at the exis
     drag.lastFlickDistance = 100;
     drag.lastFlickVelocity = 0.1;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 400 }), false);
-    drag.lastFlickDistance = 11;
-    drag.lastFlickVelocity = 0.55;
+    drag.lastFlickDistance = 9;
+    drag.lastFlickVelocity = 0.4;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), false);
-    drag.lastFlickDistance = 12;
-    drag.lastFlickVelocity = 0.54;
+    drag.lastFlickDistance = 10;
+    drag.lastFlickVelocity = 0.39;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), false);
-    drag.lastFlickVelocity = 0.55;
+    drag.lastFlickVelocity = 0.4;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), true);
     drag.lastFlickDistance = -16;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), false);
@@ -771,11 +771,11 @@ test("the hand cancels native dragstart before it can interrupt pointer gestures
     assert.equal(prevented, true);
 });
 
-test("pointerdown immediately activates a legal card, while taps and cancellation restore the original selection", () => {
+test("mouse pickup is immediate, touch waits for direction, and taps or cancellation restore selection", () => {
     for (const desktop of [false, true]) {
         const f = pointerFixture({ desktop });
         f.hand.onpointerdown(f.event(100, 500));
-        assert.equal(f.body.children.length, 1, "No movement threshold before preview activation");
+        assert.equal(f.body.children.length, desktop ? 1 : 0);
         assert.equal(vm.runInContext('selectedCardKeys.has("1:5")', f.context), true);
         f.hand.onpointerup(f.event(100, 500));
         assert.equal(vm.runInContext("selectedCardKeys.size", f.context), 0,
@@ -821,7 +821,15 @@ test("short flicks work throughout the upward 160 degree cone on mouse and touch
             const x = 100 + Math.sin(radians) * 13;
             const y = 500 - Math.cos(radians) * 13;
             f.hand.onpointerdown(f.event(100, 500));
-            f.advance(1016);
+            if (!desktop) {
+                f.advance(1100);
+                f.hand.onpointermove(f.event(100, 480));
+                f.advance(1200);
+                f.hand.onpointermove(f.event(100, 500));
+                f.advance(1300);
+                f.hand.onpointermove(f.event(100, 500));
+            }
+            f.advance(desktop ? 1016 : 1316);
             f.hand.onpointermove(f.event(x, y));
             f.hand.onpointerup(f.event(x, y));
             assert.equal(f.state.plays, 1, `${desktop ? "mouse" : "touch"} at ${angle} degrees`);
@@ -835,7 +843,7 @@ test("flicks outside the cone, too short, too slow, held or in button mode never
         for (const [angle, distance, duration, mode, hold] of [
             [-81, 40, 30, "flick", 0], [81, 40, 30, "flick", 0],
             [-90, 40, 30, "flick", 0], [90, 40, 30, "flick", 0],
-            [180, 40, 30, "flick", 0], [0, 11, 16, "flick", 0],
+            [180, 40, 30, "flick", 0], [0, 9, 16, "flick", 0],
             [60, 30, 200, "flick", 0], [60, 30, 20, "flick", 150],
             [-60, 30, 20, "button", 0], [60, 30, 20, "button", 0]
         ]) {
@@ -909,11 +917,11 @@ test("touch flick plays outside the board while scrolling from empty hand space 
     assert.equal(scroll.state.scrolls, 1);
 });
 
-test("grabbed cards drag instead of scrolling, whether selected or not", () => {
+test("horizontal touch strokes over selected and unselected cards scroll and preserve selection", () => {
     const drag = pointerFixture();
     vm.runInContext('selectedCardKeys.add("1:5")', drag.context);
     drag.hand.onpointerdown(drag.event(100, 500));
-    drag.hand.onpointermove(drag.event(112, 492));
+    drag.hand.onpointermove(drag.event(104, 488));
     assert.equal(drag.body.children.length, 1);
     assert.equal(drag.hand.classList.contains("is-hand-dragging"), false);
     drag.hand.onpointerup(drag.event(112, 492));
@@ -922,12 +930,55 @@ test("grabbed cards drag instead of scrolling, whether selected or not", () => {
         const sideways = pointerFixture();
         if (selected) { vm.runInContext('selectedCardKeys.add("1:5")', sideways.context); }
         sideways.hand.onpointerdown(sideways.event(100, 500));
+        assert.equal(sideways.body.children.length, 0, "Touch must not grab before direction is known");
         sideways.hand.onpointermove(sideways.event(150, 501));
-        assert.equal(sideways.body.children.length, 1);
-        assert.equal(sideways.hand.classList.contains("is-hand-dragging"), false);
+        assert.equal(sideways.body.children.length, 0);
+        assert.equal(sideways.hand.classList.contains("is-hand-dragging"), true);
+        assert.equal(vm.runInContext('selectedCardKeys.has("1:5")', sideways.context), selected);
         sideways.hand.onpointerup(sideways.event(150, 501));
-        assert.equal(sideways.state.scrolls, 0);
+        assert.equal(sideways.state.scrolls, 1);
         assert.equal(sideways.state.plays, 0);
+    }
+});
+
+test("a scrolling stroke cannot turn into an accidental play when the finger moves up on release", () => {
+    for (const selected of [false, true]) {
+        const f = pointerFixture();
+        if (selected) { vm.runInContext('selectedCardKeys.add("1:5")', f.context); }
+        f.hand.onpointerdown(f.event(200, 500));
+        f.advance(1020);
+        f.hand.onpointermove(f.event(160, 498));
+        f.advance(1040);
+        f.hand.onpointerup(f.event(150, 200));
+        assert.equal(f.state.plays, 0);
+        assert.equal(f.state.scrolls, 1);
+        assert.equal(vm.runInContext('selectedCardKeys.has("1:5")', f.context), selected);
+    }
+});
+
+test("mouse sideways pickup still drags cards instead of scrolling the hand", () => {
+    const f = pointerFixture({ desktop: true });
+    f.hand.onpointerdown(f.event(100, 500));
+    f.advance(1030);
+    f.hand.onpointermove(f.event(160, 502));
+    assert.equal(f.hand.classList.contains("is-hand-dragging"), false);
+    assert.equal(f.body.children.length, 1);
+    f.hand.onpointerup(f.event(160, 502));
+    assert.equal(f.state.scrolls, 0);
+    assert.equal(f.state.plays, 0);
+});
+
+test("shorter gentler upward flicks play, including movement first reported at pointerup", () => {
+    for (const desktop of [false, true]) {
+        for (const releaseOnly of [false, true]) {
+            const f = pointerFixture({ desktop });
+            f.hand.onpointerdown(f.event(100, 500));
+            f.advance(1025);
+            if (!releaseOnly) { f.hand.onpointermove(f.event(100, 489)); }
+            f.hand.onpointerup(f.event(100, 489));
+            assert.equal(f.state.plays, 1, `${desktop}/${releaseOnly}`);
+            assert.equal(f.state.scrolls, 0);
+        }
     }
 });
 
@@ -938,6 +989,8 @@ test("a circular pickup can finish with a short upward flick anywhere below the 
                 const f = pointerFixture({ desktop });
                 if (selected) { vm.runInContext('selectedCardKeys.add("1:5")', f.context); }
                 f.hand.onpointerdown(f.event(x, 500));
+                f.advance(1050);
+                f.hand.onpointermove(f.event(x, 488));
                 for (const [time, dx, y] of [
                     [1100, 30, 505], [1200, 40, 530], [1300, 0, 540],
                     [1400, -20, 520], [1500, 0, 510], [1510, 0, 502], [1520, 0, 494]
@@ -966,9 +1019,9 @@ test("a held card uses its recent upward acceleration rather than the whole slow
     }
 });
 
-test("recent flick detection tolerates different pointer sampling rates without weakening the thresholds", () => {
+test("recent flick detection is consistent across pointer sampling rates at the new speed threshold", () => {
     for (const interval of [4, 8, 16, 32]) {
-        for (const speed of [0.3, 0.75]) {
+        for (const speed of [0.3, 0.45, 0.75]) {
             const f = pointerFixture();
             f.hand.onpointerdown(f.event(100, 500));
             f.advance(1400);
@@ -980,7 +1033,7 @@ test("recent flick detection tolerates different pointer sampling rates without 
                 f.hand.onpointermove(f.event(100, y));
             }
             f.hand.onpointerup(f.event(100, y));
-            assert.equal(f.state.plays, speed >= 0.55 ? 1 : 0, `${interval}ms/${speed}px/ms`);
+            assert.equal(f.state.plays, speed >= 0.4 ? 1 : 0, `${interval}ms/${speed}px/ms`);
         }
     }
 });

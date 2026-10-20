@@ -444,13 +444,17 @@ function isUpwardFlick(x, y) {
     return y > 0 && y + 1e-6 >= Math.abs(x) * Math.tan(Math.PI / 18);
 }
 
+const CARD_FLICK_MIN_DISTANCE = 10;
+const CARD_FLICK_MIN_VELOCITY = 0.4;
+
 function shouldPlayCardDrag(drag, event) {
     if (!drag.canDragToPlay || drag.axis == "horizontal") { return false; }
     if (drag.didPlayDrag && isCardDropOnTable(event)) { return true; }
     var flickX = drag.lastFlickX || 0;
     var flickY = drag.lastFlickY ?? drag.lastFlickDistance;
     return drag.canSwipeToPlay && isUpwardFlick(flickX, flickY) &&
-        drag.lastFlickDistance >= 12 && drag.lastFlickVelocity >= 0.55 &&
+        drag.lastFlickDistance >= CARD_FLICK_MIN_DISTANCE &&
+        drag.lastFlickVelocity >= CARD_FLICK_MIN_VELOCITY &&
         (drag.lastFlickMoveTime == null || performance.now() - drag.lastFlickMoveTime <= 120);
 }
 

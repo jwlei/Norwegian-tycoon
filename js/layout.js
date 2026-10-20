@@ -1993,7 +1993,7 @@ class GameLayout {
                 for (var i = samples.length - 2; i >= 0; i--) {
                     var sample = samples[i];
                     if (sample.time < cutoff) { break; }
-                    if (Math.hypot(pointerX - sample.x, pointerY - sample.y) >= 12) {
+                    if (Math.hypot(pointerX - sample.x, pointerY - sample.y) >= CARD_FLICK_MIN_DISTANCE) {
                         startX = sample.x;
                         startY = sample.y;
                         startTime = sample.time;
@@ -2045,6 +2045,7 @@ class GameLayout {
             }
             handScrollDrag = {
                 pointerId: event.pointerId,
+                pointerType: event.pointerType,
                 startX: event.clientX,
                 startY: event.clientY,
                 lastPointerY: event.clientY,
@@ -2077,7 +2078,8 @@ class GameLayout {
             };
             if (card && handScrollDrag.canDragToPlay) {
                 handScrollDrag.canPlay = selectCardsForSwipe(card);
-                if (handScrollDrag.canPlay || handScrollDrag.isSelectedCard) {
+                if (event.pointerType == "mouse" &&
+                    (handScrollDrag.canPlay || handScrollDrag.isSelectedCard)) {
                     startCardDragPreview(element, event);
                 }
             }
@@ -2098,20 +2100,20 @@ class GameLayout {
             var dragOffsetY = event.clientY - handScrollDrag.startY;
             if (handScrollDrag.axis == null &&
                 Math.max(Math.abs(dragOffsetX), Math.abs(dragOffsetY)) >= 8) {
-                var horizontalScrollRatio = handScrollDrag.isSelectedCard ? 1.7 : 1.35;
-                var horizontalScrollDistance = handScrollDrag.isSelectedCard ? 18 : 12;
+                var horizontalScrollRatio = 1.35;
+                var horizontalScrollDistance = 12;
                 var isHorizontalIntent = Math.abs(dragOffsetX) >=
                     Math.abs(dragOffsetY) * horizontalScrollRatio;
                 var isVerticalIntent = Math.abs(dragOffsetY) >=
                     Math.max(8, Math.abs(dragOffsetX) * 1.1);
-                if (handScrollDrag.card != null &&
+                if (handScrollDrag.pointerType == "mouse" && handScrollDrag.card != null &&
                     handScrollDrag.canDragToPlay) {
                     handScrollDrag.axis = "vertical";
                 } else if (isHorizontalIntent) {
                     if (Math.abs(dragOffsetX) >= horizontalScrollDistance) {
                         handScrollDrag.axis = "horizontal";
                     }
-                } else if (isVerticalIntent || handScrollDrag.isSelectedCard) {
+                } else if (isVerticalIntent) {
                     handScrollDrag.axis = "vertical";
                 }
                 handScrollDrag.didMove = true;
@@ -2161,6 +2163,9 @@ class GameLayout {
         element.onpointerup = function (event) {
             var activeDrag = handScrollDrag;
             if (!activeDrag || activeDrag.pointerId != event.pointerId) { return; }
+            if (event.clientX != activeDrag.lastPointerX || event.clientY != activeDrag.lastPointerY) {
+                element.onpointermove(event);
+            }
             var pointerUpTime = performance.now();
             recordFlickMovement(activeDrag, event.clientX, event.clientY, pointerUpTime);
             handScrollDrag = null;
@@ -2457,8 +2462,8 @@ class GameLayout {
                     ? null
                     : ((selectedCardStrength == PresidentCard.clubThreePower()) ? 1 : topPile.length);
                 selectionCount.textContent = (requiredCount == null)
-                    ? `${selectedCards.length} kort valgt. Sveip på tom plass i hånden for å bla. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.`
-                    : `${selectedCards.length} av ${requiredCount} kort valgt. Sveip på tom plass i hånden for å bla. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.`;
+                    ? `${selectedCards.length} kort valgt. Sveip vannrett over kortene for å bla. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.`
+                    : `${selectedCards.length} av ${requiredCount} kort valgt. Sveip vannrett over kortene for å bla. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.`;
                 if (GameLayout.playInputMode() == "button") {
                     selectionCount.textContent = requiredCount == null
                         ? `${selectedCards.length} kort valgt. Trykk Legg ut eller Enter for å spille.`
