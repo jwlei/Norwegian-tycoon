@@ -34,7 +34,7 @@ class GameLayout {
     }
     static isShuffling(game) {
         return game != null && (game.status == "G" || game.status == "S") && game.shuffleStartedAt != null &&
-            Date.now() < game.shuffleStartedAt + SHUFFLE_DURATION_MS;
+            GamePresence.now() < Number(game.shuffleStartedAt) + SHUFFLE_DURATION_MS;
     }
     static fitName(name) {
         name.style.fontSize = "";
@@ -1263,11 +1263,16 @@ class GameLayout {
                         case "Tilbud":
                             var fromRole = game.placementTitle(fromPlayer.lastPlacement).title;
                             var toRole = game.placementTitle(toPlayer.lastPlacement).title;
+                            var sneakyAvailable = isSneakyTradeAvailable(game);
                             title.textContent = exchange.forcedAt != null
                                 ? (isRecipient
-                                    ? `${fromPlayer.name} har tvunget et bytte. Ureglementert bytte?`
+                                    ? (sneakyAvailable
+                                        ? `${fromPlayer.name} har tvunget et bytte. Ureglementert bytte?`
+                                        : `${fromPlayer.name} har tvunget et bytte. Bekreft vanlig bytte med kort 7–J.`)
                                     : isSender
-                                        ? `Venter på at ${toPlayer.name} velger ureglementert eller vanlig bytte.`
+                                        ? (sneakyAvailable
+                                            ? `Venter på at ${toPlayer.name} velger ureglementert eller vanlig bytte.`
+                                            : `Venter på at ${toPlayer.name} bekrefter vanlig bytte.`)
                                         : `${fromPlayer.name} har tvunget et bytte med ${toPlayer.name}.`)
                                 : isSender
                                 ? `Du som ${fromRole} kan tvinge bytte av kort mellom 7–J med ${toRole}.`
@@ -1345,11 +1350,10 @@ class GameLayout {
                             buttonSpan.appendChild(skipButton);
                         }
                         if (exchange.forcedAt != null && isRecipient && !game.exchangeReady) {
-                            for (const sneaky of [true, false]) {
+                            for (const sneaky of isSneakyTradeAvailable(game) ? [true, false] : [false]) {
                                 var responseButton = document.createElement("button");
                                 responseButton.type = "button";
                                 responseButton.textContent = sneaky ? "Ureglementert bytte" : "Vanlig bytte";
-                                responseButton.disabled = sneaky && !isSneakyTradeAvailable(game);
                                 responseButton.onclick = () => game.respondToForcedTrade(exchange, participantIndex, sneaky);
                                 buttonSpan.appendChild(responseButton);
                             }
@@ -1825,6 +1829,7 @@ class GameLayout {
             player.turn,
             game.isTurnPaused() ? 1 : 0,
             game.connectionOnline === false ? 0 : 1,
+            game.localWritePending === true ? 1 : 0,
             GamePresence.isBot(game, player) ? 1 : 0,
             game.piles.map(pile => `${pile.strengthRank}/${pile.map(keyOf).join(",")}`).join("|"),
             player.cards.map(keyOf).join(","),

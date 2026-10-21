@@ -79,7 +79,11 @@ function initializeLeaderboard() {
                     button.setAttribute("aria-controls", "leaderboardPlayerId");
                     button.addEventListener("click", () => {
                         hidePlayerId();
-                        playerIdPopup.textContent = `ID ${record.id}`;
+                        // Stats keys are splash player IDs. Legacy keys remain unchanged on the splash,
+                        // but have no six-character ID to display here; never shorten or replace them.
+                        playerIdPopup.textContent = typeof record.id == "string" &&
+                            record.id.length == 6 && /^[A-Za-z0-9]{6}$/.test(record.id)
+                            ? `ID ${record.id}` : message("Sekstegns-ID utilgjengelig");
                         playerIdPopup.hidden = false;
                         const anchor = button.getBoundingClientRect();
                         const container = playerIdPopup.offsetParent.getBoundingClientRect();
