@@ -617,7 +617,7 @@ class GameLayout {
     }
     static cardThrowMotion(drag, event, hand) {
         var bounds = document.getElementById("gameTable").getBoundingClientRect();
-        var decay = Math.exp(-Math.max(0, performance.now() - drag.lastMotionTime) / 90);
+        var decay = Math.exp(-Math.max(0, pointerEventTime(event) - drag.lastMotionTime) / 90);
         var velocityX = drag.velocityX * decay;
         var velocityY = drag.velocityY * decay;
         var tilt = hand._cardDragPreview;
@@ -1927,6 +1927,18 @@ class GameLayout {
             element._rebindHand(game, player);
             return;
         }
+        if (allowSkip && game != null && player != null && element._rebindHand &&
+            element._handGestureActive && element._handGestureActive() &&
+            element._handOwner == `${game.id}:${player.name}`) {
+            // Rebuilding would cancel the drag and snap the card back mid-flick. Finish
+            // the gesture against the fresh state, then render once it ends.
+            element._rebindHand(game, player);
+            element._deferredHandUpdate = { game, player };
+            return;
+        }
+        element._deferredHandUpdate = null;
+        element._handGestureActive = null;
+        element._handOwner = null;
         element._handSignature = null;
         element._rebindHand = null;
         element.classList.remove("is-dealing-in");
@@ -1983,7 +1995,15 @@ class GameLayout {
             autoSelectedTurnKey = null;
             autoScrollEmptyTurnKey = null;
         }
+        element._handOwner = ownerKey;
         var handScrollDrag = null;
+        element._handGestureActive = () => handScrollDrag != null;
+        var flushDeferredHandUpdate = function () {
+            var deferred = element._deferredHandUpdate;
+            if (!deferred || handScrollDrag) { return; }
+            element._deferredHandUpdate = null;
+            GameLayout.updateHand(deferred.game, deferred.player, null, true);
+        };
         var selectExchangeCard = null;
         var restorePointerSelection = function (drag) {
             if (!drag.selectionBeforeDrag || drag.selectionRestored) { return; }
@@ -2099,11 +2119,16 @@ class GameLayout {
             GameLayout.updateHand(game, player);
         };
         element.onpointerdown = function (event) {
+            // A resting thumb elsewhere on the screen makes the flicking finger non-primary.
             if (event.button != 0 ||
-                !event.isPrimary) {
+                (handScrollDrag && handScrollDrag.pointerId != event.pointerId)) {
                 return;
             }
             stopCardHandInertia();
+            // A preview still gliding back from a missed flick must not be reused (or
+            // cleared by its pending timer) by this new gesture.
+            clearCardDragPreview(element);
+            var downTime = pointerEventTime(event);
             var cardElement = (event.target instanceof Element)
                 ? event.target.closest(".game-card")
                 : null;
@@ -2122,8 +2147,8 @@ class GameLayout {
                 startY: event.clientY,
                 lastPointerY: event.clientY,
                 lastPointerX: event.clientX,
-                velocityX: 0, velocityY: 0, lastMotionTime: performance.now(),
-                lastPointerMoveTime: performance.now(),
+                velocityX: 0, velocityY: 0, lastMotionTime: downTime,
+                lastPointerMoveTime: downTime,
                 flickDirection: 0,
                 flickSamples: [],
                 lastFlickDistance: 0,
@@ -2167,8 +2192,13 @@ class GameLayout {
                 return;
             }
             if (handScrollDrag.pointerId != event.pointerId) { return; }
-            var pointerMoveTime = performance.now();
-            recordFlickMovement(handScrollDrag, event.clientX, event.clientY, pointerMoveTime);
+            // Browsers merge fast touch moves into one event per frame; the merged samples
+            // keep a short flick's speed and direction intact.
+            var flickEvents = typeof event.getCoalescedEvents == "function"
+                ? event.getCoalescedEvents() : [];
+            if (!flickEvents || flickEvents.length == 0) { flickEvents = [event]; }
+            flickEvents.forEach(sample => recordFlickMovement(
+                handScrollDrag, sample.clientX, sample.clientY, pointerEventTime(sample)));
             var dragOffsetX = event.clientX - handScrollDrag.startX;
             var dragOffsetY = event.clientY - handScrollDrag.startY;
             if (handScrollDrag.axis == null &&
@@ -2242,7 +2272,7 @@ class GameLayout {
             if (event.clientX != activeDrag.lastPointerX || event.clientY != activeDrag.lastPointerY) {
                 element.onpointermove(event);
             }
-            var pointerUpTime = performance.now();
+            var pointerUpTime = pointerEventTime(event);
             recordFlickMovement(activeDrag, event.clientX, event.clientY, pointerUpTime);
             handScrollDrag = null;
             element.classList.remove("is-hand-dragging");
@@ -2285,6 +2315,7 @@ class GameLayout {
                 activeDrag.cardElement.classList.remove("is-pressed");
                 resetCardTilt(activeDrag.cardElement);
             }
+            flushDeferredHandUpdate();
         };
         element.onpointercancel = function () {
             if (handScrollDrag) { restorePointerSelection(handScrollDrag); }
@@ -2296,6 +2327,7 @@ class GameLayout {
             element.classList.remove("is-hand-dragging");
             clearDragStyles();
             clearCardDragPreview(element);
+            flushDeferredHandUpdate();
         };
         element.onlostpointercapture = function (event) {
             if (handScrollDrag && handScrollDrag.pointerId == event.pointerId) { element.onpointercancel(); }

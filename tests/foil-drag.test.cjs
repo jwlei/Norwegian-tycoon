@@ -1660,3 +1660,93 @@ test("auto-suggested round starts keep manual choice and refresh the play button
     f.playButton.onclick();
     assert.deepEqual(f.plays, [["3:9"]]);
 });
+
+test("quick flicks use input timestamps and coalesced samples, so handler delays cannot drop them", () => {
+    for (const coalesced of [false, true]) {
+        const f = pointerFixture();
+        const timed = (x, y, timeStamp, extra = {}) => Object.assign(f.event(x, y), { timeStamp }, extra);
+        f.hand.onpointerdown(timed(100, 500, 1000));
+        // Building the drag preview stalls the main thread; the events arrive late.
+        f.advance(1150);
+        const samples = [timed(100, 490, 1010), timed(100, 480, 1020), timed(100, 470, 1030)];
+        f.hand.onpointermove(timed(100, 470, 1030,
+            coalesced ? { getCoalescedEvents: () => samples } : {}));
+        f.advance(1160);
+        f.hand.onpointerup(timed(100, 470, 1035));
+        assert.equal(f.state.plays, 1, `coalesced: ${coalesced}`);
+    }
+    const held = pointerFixture();
+    const timed = (x, y, timeStamp) => Object.assign(held.event(x, y), { timeStamp });
+    held.hand.onpointerdown(timed(100, 500, 1000));
+    held.advance(1040);
+    held.hand.onpointermove(timed(100, 470, 1030));
+    held.advance(1400);
+    held.hand.onpointerup(timed(100, 470, 1390));
+    assert.equal(held.state.plays, 0, "A real hold before release is still not a flick");
+});
+
+test("a flick from a non-primary touch still plays, but a second finger cannot hijack a gesture", () => {
+    const f = pointerFixture();
+    f.hand.onpointerdown(Object.assign(f.event(100, 500, 2), { isPrimary: false }));
+    f.advance(1025);
+    f.hand.onpointerdown(f.event(300, 500, 3));
+    f.hand.onpointermove(f.event(100, 475, 2));
+    f.hand.onpointerup(f.event(100, 475, 2));
+    assert.equal(f.state.plays, 1);
+});
+
+test("a new gesture replaces a drag preview that is still gliding back", () => {
+    const f = pointerFixture();
+    f.hand.onpointerdown(f.event(100, 500));
+    f.advance(2000);
+    f.hand.onpointermove(f.event(100, 400));
+    f.hand.onpointerup(f.event(100, 400));
+    assert.equal(f.hand._cardDragPreview.returning, true);
+    const returnTimer = f.timers.at(-1);
+    f.hand.onpointerdown(f.event(100, 500));
+    assert.equal(f.hand._cardDragPreview, null);
+    f.advance(2010);
+    f.hand.onpointermove(f.event(100, 460));
+    const preview = f.hand._cardDragPreview;
+    assert.equal(preview.returning, false);
+    returnTimer.callback();
+    assert.equal(f.hand._cardDragPreview, preview, "The old return timer must not clear the new drag");
+});
+
+test("snapshot refreshes during a hand gesture are deferred instead of cancelling the drag", () => {
+    const f = fixture();
+    const hand = new Element();
+    f.nodes.set("playerHand", hand);
+    const game = { id: "room" };
+    const player = { name: "Owner" };
+    let rebinds = 0;
+    let cancels = 0;
+    hand._handSignature = "before";
+    hand._rebindHand = () => rebinds++;
+    hand._handOwner = "room:Owner";
+    hand._handGestureActive = () => true;
+    hand.onpointercancel = () => cancels++;
+    f.types.GameLayout.handSignature = () => "after";
+    f.types.GameLayout.updateHand(game, player, null, true);
+    assert.equal(rebinds, 1);
+    assert.equal(cancels, 0);
+    assert.equal(hand._deferredHandUpdate.game, game);
+    assert.equal(hand._deferredHandUpdate.player, player);
+
+    const pointer = pointerFixture();
+    const updates = [];
+    pointer.types.GameLayout.updateHand = (...args) => updates.push(args);
+    pointer.hand.onpointerdown(pointer.event(100, 500));
+    assert.equal(pointer.hand._handGestureActive(), true);
+    pointer.hand._deferredHandUpdate = { game, player };
+    pointer.advance(1025);
+    pointer.hand.onpointermove(pointer.event(100, 475));
+    pointer.hand.onpointerup(pointer.event(100, 475));
+    assert.equal(pointer.state.plays, 1);
+    assert.equal(pointer.hand._handGestureActive(), false);
+    assert.equal(updates.length, 1);
+    assert.equal(updates[0][0], game);
+    assert.equal(updates[0][1], player);
+    assert.equal(updates[0][3], true);
+    assert.equal(pointer.hand._deferredHandUpdate, null);
+});

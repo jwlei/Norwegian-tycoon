@@ -451,6 +451,15 @@ const CARD_FLICK_MIN_VELOCITY = 0.4;
 const CARD_FLICK_RELEASE_GRACE_MS = 120;
 const CARD_FLICK_RECOIL_TOLERANCE = 3;
 
+// Input timestamps reflect when the finger actually moved, unlike handler time,
+// which jank (e.g. building the drag preview) can delay and distort.
+function pointerEventTime(event) {
+    var now = performance.now();
+    var stamp = event ? event.timeStamp : null;
+    return typeof stamp == "number" && Number.isFinite(stamp) && stamp > 0 &&
+        stamp <= now + 1 && now - stamp < 1000 ? stamp : now;
+}
+
 function cardTouchDragAxis(x, y) {
     if (Math.max(Math.abs(x), Math.abs(y)) < 8) { return null; }
     if (isUpwardFlick(x, -y, CARD_TOUCH_PICKUP_CONE)) { return "vertical"; }
@@ -465,14 +474,15 @@ function shouldPlayCardDrag(drag, event) {
         (drag.axis == null && drag.pointerType != "mouse")) { return false; }
     if (drag.didPlayDrag && isCardDropOnTable(event)) { return true; }
     var flick = drag.flickIntent;
+    var releaseTime = pointerEventTime(event);
     var flickX = flick ? flick.x : drag.lastFlickX || 0;
     var flickY = flick ? flick.y : drag.lastFlickY ?? drag.lastFlickDistance;
     return drag.canSwipeToPlay && isUpwardFlick(flickX, flickY) &&
         (flick ? flick.distance : drag.lastFlickDistance) >= CARD_FLICK_MIN_DISTANCE &&
         (flick ? flick.velocity : drag.lastFlickVelocity) >= CARD_FLICK_MIN_VELOCITY &&
-        (flick ? performance.now() - flick.time <= CARD_FLICK_RELEASE_GRACE_MS :
+        (flick ? releaseTime - flick.time <= CARD_FLICK_RELEASE_GRACE_MS :
             drag.lastFlickMoveTime == null ||
-            performance.now() - drag.lastFlickMoveTime <= CARD_FLICK_RELEASE_GRACE_MS);
+            releaseTime - drag.lastFlickMoveTime <= CARD_FLICK_RELEASE_GRACE_MS);
 }
 
 function clearCardDragPreview(hand) {
