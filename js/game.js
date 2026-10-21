@@ -189,7 +189,6 @@ const BOT_NAMES = [
     "Mysil Bergsprekken", "RNGesus", "Tante_Pose", "BobRoss", "IlIllIlIIl", "ギフテッド"
 ];
 const TURN_ACTION_PAUSE_MS = 2000;
-const BOT_ACTION_DELAY_MS = TURN_ACTION_PAUSE_MS;
 const SHUFFLE_DURATION_MS = 3000;
 
 function gameTurnSeconds(value) {

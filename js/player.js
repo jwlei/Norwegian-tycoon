@@ -46,10 +46,6 @@ class Player {
 }
 
 class Game {
-    constructor(id = null) {
-        // Access the Firebase database service.
-        var database = firebase.database();
-    }
     save() {
         throw ("Må implementeres");
     }
@@ -96,7 +92,6 @@ class Game {
                 return this.save();
             default:
                 throw ('Spillet har allerede startet.');
-                break;
         }
     }
     setTurn(player) {
@@ -263,10 +258,8 @@ class Game {
                 this.players.push(incomingPlayer);
                 this.save();
                 return { player: incomingPlayer };
-                break;
             default:
                 return { text: 'Ingen nye spillere når spillet pågår.' };
-                break;
         }
     }
     leavePlayer(player) {
@@ -276,7 +269,6 @@ class Game {
                 this.players = this.players.filter(s => { return s !== player; });
                 this.save();
                 return null;
-                break;
             case 'S':
                 if (player.placement == 0) {
                     player.gaveUp = true;
@@ -289,10 +281,8 @@ class Game {
                 }
                 player.messages.push("Gir opp!");
                 return player;
-                break;
             default:
                 throw ('Kan ikke gi opp nå.');
-                break;
         }
     }
     resetForRound() {

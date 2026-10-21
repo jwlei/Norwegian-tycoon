@@ -191,9 +191,6 @@ class PresidentPlayer extends Player {
         this.leaveAfterExchange = record["leaveAfterExchange"] === true;
         return this;
     }
-    countRank(strengthRank) {
-        return this.cards.filter(k => (k.strengthRank == strengthRank)).length;
-    }
     resetRound(currentTurnPlayer) {
         super.resetRound(currentTurnPlayer);
         if (currentTurnPlayer === null || (this.lastPlay != "Pass" && this.placement == 0)) {
