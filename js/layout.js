@@ -642,9 +642,17 @@ class GameLayout {
         var playerOrigin = origins ? origins.playerOrigins.get(pile.name) : null;
         var pendingAnimations = 0;
         var finishedAnimations = 0;
+        var landedCards = [];
         var completeAnimation = function () {
             finishedAnimations++;
-            if (finishedAnimations == pendingAnimations && onComplete) { onComplete(); }
+            if (finishedAnimations != pendingAnimations) { return; }
+            // A table refresh can replace the targets mid-flight. Keep every flight visible
+            // until the whole play can be revealed on the current table.
+            landedCards.forEach(({ target, flight }) => {
+                target.style.opacity = "";
+                flight.remove();
+            });
+            if (onComplete) { onComplete(); }
         };
         // Measure every destination before inserting flights or hiding table cards.
         var destinations = Array.from(pile, card => {
@@ -713,6 +721,7 @@ class GameLayout {
             flight.style.height = `${targetBounds.height}px`;
             document.body.appendChild(flight);
             target.style.opacity = "0";
+            landedCards.push({ target, flight });
             pendingAnimations++;
             var animation = flight.animate([
                 {
@@ -747,8 +756,6 @@ class GameLayout {
             var finishAnimation = function () {
                 if (animationFinished) { return; }
                 animationFinished = true;
-                target.style.opacity = "";
-                flight.remove();
                 completeAnimation();
             };
             animation.onfinish = finishAnimation;
