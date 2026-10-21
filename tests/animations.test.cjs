@@ -296,32 +296,32 @@ test("discard animation restores the original easing and scales duration and sta
             assert.equal(timing.delay, index * 12 * factor);
             assert.equal(timing.easing, "cubic-bezier(.45,0,.8,.4)");
         });
-
-        test("hand reflow measures all remaining cards before starting any animation", () => {
-            const events = [];
-            const cards = ["1:7", "2:7"].map(cardKey => ({
-                dataset: { cardKey },
-                getBoundingClientRect() {
-                    events.push("read");
-                    return { left: 10, top: 20 };
-                },
-                animate(frames, timing) {
-                    events.push("animate");
-                    assert.equal(frames[0].translate, "20px 20px");
-                    assert.equal(frames[1].translate, "0px 0px");
-                    assert.equal(timing.duration, 320);
-                    assert.equal(timing.easing, "cubic-bezier(0.2, 0.8, 0.2, 1)");
-                }
-            }));
-            const context = load({
-                window: { matchMedia: () => ({ matches: false }) },
-                hand: { querySelectorAll: () => cards },
-                previous: new Map(["1:7", "2:7", "3:7"].map(key => [key, { left: 30, top: 40 }]))
-            });
-            vm.runInContext("GameLayout.animateHandReflow(hand, previous)", context);
-            assert.deepEqual(events, ["read", "read", "animate", "animate"]);
-        });
     }
+});
+
+test("hand reflow measures all remaining cards before starting any animation", () => {
+    const events = [];
+    const cards = ["1:7", "2:7"].map(cardKey => ({
+        dataset: { cardKey },
+        getBoundingClientRect() {
+            events.push("read");
+            return { left: 10, top: 20 };
+        },
+        animate(frames, timing) {
+            events.push("animate");
+            assert.equal(frames[0].translate, "20px 20px");
+            assert.equal(frames[1].translate, "0px 0px");
+            assert.equal(timing.duration, 320);
+            assert.equal(timing.easing, "cubic-bezier(0.2, 0.8, 0.2, 1)");
+        }
+    }));
+    const context = load({
+        window: { matchMedia: () => ({ matches: false }) },
+        hand: { querySelectorAll: () => cards },
+        previous: new Map(["1:7", "2:7", "3:7"].map(key => [key, { left: 30, top: 40 }]))
+    });
+    vm.runInContext("GameLayout.animateHandReflow(hand, previous)", context);
+    assert.deepEqual(events, ["read", "read", "animate", "animate"]);
 });
 
 test("discarded foil previews retain their clipped card layer and are removed after flight", () => {
