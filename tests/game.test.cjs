@@ -570,7 +570,7 @@ function loadGame(cardStyle = null, globals = {}) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(source, context);
     }
-    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, GameLayout, GamePresence, exchangeSummaryDuration, activeTradeOffer, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage, isCardAllowedForExchange, chooseSuggestedPlayStrength, isSneakyTradeAvailable, hasSneakyConsent })", context);
+    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, BotAI, GameLayout, GamePresence, exchangeSummaryDuration, activeTradeOffer, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage, isCardAllowedForExchange, chooseSuggestedPlayStrength, isSneakyTradeAvailable, hasSneakyConsent })", context);
 }
 
 test("clearing card flights cancels and removes overlays from the page", () => {
@@ -5239,6 +5239,40 @@ test("lower four of a kind cannot beat the top pile", () => {
     players[1].turn = 1;
     assert.equal(game.canPlayPile(players[1], response), false);
     assert.equal(game.canPlayRank(players[1], 8, {}), false);
+});
+
+test("club three cannot beat four of a kind, whether played together or accumulated", () => {
+    for (const count of [1, 2, 4]) {
+        const { game, players, pile, types } = setupGame();
+        const four = pile(players[0], 7);
+        game.piles = Array.from({ length: 4 / count }, (_, index) =>
+            new types.CardPile(players[0].name, ...four.slice(index * count, (index + 1) * count)));
+        const response = new types.CardPile(players[1].name, new types.PresidentCard(3, 3));
+        players[1].cards = Array.from(response);
+        players[1].turn = 1;
+        const info = {};
+        assert.equal(game.canPlayRank(players[1], types.PresidentCard.clubThreePower(), info), false);
+        assert.equal(info.svar, false);
+        assert.equal(game.canPlayPile(players[1], response), false);
+        assert.equal(types.BotAI.moves(types.BotAI.observe(game, players[1])).length, 0);
+        if (count == 4) {
+            assert.equal(response.canBePlayedOn(game.topPile()), false);
+        }
+    }
+});
+
+test("club three remains legal on empty tables, singles, pairs and triples", () => {
+    for (const count of [0, 1, 2, 3]) {
+        const { game, players, pile, types } = setupGame();
+        game.piles = count == 0 ? [] : [pile(players[0], 7, count)];
+        const response = new types.CardPile(players[1].name, new types.PresidentCard(3, 3));
+        players[1].cards = Array.from(response);
+        players[1].turn = 1;
+        assert.equal(game.canPlayRank(players[1], types.PresidentCard.clubThreePower(), {}), true);
+        assert.equal(game.canPlayPile(players[1], response), true);
+        assert.equal(response.canBePlayedOn(game.topPile()), true);
+        assert.equal(types.BotAI.moves(types.BotAI.observe(game, players[1])).length, 1);
+    }
 });
 
 test("unbeatable four clears, including when a higher holder passed or finished", () => {

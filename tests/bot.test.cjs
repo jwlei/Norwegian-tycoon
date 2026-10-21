@@ -342,10 +342,10 @@ test("bots can pass only on occupied tables and cannot respond with the wrong co
     assert.equal(BotAI.chooseMove(view(cards, { rank: 5, count: 1 }), "bad", () => 0.1), null);
 });
 
-test("four accumulated equal cards require four higher cards or club three", () => {
+test("four accumulated equal cards require four higher cards, not club three", () => {
     const cards = [card(6), card(6, 2), card(7), card(7, 2), card(7, 3), card(7, 4), card(3, 3)];
     const moves = BotAI.moves(view(cards, { rank: 5, count: 4 }));
-    assert.deepEqual(Array.from(moves, move => [move[0].strengthRank, move.length]), [[7, 4], [16, 1]]);
+    assert.deepEqual(Array.from(moves, move => [move[0].strengthRank, move.length]), [[7, 4]]);
 });
 
 test("observations never inspect opponents' hidden cards or chosen difficulty", () => {

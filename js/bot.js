@@ -65,6 +65,7 @@ class BotAI {
         var moves = [];
         BotAI.groups(view.cards).forEach(group => {
             var rank = group[0].strengthRank;
+            if (view.top != null && view.top.count >= 4 && rank == 16) { return; }
             if (view.top != null && rank != 16 && rank < view.top.rank) { return; }
             var min = view.top == null ? 1 : (rank == 16 ? 1 : view.top.count);
             var max = view.top == null ? group.length : min;
