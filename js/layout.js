@@ -648,13 +648,23 @@ class GameLayout {
         };
         pile.forEach((card, cardIndex) => {
             var cardKey = `${card.suit}:${card.rank}`;
-            var source = (origins && origins.cardOrigins.get(cardKey)) || playerOrigin;
+            var cardOrigin = origins && origins.cardOrigins.get(cardKey);
+            var source = cardOrigin || playerOrigin;
             var target = playElement.querySelector(`[data-card-key="${cardKey}"]`);
             if (!target || typeof target.animate != "function") { return; }
             var targetImage = target.src ? target : target.querySelector("img");
             if (targetImage == null) { return; }
             var targetBounds = GameLayout.unrotatedCardBounds(target);
             if (targetBounds.width == 0 || targetBounds.height == 0) { return; }
+            if (!cardOrigin && playerOrigin && playerOrigin.width > 0 && playerOrigin.height > 0) {
+                // Player blocks anchor the throw, but are not card dimensions.
+                source = {
+                    left: playerOrigin.left + (playerOrigin.width - targetBounds.width) / 2,
+                    top: playerOrigin.top + (playerOrigin.height - targetBounds.height) / 2,
+                    width: targetBounds.width,
+                    height: targetBounds.height
+                };
+            }
             if (!source || source.width == 0 || source.height == 0) {
                 source = {
                     left: (window.innerWidth - targetBounds.width) / 2,

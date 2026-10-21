@@ -151,6 +151,49 @@ test("throw metadata survives both pile deserializers and clamps finite motion v
     assert.equal(vm.runInContext('new CardPile("").fromRecord({nick:"Legacy",verdiBoms:7}).motion', context), undefined);
 });
 
+test("opponent throws start at their player blocks without scaling to the block width", () => {
+    for (const [width, height, block] of [
+        [1440, 900, { left: 700, top: 60, width: 240, height: 90 }],
+        [390, 844, { left: 220, top: 60, width: 65, height: 56 }]
+    ]) {
+        const flights = [];
+        const animations = [];
+        const element = () => ({
+            dataset: {}, style: {}, setAttribute() {}, appendChild() {},
+            cloneNode: () => element(),
+            animate(frames) { animations.push(frames); return {}; }
+        });
+        const target = {
+            dataset: {}, style: { getPropertyValue: () => "0" }, animate() {},
+            querySelector: () => element(),
+            getBoundingClientRect: () => ({ left: 150, top: 300, width: 80, height: 120 })
+        };
+        const context = load({
+            window: { innerWidth: width, innerHeight: height, matchMedia: () => ({ matches: false }) },
+            document: {
+                querySelectorAll: selector => selector.startsWith("#playerList")
+                    ? [{ dataset: { playerName: "Opponent" }, getBoundingClientRect: () => block }]
+                    : [],
+                createElement: element,
+                body: { appendChild: flight => flights.push(flight) }
+            }
+        });
+        context.target = target;
+        vm.runInContext(`
+            var pile = new CardPile("Opponent", new PresidentCard(1, 7));
+            pile.motion = { x: 0, y: 0, power: 0.5, spin: 0, pitch: 12, yaw: -10 };
+            GameLayout.animatePlayedCards({ querySelector: () => target }, pile, GameLayout.capturePlayOrigins());
+        `, context);
+        const left = block.left + (block.width - 80) / 2;
+        const top = block.top + (block.height - 120) / 2;
+        assert.equal(flights.length, 1);
+        assert.equal(flights[0].style.left, `${left}px`);
+        assert.equal(flights[0].style.top, `${top}px`);
+        assert.match(animations[0][0].transform, /scale\(1\)$/);
+        assert.ok(animations[0][2].transform.startsWith(`translate(${150 - left}px, ${300 - top}px)`));
+    }
+});
+
 test("hard throws spread cards further and clients in the same board-size class share landing jitter", () => {
     const context = load();
     const result = vm.runInContext(`

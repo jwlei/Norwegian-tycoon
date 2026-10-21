@@ -5244,7 +5244,9 @@ test("lower four of a kind cannot beat the top pile", () => {
 test("club three cannot beat four of a kind, whether played together or accumulated", () => {
     for (const count of [1, 2, 4]) {
         const { game, players, pile, types } = setupGame();
-        game.piles = Array.from({ length: 4 / count }, () => pile(players[0], 7, count));
+        const four = pile(players[0], 7);
+        game.piles = Array.from({ length: 4 / count }, (_, index) =>
+            new types.CardPile(players[0].name, ...four.slice(index * count, (index + 1) * count)));
         const response = new types.CardPile(players[1].name, new types.PresidentCard(3, 3));
         players[1].cards = Array.from(response);
         players[1].turn = 1;
