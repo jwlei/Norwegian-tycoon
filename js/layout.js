@@ -2127,9 +2127,6 @@ class GameLayout {
             // Same pointer pressing again means its previous gesture never ended cleanly.
             if (handScrollDrag) { element.onpointercancel(); }
             stopCardHandInertia();
-            // A preview still gliding back from a missed flick must not be reused (or
-            // cleared by its pending timer) by this new gesture.
-            clearCardDragPreview(element);
             var downTime = pointerEventTime(event);
             var cardElement = (event.target instanceof Element)
                 ? event.target.closest(".game-card")

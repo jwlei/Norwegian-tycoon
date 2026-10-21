@@ -723,8 +723,9 @@ test("a non-board release glides drag previews back before restoring the hand ca
     assert.equal(card._dragPreview.properties.get("--tilt-y"), "0deg");
     assert.equal(card.classList.contains("is-drag-source"), true);
     assert.equal(f.timers.at(-1).delay, 340);
-    f.timers.at(-1).callback();
     assert.equal(hand._cardDragPreview, null);
+    f.timers.at(-1).callback();
+    assert.equal(card._dragPreview, undefined);
     assert.equal(card.classList.contains("is-drag-source"), false);
 });
 
@@ -1695,22 +1696,30 @@ test("a flick from a non-primary touch still plays, but a second finger cannot h
     assert.equal(f.state.plays, 1);
 });
 
-test("a new gesture replaces a drag preview that is still gliding back", () => {
+test("a card sliding back keeps gliding while a new gesture or hand rebuild starts", () => {
     const f = pointerFixture();
     f.hand.onpointerdown(f.event(100, 500));
     f.advance(2000);
     f.hand.onpointermove(f.event(100, 400));
     f.hand.onpointerup(f.event(100, 400));
-    assert.equal(f.hand._cardDragPreview.returning, true);
+    assert.equal(f.hand._cardDragPreview, null, "The returning preview is detached from the hand");
+    assert.equal(f.body.children.length, 1);
+    const returning = f.body.children[0];
+    assert.equal(returning.children[0].classList.contains("is-returning"), true);
     const returnTimer = f.timers.at(-1);
     f.hand.onpointerdown(f.event(100, 500));
-    assert.equal(f.hand._cardDragPreview, null);
+    f.context.clearCardDragPreview(f.hand);
+    assert.equal(f.body.children.includes(returning), true, "Neither a new press nor a rebuild clears it");
     f.advance(2010);
     f.hand.onpointermove(f.event(100, 460));
     const preview = f.hand._cardDragPreview;
     assert.equal(preview.returning, false);
+    assert.equal(f.body.children.length, 2);
     returnTimer.callback();
+    assert.equal(f.body.children.includes(returning), false, "It removes itself once it has landed");
     assert.equal(f.hand._cardDragPreview, preview, "The old return timer must not clear the new drag");
+    assert.equal(f.card._dragPreview, preview.previews[0]);
+    assert.equal(f.card.classList.contains("is-drag-source"), true);
 });
 
 test("snapshot refreshes during a hand gesture are deferred instead of cancelling the drag", () => {
