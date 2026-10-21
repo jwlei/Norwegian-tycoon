@@ -648,6 +648,25 @@ test("results cannot skip a queued final play and its placement toast", () => {
     assert.equal(context.accepted.at(-1).status, "F");
 });
 
+test("leaving during the final toast discards buffered results without advancing the game", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const game = { status: "S", shuffleStartedAt: 123,
+        turnPause: { id: "final", pendingGameEnd: true } };
+    const context = snapshotGateContext(game, true);
+    context.receive({ val: () => ({ status: "F", shuffleStartedAt: 123 }) });
+    assert.ok(context.pendingResultsSnapshot);
+    Object.assign(context, {
+        connection: null, currentGameSubscription: null, gameEndVoteRefreshTimer: null,
+        handleTurnPause: () => { throw new Error("Disconnected games must not advance"); }
+    });
+    vm.runInContext(source.slice(source.indexOf("        function disconnectGameListener()"),
+        source.indexOf("        function leaveCurrentGame()")), context);
+    context.disconnectGameListener();
+    context.hideGameToast();
+    assert.equal(context.pendingResultsSnapshot, null);
+    assert.equal(context.accepted.length, 0);
+});
+
 test("saved local actions apply their committed snapshot rather than an intervening old hand", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const game = {};

@@ -599,6 +599,7 @@
             }
             currentGameSubscription = null;
             currentGameListener = null;
+            pendingResultsSnapshot = null;
             if (gameEndVoteRefreshTimer != null) {
                 clearTimeout(gameEndVoteRefreshTimer);
                 gameEndVoteRefreshTimer = null;
@@ -735,9 +736,12 @@
             if (pendingResultsSnapshot != null) {
                 var pending = pendingResultsSnapshot;
                 pendingResultsSnapshot = null;
-                if (currentGame == pending.game) { currentGameListener(pending.snapshot); }
+                if (currentGame == pending.game && currentGameListener != null) {
+                    currentGameListener(pending.snapshot);
+                }
             }
-            if (currentGame?.status == "S" && currentGame.turnPause?.pendingGameEnd) {
+            if (currentGame?.status == "S" && currentGame.turnPause?.pendingGameEnd &&
+                currentGameListener != null) {
                 handleTurnPause(currentGame);
             }
         }
