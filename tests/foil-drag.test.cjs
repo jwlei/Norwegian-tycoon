@@ -1220,6 +1220,52 @@ test("a qualifying flick survives a tiny recoil or brief slowdown as the finger 
     }
 });
 
+test("direct touch flicks tolerate jitter before the minimum stroke has been recognized", () => {
+    for (const angle of [-72, -60, 0, 60, 72]) {
+        for (const selected of [false, true]) {
+            const f = pointerFixture();
+            if (selected) { vm.runInContext('selectedCardKeys.add("1:5")', f.context); }
+            const radians = angle * Math.PI / 180;
+            f.hand.onpointerdown(f.event(200, 500));
+            for (const [time, distance, jitter] of [
+                [1008, 6, 0], [1012, 6, 1], [1020, 14, 0]
+            ]) {
+                f.advance(time);
+                f.hand.onpointermove(f.event(200 + Math.sin(radians) * distance,
+                    500 - Math.cos(radians) * distance + jitter));
+            }
+            f.hand.onpointerup(f.event(200 + Math.sin(radians) * 14,
+                500 - Math.cos(radians) * 14));
+            assert.equal(f.state.plays, 1, `${angle}/${selected}`);
+            assert.equal(f.state.scrolls, 0);
+        }
+    }
+});
+
+test("direct flick recognition keeps the same minimum speed despite early jitter", () => {
+    for (const speed of [0.2, 0.3, 0.45, 0.8]) {
+        const f = pointerFixture();
+        f.hand.onpointerdown(f.event(200, 500));
+        for (const [distance, jitter] of [[6, 0], [6, 1], [14, 0]]) {
+            f.advance(1000 + distance / speed + jitter * 4);
+            f.hand.onpointermove(f.event(200, 500 - distance + jitter));
+        }
+        f.hand.onpointerup(f.event(200, 486));
+        assert.equal(f.state.plays, speed >= 0.4 ? 1 : 0, `${speed}px/ms`);
+    }
+});
+
+test("small reverse steps before recognition accumulate and cancel the original stroke", () => {
+    const f = pointerFixture();
+    f.hand.onpointerdown(f.event(200, 500));
+    for (const [time, y] of [[1010, 492], [1020, 493], [1030, 494], [1040, 495], [1050, 496]]) {
+        f.advance(time);
+        f.hand.onpointermove(f.event(200, y));
+    }
+    f.hand.onpointerup(f.event(200, 496));
+    assert.equal(f.state.plays, 0);
+});
+
 test("lift-off recoil tolerance works across touch flick angles and selected cards", () => {
     for (const angle of [-72, -45, 0, 45, 72]) {
         for (const selected of [false, true]) {

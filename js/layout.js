@@ -1979,6 +1979,8 @@ class GameLayout {
             if (deltaX == 0 && deltaY == 0 &&
                 moveTime - drag.lastPointerMoveTime > 80) {
                 drag.flickSamples = [];
+                drag.flickDirection = 0;
+                drag.flickExtremeY = pointerY;
             }
             if (deltaX != 0 || deltaY != 0) {
                 var elapsed = Math.max(1, moveTime - drag.lastPointerMoveTime);
@@ -1989,10 +1991,17 @@ class GameLayout {
             var distance = drag.lastPointerY - pointerY;
             if (deltaX != 0 || distance != 0) {
                 var direction = Math.sign(distance) || drag.flickDirection;
-                if (direction != drag.flickDirection) {
+                var extremeY = drag.flickExtremeY ?? drag.lastPointerY;
+                // Sub-threshold recoil must not split a short, not-yet-recognized stroke.
+                if (direction != drag.flickDirection &&
+                    (drag.flickDirection == 0 ||
+                        (pointerY - extremeY) * drag.flickDirection > CARD_FLICK_RECOIL_TOLERANCE)) {
                     drag.flickDirection = direction;
                     drag.flickSamples = [];
+                    extremeY = drag.lastPointerY;
                 }
+                drag.flickExtremeY = drag.flickDirection > 0
+                    ? Math.min(extremeY, pointerY) : Math.max(extremeY, pointerY);
                 var samples = drag.flickSamples;
                 if (samples.length == 0) {
                     samples.push({ x: drag.lastPointerX, y: drag.lastPointerY, time: drag.lastPointerMoveTime });
@@ -2025,7 +2034,8 @@ class GameLayout {
                 drag.lastFlickVelocity = drag.lastFlickDistance /
                     Math.max(1, moveTime - startTime);
                 drag.lastFlickMoveTime = moveTime;
-                if (isUpwardFlick(drag.lastFlickX, drag.lastFlickY) &&
+                if (distance > 0 && pointerY <= extremeY &&
+                    isUpwardFlick(drag.lastFlickX, drag.lastFlickY) &&
                     drag.lastFlickDistance >= CARD_FLICK_MIN_DISTANCE &&
                     drag.lastFlickVelocity >= CARD_FLICK_MIN_VELOCITY) {
                     // Keep a recognized flick through tiny lift-off recoil, not a deliberate reversal.
