@@ -868,6 +868,103 @@ test("consent stays private and forcing waits for the receiver's explicit choice
         "Du må gi ditt beste kort til Sender");
 });
 
+function forcedTradeUiFixture(eligible) {
+    const element = () => {
+        const classes = new Set();
+        return {
+            dataset: {}, children: [], textContent: "", className: "", attributes: {},
+            get childElementCount() { return this.children.length; },
+            classList: { add: name => classes.add(name), contains: name => classes.has(name) },
+            setAttribute(name, value) { this.attributes[name] = value; },
+            set innerHTML(value) { this.children = []; },
+            replaceChildren(...children) { this.children = children; },
+            append(...children) { this.children.push(...children); },
+            appendChild(child) { this.children.push(child); }
+        };
+    };
+    const elements = new Map();
+    const document = {
+        createElement: element,
+        getElementById(id) {
+            if (!elements.has(id)) { elements.set(id, element()); }
+            return elements.get(id);
+        }
+    };
+    const loaded = loadGame(null, { document, setClass() {} });
+    const { GameLayout, PresidentGame, PresidentPlayer, PresidentCard } = loaded;
+    const players = ["Sender", "Recipient", eligible ? "ekrem" : "Other"].map((name, index) => {
+        const player = new PresidentPlayer(name, `key-${index}`);
+        player.lastPlacement = index + 1;
+        player.cards.push(new PresidentCard(1, 9), new PresidentCard(2, 14));
+        return player;
+    });
+    const game = Object.assign(Object.create(PresidentGame.prototype), {
+        id: "trade-ui", status: "G", round: 2, players,
+        piles: [{ id: "offer", tradeId: "trade", kind: "playerTrade", mode: "Tilbud",
+            from: 0, to: 1, count: 1, cards: [], sneakyVotes: [] }]
+    });
+    game.save = () => {};
+    const flatten = node => [node, ...node.children.flatMap(flatten)];
+    const render = player => {
+        GameLayout.updateTable(game, player);
+        return flatten(document.getElementById("gameTable"));
+    };
+    return { ...loaded, game, players, render };
+}
+
+test("unavailable Sneaky is never mentioned or offered in any trade view", () => {
+    const { game, players, render, isSneakyTradeAvailable } = forcedTradeUiFixture(false);
+    assert.equal(isSneakyTradeAvailable(game), false);
+    const mentionsSneaky = nodes => nodes.some(node =>
+        /ureglementert|sneaky/i.test(`${node.textContent} ${node.title || ""} ${node.className || ""} ` +
+            Object.values(node.attributes || {}).join(" ")));
+    for (const viewer of [null, ...players]) {
+        assert.equal(mentionsSneaky(render(viewer)), false, "Unforced offers stay normal-only");
+    }
+    const start = render(players[0]).find(node => node.textContent == "Tving bytte");
+    assert.equal(start.disabled, false);
+    start.onclick();
+    assert.ok(game.piles[0].forcedAt != null);
+    const sender = render(players[0]);
+    const recipient = render(players[1]);
+    const observer = render(players[2]);
+    for (const nodes of [sender, recipient, observer, render(null)]) {
+        assert.equal(mentionsSneaky(nodes), false, "Forced offers stay normal-only");
+    }
+    assert.ok(sender.some(node => node.textContent == "Venter på at Recipient bekrefter vanlig bytte."));
+    assert.ok(recipient.some(node =>
+        node.textContent == "Sender har tvunget et bytte. Bekreft vanlig bytte med kort 7–J."));
+    assert.ok(observer.some(node => node.textContent == "Sender har tvunget et bytte med Recipient."));
+    assert.equal(sender.some(node => node.textContent == "Vanlig bytte"), false);
+    const responses = recipient.filter(node => node.textContent == "Vanlig bytte");
+    assert.equal(responses.length, 1);
+    assert.notEqual(responses[0].disabled, true);
+    responses[0].onclick();
+    assert.ok(game.piles.every(exchange => exchange.mode == "Velg" && exchange.receiverChoice == null));
+    for (const viewer of [null, ...players]) {
+        const nodes = render(viewer);
+        assert.equal(mentionsSneaky(nodes), false, "The running trade stays normal-only");
+    }
+    assert.ok(render(players[0]).some(node => node.textContent == "Vanlig bytte: kort 7–J."));
+});
+
+test("eligible games keep the forced Sneaky choice and wording", () => {
+    const { game, players, render, isSneakyTradeAvailable } = forcedTradeUiFixture(true);
+    assert.equal(isSneakyTradeAvailable(game), true);
+    assert.ok(render(players[0]).some(node => node.textContent.includes("Om begge velger ureglementert bytte")));
+    render(players[0]).find(node => node.textContent == "Tving bytte").onclick();
+    assert.ok(render(players[0]).some(node =>
+        node.textContent == "Venter på at Recipient velger ureglementert eller vanlig bytte."));
+    const recipient = render(players[1]);
+    assert.ok(recipient.some(node => node.textContent == "Sender har tvunget et bytte. Ureglementert bytte?"));
+    const sneaky = recipient.find(node => node.textContent == "Ureglementert bytte");
+    assert.notEqual(sneaky.disabled, true);
+    assert.ok(recipient.some(node => node.textContent == "Vanlig bytte"));
+    sneaky.onclick();
+    assert.ok(game.piles.every(exchange => exchange.mode == "Velg"));
+    assert.deepEqual(Array.from(game.piles[0].sneakyVotes).sort(), [1]);
+});
+
 test("the President can start a normal voluntary exchange without sneaky consent", () => {
     const {
         PresidentGame, PresidentPlayer, PresidentCard, isCardAllowedForExchange
@@ -2414,7 +2511,7 @@ test("shuffle completion renders the exchange before announcing the starter", ()
     });
     const game = { status: "G", shuffleStartedAt: 1000 };
     const context = vm.createContext({
-        currentGame: game, Date: { now: () => now }, SHUFFLE_DURATION_MS: 3500,
+        currentGame: game, Date: { now: () => now }, GamePresence: { now: () => now }, SHUFFLE_DURATION_MS: 3500,
         shuffleEndsAt: 0, shuffleTicker: null,
         clearShuffleAnimation: () => events.push("clear"),
         refreshAfterTurnPause: () => events.push("render"),
@@ -5028,4 +5125,46 @@ test("clearing the table without a game keeps the turn timer controls in the pag
     GameLayout.updateSharedView(null, null);
     assert.equal(timer.parentElement, table);
     assert.doesNotThrow(() => GameLayout.updatePlayerButtons(null, null));
+});
+
+test("the shuffle ticker refreshes the hand on the same clock that ends the rule pause", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const start = source.indexOf("        var lastShuffleStartedAt = null;");
+    const end = source.indexOf("        function startNewGame(", start);
+    for (const serverOffset of [-1500, 0, 1500]) {
+        let now = 0;
+        let ticker = null;
+        const { GamePresence, PresidentGame } = loadGame(null, { Date: { now: () => now } });
+        GamePresence.serverOffset = serverOffset;
+        const game = Object.assign(Object.create(PresidentGame.prototype), {
+            status: "S", shuffleStartedAt: 10000, players: [], turnPause: null, exchangeReady: null
+        });
+        const refreshes = [];
+        const element = () => ({
+            classList: { add() {}, remove() {} }, style: { setProperty() {} },
+            setAttribute() {}, appendChild() {}, append() {}, remove() {}, querySelectorAll: () => []
+        });
+        const context = vm.createContext({
+            GamePresence, SHUFFLE_DURATION_MS: 3000, currentGame: game,
+            setInterval: callback => { ticker = callback; return 1; },
+            clearInterval: () => { ticker = null; }, setTimeout: () => 0, clearTimeout() {},
+            document: {
+                createElement: element, body: element(), querySelectorAll: () => [],
+                getElementById: () => null
+            },
+            refreshAfterTurnPause: refreshed => refreshes.push([now, refreshed.isTurnPaused()]),
+            showGameToast() {}
+        });
+        vm.runInContext(source.slice(start, end), context);
+        now = 10000 - serverOffset;
+        context.playShuffleIfNew(game);
+        assert.equal(typeof ticker, "function", `offset ${serverOffset}: the shuffle is presented`);
+        while (ticker && now < 20000) {
+            now += 40;
+            ticker();
+        }
+        assert.deepEqual(refreshes.map(([, paused]) => paused), [false],
+            `offset ${serverOffset}: the post-shuffle render must not see a paused turn`);
+        assert.ok(refreshes[0][0] + serverOffset >= 13000 && refreshes[0][0] + serverOffset < 13040);
+    }
 });

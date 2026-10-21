@@ -273,7 +273,7 @@ class PresidentGame extends Game {
             throw ("Sluttavstemningen må være ferdig før neste runde starter.");
         }
         this.endGameVoteResolvedForStart = false;
-        this.shuffleStartedAt = Date.now();
+        this.shuffleStartedAt = GamePresence.now();
         this.fastForward = false;
         if (this.status == "O" || this.status == "F") {
             this.roundStartVote = null;

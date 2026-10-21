@@ -510,7 +510,7 @@
                     clearShuffleAnimation();
                     return;
                 }
-                if (Date.now() - startedAt >= SHUFFLE_DURATION_MS) {
+                if (GamePresence.now() - startedAt >= SHUFFLE_DURATION_MS) {
                     clearShuffleAnimation(true);
                     refreshAfterTurnPause(game);
                     dealCardsIntoHand();
@@ -523,7 +523,7 @@
             if (game == null || game.shuffleStartedAt == null ||
                 game.shuffleStartedAt == lastShuffleStartedAt) { return; }
             lastShuffleStartedAt = game.shuffleStartedAt;
-            var elapsed = Math.max(0, Date.now() - game.shuffleStartedAt);
+            var elapsed = Math.max(0, GamePresence.now() - game.shuffleStartedAt);
             if (elapsed < SHUFFLE_DURATION_MS) {
                 playShuffleAnimation(game);
             }
