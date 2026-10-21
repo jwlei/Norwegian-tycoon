@@ -257,6 +257,51 @@ test("played flights retain source tilt, scale and foil position and settle leve
     assert.equal(context.completed, 1);
 });
 
+test("multi-card flights stay visible until the entire refreshed play can be revealed", () => {
+    for (const count of [2, 3, 4]) {
+        const animations = [];
+        const flights = [];
+        const element = () => ({
+            dataset: {}, style: {}, setAttribute() {},
+            appendChild() {}, cloneNode: () => element(),
+            remove() { this.removed = true; },
+            animate() { const animation = {}; animations.push(animation); return animation; }
+        });
+        const targets = Array.from({ length: count }, () => ({
+            dataset: {}, style: { getPropertyValue: () => "0" }, animate() {},
+            querySelector: element,
+            getBoundingClientRect: () => ({ left: 200, top: 200, width: 80, height: 120 })
+        }));
+        const context = load({
+            window: { innerWidth: 1000, innerHeight: 800, matchMedia: () => ({ matches: false }) },
+            document: { createElement: element, body: { appendChild: flight => flights.push(flight) } },
+            targets, count, completed: 0
+        });
+        vm.runInContext(`
+            var pile = new CardPile("Owner", ...Array.from({length:count},(_,i)=>new PresidentCard(i+1,7)));
+            var currentTargets = targets;
+            var refreshed = targets.map(() => ({style:{opacity:"0"}}));
+            GameLayout.animatePlayedCards({
+                querySelector: selector => currentTargets[Number(selector.match(/"(\\d+)/)[1])-1]
+            }, pile, null, () => {
+                refreshed.forEach(card => card.style.opacity = "");
+                completed++;
+            });
+            currentTargets = refreshed;
+        `, context);
+        for (let index = 0; index < count - 1; index++) {
+            animations[index].onfinish();
+            animations[index].oncancel();
+            assert.ok(flights.every(flight => !flight.removed));
+            assert.equal(context.completed, 0);
+        }
+        animations[count - 1].onfinish();
+        assert.ok(flights.every(flight => flight.removed));
+        assert.equal(context.completed, 1);
+        assert.equal(vm.runInContext('refreshed.every(card => card.style.opacity == "")', context), true);
+    }
+});
+
 test("clear animation scheduling includes the original duration and every card's stagger", () => {
     const context = load();
     assert.equal(vm.runInContext("discardAnimationMs(1)", context), 720);
@@ -521,6 +566,142 @@ test("new snapshots queue in order while a local animation is running, without d
     assert.deepEqual(Array.from(context.accepted), ["second", "third"]);
 });
 
+function snapshotGateContext(game, visible = false) {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const begin = source.indexOf("                if (currentGame != connectingGame) { return; }",
+        source.indexOf("            currentGameListener = function"));
+    const end = source.indexOf("                if (snapshotRecord != null && GamePresence.isExpired", begin);
+    const toast = {
+        textContent: "Last message",
+        classList: { contains: () => visible, remove: () => { visible = false; } },
+        getAnimations: () => []
+    };
+    const context = vm.createContext({
+        currentGame: game, connectingGame: game, pendingResultsSnapshot: null,
+        presentationSnapshots: [], completingPresentationId: null, accepted: [],
+        gameToastsHidden: () => false, document: { getElementById: () => toast, querySelectorAll: () => [] },
+        archivedToasts: [], gameToastTimer: null, activeToastPauseId: "final", gameToastExpiresAt: 10000,
+        clearTimeout() {}, handleTurnPause() {},
+        fadeOutToast: (node, complete) => { context.exitComplete = complete; }
+    });
+    vm.runInContext(`function receive(snapshot) {
+        ${source.slice(begin, end)}
+        accepted.push(snapshotRecord);
+    }
+    var currentGameListener = receive;
+    ${source.slice(source.indexOf("        function hideGameToast("),
+        source.indexOf("        function resetGameLog("))}`, context);
+    return context;
+}
+
+test("pre-move snapshots cannot replace or queue a hand while its write is pending", () => {
+    const game = { status: "S", shuffleStartedAt: 123, localWritePending: true,
+        turnPause: { id: "played", presentationVersion: 1 } };
+    const context = snapshotGateContext(game);
+    context.receive({ val: () => ({ status: "S", shuffleStartedAt: 123, turnPause: { id: "old" } }) });
+    assert.equal(context.accepted.length, 0);
+    assert.equal(context.presentationSnapshots.length, 0);
+    game.localWritePending = false;
+    context.receive({ val: () => ({ status: "S", shuffleStartedAt: 123, turnPause: { id: "played" } }) });
+    assert.equal(context.accepted.length, 1);
+});
+
+test("results wait for the final toast exit or dismissal and accept only the latest snapshot", () => {
+    for (const animate of [false, true]) {
+        const game = { status: "S", shuffleStartedAt: 123 };
+        const context = snapshotGateContext(game, true);
+        const first = { val: () => ({ status: "F", shuffleStartedAt: 123, marker: 1 }) };
+        const latest = { val: () => ({ status: "F", shuffleStartedAt: 123, marker: 2 }) };
+        context.receive(first);
+        context.receive(latest);
+        assert.equal(context.accepted.length, 0);
+        context.hideGameToast(true, animate);
+        if (animate) {
+            assert.equal(context.accepted.length, 0, "The exit animation must finish first");
+            context.exitComplete();
+        }
+        assert.equal(context.accepted.length, 1);
+        assert.equal(context.accepted[0].marker, 2);
+        assert.equal(context.pendingResultsSnapshot, null);
+    }
+});
+
+test("results cannot skip a queued final play and its placement toast", () => {
+    const game = { status: "S", shuffleStartedAt: 123,
+        turnPause: { id: "earlier", presentationVersion: 1 } };
+    const context = snapshotGateContext(game, true);
+    const finalPlay = { val: () => ({ status: "S", shuffleStartedAt: 123,
+        turnPause: { id: "final", presentationVersion: 1, pendingGameEnd: true } }) };
+    const results = { val: () => ({ status: "F", shuffleStartedAt: 123 }) };
+    context.receive(finalPlay);
+    context.receive(results);
+    assert.equal(context.presentationSnapshots.length, 2);
+    assert.equal(context.pendingResultsSnapshot, null);
+    game.presentationCompletedPauseId = "earlier";
+    context.receive(context.presentationSnapshots.shift());
+    game.turnPause = finalPlay.val().turnPause;
+    game.presentationCompletedPauseId = "final";
+    context.receive(context.presentationSnapshots.shift());
+    assert.equal(context.accepted.length, 1, "Only the final play is accepted before toast dismissal");
+    assert.equal(context.pendingResultsSnapshot.snapshot, results);
+    context.hideGameToast();
+    assert.equal(context.accepted.at(-1).status, "F");
+});
+
+test("saved local actions apply their committed snapshot rather than an intervening old hand", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const game = {};
+    const accepted = [];
+    let listener;
+    const context = vm.createContext({
+        currentGame: game,
+        document: { addEventListener: (name, callback) => { listener = callback; } },
+        currentGameListener: snapshot => accepted.push(snapshot),
+        refreshAfterTurnPause() {}, handleTurnPause() {}, updateTurnTimer() {}, scheduleBotLoop() {}
+    });
+    const begin = source.indexOf('        document.addEventListener("local-game-action"');
+    vm.runInContext(source.slice(begin, source.indexOf('        document.addEventListener("visibilitychange"', begin)), context);
+    const committed = { val: () => ({ spillere: [{ kort: [] }] }) };
+    listener({ detail: { game, phase: "saved", snapshot: committed } });
+    assert.deepEqual(accepted, [committed]);
+});
+
+test("result screens never show new game toasts", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const context = vm.createContext({
+        hidden: 0, hideGameToast: () => context.hidden++,
+        currentGameSpeed: () => "slow", GAME_SPEED_MS: { slow: 9000 }
+    });
+    vm.runInContext(source.slice(source.indexOf("        function showGameToast("),
+        source.indexOf("        function archiveGameToast(")), context);
+    context.showGameToast("Late message", { status: "F" });
+    assert.equal(context.hidden, 1);
+});
+
+test("the driver waits for its final toast before finishing the game", () => {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    let visible = true;
+    let finishes = 0;
+    const pause = { id: "final", pendingGameEnd: true, botUntil: 0 };
+    const game = {
+        turnPause: pause, presentationCompletedPauseId: pause.id,
+        players: [], getPlayer: () => null,
+        finishGame: () => finishes++, save() {}
+    };
+    const context = vm.createContext({
+        currentGame: game, currentPlayerName: "Spectator", gameToastsHidden: () => false,
+        document: { getElementById: () => ({ classList: { contains: () => visible } }) },
+        GamePresence: { canDrive: () => true, now: () => 1000 }
+    });
+    vm.runInContext(source.slice(source.indexOf("        var presentationSnapshots = [];"),
+        source.indexOf("        function handleRoundStartVote(")), context);
+    context.publishPresentationReady(game, pause);
+    assert.equal(finishes, 0);
+    visible = false;
+    context.publishPresentationReady(game, pause);
+    assert.equal(finishes, 1);
+});
+
 test("readiness is published only after completion and rechecks the current named seat transactionally", async () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const { GamePresence } = vm.runInContext("({ GamePresence })", load());
@@ -595,9 +776,13 @@ test("automatically selected exchange cards scroll into view without playing-tur
 
 test("local actions render before the network write and remain guarded until acknowledgment", () => {
     const events = [];
+    const snapshots = [];
     let complete;
     const context = load({
-        document: { dispatchEvent: event => events.push(event.detail.phase) },
+        document: { dispatchEvent: event => {
+            events.push(event.detail.phase);
+            snapshots.push(event.detail.snapshot);
+        } },
         CustomEvent: class { constructor(type, options) { this.detail = options.detail; } }
     });
     context.databaseRef = {
@@ -621,6 +806,7 @@ test("local actions render before the network write and remain guarded until ack
     complete();
     assert.equal(vm.runInContext("game.localWritePending", context), false);
     assert.deepEqual(events, ["started", "saved"]);
+    assert.equal(snapshots[1].val().status, "S");
 });
 
 test("clear starts before the deadline but does not unlock the next turn early", () => {

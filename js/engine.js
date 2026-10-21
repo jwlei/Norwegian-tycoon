@@ -357,10 +357,10 @@ class PresidentGame extends Game {
         };
         var localAction = this.localActionQueued === true;
         this.localActionQueued = false;
-        var notifyLocalAction = phase => {
+        var notifyLocalAction = (phase, snapshot = null) => {
             if (localAction && typeof document != "undefined" && typeof document.dispatchEvent == "function") {
                 document.dispatchEvent(new CustomEvent("local-game-action", {
-                    detail: { game: this, phase }
+                    detail: { game: this, phase, snapshot }
                 }));
             }
         };
@@ -458,7 +458,7 @@ class PresidentGame extends Game {
                     this.status = "V";
                 }
                 this.updatePublicListing();
-                notifyLocalAction(committed ? "saved" : "rejected");
+                notifyLocalAction(committed ? "saved" : "rejected", snapshot);
             }, allowCreate === true);
         } else {
             write = this.databaseRef.update(update);
