@@ -821,6 +821,54 @@ function pointerFixture({ desktop = false, valid = true, mode = "flick", blocked
         advance(value) { f.now = value; } };
 }
 
+test("mobile Button mode disables drag and flick without changing the selection", () => {
+    for (const selected of [false, true]) {
+        for (const releaseY of [200, 470]) {
+            const f = pointerFixture({ mode: "button" });
+            if (selected) { vm.runInContext('selectedCardKeys.add("1:5")', f.context); }
+            f.hand.onpointerdown(f.event(100, 500));
+            assert.equal(vm.runInContext("selectedCardKeys.size", f.context), selected ? 1 : 0);
+            f.advance(1030);
+            f.hand.onpointermove(f.event(100, releaseY));
+            assert.equal(f.body.children.length, 0, "No card drag preview");
+            assert.equal(f.card.classList.contains("is-drag-source"), false);
+            f.hand.onpointerup(f.event(100, releaseY));
+            assert.equal(f.state.plays, 0);
+            assert.equal(f.state.warnings, 0);
+            assert.equal(vm.runInContext("selectedCardKeys.size", f.context), selected ? 1 : 0);
+        }
+    }
+});
+
+test("mobile Button mode still allows horizontal hand scrolling", () => {
+    const f = pointerFixture({ mode: "button" });
+    vm.runInContext('selectedCardKeys.add("1:5")', f.context);
+    f.hand.onpointerdown(f.event(100, 500));
+    f.advance(1030);
+    f.hand.onpointermove(f.event(50, 500));
+    f.hand.onpointerup(f.event(50, 500));
+    assert.equal(f.hand.scrollLeft, 250);
+    assert.equal(f.state.scrolls, 1);
+    assert.equal(f.state.plays, 0);
+    assert.equal(f.body.children.length, 0);
+    assert.equal(vm.runInContext('selectedCardKeys.has("1:5")', f.context), true);
+});
+
+test("Both mode allows board drops and upward flicks on mobile and desktop", () => {
+    for (const desktop of [false, true]) {
+        for (const releaseY of [200, 470]) {
+            const f = pointerFixture({ desktop, mode: "both" });
+            f.hand.onpointerdown(f.event(100, 500));
+            f.advance(releaseY == 200 ? 2000 : 1030);
+            f.hand.onpointermove(f.event(100, releaseY));
+            assert.equal(f.body.children.length, 1);
+            f.hand.onpointerup(f.event(100, releaseY));
+            assert.equal(f.state.plays, 1);
+            assert.equal(f.state.warnings, 0);
+        }
+    }
+});
+
 test("the hand cancels native dragstart before it can interrupt pointer gestures", () => {
     const f = fixture();
     const hand = new Element();

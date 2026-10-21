@@ -188,6 +188,7 @@
                 document.getElementById("passButton").disabled = false;
             }
             scheduleBotLoop();
+            tryAutoPass(currentGame, player);
         }
         var turnPauseRefreshTimer = null;
         var roundVoteRefreshTimer = null;
@@ -403,6 +404,15 @@
                 }
             }
             GameLayout.updateHand(currentGame, player);
+        }
+
+        function toggleAutoPass() {
+            autoPassEnabled = !autoPassEnabled;
+            setCookie("AutoPass", autoPassEnabled, 365);
+            updateAutoPassButton();
+            if (currentGame != null) {
+                tryAutoPass(currentGame, currentGame.getPlayer(currentPlayerName));
+            }
         }
 
         var STARTER_FLASH_DURATION_MS = 2500;
@@ -1119,6 +1129,7 @@
             var player = game.getPlayer(currentPlayerName);
             GameLayout.updateSharedView(game, player);
             GameLayout.updatePlayerView(game, player);
+            tryAutoPass(game, player);
         }
 
         document.addEventListener("local-game-action", function (event) {
@@ -1998,6 +2009,7 @@
                     tryJoinWaitingSpectator(connectingGame);
                     updateFastForwardButton();
                     scheduleBotLoop();
+                    tryAutoPass(connectingGame, connectingGame.getPlayer(currentPlayerName));
                 } else {
                     disconnectGameListener();
                     clearShuffleAnimation();
@@ -2113,8 +2125,8 @@
         updateMaxMessageButtons();
         function updatePlayInputButtons() {
             var mode = GameLayout.playInputMode();
-            document.getElementById("playInputFlickHint").hidden = mode != "flick";
-            document.getElementById("playInputButtonHint").hidden = mode != "button";
+            document.getElementById("playInputFlickHint").hidden = mode == "button";
+            document.getElementById("playInputButtonHint").hidden = mode == "flick";
             document.querySelectorAll(".play-input-option").forEach(button => {
                 button.setAttribute("aria-pressed", String(button.dataset.playInput == mode));
                 button.disabled = false;
@@ -2564,6 +2576,8 @@
             "click",
             toggleAutoSuggestion
         );
+        document.getElementById("autoPassToggleButton").addEventListener("click", toggleAutoPass);
+        updateAutoPassButton();
 
         document.getElementById('startGameButton').addEventListener('click', function () {
             startRoundInCurrentGame();

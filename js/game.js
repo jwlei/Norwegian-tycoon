@@ -5,6 +5,7 @@ var activeExchangeId = null;
 var autoSelectedTurnKey = null;
 var autoSuggestedCardKeys = new Set();
 var autoSuggestPlayableCards = getCookie("AutoSuggestPlayableCards") != "false";
+var autoPassEnabled = getCookie("AutoPass") == "true";
 var autoScrollEmptyTurnKey = null;
 var recentlyReceivedCards = { owner: null, keys: new Set(), timer: null };
 var suppressNextCardClick = false;
@@ -247,6 +248,27 @@ function updateAutoSuggestionButton() {
     button.title = autoSuggestPlayableCards
         ? "Automatisk kortforslag er på"
         : "Automatisk kortforslag er av";
+}
+
+function updateAutoPassButton() {
+    var button = document.getElementById("autoPassToggleButton");
+    if (button == null) { return; }
+    button.setAttribute("aria-pressed", String(autoPassEnabled));
+    button.setAttribute("aria-label", autoPassEnabled
+        ? "Slå av automatisk pass" : "Slå på automatisk pass");
+    button.title = autoPassEnabled ? "Automatisk pass er på" : "Automatisk pass er av";
+}
+
+function tryAutoPass(game, player) {
+    if (!autoPassEnabled || game == null || player == null ||
+        game.connectionOnline === false || game.localWritePending ||
+        game.exchangeReady != null || GamePresence.isBot(game, player) ||
+        GamePresence.isExpired(game) || !game.canPass(player)) {
+        return;
+    }
+    var strengths = new Set(player.cards.map(card => card.strengthRank));
+    if (Array.from(strengths).some(strength => game.canPlayRank(player, strength))) { return; }
+    game.passTurn(player);
 }
 
 function isLobbyHost(game) {

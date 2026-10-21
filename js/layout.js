@@ -29,7 +29,7 @@ class GameLayout {
     }
     static playInputMode() {
         var stored = getCookie("PlayInputMode");
-        if (stored == "flick" || stored == "button") { return stored; }
+        if (stored == "flick" || stored == "button" || stored == "both") { return stored; }
         return this.usesDesktopControls() ? "button" : "flick";
     }
     static isShuffling(game) {
@@ -2170,8 +2170,9 @@ class GameLayout {
                 card: card,
                 isSelectedCard: cardElement != null &&
                     selectedCardKeys.has(cardElement.dataset.cardKey),
-                canSwipeToPlay: GameLayout.playInputMode() == "flick" && game.status == "S" && isPlayingTurn,
+                canSwipeToPlay: GameLayout.playInputMode() != "button" && game.status == "S" && isPlayingTurn,
                 canDragToPlay: game.status == "S" && isPlayingTurn &&
+                    (GameLayout.playInputMode() != "button" || event.pointerType == "mouse") &&
                     !game.localWritePending && game.connectionOnline !== false && !GamePresence.isBot(game, player),
                 didMove: false,
                 didPlayDrag: false,
@@ -2537,7 +2538,7 @@ class GameLayout {
             game.playCards(player, pile);
             return true;
         };
-        playButton.hidden = GameLayout.playInputMode() != "button" ||
+        playButton.hidden = GameLayout.playInputMode() == "flick" ||
             game.status != "S" || player.placement != 0 ||
             GamePresence.isBot(game, player);
         var selectedPile = new CardPile(player.name, ...player.cards.filter(card =>
@@ -2602,7 +2603,7 @@ class GameLayout {
                 selectionCount.textContent = (requiredCount == null)
                     ? `${selectedCards.length} kort valgt. Sveip vannrett over kortene for å bla. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.`
                     : `${selectedCards.length} av ${requiredCount} kort valgt. Sveip vannrett over kortene for å bla. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.`;
-                if (GameLayout.playInputMode() == "button") {
+                if (GameLayout.playInputMode() != "flick") {
                     selectionCount.textContent = requiredCount == null
                         ? `${selectedCards.length} kort valgt. Trykk Legg ut eller Enter for å spille.`
                         : `${selectedCards.length} av ${requiredCount} kort valgt. Trykk Legg ut eller Enter for å spille.`;
@@ -2727,7 +2728,9 @@ class GameLayout {
                                 elemKort.title = isPlayable
                                     ? (GameLayout.playInputMode() == "button"
                                         ? "Klikk for å velge. Trykk Legg ut, Enter eller mellomrom for å spille."
-                                        : "Klikk for å velge. Dra til brettet, flick opp eller trykk Enter eller mellomrom for å legge ut.")
+                                        : GameLayout.playInputMode() == "both"
+                                            ? "Klikk for å velge. Dra til brettet, flick opp eller trykk Legg ut, Enter eller mellomrom for å spille."
+                                            : "Klikk for å velge. Dra til brettet, flick opp eller trykk Enter eller mellomrom for å legge ut.")
                                     : "Dette kortet kan ikke spilles nå";
                                 elemKort.setAttribute("aria-pressed", String(isSelected));
                                 elemKort.onclick = function () {

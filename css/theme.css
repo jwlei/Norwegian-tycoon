@@ -3397,7 +3397,8 @@ select:focus-visible {
 }
 
 #fastForwardButton,
-#autoSuggestionToggleButton {
+#autoSuggestionToggleButton,
+#autoPassToggleButton {
     z-index: 70;
     display: grid;
     place-items: center;
@@ -3417,8 +3418,10 @@ select:focus-visible {
 
 #fastForwardButton:hover,
 #autoSuggestionToggleButton:hover,
+#autoPassToggleButton:hover,
 #fastForwardButton:active,
-#autoSuggestionToggleButton:active {
+#autoSuggestionToggleButton:active,
+#autoPassToggleButton:active {
     background: transparent;
     box-shadow: none;
     transform: none;
@@ -3435,9 +3438,13 @@ select:focus-visible {
     position: absolute;
     top: 4px;
     left: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
 }
 
-#autoSuggestionToggleButton {
+#autoSuggestionToggleButton,
+#autoPassToggleButton {
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -3446,7 +3453,8 @@ select:focus-visible {
     white-space: nowrap;
 }
 
-#autoSuggestionToggleButton > [aria-hidden] {
+#autoSuggestionToggleButton > [aria-hidden],
+#autoPassToggleButton > [aria-hidden] {
     width: 20px;
     height: 20px;
     font-size: 20px;
@@ -3455,7 +3463,9 @@ select:focus-visible {
 }
 
 #autoSuggestionToggleButton[aria-pressed="false"] > .auto-suggestion-on,
-#autoSuggestionToggleButton[aria-pressed="true"] > .auto-suggestion-off {
+#autoSuggestionToggleButton[aria-pressed="true"] > .auto-suggestion-off,
+#autoPassToggleButton[aria-pressed="false"] > .auto-suggestion-on,
+#autoPassToggleButton[aria-pressed="true"] > .auto-suggestion-off {
     display: none;
 }
 
@@ -3797,7 +3807,7 @@ select:focus-visible {
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);
         --shell-hand-card-height: clamp(88px, 21dvh, 156px);
-        grid-template-rows: 60px 64px minmax(0, 1fr) 88px calc(var(--shell-hand-card-height) + 98px);
+        grid-template-rows: 60px 64px minmax(0, 1fr) 132px calc(var(--shell-hand-card-height) + 98px);
     }
 
     #gameShell.game-active > #playerList {
@@ -3831,7 +3841,7 @@ select:focus-visible {
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);
         --shell-hand-card-height: clamp(82px, 17dvh, 128px);
-        grid-template-rows: 56px 60px minmax(0, 1fr) 88px calc(var(--shell-hand-card-height) + 62px);
+        grid-template-rows: 56px 60px minmax(0, 1fr) 132px calc(var(--shell-hand-card-height) + 62px);
     }
 
     #gameShell.game-active > #playerList {
@@ -3865,7 +3875,7 @@ select:focus-visible {
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);
         --shell-hand-card-height: clamp(72px, 23dvh, 116px);
-        grid-template-rows: 56px 52px minmax(0, 1fr) 88px calc(var(--shell-hand-card-height) + 46px);
+        grid-template-rows: 56px 52px minmax(0, 1fr) 132px calc(var(--shell-hand-card-height) + 46px);
     }
 
     #gameShell.game-active > #playerList {
@@ -3893,7 +3903,7 @@ select:focus-visible {
 @media (orientation: landscape) and (max-height: 500px) {
     #gameShell.game-active {
         --shell-hand-card-height: clamp(54px, 18vh, 76px);
-        grid-template-rows: 40px 36px minmax(58px, 1fr) 88px calc(var(--shell-hand-card-height) + 32px);
+        grid-template-rows: 40px 36px minmax(58px, 1fr) 132px calc(var(--shell-hand-card-height) + 32px);
     }
 
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInviterSpill,
@@ -4594,7 +4604,7 @@ select:focus-visible {
 }
 
 #gameShell.game-active:not(.Lobby):not(.GameFinished) > #playerActions {
-    padding-top: 36px;
+    padding-top: 80px;
 }
 
 #gameShell.GameFinished #suggestionControls {
@@ -4720,7 +4730,7 @@ select:focus-visible {
 
     #gameShell.game-active:not(.Lobby):not(.GameFinished) {
         --shell-hand-card-height: clamp(96px, 17dvh, 132px);
-        grid-template-rows: 60px 56px minmax(0, 1fr) 88px calc(var(--shell-hand-card-height) + 98px);
+        grid-template-rows: 60px 56px minmax(0, 1fr) 132px calc(var(--shell-hand-card-height) + 98px);
     }
 
     #gameShell > #BnInnstillinger {
@@ -4782,7 +4792,7 @@ select:focus-visible {
 
 @media (min-width: 900px) and (min-height: 560px) and (orientation: landscape) and (hover: hover) and (pointer: fine) {
     #gameShell.game-active:not(.Lobby):not(.GameFinished) {
-        grid-template-rows: 60px clamp(76px, 10dvh, 100px) minmax(0, 1fr) 88px calc(var(--shell-hand-card-height) + 98px);
+        grid-template-rows: 60px clamp(76px, 10dvh, 100px) minmax(0, 1fr) 132px calc(var(--shell-hand-card-height) + 98px);
     }
 
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #playerList .player-summary {

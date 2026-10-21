@@ -571,7 +571,7 @@ function loadGame(cardStyle = null, globals = {}) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(source, context);
     }
-    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, BotAI, GameLayout, GamePresence, exchangeSummaryDuration, activeTradeOffer, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage, isCardAllowedForExchange, chooseSuggestedPlayStrength, isSneakyTradeAvailable, hasSneakyConsent })", context);
+    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, BotAI, GameLayout, GamePresence, exchangeSummaryDuration, activeTradeOffer, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage, isCardAllowedForExchange, chooseSuggestedPlayStrength, isSneakyTradeAvailable, hasSneakyConsent, tryAutoPass })", context);
 }
 
 test("clearing card flights cancels and removes overlays from the page", () => {
@@ -1884,16 +1884,18 @@ function playButtonContext(options = {}) {
 }
 
 test("the play button plays exactly the selected cards and clears the selection", () => {
-    const { player, playButton, played, selectedCardKeys } = playButtonContext();
-    assert.equal(playButton.hidden, false);
-    assert.equal(playButton.disabled, false);
-    assert.equal(playButton.onclick(), true);
-    assert.equal(played.length, 1);
-    assert.equal(played[0].owner, player);
-    assert.deepEqual(Array.from(played[0].pile, card => `${card.suit}:${card.rank}`), ["1:5", "2:5"]);
-    assert.equal(selectedCardKeys.size, 0);
-    assert.equal(playButton.onclick(), false);
-    assert.equal(played.length, 1);
+    for (const playInput of ["button", "both"]) {
+        const { player, playButton, played, selectedCardKeys } = playButtonContext({ playInput });
+        assert.equal(playButton.hidden, false);
+        assert.equal(playButton.disabled, false);
+        assert.equal(playButton.onclick(), true);
+        assert.equal(played.length, 1);
+        assert.equal(played[0].owner, player);
+        assert.deepEqual(Array.from(played[0].pile, card => `${card.suit}:${card.rank}`), ["1:5", "2:5"]);
+        assert.equal(selectedCardKeys.size, 0);
+        assert.equal(playButton.onclick(), false);
+        assert.equal(played.length, 1);
+    }
 });
 
 test("tapping a selected group keeps only the tapped card, then allows adding cards individually", () => {
@@ -3839,10 +3841,11 @@ test("secret card style requires an exact case-insensitive eligible player name"
     }
 });
 
-function setupGame({ deferProfileTransactions = false } = {}) {
+function setupGame({ deferProfileTransactions = false, autoPass = false } = {}) {
     const profileRecords = {};
     const pendingProfileTransactions = [];
     const types = loadGame(null, {
+        getCookie: key => key == "AutoPass" ? String(autoPass) : null,
         firebase: {
             database: () => ({
                 ref(path) {
@@ -4400,6 +4403,108 @@ test("mandatory exchanges use one card for two players, two for three, and vice-
             assert.equal(game.placementTitle(3).title, "Viseboms");
         }
     }
+});
+
+test("auto pass uses the normal persisted pass action once when no legal rank exists", () => {
+    const { game, players, pile, types } = setupGame({ autoPass: true });
+    let saves = 0;
+    game.save = () => { saves++; };
+    players.forEach(player => { player.cards = Array.from(pile(player, 5, 2)); });
+    game.piles = [pile(players[1], 10, 2)];
+    game.setTurn(0);
+    types.tryAutoPass(game, players[0]);
+    types.tryAutoPass(game, players[0]);
+    assert.equal(players[0].lastPlay, "Pass");
+    assert.equal(game.turnPause.kind, "pass");
+    assert.equal(game.turn, 1);
+    assert.equal(saves, 1);
+});
+
+test("auto pass preserves legal singles, sets, club three and empty-table moves", () => {
+    for (const scenario of ["single", "pair", "club-three", "four-of-kind", "empty"]) {
+        const { game, players, pile, types } = setupGame({ autoPass: true });
+        const count = scenario == "pair" ? 2 : scenario == "four-of-kind" ? 4 : 1;
+        players[0].cards = scenario == "club-three"
+            ? [new types.PresidentCard(3, 3)]
+            : Array.from(pile(players[0], 11, count));
+        game.piles = scenario == "empty" ? [] : [pile(players[1], 10, count)];
+        game.setTurn(0);
+        game.passTurn = () => assert.fail(`Must not pass a legal ${scenario} move`);
+        types.tryAutoPass(game, players[0]);
+        assert.equal(game.turn, 0);
+    }
+});
+
+test("auto pass respects disabled preference, connectivity, turn gates and bot control", () => {
+    for (const gate of ["disabled", "offline", "pending", "paused", "shuffle", "exchange", "bot",
+        "other-turn", "finished", "placed", "expired", "spectator"]) {
+        const { game, players, pile, types } = setupGame({ autoPass: gate != "disabled" });
+        players[0].cards = Array.from(pile(players[0], 5, 1));
+        game.piles = [pile(players[1], 10, 2)];
+        game.setTurn(0);
+        if (gate == "offline") { game.connectionOnline = false; }
+        if (gate == "pending") { game.localWritePending = true; }
+        if (gate == "paused") { game.turnPause = { until: Date.now() + 10000 }; }
+        if (gate == "shuffle") { game.shuffleStartedAt = Date.now(); }
+        if (gate == "exchange") { game.exchangeReady = {}; }
+        if (gate == "bot") { players[0].playerKey = "PC"; }
+        if (gate == "other-turn") { game.setTurn(1); }
+        if (gate == "finished") { game.status = "F"; }
+        if (gate == "placed") { players[0].placement = 1; }
+        if (gate == "expired") { game.lastHumanActionAt = Date.now() - 700000; }
+        game.passTurn = () => assert.fail(`Must not auto pass while ${gate}`);
+        types.tryAutoPass(game, gate == "spectator" ? null : players[0]);
+    }
+});
+
+test("auto pass preference defaults off and toggles persist with accessible state", () => {
+    for (const saved of [null, "false", "true"]) {
+        const attributes = {};
+        const button = { setAttribute: (name, value) => { attributes[name] = value; } };
+        const writes = [];
+        const context = vm.createContext({
+            getCookie: key => key == "AutoPass" ? saved : null,
+            setCookie: (...args) => writes.push(args),
+            document: { getElementById: () => button },
+            currentGame: null
+        });
+        vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8"), context);
+        const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+        const start = source.indexOf("        function toggleAutoPass()");
+        vm.runInContext(source.slice(start, source.indexOf("        var STARTER_FLASH_DURATION_MS", start)), context);
+        context.updateAutoPassButton();
+        assert.equal(attributes["aria-pressed"], String(saved == "true"));
+        context.toggleAutoPass();
+        assert.equal(attributes["aria-pressed"], String(saved != "true"));
+        assert.deepEqual(writes[0], ["AutoPass", saved != "true", 365]);
+        assert.equal(button.title, saved == "true" ? "Automatisk pass er av" : "Automatisk pass er på");
+        assert.equal(attributes["aria-label"], saved == "true" ? "Slå på automatisk pass" : "Slå av automatisk pass");
+    }
+});
+
+test("refreshing after a turn pause auto passes only after legal play resumes", () => {
+    const { game, players, pile, types } = setupGame({ autoPass: true });
+    game.save = () => {};
+    players[0].cards = Array.from(pile(players[0], 5, 1));
+    game.piles = [pile(players[1], 10, 2)];
+    game.setTurn(0);
+    game.getPlayer = () => players[0];
+    const context = vm.createContext({
+        currentGame: game, currentPlayerName: players[0].name,
+        syncExchangeSummary() {},
+        GameLayout: { updateSharedView() {}, updatePlayerView() {} },
+        tryAutoPass: types.tryAutoPass
+    });
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const start = source.indexOf("        function refreshAfterTurnPause(game)");
+    vm.runInContext(source.slice(start, source.indexOf('        document.addEventListener("local-game-action"', start)), context);
+    game.turnPause = { until: Date.now() + 10000 };
+    context.refreshAfterTurnPause(game);
+    assert.equal(game.turn, 0);
+    game.turnPause = null;
+    context.refreshAfterTurnPause(game);
+    assert.equal(game.turn, 1);
+    assert.equal(players[0].lastPlay, "Pass");
 });
 
 test("passing on an empty table advances without excluding players from the next play", () => {
@@ -5038,20 +5143,21 @@ test("stale saves preserve host-selected speed and adjust new pause lengths, not
     assert.equal(record.turnPause.until, now + 1000);
 });
 
-test("desktop and mobile both honor saved Flick and Play control choices", () => {
+test("desktop and mobile honor saved Flick, Button and Both control choices", () => {
     for (const desktop of [false, true]) {
-        for (const saved of [null, "invalid", "flick", "button"]) {
+        for (const saved of [null, "invalid", "flick", "button", "both"]) {
             const { GameLayout } = loadGame(null, {
                 getCookie: () => saved,
                 window: { matchMedia: () => ({ matches: desktop }) }
             });
 
             assert.equal(GameLayout.playInputMode(),
-                saved == "flick" || saved == "button" ? saved : desktop ? "button" : "flick");
+                saved == "flick" || saved == "button" || saved == "both" ? saved : desktop ? "button" : "flick");
         }
     }
     assert.equal(playButtonContext({ playInput: "flick" }).playButton.hidden, true);
     assert.equal(playButtonContext({ playInput: "button" }).playButton.hidden, false);
+    assert.equal(playButtonContext({ playInput: "both" }).playButton.hidden, false);
 });
 
 test("settings expose animation speed and enable Flick on desktop and mobile", () => {
@@ -5060,7 +5166,7 @@ test("settings expose animation speed and enable Flick on desktop and mobile", (
         const { GameLayout } = loadGame(null, {
             window: { matchMedia: () => ({ matches: desktop }) }
         });
-        const buttons = ["flick", "button"].map(mode => ({
+        const buttons = ["flick", "button", "both"].map(mode => ({
             dataset: { playInput: mode }, attributes: {},
             setAttribute(name, value) { this.attributes[name] = value; }
         }));
@@ -5091,6 +5197,7 @@ test("settings expose animation speed and enable Flick on desktop and mobile", (
         assert.equal(setting.hidden, false);
         assert.equal(buttons[0].disabled, false);
         assert.equal(buttons[1].disabled, false);
+        assert.equal(buttons[2].disabled, false);
         assert.equal(buttons[0].attributes["aria-pressed"], String(!desktop));
         assert.equal(hints.playInputFlickHint.hidden, desktop);
         assert.equal(hints.playInputButtonHint.hidden, !desktop);
@@ -5098,6 +5205,13 @@ test("settings expose animation speed and enable Flick on desktop and mobile", (
         context.updatePlayInputButtons();
         assert.equal(buttons[1].attributes["aria-pressed"], "true");
         assert.equal(hints.playInputFlickHint.hidden, true);
+        assert.equal(hints.playInputButtonHint.hidden, false);
+        GameLayout.playInputMode = () => "both";
+        context.updatePlayInputButtons();
+        assert.equal(buttons[0].attributes["aria-pressed"], "false");
+        assert.equal(buttons[1].attributes["aria-pressed"], "false");
+        assert.equal(buttons[2].attributes["aria-pressed"], "true");
+        assert.equal(hints.playInputFlickHint.hidden, false);
         assert.equal(hints.playInputButtonHint.hidden, false);
     }
 });

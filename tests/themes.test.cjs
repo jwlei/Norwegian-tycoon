@@ -179,7 +179,7 @@ test("status surfaces use theme tokens instead of legacy fixed green, gold and r
 });
 
 test("playback and suggestion controls stay visually unbuttoned on hover and press", () => {
-    assert.match(css, /#fastForwardButton:hover,\s*#autoSuggestionToggleButton:hover,\s*#fastForwardButton:active,\s*#autoSuggestionToggleButton:active\s*\{[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;[^}]*transform:\s*none;[^}]*filter:\s*none;/);
+    assert.match(css, /#fastForwardButton:hover,\s*#autoSuggestionToggleButton:hover,\s*#autoPassToggleButton:hover,\s*#fastForwardButton:active,\s*#autoSuggestionToggleButton:active,\s*#autoPassToggleButton:active\s*\{[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;[^}]*transform:\s*none;[^}]*filter:\s*none;/);
 });
 
 test("card style names stay compact and on one line with responsive previews", () => {
@@ -240,13 +240,24 @@ test("auto-suggestion is enabled by default and lives below the board on the lef
     assert.match(html, /class="auto-suggestion-on" aria-hidden="true">✦/);
     assert.match(html, /class="auto-suggestion-off" aria-hidden="true">✧/);
     assert.match(css, /#suggestionControls\s*\{[^}]*top:\s*4px;[^}]*left:\s*8px;/);
-    assert.match(css, /#fastForwardButton,\s*#autoSuggestionToggleButton\s*\{[^}]*color:\s*var\(--muted\);/);
-    assert.match(css, /#autoSuggestionToggleButton > \[aria-hidden\]\s*\{[^}]*font-size:\s*20px;/);
-    assert.match(css, /#autoSuggestionToggleButton\[aria-pressed="false"\] > \.auto-suggestion-on,\s*#autoSuggestionToggleButton\[aria-pressed="true"\] > \.auto-suggestion-off\s*\{\s*display:\s*none;/);
+    assert.match(css, /#fastForwardButton,\s*#autoSuggestionToggleButton,\s*#autoPassToggleButton\s*\{[^}]*color:\s*var\(--muted\);/);
+    assert.match(css, /#autoSuggestionToggleButton > \[aria-hidden\],\s*#autoPassToggleButton > \[aria-hidden\]\s*\{[^}]*font-size:\s*20px;/);
+    assert.match(css, /#autoSuggestionToggleButton\[aria-pressed="false"\] > \.auto-suggestion-on,\s*#autoSuggestionToggleButton\[aria-pressed="true"\] > \.auto-suggestion-off,\s*#autoPassToggleButton\[aria-pressed="false"\] > \.auto-suggestion-on,\s*#autoPassToggleButton\[aria-pressed="true"\] > \.auto-suggestion-off\s*\{\s*display:\s*none;/);
     const game = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
     assert.ok(game.includes('getCookie("AutoSuggestPlayableCards") != "false"'));
     const connection = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     assert.ok(!connection.includes('document.getElementById("autoSuggestionToggleButton").hidden'));
+});
+
+test("Suggest move and opt-in Auto pass are stacked matching controls with translations", () => {
+    assert.match(html, /<span>Foreslå trekk<\/span>/);
+    assert.match(html, /id="autoPassToggleButton"[^>]*aria-pressed="false"/);
+    assert.ok(html.indexOf('id="autoPassToggleButton"') > html.indexOf('id="autoSuggestionToggleButton"'));
+    assert.match(css, /#suggestionControls\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*align-items:\s*flex-start;/);
+    assert.match(css, /#gameShell\.game-active:not\(\.Lobby\):not\(\.GameFinished\) > #playerActions\s*\{[^}]*padding-top:\s*80px;/);
+    const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
+    assert.ok(translations.includes('"Foreslå trekk": "Suggest move"'));
+    assert.ok(translations.includes('"Auto-pass": "Auto pass"'));
 });
 
 test("desktop uses taller two-line toasts and the same shell and toolbar in every screen", () => {
@@ -279,12 +290,12 @@ test("PIN toggle aligns with the full-width name field without horizontal button
     assert.match(css, /#playerUsePin\s*\{\s*margin:\s*8px 0;\s*\}/);
 });
 
-test("visible release and versioned local assets use version 0.9.8", () => {
-    assert.ok(html.includes('aria-label="Spillversjon 0.9.8">v0.9.8</span>'));
+test("visible release and versioned local assets use version 0.9.9", () => {
+    assert.ok(html.includes('aria-label="Spillversjon 0.9.9">v0.9.9</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"]+)"/g),
         match => match[1]);
     assert.ok(versions.length > 0);
-    assert.ok(versions.every(version => version === "0.9.8"));
+    assert.ok(versions.every(version => version === "0.9.9"));
 });
 
 test("splash profile text wraps so long names cannot hide the logged-in player ID", () => {
@@ -341,6 +352,7 @@ test("settings use concise hints and mode-specific card control descriptions ins
     assert.match(settings, /<strong>Kortstyring<\/strong><\/span>/);
     assert.match(settings, /data-play-input="flick"[^>]*>Flick\/Drag<\/button>/);
     assert.match(settings, /data-play-input="button"[^>]*>Knapp<\/button>/);
+    assert.match(settings, /data-play-input="both"[^>]*>Begge<\/button>/);
     assert.match(settings, /<\/span>\s*<span class="setting-row__text" aria-live="polite">\s*<small id="playInputFlickHint">Dra kort og slipp på brettet, eller flick dem opp\.<\/small>\s*<small id="playInputButtonHint" hidden>Velg kort og bekreft med spillknappen<\/small>\s*<\/span>\s*<\/div>/);
     assert.doesNotMatch(settings, /<p class="color-theme-description">/);
     const themes = html.slice(html.indexOf('id="dialogFargetema"'), html.indexOf('id="dialogKortfolie"'));
@@ -349,7 +361,7 @@ test("settings use concise hints and mode-specific card control descriptions ins
     assert.match(foils, /<p class="color-theme-description">Folie legges over kortstilen<\/p>/);
     const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
     for (const text of ["Messages", "Max visible messages", "Duration of game event messages", "Drag cards and release on the board or flick them up.",
-        "Choose cards and confirm with the play button", "Foil overlays the card style"]) {
+        "Choose cards and confirm with the play button", "Both", "Foil overlays the card style"]) {
         assert.ok(translations.includes(`"${text}"`));
     }
 });
