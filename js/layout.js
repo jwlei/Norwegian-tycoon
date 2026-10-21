@@ -223,6 +223,7 @@ class GameLayout {
         }
         this.setVisible("gameMetadata", (player == null || game == null || game.status == "O"));
         if (game == null) {
+            this.updatePlayerStatus(null, null);
             setClass(mainMenu, "is-hidden", false);
             this.updateMainMenu();
             var emptyTable = document.getElementById("gameTable");
@@ -1004,11 +1005,55 @@ class GameLayout {
         }
         return { element: tablePile, newlyPlayed: newlyPlayed };
     }
+    static exchangeStatus(game, player) {
+        var playerIndex = player == null ? -1 : game.players.indexOf(player);
+        var outgoing = game.piles.filter(exchange =>
+            exchange.from == playerIndex &&
+            ["Velg", "Best", "Gitt"].includes(exchange.mode)
+        );
+        var selectableOutgoing = outgoing.filter(exchange => exchange.mode == "Velg");
+        var selectedExchange = outgoing.find(exchange => getExchangeId(exchange) == activeExchangeId) ||
+            (selectableOutgoing.length == 1 ? selectableOutgoing[0] :
+                outgoing.find(exchange => exchange.mode == "Best" || exchange.mode == "Gitt"));
+        var prompt = "";
+        if (game.exchangeReady != null) {
+            prompt = "Venter på at spillerne bekrefter mottatte kort …";
+        } else if (selectedExchange != null && player != null) {
+            var recipient = game.players[selectedExchange.to];
+            prompt = selectedExchange.mode == "Best"
+                ? (selectedExchange.count == 1
+                    ? `Du må gi ditt beste kort til ${recipient.name}`
+                    : `Du må gi dine to beste kort til ${recipient.name}`)
+                : `Kort til ${recipient.name} (${selectedExchange.cards.length}/${selectedExchange.count})`;
+        } else if (selectableOutgoing.length > 1) {
+            prompt = "Velg hvilket bytte du vil gjøre";
+        } else if (game.piles.some(exchange => exchange.mode == "Velg" || exchange.mode == "Best")) {
+            var pendingCount = game.piles.filter(exchange =>
+                ["Velg", "Best", "Gitt", "Kan se"].includes(exchange.mode)
+            ).length;
+            prompt = `${pendingCount} bytte${pendingCount == 1 ? "" : "r"} gjenstår`;
+        } else if (game.piles.some(exchange => exchange.mode == "Kan se")) {
+            prompt = "Motta kortene som venter";
+        } else if (game.piles.some(exchange => exchange.mode == "Tilbud")) {
+            prompt = activeTradeOffer(game)?.forcedAt != null
+                ? "Venter på mottakerens valg av bytte."
+                : "Tving bytte eller velg Ingen bytte";
+        } else {
+            prompt = "Venter på at byttene fullføres";
+        }
+        return { selectedExchange, prompt };
+    }
+    static updatePlayerStatus(game, player) {
+        var status = this.el("playerStatus");
+        status.textContent = game != null && game.status == "G" && !this.isShuffling(game)
+            ? this.exchangeStatus(game, player).prompt
+            : "";
+    }
     static updateTable(game, player, existingPileSignatures = new Set(), playOrigins = null) {
         if (this.toastRegion == null) {
             this.toastRegion = document.getElementById("gameToastRegion");
         }
-        document.getElementById("exchangePrompt").textContent = "";
+        this.updatePlayerStatus(game, player);
         var exchangeActions = document.getElementById("exchangeActions");
         if (exchangeActions) {
             exchangeActions.replaceChildren();
@@ -1137,40 +1182,14 @@ class GameLayout {
                     receiptWaiting.setAttribute("role", "status");
                     receiptWaiting.textContent = "Venter på at spillerne bekrefter mottatte kort …";
                     table.appendChild(receiptWaiting);
-                    document.getElementById("exchangePrompt").textContent = receiptWaiting.textContent;
                     break;
                 }
                 var currentPlayerIndex = player == null ? -1 : game.players.indexOf(player);
-                var outgoingExchanges = game.piles.filter(exchange =>
-                    exchange.from == currentPlayerIndex &&
-                    (exchange.mode == "Velg" || exchange.mode == "Best" || exchange.mode == "Gitt")
-                );
-                var selectableOutgoing = outgoingExchanges.filter(exchange => exchange.mode == "Velg");
-                var selectedExchange = outgoingExchanges.find(exchange =>
-                    getExchangeId(exchange) == activeExchangeId
-                ) || (selectableOutgoing.length == 1
-                    ? selectableOutgoing[0]
-                    : outgoingExchanges.find(exchange => exchange.mode == "Best" || exchange.mode == "Gitt"));
+                var { selectedExchange } = this.exchangeStatus(game, player);
                 var exchangeHeading = document.createElement("div");
                 exchangeHeading.className = "exchange-panel__heading";
                 var heading = document.createElement("strong");
                 heading.textContent = `Kortbytte før runde ${game.round}`;
-                var pendingCount = game.piles.filter(exchange =>
-                    exchange.mode == "Velg" || exchange.mode == "Best" || exchange.mode == "Gitt" || exchange.mode == "Kan se"
-                ).length;
-                var progress = document.createElement("span");
-                progress.className = "exchange-panel__progress";
-                if (game.piles.some(exchange => exchange.mode == "Velg" || exchange.mode == "Best")) {
-                    progress.textContent = `${pendingCount} bytte${pendingCount == 1 ? "" : "r"} gjenstår`;
-                } else if (game.piles.some(exchange => exchange.mode == "Kan se")) {
-                    progress.textContent = "Motta kortene som venter";
-                } else if (game.piles.some(exchange => exchange.mode == "Tilbud")) {
-                    progress.textContent = activeTradeOffer(game)?.forcedAt != null
-                        ? "Venter på mottakerens valg av bytte."
-                        : "Tving bytte eller velg Ingen bytte";
-                } else {
-                    progress.textContent = "Venter på at byttene fullføres";
-                }
                 exchangeHeading.append(heading);
                 table.appendChild(exchangeHeading);
                 game.piles.forEach(exchange => {
@@ -1421,11 +1440,6 @@ class GameLayout {
                 if (selectedExchange != null && player != null) {
                     var selectedRecipient = game.players[selectedExchange.to];
                     var isBestExchange = selectedExchange.mode == "Best";
-                    document.getElementById("exchangePrompt").textContent = isBestExchange
-                        ? (selectedExchange.count == 1
-                            ? `Du må gi ditt beste kort til ${selectedRecipient.name}`
-                            : `Du må gi dine to beste kort til ${selectedRecipient.name}`)
-                        : `Kort til ${selectedRecipient.name} (${selectedExchange.cards.length}/${selectedExchange.count})`;
                     if (selectedExchange.mode == "Velg" || isBestExchange) {
                         var confirmExchange = document.createElement("button");
                         confirmExchange.type = "button";
@@ -1455,10 +1469,6 @@ class GameLayout {
                             }
                         }
                     }
-                } else if (selectableOutgoing.length > 1) {
-                    document.getElementById("exchangePrompt").textContent = "Velg hvilket bytte du vil gjøre";
-                } else {
-                    document.getElementById("exchangePrompt").textContent = progress.textContent;
                 }
                 break;
             }
@@ -1828,6 +1838,8 @@ class GameLayout {
         ].join(";");
     }
     static updatePlayerButtons(game, player) {
+        this.updatePlayerStatus(game, player);
+        this.el("playerStatus").classList.remove("player-status--turn-hint");
         if (game == null) {
             ["exchangeActions", "tableTurnHint"].forEach(id => {
                 var element = this.el(id);
@@ -1837,9 +1849,6 @@ class GameLayout {
                 var hiddenElement = this.el(id);
                 if (hiddenElement != null) { hiddenElement.hidden = true; }
             });
-            this.el("exchangePrompt").textContent = "";
-            this.el("playerStatus").textContent = "";
-            this.el("playerStatus").classList.remove("player-status--turn-hint");
             this.setVisible("BnPNySpiller", false);
             this.setVisible("passButton", false);
             this.setVisible("passButton_Off", false);
@@ -1847,34 +1856,7 @@ class GameLayout {
             this.setVisible("BnPByttNavn", true);
             return;
         }
-        if (game.status != "G") { this.el("exchangePrompt").textContent = ""; }
         var pauseActive = game.isTurnPaused();
-        if (player == null) {
-            this.el("playerStatus").innerHTML = "";
-        } else if (game.status == "G") {
-            var playerIndex = game.players.indexOf(player);
-            var exchangeInProgress = game.piles.some(exchange =>
-                (exchange.from == playerIndex || exchange.to == playerIndex) &&
-                ["Velg", "Best", "Gitt", "Kan se", "Tilbud"].includes(exchange.mode)
-            );
-            this.el("playerStatus").textContent = exchangeInProgress
-                ? "Bytter..."
-                : (player.turn == 1 ? "Du skal gi kort." : "");
-        } else {
-            if (player.turn == 1) {
-                switch (game.status) {
-                    case "S":
-                        this.el("playerStatus").textContent = "";
-                        break;
-                    default:
-                        this.el("playerStatus").innerHTML = ``;
-                        break;
-                }
-            } else {
-                this.el("playerStatus").innerHTML = "";
-            }
-        }
-        this.el("playerStatus").classList.remove("player-status--turn-hint");
         if (setClass(this.el("playerActions"), "is-my-turn", (player != null && player.turn))) {
             // Update turn-dependent controls when the state changes.
             setClass(this.el("playerHand"), "is-my-turn", (player != null && player.turn));

@@ -3490,23 +3490,6 @@ select:focus-visible {
     min-width: 0;
 }
 
-#gameShell.game-active > #playerActions > #exchangePrompt {
-    position: absolute;
-    z-index: 199;
-    top: 50%;
-    bottom: auto;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: max-content;
-    max-width: 90vw;
-    padding: 8px 14px;
-    border-radius: 10px;
-    background: var(--surface);
-    color: var(--ink);
-}
-
-#exchangePrompt:empty { display: none; }
-
 .received-cards-overlay {
     position: fixed;
     inset: 0;
@@ -3950,13 +3933,9 @@ select:focus-visible {
         padding: 4px 8px;
     }
 
-    #gameShell.game-active > #playerActions > #exchangePrompt {
+    #gameShell.game-active > #playerActions > #playerStatus {
         grid-column: 1 / -1;
         grid-row: 2 / 3;
-    }
-
-    #gameShell.game-active > #playerActions > #playerStatus {
-        display: none;
     }
 
     #gameShell.game-active > #playerActions > br {
@@ -4619,8 +4598,7 @@ select:focus-visible {
     display: none;
 }
 
-#gameShell.game-active:not(.Lobby) > #playerActions > button,
-#gameShell.game-active:not(.Lobby) > #playerActions > #exchangePrompt {
+#gameShell.game-active:not(.Lobby) > #playerActions > button {
     flex: 0 1 auto;
     text-align: center;
 }
@@ -4632,11 +4610,12 @@ select:focus-visible {
 #gameShell.game-active:not(.Lobby) > #playerActions > #playerStatus {
     min-width: 0;
     flex: 0 1 auto;
-    overflow: hidden;
     text-align: center;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
+
+#playerStatus:empty { display: none; }
 
 @media (orientation: landscape) and (max-height: 600px) {
     #gameShell.game-active.Lobby > #gameMenu {
