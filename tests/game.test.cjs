@@ -842,7 +842,7 @@ test("consent stays private and forcing waits for the receiver's explicit choice
     game.piles = [bestExchange];
     const nodes = render(players[2]);
     assert.ok(nodes.some(node => node.textContent == "Du må gi dine to beste kort til Sender."));
-    assert.equal(document.getElementById("exchangePrompt").textContent,
+    assert.equal(document.getElementById("playerStatus").textContent,
         "Du må gi dine to beste kort til Sender");
     const giveButton = document.getElementById("exchangeActions").children[0];
     assert.equal(giveButton.textContent, "Gi kort");
@@ -864,8 +864,145 @@ test("consent stays private and forcing waits for the receiver's explicit choice
     bestExchange.count = 1;
     bestExchange.cards.pop();
     render(players[2]);
-    assert.equal(document.getElementById("exchangePrompt").textContent,
+    assert.equal(document.getElementById("playerStatus").textContent,
         "Du må gi ditt beste kort til Sender");
+});
+
+function exchangeStatusFixture() {
+    const element = () => ({
+        dataset: {}, children: [], textContent: "", attributes: {}, style: {},
+        classList: { add() {}, remove() {}, contains: () => false },
+        get childElementCount() { return this.children.length; },
+        setAttribute(name, value) { this.attributes[name] = value; },
+        set innerHTML(value) { this.children = []; },
+        replaceChildren(...children) { this.children = children; },
+        append(...children) { this.children.push(...children); },
+        appendChild(child) { this.children.push(child); }
+    });
+    const elements = new Map();
+    const document = {
+        createElement: element,
+        getElementById(id) {
+            assert.notEqual(id, "exchangePrompt", "The separate overlay must not be used");
+            if (!elements.has(id)) { elements.set(id, element()); }
+            return elements.get(id);
+        }
+    };
+    const { GameLayout, PresidentGame, PresidentPlayer, PresidentCard } = loadGame(null, {
+        document, navigator: {}, setClass() {}
+    });
+    const players = ["Sender", "Recipient", "Other"].map((name, index) => {
+        const player = new PresidentPlayer(name, `key-${index}`);
+        player.lastPlacement = index + 1;
+        return player;
+    });
+    const game = Object.assign(Object.create(PresidentGame.prototype), {
+        id: "status-ui", status: "G", round: 2, players, rules: {},
+        piles: [{ id: "outgoing", from: 0, to: 1, mode: "Velg", count: 2, cards: [] }]
+    });
+    game.save = () => {};
+    GameLayout.updateHand = () => {};
+    const flatten = node => [node, ...node.children.flatMap(flatten)];
+    return {
+        GameLayout, PresidentCard, game, players, document,
+        status: () => document.getElementById("playerStatus").textContent,
+        nodes: () => flatten(document.getElementById("gameTable"))
+    };
+}
+
+test("exchange status replaces the generic label for 0/2, 1/2 and 2/2 in either render order", () => {
+    const { GameLayout, PresidentCard, game, players, document, status } = exchangeStatusFixture();
+    const cards = [new PresidentCard(1, 7), new PresidentCard(2, 8)];
+    for (const order of [["updateTable", "updatePlayerButtons"], ["updatePlayerButtons", "updateTable"]]) {
+        for (let count = 0; count <= 2; count++) {
+            game.piles[0].cards = cards.slice(0, count);
+            for (const method of order) {
+                GameLayout[method](game, players[0]);
+                assert.equal(status(), `Kort til Recipient (${count}/2)`);
+                assert.equal(status().includes("Bytter"), false);
+            }
+            const actions = document.getElementById("exchangeActions");
+            assert.equal(actions.hidden, count != 2);
+            if (count == 2) {
+                assert.equal(actions.children[0].textContent, "Gi kort");
+                assert.equal(actions.children[0].disabled, false);
+                actions.children[1].onclick();
+                assert.equal(status(), "Kort til Recipient (0/2)");
+                assert.equal(actions.hidden, true);
+            }
+        }
+    }
+    const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    assert.equal(html.includes('id="exchangePrompt"'), false);
+    assert.equal((html.match(/id="playerStatus"/g) || []).length, 1);
+});
+
+test("recipient selection and fresh snapshots update the same exchange status", () => {
+    const { GameLayout, game, players, nodes, status } = exchangeStatusFixture();
+    game.piles.push({ id: "other", from: 0, to: 2, mode: "Velg", count: 1, cards: [] });
+    GameLayout.updatePlayerButtons(game, players[0]);
+    assert.equal(status(), "Velg hvilket bytte du vil gjøre");
+    GameLayout.updateTable(game, players[0]);
+    nodes().find(node => node.textContent == "Velg bytte til Other").onclick();
+    assert.equal(status(), "Kort til Other (0/1)");
+    GameLayout.updatePlayerButtons(game, players[0]);
+    assert.equal(status(), "Kort til Other (0/1)");
+    nodes().find(node => node.textContent == "Velg bytte til Recipient").onclick();
+    assert.equal(status(), "Kort til Recipient (0/2)");
+    game.piles = game.piles.map(exchange => ({ ...exchange, cards: [{}] }));
+    GameLayout.updatePlayerButtons(game, players[0]);
+    assert.equal(status(), "Kort til Recipient (1/2)");
+    GameLayout.updateTable(game, players[0]);
+    assert.equal(status(), "Kort til Recipient (1/2)");
+});
+
+test("exchange status covers mandatory, optional, received, spectator and waiting states", () => {
+    const { GameLayout, game, players, status } = exchangeStatusFixture();
+    const render = (expected, player = players[0]) => {
+        for (const method of ["updatePlayerButtons", "updateTable", "updatePlayerButtons"]) {
+            GameLayout[method](game, player);
+            assert.equal(status(), expected);
+        }
+    };
+    game.piles[0].mode = "Best";
+    render("Du må gi dine to beste kort til Recipient");
+    game.piles[0].count = 1;
+    render("Du må gi ditt beste kort til Recipient");
+    game.piles[0].mode = "Gitt";
+    render("Kort til Recipient (0/1)");
+    game.piles[0].mode = "Kan se";
+    render("Motta kortene som venter", players[1]);
+    game.piles[0].mode = "Tilbud";
+    render("Tving bytte eller velg Ingen bytte");
+    game.piles[0].forcedAt = 123;
+    render("Venter på mottakerens valg av bytte.", players[1]);
+    game.piles[0].mode = "Velg";
+    render("1 bytte gjenstår", null);
+    render("1 bytte gjenstår", players[2]);
+    game.exchangeReady = { id: "receipt" };
+    render("Venter på at spillerne bekrefter mottatte kort …");
+    game.exchangeReady = null;
+    game.piles = [];
+    render("Venter på at byttene fullføres");
+});
+
+test("exchange status clears on shuffle, normal play, round end, lobby and no game", () => {
+    const { GameLayout, game, players, status } = exchangeStatusFixture();
+    for (const next of ["shuffle", "S", "F", "O", null]) {
+        game.status = "G";
+        game.shuffleStartedAt = null;
+        GameLayout.updateTable(game, players[0]);
+        assert.equal(status(), "Kort til Recipient (0/2)");
+        if (next == "shuffle") {
+            game.shuffleStartedAt = Date.now();
+            GameLayout.updateTable(game, players[0]);
+            assert.equal(status(), "");
+        } else if (next != null) {
+            game.status = next;
+        }
+        GameLayout.updatePlayerButtons(next == null ? null : game, players[0]);
+        assert.equal(status(), "");
+    }
 });
 
 function forcedTradeUiFixture(eligible) {

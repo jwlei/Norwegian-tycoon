@@ -128,14 +128,6 @@ div.scroll {
     overflow-y: auto;
 }
 
-#exchangePrompt {
-    float: right;
-}
-
-    #exchangePrompt img {
-        height: 2em;
-    }
-
 .table-deck {
     /* Center the deck. */
     display: flex;
