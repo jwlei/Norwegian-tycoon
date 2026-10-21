@@ -439,6 +439,7 @@
             var game = currentGame;
             if (game == null || game.status != "S" ||
                 GamePresence.isActionPaused(game, GamePresence.now()) ||
+                !Array.isArray(game.piles) || game.piles.length != 0 ||
                 game.turn < 0 || game.players[game.turn] == null) { return; }
             var roundKey = `${game.id}:${game.round}:${game.shuffleStartedAt}`;
             if (announcedStarterRound == roundKey) { return; }

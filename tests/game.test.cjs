@@ -2747,7 +2747,7 @@ test("the starter toast waits until exchange is complete and the starter can pla
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const messages = [];
     const context = vm.createContext({
-        currentGame: { status: "G", roundStarterName: "Bjørn" }, currentPlayerName: "Bjørn",
+        currentGame: { status: "G", roundStarterName: "Bjørn", piles: [] }, currentPlayerName: "Bjørn",
         starterFlashTimer: null, STARTER_FLASH_DURATION_MS: 1000,
         announcedStarterRound: null, announcedBomsStarterGame: null,
         GamePresence: { now: () => 1000, isActionPaused: game => game.paused === true },
@@ -2764,7 +2764,8 @@ test("the starter toast waits until exchange is complete and the starter can pla
     assert.equal(messages.length, 0);
     context.currentGame = {
         id: "test", round: 2, status: "S", turn: 0, paused: true,
-        players: [{ name: "Bjørn", lastPlacement: 3 }, { name: "Guest" }, { name: "Other" }]
+        players: [{ name: "Bjørn", lastPlacement: 3 }, { name: "Guest" }, { name: "Other" }],
+        piles: []
     };
     context.flashRoundStarter();
     assert.equal(messages.length, 0);
@@ -2773,19 +2774,26 @@ test("the starter toast waits until exchange is complete and the starter can pla
     assert.equal(messages.pop().text, "Bjørn er Boms og starter.");
     context.flashRoundStarter();
     assert.equal(messages.length, 0, "Snapshots must not repeat the starter announcement");
-    context.currentGame = { id: "test", round: 3, status: "S", turn: 0, players: [{ name: "Guest" }] };
+    context.currentGame = { id: "test", round: 3, status: "S", turn: 0, players: [{ name: "Guest" }], piles: [] };
     context.flashRoundStarter();
     const reminder = messages.pop();
     assert.equal(reminder.text, "Du begynner");
     assert.equal(reminder.includeInLog, false);
     context.currentGame = {
         id: "test", round: 4, status: "S", turn: 0,
-        players: [{ name: "Bjørn", lastPlacement: 3 }, { name: "Guest" }, { name: "Other" }]
+        players: [{ name: "Bjørn", lastPlacement: 3 }, { name: "Guest" }, { name: "Other" }],
+        piles: []
     };
     context.flashRoundStarter();
     const announcement = messages.pop();
     assert.equal(announcement.text, "Bjørn begynner");
     assert.equal(announcement.includeInLog, true);
+    context.currentGame = {
+        id: "test", round: 5, status: "S", turn: 0,
+        players: [{ name: "Guest" }], piles: [{ name: "Other" }]
+    };
+    context.flashRoundStarter();
+    assert.equal(messages.length, 0, "Starter messages are not shown while a trick is on the board");
 });
 
 test("lobby colors stay distinct and at least 60 degrees apart for humans and bots", () => {
