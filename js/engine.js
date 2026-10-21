@@ -134,7 +134,7 @@ class CardPile extends Array {
         return (
             (topPile == null) || // First card in a new pile.
             (this.length == topPile.length && this.strengthRank >= topPile.strengthRank) || // Standard rules.
-            (this.length == 1 && this[0].isClubThree()) // Club three.
+            (topPile.length < 4 && this.length == 1 && this[0].isClubThree()) // Club three.
         )
     }
 }
@@ -1984,6 +1984,11 @@ class PresidentGame extends Game {
         var topPile = this.topPile();
         var fourOfKindOnTop = hasFourOfKindOnTop(this);
         var isClubThree = strengthRank == PresidentCard.clubThreePower();
+        if (fourOfKindOnTop && isClubThree) {
+            resultInfo.svar = false;
+            resultInfo.text = "Kløver 3 kan ikke slå fire like.";
+            return false;
+        }
         if (fourOfKindOnTop && topPile.length < 4 && !isClubThree) {
             resultInfo.svar = false;
             resultInfo.text = "Fire like fra singler eller to par rydder bunken og kan ikke slås.";
@@ -2020,14 +2025,13 @@ class PresidentGame extends Game {
     canPlayPile(player, pile) {
         var topPile = this.topPile();
         var fourOfKindOnTop = hasFourOfKindOnTop(this);
-        var isClubThreePlay = pile != null && pile.length == 1 && pile[0].isClubThree();
-        var canBeatCurrentPile = isClubThreePlay || (fourOfKindOnTop
+        var canBeatCurrentPile = fourOfKindOnTop
             ? pile != null &&
                 topPile.length == 4 &&
                 pile.length == 4 &&
                 pile.every(card => card.strengthRank == pile[0].strengthRank) &&
                 pile.strengthRank >= topPile.strengthRank
-            : pile != null && pile.canBePlayedOn(topPile));
+            : pile != null && pile.canBePlayedOn(topPile);
         return player != null &&
             pile != null &&
             this.status == "S" &&
