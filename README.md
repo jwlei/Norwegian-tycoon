@@ -46,9 +46,3 @@ Run the automated tests with Node.js:
 ```sh
 node --test
 ```
-
-## Search indexing
-
-Static rules pages are available in Norwegian at [/rules/](https://playboms.eu/rules/) and English at [/en/rules/](https://playboms.eu/en/rules/). Both contain the rules as readable HTML without JavaScript, use language-specific canonical URLs and reciprocal `hreflang` links, and are listed in [sitemap.xml](sitemap.xml). The sitemap is advertised in [robots.txt](robots.txt).
-
-These pages are intentionally not linked from the game interface. Keep both translations aligned with the in-game rules when gameplay changes. Static hosts serve each route from its directory's `index.html`; `/rules` normally redirects to `/rules/`.
