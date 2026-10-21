@@ -162,6 +162,14 @@ test("toast visibility limit is independent of animation speed and keeps at most
     vm.runInContext('showGameToast("Visible again", game)', context);
     assert.equal(visible, true);
     assert.equal(timers.length, timerCount + 1);
+    context.gameLogNeedsTrickHeader = true;
+    const reminderLogCount = context.gameLogEntries.length;
+    const reminderTrickCount = context.gameLogTrickCount;
+    vm.runInContext('showGameToast("You start", game, undefined, null, false, false)', context);
+    assert.equal(visible, true, "A toast-only reminder is still displayed");
+    assert.equal(context.gameLogEntries.length, reminderLogCount);
+    assert.equal(context.gameLogTrickCount, reminderTrickCount);
+    assert.equal(context.gameLogNeedsTrickHeader, true, "A reminder must not consume the next trick header");
 });
 
 test("toast expiry fades quickly at fast speed and cancels safely when a new message arrives", () => {
@@ -2743,7 +2751,8 @@ test("the starter toast waits until exchange is complete and the starter can pla
         starterFlashTimer: null, STARTER_FLASH_DURATION_MS: 1000,
         announcedStarterRound: null, announcedBomsStarterGame: null,
         GamePresence: { now: () => 1000, isActionPaused: game => game.paused === true },
-        showGameToast: text => messages.push(text),
+        showGameToast: (text, game, duration, pauseId, endsTrick, includeInLog) =>
+            messages.push({ text, includeInLog }),
         document: { querySelectorAll: () => [] }, setTimeout: () => 1, clearTimeout() {}
     });
     vm.runInContext(source.slice(source.indexOf("        function flashRoundStarter()"),
@@ -2761,18 +2770,22 @@ test("the starter toast waits until exchange is complete and the starter can pla
     assert.equal(messages.length, 0);
     context.currentGame.paused = false;
     context.flashRoundStarter();
-    assert.equal(messages.pop(), "Bjørn er Boms og starter.");
+    assert.equal(messages.pop().text, "Bjørn er Boms og starter.");
     context.flashRoundStarter();
     assert.equal(messages.length, 0, "Snapshots must not repeat the starter announcement");
     context.currentGame = { id: "test", round: 3, status: "S", turn: 0, players: [{ name: "Guest" }] };
     context.flashRoundStarter();
-    assert.equal(messages.pop(), "Du begynner");
+    const reminder = messages.pop();
+    assert.equal(reminder.text, "Du begynner");
+    assert.equal(reminder.includeInLog, false);
     context.currentGame = {
         id: "test", round: 4, status: "S", turn: 0,
         players: [{ name: "Bjørn", lastPlacement: 3 }, { name: "Guest" }, { name: "Other" }]
     };
     context.flashRoundStarter();
-    assert.equal(messages.pop(), "Bjørn begynner");
+    const announcement = messages.pop();
+    assert.equal(announcement.text, "Bjørn begynner");
+    assert.equal(announcement.includeInLog, true);
 });
 
 test("lobby colors stay distinct and at least 60 degrees apart for humans and bots", () => {
