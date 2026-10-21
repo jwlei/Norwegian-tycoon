@@ -11,6 +11,7 @@
         var pendingNewGameName = false;
         var currentGameSubscription = null;
         var currentGameListener = null;
+        var pendingResultsSnapshot = null;
         var connection = null;
         var resumeStorageKey = "norwegian-tycoon-active-game";
         var resumeSubscription = null;
@@ -598,6 +599,7 @@
             }
             currentGameSubscription = null;
             currentGameListener = null;
+            pendingResultsSnapshot = null;
             if (gameEndVoteRefreshTimer != null) {
                 clearTimeout(gameEndVoteRefreshTimer);
                 gameEndVoteRefreshTimer = null;
@@ -731,6 +733,17 @@
             toast.textContent = "";
             activeToastPauseId = null;
             gameToastExpiresAt = 0;
+            if (pendingResultsSnapshot != null) {
+                var pending = pendingResultsSnapshot;
+                pendingResultsSnapshot = null;
+                if (currentGame == pending.game && currentGameListener != null) {
+                    currentGameListener(pending.snapshot);
+                }
+            }
+            if (currentGame?.status == "S" && currentGame.turnPause?.pendingGameEnd &&
+                currentGameListener != null) {
+                handleTurnPause(currentGame);
+            }
         }
 
         function resetGameLog(game) {
@@ -874,6 +887,7 @@
         }
 
         function showGameToast(message, game, duration = game.fastForward === true ? 1000 : GAME_SPEED_MS[currentGameSpeed()], pauseId = null, endsTrick = false, includeInLog = true) {
+            if (game.status == "F") { hideGameToast(); return; }
             ensureGameLog(game);
             positionArchivedToasts();
             var toast = document.getElementById("GameToast");
@@ -913,7 +927,7 @@
                 }
             }
             if (endsTrick) { gameLogNeedsTrickHeader = true; }
-            if (gameToastsHidden()) {
+            if (gameToastsHidden() || game.status == "F") {
                 hideGameToast();
                 return;
             }
@@ -1125,6 +1139,9 @@
                 });
                 return;
             }
+            if (phase == "saved" && event.detail.snapshot) {
+                currentGameListener(event.detail.snapshot);
+            }
             refreshAfterTurnPause(game);
             handleTurnPause(game);
             updateTurnTimer();
@@ -1145,6 +1162,8 @@
         window.addEventListener("resize", positionArchivedToasts);
 
         function completeTurnPause(game, pause) {
+            if (pause.pendingGameEnd && !gameToastsHidden() &&
+                document.getElementById("GameToast").classList.contains("is-visible")) { return; }
             if (pause.presentationVersion == 1) {
                 completeLocalPresentation(game, pause);
                 return;
@@ -1329,6 +1348,8 @@
             var player = game.getPlayer(currentPlayerName);
             var next = game.players[game.turn];
             if (pause.pendingGameEnd) {
+                if (!gameToastsHidden() &&
+                    document.getElementById("GameToast").classList.contains("is-visible")) { return; }
                 if (GamePresence.canDrive(game, GamePresence.now())) {
                     var remaining = pause.botUntil - GamePresence.now();
                     if (remaining > 0) {
@@ -1871,8 +1892,11 @@
             currentGameSubscription = connectingGame.databaseRef;
             currentGameListener = function (snapshot) {
                 if (currentGame != connectingGame) { return; }
+                // Presence and readiness updates can still contain the pre-move hand.
+                // The transaction completion supplies the authoritative committed snapshot.
+                if (connectingGame.localWritePending) { return; }
                 var snapshotRecord = snapshot.val();
-                if (snapshotRecord == null || snapshotRecord.status != "S" ||
+                if (snapshotRecord == null || !["S", "F"].includes(snapshotRecord.status) ||
                     snapshotRecord.shuffleStartedAt != connectingGame.shuffleStartedAt) {
                     presentationSnapshots = [];
                     completingPresentationId = null;
@@ -1881,11 +1905,18 @@
                 if (snapshotRecord && activePause?.presentationVersion == 1 &&
                     connectingGame.presentationCompletedPauseId != activePause.id &&
                     snapshotRecord.turnPause?.id != activePause.id &&
-                    snapshotRecord.status == "S" &&
+                    (snapshotRecord.status == "S" || snapshotRecord.status == "F") &&
                     snapshotRecord.shuffleStartedAt == connectingGame.shuffleStartedAt) {
                     presentationSnapshots.push(snapshot);
                     return;
                 }
+                if (snapshotRecord?.status == "F" && connectingGame.status == "S" &&
+                    !gameToastsHidden() &&
+                    document.getElementById("GameToast").classList.contains("is-visible")) {
+                    pendingResultsSnapshot = { game: connectingGame, snapshot };
+                    return;
+                }
+                pendingResultsSnapshot = null;
                 if (snapshotRecord != null && GamePresence.isExpired(snapshotRecord,
                     connection ? connection.now() : GamePresence.now())) {
                     voidExpiredSession(connectingGame.databaseRef);
@@ -1895,6 +1926,7 @@
                     var storedPlayers = snapshotRecord["spillere"] || [];
                     var storedPiles = snapshotRecord["spillBunke"] || [];
                     connectingGame.status = snapshotRecord.status;
+                    if (connectingGame.status == "F") { hideGameToast(); }
                     connectingGame.hostKey = snapshotRecord["hostKey"] || null;
                     connectingGame.hostName = snapshotRecord["hostName"] || null;
                     connectingGame.isPublic = snapshotRecord["isPublic"] === true;

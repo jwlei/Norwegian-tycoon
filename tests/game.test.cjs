@@ -76,7 +76,7 @@ test("toast visibility limit is independent of animation speed and keeps at most
     };
     const region = { dataset: { animationSpeed: "normal" }, appendChild() {}, querySelectorAll: () => [] };
     const context = vm.createContext({
-        currentGame: null, spectatorJoinToastTimer: null,
+        currentGame: null, pendingResultsSnapshot: null, spectatorJoinToastTimer: null,
         getCookie: key => key == "HideGameToasts" ? String(hideToasts) :
             key == "MaxVisibleMessages" ? maxVisible : animationSpeed,
         getComputedStyle: () => ({ transform: "matrix(1, 0, 0, 1, 0, 23)" }),
@@ -191,6 +191,7 @@ test("toast expiry fades quickly at fast speed and cancels safely when a new mes
         }
     };
     const context = vm.createContext({
+        currentGame: null, pendingResultsSnapshot: null,
         window: { matchMedia: () => ({ matches: reducedMotion }) },
         archivedToasts: [], gameToastTimer: 1, activeToastPauseId: "pause", gameToastExpiresAt: 5000,
         clearTimeout() {},
