@@ -2128,9 +2128,14 @@ class GameLayout {
             if (handScrollDrag) { element.onpointercancel(); }
             stopCardHandInertia();
             var downTime = pointerEventTime(event);
+            var returningTarget = returningCardDragTarget(element, event.target);
             var cardElement = (event.target instanceof Element)
                 ? event.target.closest(".game-card")
                 : null;
+            if (returningTarget && returningTarget.onPreview) {
+                // Until it is caught, a press on the gliding card counts as one on its hand slot.
+                cardElement = handCardElement(element, returningTarget.hitKey);
+            }
             var card = cardElement
                 ? player.cards.find(candidate =>
                     `${candidate.suit}:${candidate.rank}` == cardElement.dataset.cardKey
@@ -2153,6 +2158,8 @@ class GameLayout {
                 lastFlickDistance: 0,
                 lastFlickVelocity: 0,
                 lastX: event.clientX,
+                previewStartX: event.clientX,
+                previewStartY: event.clientY,
                 startTime: Date.now(),
                 lastMoveTime: performance.now(),
                 startScrollLeft: element.scrollLeft,
@@ -2173,7 +2180,27 @@ class GameLayout {
                 suggestionsBeforeDrag: Array.from(autoSuggestedCardKeys),
                 strengthBeforeDrag: selectedCardStrength
             };
-            if (card && handScrollDrag.canDragToPlay) {
+            var caught = null;
+            if (returningTarget && card && handScrollDrag.canDragToPlay) {
+                var caughtCards = returningTarget.keys.map(key =>
+                    player.cards.find(candidate => `${candidate.suit}:${candidate.rank}` == key));
+                if (caughtCards.every(caughtCard => caughtCard != null) && canPlayCaughtCards(caughtCards)) {
+                    caught = catchReturningCardDrag(element, returningTarget, event);
+                }
+                if (caught) {
+                    clearCardSelection();
+                    selectedCardStrength = caughtCards[0].strengthRank;
+                    returningTarget.keys.forEach(key => selectedCardKeys.add(key));
+                    // The card is already in the air: keep dragging it from where it was caught.
+                    Object.assign(handScrollDrag, {
+                        axis: "vertical", didMove: true, didPlayDrag: true, canPlay: true,
+                        isSelectedCard: true,
+                        previewStartX: event.clientX - caught.x,
+                        previewStartY: event.clientY - caught.y
+                    });
+                }
+            }
+            if (!caught && card && handScrollDrag.canDragToPlay) {
                 handScrollDrag.canPlay = selectCardsForSwipe(card);
                 if (event.pointerType == "mouse" &&
                     (handScrollDrag.canPlay || handScrollDrag.isSelectedCard)) {
@@ -2258,11 +2285,11 @@ class GameLayout {
                 }
                 if (handScrollDrag.canPlay) {
                     event.preventDefault();
-                    moveCardDragPreview(element, event, handScrollDrag.startX, handScrollDrag.startY);
+                    moveCardDragPreview(element, event, handScrollDrag.previewStartX, handScrollDrag.previewStartY);
                 }
             }
             if (handScrollDrag.axis == null && element._cardDragPreview) {
-                moveCardDragPreview(element, event, handScrollDrag.startX, handScrollDrag.startY);
+                moveCardDragPreview(element, event, handScrollDrag.previewStartX, handScrollDrag.previewStartY);
             }
         };
         element.onpointerup = function (event) {
@@ -2549,6 +2576,10 @@ class GameLayout {
                 selectedCardKeys.add(`${selectedCard.suit}:${selectedCard.rank}`)
             );
             return true;
+        };
+        var canPlayCaughtCards = function (cards) {
+            return cards.length > 0 && playableStrengths.has(cards[0].strengthRank) &&
+                game.canPlayPile(player, new CardPile(player.name, ...cards));
         };
         var clearDragStyles = function () {
             element.querySelectorAll(".game-card.is-dragging").forEach(draggedCard => {

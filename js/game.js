@@ -513,10 +513,20 @@ function returnCardDragPreview(hand) {
         return;
     }
     // Detach the gliding preview so a new gesture or a hand rebuild cannot cut it short;
-    // it removes itself once it has landed back in the hand.
+    // it removes itself once it has landed back in the hand unless it is caught again.
     hand._cardDragPreview = null;
+    hand._returningCardDrag = drag;
     drag.returning = true;
     if (drag.frame != null) { cancelAnimationFrame(drag.frame); drag.frame = null; }
+    drag.release = drag.previews.map(preview => ({
+        x: parseFloat(preview.style.getPropertyValue("--drag-offset-x")) || 0,
+        y: parseFloat(preview.style.getPropertyValue("--drag-offset-y")) || 0,
+        scale: parseFloat(preview.style.getPropertyValue("--drag-scale")) || 1,
+        tiltX: parseFloat(preview.style.getPropertyValue("--tilt-x")) || 0,
+        tiltY: parseFloat(preview.style.getPropertyValue("--tilt-y")) || 0
+    }));
+    drag.releasePitch = drag.pitch;
+    drag.releaseYaw = drag.yaw;
     drag.previews.forEach(preview => {
         preview.getBoundingClientRect();
         preview.classList.add("is-returning");
@@ -530,7 +540,83 @@ function returnCardDragPreview(hand) {
         preview.classList.remove("is-tilting");
     });
     document.getElementById("gameTable").classList.remove("is-card-drop-target");
-    setTimeout(() => removeCardDragPreview(drag), 340);
+    // The layer lives outside the hand, so forward presses on the gliding card to it.
+    drag.layer.onpointerdown = event => {
+        if (drag.returning && typeof hand.onpointerdown == "function") { hand.onpointerdown(event); }
+    };
+    var token = drag.returnToken = (drag.returnToken || 0) + 1;
+    drag.returnTimer = setTimeout(() => {
+        // A caught (and possibly re-released) card must not be removed by an older glide.
+        if (!drag.returning || drag.returnToken != token) { return; }
+        removeCardDragPreview(drag);
+        if (hand._returningCardDrag == drag) { hand._returningCardDrag = null; }
+    }, 340);
+}
+
+// Describes a press on a card that is still gliding back, or on its empty slot in the hand.
+function returningCardDragTarget(hand, target) {
+    var drag = hand._returningCardDrag;
+    if (!drag || !drag.returning || !(target instanceof Element)) { return null; }
+    var hit = target.closest(".game-card");
+    if (!hit) { return null; }
+    var keys = drag.previews.map(preview => preview.dataset.cardKey);
+    var onPreview = drag.previews.includes(hit);
+    if (!onPreview && (hit.parentElement != hand || !keys.includes(hit.dataset.cardKey))) { return null; }
+    return { drag, keys, hitKey: hit.dataset.cardKey, onPreview };
+}
+
+function handCardElement(hand, key) {
+    return Array.from(hand.querySelectorAll(".game-card"))
+        .find(card => card.parentElement == hand && card.dataset.cardKey == key) || null;
+}
+
+// Stops a gliding card where it currently is and makes it the active drag again.
+// Returns its current offset from the hand, or null when its cards left the hand.
+function catchReturningCardDrag(hand, target, event) {
+    var drag = target.drag;
+    if (hand._returningCardDrag != drag || !drag.returning) { return null; }
+    var cards = target.keys.map(key => handCardElement(hand, key));
+    if (cards.some(card => card == null)) { return null; }
+    var preview = drag.previews[0];
+    var bounds = preview.getBoundingClientRect();
+    var left = parseFloat(preview.style.left) || 0;
+    var top = parseFloat(preview.style.top) || 0;
+    var width = parseFloat(preview.style.width) || bounds.width;
+    var height = parseFloat(preview.style.height) || bounds.height;
+    var x = bounds.left + bounds.width / 2 - (left + width / 2);
+    var y = bounds.top + bounds.height / 2 - (top + height / 2);
+    var release = drag.release[0];
+    var releaseDistance = Math.hypot(release.x, release.y);
+    // One transform transition drives offset, scale and tilt with the same easing,
+    // so the remaining offset tells how far the rest of the glide has progressed.
+    var remaining = releaseDistance > 0
+        ? Math.max(0, Math.min(1, Math.hypot(x, y) / releaseDistance)) : 0;
+    clearCardDragPreview(hand);
+    clearTimeout(drag.returnTimer);
+    drag.returning = false;
+    drag.layer.onpointerdown = null;
+    hand._returningCardDrag = null;
+    drag.previews.forEach((preview, index) => {
+        var start = drag.release[index];
+        preview.classList.remove("is-returning");
+        preview.style.setProperty("--drag-offset-x", `${x}px`);
+        preview.style.setProperty("--drag-offset-y", `${y}px`);
+        preview.style.setProperty("--drag-scale", `${1 + (start.scale - 1) * remaining}`);
+        preview.style.setProperty("--tilt-x", `${(start.tiltX * remaining).toFixed(2)}deg`);
+        preview.style.setProperty("--tilt-y", `${(start.tiltY * remaining).toFixed(2)}deg`);
+    });
+    drag.pitch = drag.targetPitch = (drag.releasePitch || 0) * remaining;
+    drag.yaw = drag.targetYaw = (drag.releaseYaw || 0) * remaining;
+    drag.pointerX = drag.sampledX = event.clientX;
+    drag.pointerY = drag.sampledY = event.clientY;
+    drag.lastFrameTime = null;
+    drag.cards = cards;
+    cards.forEach((card, index) => {
+        card.classList.add("is-drag-source");
+        card._dragPreview = drag.previews[index];
+    });
+    hand._cardDragPreview = drag;
+    return { x, y };
 }
 
 function stopCardHandInertia() {

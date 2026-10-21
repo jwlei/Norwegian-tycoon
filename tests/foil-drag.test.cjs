@@ -778,7 +778,7 @@ test("slow drops play only on the board and flicks require 10 pixels at 0.4 pixe
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 200 }), false);
 });
 
-function pointerFixture({ desktop = false, valid = true, mode = "flick", blocked = false } = {}) {
+function pointerFixture({ desktop = false, valid = true, mode = "flick", blocked = false, catchable = true } = {}) {
     const f = fixture();
     const hand = new Element();
     hand.scrollLeft = 200;
@@ -803,6 +803,7 @@ function pointerFixture({ desktop = false, valid = true, mode = "flick", blocked
         return valid;
     };
     context.playSelectedCards = () => { state.plays++; return true; };
+    context.canPlayCaughtCards = () => catchable;
     context.showInvalidCardWarning = () => state.warnings++;
     context.startCardHandInertia = (element, velocity) => {
         state.scrolls++;
@@ -1696,8 +1697,8 @@ test("a flick from a non-primary touch still plays, but a second finger cannot h
     assert.equal(f.state.plays, 1);
 });
 
-test("a card sliding back keeps gliding while a new gesture or hand rebuild starts", () => {
-    const f = pointerFixture();
+test("a card sliding back keeps gliding while an uncaught gesture or hand rebuild starts", () => {
+    const f = pointerFixture({ catchable: false });
     f.hand.onpointerdown(f.event(100, 500));
     f.advance(2000);
     f.hand.onpointermove(f.event(100, 400));
@@ -1758,4 +1759,93 @@ test("snapshot refreshes during a hand gesture are deferred instead of cancellin
     assert.equal(updates[0][1], player);
     assert.equal(updates[0][3], true);
     assert.equal(pointer.hand._deferredHandUpdate, null);
+});
+
+function missedReturn(options = {}) {
+    const f = pointerFixture(options);
+    f.hand.onpointerdown(f.event(100, 500));
+    f.advance(2000);
+    f.hand.onpointermove(f.event(100, 400));
+    f.hand.onpointerup(f.event(100, 400));
+    const layer = f.body.children[0];
+    const preview = layer.children[0];
+    const timer = f.timers.at(-1);
+    // Mid-glide: 40% of the 100 px offset is left.
+    preview.bounds = { left: 0, top: -40, right: 400, bottom: 260, width: 400, height: 300 };
+    const press = (x, y, target = preview) => Object.assign(f.event(x, y), { target });
+    return { ...f, layer, preview, timer, press };
+}
+
+test("grabbing a card while it glides back catches the same preview without a second copy", () => {
+    const f = missedReturn();
+    const drag = f.hand._returningCardDrag;
+    assert.equal(drag.returning, true);
+    assert.equal(f.preview.classList.contains("is-returning"), true);
+    f.layer.onpointerdown(f.press(100, 460));
+    assert.equal(f.hand._cardDragPreview, drag);
+    assert.equal(f.hand._returningCardDrag, null);
+    assert.equal(drag.returning, false);
+    assert.equal(f.body.children.length, 1, "No second copy is created");
+    assert.equal(f.preview.classList.contains("is-returning"), false);
+    assert.equal(f.preview.properties.get("--drag-offset-y"), "-40px");
+    assert.equal(f.card.classList.contains("is-drag-source"), true);
+    f.timer.callback();
+    assert.equal(f.body.children.length, 1, "The old glide timer never removes a caught card");
+    assert.equal(f.hand._cardDragPreview, drag);
+});
+
+test("a caught card follows the finger from where it was caught and can still be flicked", () => {
+    const f = missedReturn();
+    f.layer.onpointerdown(f.press(100, 460));
+    f.advance(2010);
+    f.hand.onpointermove(f.press(100, 450));
+    assert.equal(f.preview.properties.get("--drag-offset-y"), "-50px", "No jump back to the hand");
+    f.advance(2030);
+    f.hand.onpointermove(f.press(100, 425));
+    f.hand.onpointerup(f.press(100, 425));
+    assert.equal(f.state.plays, 1);
+    assert.equal(f.body.children.length, 0);
+});
+
+test("pressing the empty hand slot catches the gliding card too", () => {
+    const f = missedReturn();
+    const drag = f.hand._returningCardDrag;
+    f.hand.onpointerdown(f.press(100, 500, f.card));
+    assert.equal(f.hand._cardDragPreview, drag);
+    assert.equal(f.body.children.length, 1);
+    assert.equal(f.preview.properties.get("--drag-offset-y"), "-40px");
+});
+
+test("a re-released caught card glides back again and only its newest timer removes it", () => {
+    const f = missedReturn();
+    f.layer.onpointerdown(f.press(100, 460));
+    f.advance(3000);
+    f.hand.onpointermove(f.press(100, 400));
+    f.hand.onpointerup(f.press(100, 400));
+    assert.equal(f.preview.classList.contains("is-returning"), true);
+    const newer = f.timers.at(-1);
+    assert.notEqual(newer, f.timer);
+    f.timer.callback();
+    assert.equal(f.body.children.length, 1);
+    newer.callback();
+    assert.equal(f.body.children.length, 0);
+    assert.equal(f.hand._returningCardDrag, null);
+});
+
+test("unplayable or vanished cards are not caught and keep gliding back", () => {
+    const unplayable = missedReturn({ catchable: false });
+    unplayable.layer.onpointerdown(unplayable.press(100, 460));
+    assert.equal(unplayable.hand._cardDragPreview, null);
+    assert.equal(unplayable.preview.classList.contains("is-returning"), true);
+    unplayable.hand.onpointerup(unplayable.press(100, 460));
+    unplayable.timer.callback();
+    assert.equal(unplayable.body.children.length, 0);
+
+    const rebuilt = missedReturn();
+    rebuilt.hand.children = [];
+    rebuilt.layer.onpointerdown(rebuilt.press(100, 460));
+    assert.equal(rebuilt.hand._cardDragPreview, null);
+    assert.equal(rebuilt.preview.classList.contains("is-returning"), true);
+    rebuilt.timer.callback();
+    assert.equal(rebuilt.body.children.length, 0);
 });
