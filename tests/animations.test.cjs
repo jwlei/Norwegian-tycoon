@@ -73,6 +73,7 @@ test("bot flicks vary landing, strength and tilt without consuming strategy rand
 test("normal play animation restores the original movement, easing and card stagger", () => {
     const animations = [];
     const flights = [];
+    const layoutEvents = [];
     const element = () => ({
         src: "data:image/svg+xml,card",
         dataset: {},
@@ -91,14 +92,20 @@ test("normal play animation restores the original movement, easing and card stag
     const targetImage = element();
     const context = load({
         window: { innerWidth: 1000, innerHeight: 800, matchMedia: () => ({ matches: false }) },
-        document: { createElement: element, body: { appendChild(flight) { flights.push(flight); } } }
+        document: { createElement: element, body: { appendChild(flight) {
+            layoutEvents.push("write");
+            flights.push(flight);
+        } } }
     });
     context.target = {
         dataset: { cardStyle: "normal", foil: "galaxy" },
         style: { getPropertyValue: () => "0" },
         querySelector: () => targetImage,
         animate() {},
-        getBoundingClientRect: () => ({ left: 200, top: 200, width: 80, height: 120 })
+        getBoundingClientRect: () => {
+            layoutEvents.push("read");
+            return { left: 200, top: 200, width: 80, height: 120 };
+        }
     };
     vm.runInContext(`
         var pile = new CardPile("Owner", ...[1,2,3,4].map(suit => new PresidentCard(suit, 7)));
@@ -109,6 +116,7 @@ test("normal play animation restores the original movement, easing and card stag
         });
     `, context);
     assert.equal(animations.length, 4);
+    assert.deepEqual(layoutEvents, [...Array(4).fill("read"), ...Array(4).fill("write")]);
     assert.equal(flights.length, 4);
     flights.forEach(flight => {
         assert.match(flight.className, /card-preview--normal/);
@@ -261,15 +269,19 @@ test("clear animation scheduling includes the original duration and every card's
 test("discard animation restores the original easing and scales duration and stagger together", () => {
     for (const [speed, factor] of [["fast", 0.5], ["normal", 1], ["slow", 1.5]]) {
         const timings = [];
+        const layoutEvents = [];
         const context = load({
             getCookie: () => speed,
             window: { innerHeight: 800, matchMedia: () => ({ matches: false }) },
-            document: { body: { appendChild() {} } }
+            document: { body: { appendChild() { layoutEvents.push("write"); } } }
         });
         context.table = {
             querySelectorAll: () => Array.from({ length: 4 }, () => ({
                 style: { getPropertyValue: () => "0" },
-                getBoundingClientRect: () => ({ left: 100, top: 100, width: 80, height: 120 }),
+                getBoundingClientRect: () => {
+                    layoutEvents.push("read");
+                    return { left: 100, top: 100, width: 80, height: 120 };
+                },
                 cloneNode: () => ({
                     style: {}, setAttribute() {}, classList: { add() {} },
                     animate(frames, timing) { timings.push(timing); return {}; }
@@ -278,10 +290,36 @@ test("discard animation restores the original easing and scales duration and sta
         };
         vm.runInContext("GameLayout.animateDiscardedCards(table)", context);
         assert.equal(timings.length, 4);
+        assert.deepEqual(layoutEvents, [...Array(4).fill("read"), ...Array(4).fill("write")]);
         timings.forEach((timing, index) => {
             assert.equal(timing.duration, 720 * factor);
             assert.equal(timing.delay, index * 12 * factor);
             assert.equal(timing.easing, "cubic-bezier(.45,0,.8,.4)");
+        });
+
+        test("hand reflow measures all remaining cards before starting any animation", () => {
+            const events = [];
+            const cards = ["1:7", "2:7"].map(cardKey => ({
+                dataset: { cardKey },
+                getBoundingClientRect() {
+                    events.push("read");
+                    return { left: 10, top: 20 };
+                },
+                animate(frames, timing) {
+                    events.push("animate");
+                    assert.equal(frames[0].translate, "20px 20px");
+                    assert.equal(frames[1].translate, "0px 0px");
+                    assert.equal(timing.duration, 320);
+                    assert.equal(timing.easing, "cubic-bezier(0.2, 0.8, 0.2, 1)");
+                }
+            }));
+            const context = load({
+                window: { matchMedia: () => ({ matches: false }) },
+                hand: { querySelectorAll: () => cards },
+                previous: new Map(["1:7", "2:7", "3:7"].map(key => [key, { left: 30, top: 40 }]))
+            });
+            vm.runInContext("GameLayout.animateHandReflow(hand, previous)", context);
+            assert.deepEqual(events, ["read", "read", "animate", "animate"]);
         });
     }
 });

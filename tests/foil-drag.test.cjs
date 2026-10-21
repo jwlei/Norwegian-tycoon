@@ -168,6 +168,31 @@ test("foil is applied to shared image helpers without changing card backs", () =
     assert.doesNotMatch(decodeURIComponent(types.GameLayout.createCardImage(types.Card.createBack()).src), /data-foil=/);
 });
 
+test("card SVG caching reuses identical artwork and stays bounded across styles and foils", () => {
+    const { Card, PresidentCard } = fixture().types;
+    const imageSource = Card.imageSource;
+    let generated = 0;
+    Card.imageSource = svg => { generated++; return imageSource(svg); };
+    const first = new PresidentCard(1, 7).toImageDataUri("normal", "galaxy");
+    assert.equal(new PresidentCard(1, 7).toImageDataUri("normal", "galaxy"), first);
+    assert.equal(generated, 1);
+    assert.notEqual(new PresidentCard(1, 7).toImageDataUri("pixel", "galaxy"), first);
+    assert.notEqual(new PresidentCard(1, 7).toImageDataUri("normal", "gold"), first);
+    assert.notEqual(new PresidentCard(2, 7).toImageDataUri("normal", "galaxy"), first);
+    assert.notEqual(new PresidentCard(1, 8).toImageDataUri("normal", "galaxy"), first);
+    for (const foil of Card.foilOptions()) {
+        for (let suit = 1; suit <= 4; suit++) {
+            for (let rank = 1; rank <= 13; rank++) {
+                new PresidentCard(suit, rank).toImageDataUri("normal", foil.id);
+            }
+        }
+    }
+    assert.ok(Card.imageCache.size <= 256);
+    const before = generated;
+    assert.equal(new PresidentCard(1, 7).toImageDataUri("normal", "galaxy"), first);
+    assert.equal(generated, before + 1, "Evicted artwork is regenerated identically");
+});
+
 test("card images disable native browser dragging in both rendering helpers", () => {
     const { types } = fixture();
     for (const card of [new types.PresidentCard(2, 1), types.Card.createBack()]) {

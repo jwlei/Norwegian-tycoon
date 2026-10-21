@@ -646,14 +646,22 @@ class GameLayout {
             finishedAnimations++;
             if (finishedAnimations == pendingAnimations && onComplete) { onComplete(); }
         };
+        // Measure every destination before inserting flights or hiding table cards.
+        var destinations = Array.from(pile, card => {
+            var target = playElement.querySelector(`[data-card-key="${card.suit}:${card.rank}"]`);
+            if (!target || typeof target.animate != "function") { return null; }
+            var image = target.src ? target : target.querySelector("img");
+            if (image == null) { return null; }
+            return { target: target, image: image, bounds: GameLayout.unrotatedCardBounds(target) };
+        });
         pile.forEach((card, cardIndex) => {
             var cardKey = `${card.suit}:${card.rank}`;
             var source = (origins && origins.cardOrigins.get(cardKey)) || playerOrigin;
-            var target = playElement.querySelector(`[data-card-key="${cardKey}"]`);
-            if (!target || typeof target.animate != "function") { return; }
-            var targetImage = target.src ? target : target.querySelector("img");
-            if (targetImage == null) { return; }
-            var targetBounds = GameLayout.unrotatedCardBounds(target);
+            var destination = destinations[cardIndex];
+            if (destination == null) { return; }
+            var target = destination.target;
+            var targetImage = destination.image;
+            var targetBounds = destination.bounds;
             if (targetBounds.width == 0 || targetBounds.height == 0) { return; }
             if (!source || source.width == 0 || source.height == 0) {
                 source = {
@@ -837,8 +845,10 @@ class GameLayout {
             completeIfReady();
             return;
         }
-        table.querySelectorAll(".table-play__card").forEach((card, index) => {
-            var bounds = GameLayout.unrotatedCardBounds(card);
+        var cards = Array.from(table.querySelectorAll(".table-play__card"));
+        var cardBounds = cards.map(card => GameLayout.unrotatedCardBounds(card));
+        cards.forEach((card, index) => {
+            var bounds = cardBounds[index];
             if (bounds.width == 0 || bounds.height == 0) { return; }
             var rotation = parseFloat(card.style.getPropertyValue("--pile-rotation")) || 0;
             var flight = card.cloneNode(true);
@@ -2541,6 +2551,8 @@ class GameLayout {
             } else {
                 setClass(element, "card-hand", true);
                 setClass(element, "hand-explanation", false);
+                var handStyle = GameLayout.cardStyle();
+                var handFoil = GameLayout.cardFoil();
                 var cardIndex = -1;
                 player.cards.forEach(k => {
                     cardIndex++;
@@ -2553,11 +2565,11 @@ class GameLayout {
                     var cardKey = `${k.suit}:${k.rank}`;
                     elemKort.className = "game-card";
                     elemKort.dataset.cardKey = cardKey;
-                    elemKort.dataset.foil = GameLayout.cardFoil();
-                    elemKort.dataset.cardStyle = GameLayout.cardStyle();
+                    elemKort.dataset.foil = handFoil;
+                    elemKort.dataset.cardStyle = handStyle;
                     elemKort.style.setProperty("--card-offset", "0px");
                     elemKort.style.setProperty("--card-rotation", `${fanPosition}deg`);
-                    elemKort.innerHTML = GameLayout.cardImageHtml(k, null, null, GameLayout.cardStyle());
+                    elemKort.appendChild(GameLayout.createCardImage(k, null, handStyle, handFoil));
                     var isSelected = selectedCardKeys.has(cardKey);
                     var isPlayable = isPlayingTurn && playableStrengths.has(k.strengthRank);
                     if (isSelected) {
@@ -2826,10 +2838,11 @@ class GameLayout {
             cards.some(card => !previousBounds.has(card.dataset.cardKey))) {
             return;
         }
-        cards.forEach(card => {
+        var currentBounds = cards.map(card => card.getBoundingClientRect());
+        cards.forEach((card, index) => {
             if (typeof card.animate != "function") { return; }
             var before = previousBounds.get(card.dataset.cardKey);
-            var after = card.getBoundingClientRect();
+            var after = currentBounds[index];
             var dx = before.left - after.left;
             var dy = before.top - after.top;
             if (Math.abs(dx) < 1 && Math.abs(dy) < 1) { return; }
