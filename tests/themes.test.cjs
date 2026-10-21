@@ -242,7 +242,7 @@ test("auto-suggestion is enabled by default and lives below the board on the lef
     assert.match(css, /#suggestionControls\s*\{[^}]*top:\s*4px;[^}]*left:\s*8px;/);
     assert.match(css, /#fastForwardButton,\s*#autoSuggestionToggleButton,\s*#autoPassToggleButton\s*\{[^}]*color:\s*var\(--muted\);/);
     assert.match(css, /#autoSuggestionToggleButton > \[aria-hidden\],\s*#autoPassToggleButton > \[aria-hidden\]\s*\{[^}]*font-size:\s*20px;/);
-    assert.match(css, /#autoSuggestionToggleButton\[aria-pressed="false"\] > \.auto-suggestion-on,\s*#autoSuggestionToggleButton\[aria-pressed="true"\] > \.auto-suggestion-off,\s*#autoPassToggleButton\[aria-pressed="false"\] > \.auto-suggestion-on,\s*#autoPassToggleButton\[aria-pressed="true"\] > \.auto-suggestion-off\s*\{\s*display:\s*none;/);
+    assert.match(css, /#autoSuggestionToggleButton\[aria-pressed="false"\] > \.auto-suggestion-on,\s*#autoSuggestionToggleButton\[aria-pressed="true"\] > \.auto-suggestion-off,\s*#autoPassToggleButton\[aria-pressed="false"\] > \.auto-pass-on,\s*#autoPassToggleButton\[aria-pressed="true"\] > \.auto-pass-off\s*\{\s*display:\s*none;/);
     const game = fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8");
     assert.ok(game.includes('getCookie("AutoSuggestPlayableCards") != "false"'));
     const connection = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
@@ -258,6 +258,14 @@ test("Suggest move and opt-in Auto pass are stacked matching controls with trans
     const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
     assert.ok(translations.includes('"Foreslå trekk": "Suggest move"'));
     assert.ok(translations.includes('"Auto-pass": "Auto pass"'));
+});
+
+test("auto pass uses distinct switch icons with right-on and left-off positions", () => {
+    const control = html.slice(html.indexOf('id="autoPassToggleButton"'), html.indexOf('id="gameToastRegion"'));
+    assert.match(control, /<svg class="auto-pass-on"[^>]*aria-hidden="true"[^>]*>.*<circle cx="16"/);
+    assert.match(control, /<svg class="auto-pass-off"[^>]*aria-hidden="true"[^>]*>.*<circle cx="8"/);
+    assert.doesNotMatch(control, /auto-suggestion-on|auto-suggestion-off/);
+    assert.match(css, /#autoPassToggleButton\[aria-pressed="true"\] > \.auto-pass-on\s*\{\s*color:\s*var\(--success\);/);
 });
 
 test("desktop uses taller two-line toasts and the same shell and toolbar in every screen", () => {

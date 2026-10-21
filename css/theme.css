@@ -3464,9 +3464,13 @@ select:focus-visible {
 
 #autoSuggestionToggleButton[aria-pressed="false"] > .auto-suggestion-on,
 #autoSuggestionToggleButton[aria-pressed="true"] > .auto-suggestion-off,
-#autoPassToggleButton[aria-pressed="false"] > .auto-suggestion-on,
-#autoPassToggleButton[aria-pressed="true"] > .auto-suggestion-off {
+#autoPassToggleButton[aria-pressed="false"] > .auto-pass-on,
+#autoPassToggleButton[aria-pressed="true"] > .auto-pass-off {
     display: none;
+}
+
+#autoPassToggleButton[aria-pressed="true"] > .auto-pass-on {
+    color: var(--success);
 }
 
 #fastForwardButton[hidden],
