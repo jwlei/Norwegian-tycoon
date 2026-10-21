@@ -448,9 +448,11 @@
             var isFirstBomsStart = starter.lastPlacement == game.players.length &&
                 announcedBomsStarterGame != game.id;
             if (isFirstBomsStart) { announcedBomsStarterGame = game.id; }
+            var isPlayerReminder = !isFirstBomsStart && starterName == currentPlayerName;
             showGameToast(isFirstBomsStart
                 ? `${starterName} er Boms og starter.`
-                : (starterName == currentPlayerName ? "Du begynner" : `${starterName} begynner`), game);
+                : (isPlayerReminder ? "Du begynner" : `${starterName} begynner`),
+                game, undefined, null, false, !isPlayerReminder);
             document.querySelectorAll("#playerList [data-player-name]").forEach(element => {
                 element.classList.toggle(
                     "player-summary--starter-flash",
@@ -870,7 +872,7 @@
             });
         }
 
-        function showGameToast(message, game, duration = game.fastForward === true ? 1000 : GAME_SPEED_MS[currentGameSpeed()], pauseId = null, endsTrick = false) {
+        function showGameToast(message, game, duration = game.fastForward === true ? 1000 : GAME_SPEED_MS[currentGameSpeed()], pauseId = null, endsTrick = false, includeInLog = true) {
             ensureGameLog(game);
             positionArchivedToasts();
             var toast = document.getElementById("GameToast");
@@ -888,24 +890,26 @@
             toast.replaceChildren();
             var players = game.players.slice().filter(player => player.name)
                 .sort((a, b) => b.name.length - a.name.length);
-            var logEntry = {
-                message: message,
-                players: players.map(player => ({
-                    name: player.name,
-                    displayColor: player.displayColor
-                }))
-            };
-            var logIsOpen = document.getElementById("dialogSpillogg")
-                .classList.contains("dialog-container--visible");
-            if (gameLogNeedsTrickHeader) {
-                var trickEntry = { trick: ++gameLogTrickCount };
-                gameLogEntries.push(trickEntry);
-                if (logIsOpen) { appendGameLogEntry(trickEntry); }
-                gameLogNeedsTrickHeader = false;
-            }
-            gameLogEntries.push(logEntry);
-            if (logIsOpen) {
-                appendGameLogEntry(logEntry);
+            if (includeInLog) {
+                var logEntry = {
+                    message: message,
+                    players: players.map(player => ({
+                        name: player.name,
+                        displayColor: player.displayColor
+                    }))
+                };
+                var logIsOpen = document.getElementById("dialogSpillogg")
+                    .classList.contains("dialog-container--visible");
+                if (gameLogNeedsTrickHeader) {
+                    var trickEntry = { trick: ++gameLogTrickCount };
+                    gameLogEntries.push(trickEntry);
+                    if (logIsOpen) { appendGameLogEntry(trickEntry); }
+                    gameLogNeedsTrickHeader = false;
+                }
+                gameLogEntries.push(logEntry);
+                if (logIsOpen) {
+                    appendGameLogEntry(logEntry);
+                }
             }
             if (endsTrick) { gameLogNeedsTrickHeader = true; }
             if (gameToastsHidden()) {
