@@ -888,9 +888,9 @@ test("short flicks work throughout the upward 160 degree cone on mouse and touch
     }
 });
 
-test("touch pickup accepts the full initial 145-degree cone from the contact point", () => {
+test("touch pickup accepts the full initial 130-degree cone from the contact point", () => {
     for (const selected of [false, true]) {
-        for (const angle of [-72.5, -72, -60, -45, 0, 45, 60, 72, 72.5]) {
+        for (const angle of [-65, -64, -60, -45, 0, 45, 60, 64, 65]) {
             const f = pointerFixture();
             if (selected) { vm.runInContext('selectedCardKeys.add("1:5")', f.context); }
             const radians = angle * Math.PI / 180;
@@ -908,8 +908,8 @@ test("touch pickup accepts the full initial 145-degree cone from the contact poi
     }
 });
 
-test("touch strokes in the narrow gap between pickup and horizontal scrolling remain undecided", () => {
-    for (const angle of [-74.5, -73, 73, 74.5]) {
+test("touch strokes in the gap between pickup and horizontal scrolling remain undecided", () => {
+    for (const angle of [-74.5, -70, -65.1, 65.1, 70, 74.5]) {
         const f = pointerFixture();
         const radians = angle * Math.PI / 180;
         f.hand.onpointerdown(f.event(200, 500));
@@ -950,9 +950,9 @@ test("initial touch jitter stays undecided and slow diagonal pickup does not aut
     assert.equal(f.body.children.length, 0);
     assert.equal(f.hand.classList.contains("is-hand-dragging"), false);
     f.advance(1500);
-    f.hand.onpointermove(f.event(225, 490));
+    f.hand.onpointermove(f.event(225, 488));
     assert.equal(f.body.children.length, 1);
-    f.hand.onpointerup(f.event(225, 490));
+    f.hand.onpointerup(f.event(225, 488));
     assert.equal(f.state.plays, 0);
     assert.equal(f.state.scrolls, 0);
 });
@@ -1221,7 +1221,7 @@ test("a qualifying flick survives a tiny recoil or brief slowdown as the finger 
 });
 
 test("direct touch flicks tolerate jitter before the minimum stroke has been recognized", () => {
-    for (const angle of [-72, -60, 0, 60, 72]) {
+    for (const angle of [-64, -60, 0, 60, 64]) {
         for (const selected of [false, true]) {
             const f = pointerFixture();
             if (selected) { vm.runInContext('selectedCardKeys.add("1:5")', f.context); }
@@ -1267,7 +1267,7 @@ test("small reverse steps before recognition accumulate and cancel the original 
 });
 
 test("lift-off recoil tolerance works across touch flick angles and selected cards", () => {
-    for (const angle of [-72, -45, 0, 45, 72]) {
+    for (const angle of [-64, -45, 0, 45, 64]) {
         for (const selected of [false, true]) {
             const f = pointerFixture();
             if (selected) { vm.runInContext('selectedCardKeys.add("1:5")', f.context); }

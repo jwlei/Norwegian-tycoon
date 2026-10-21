@@ -21,12 +21,12 @@ test("mobile examples use the game's exact minimum speed and stroke thresholds",
     assert.equal(example(45, "release", 10, 0.4).flick, true);
 });
 
-test("mobile examples distinguish 145-degree pickup, undecided gaps and horizontal scrolling", () => {
+test("mobile examples distinguish 130-degree pickup, undecided gaps and horizontal scrolling", () => {
     for (const sign of [-1, 1]) {
-        for (const angle of [0, 45, 72.5]) {
+        for (const angle of [0, 45, 65]) {
             assert.equal(example(angle * sign, "initial", 32, 0.4).flick, true);
         }
-        for (const angle of [72.6, 73.5, 74.9]) {
+        for (const angle of [65.1, 70, 74.9]) {
             assert.equal(example(angle * sign, "initial", 32, 0.4).axis, null);
         }
         for (const angle of [75, 80, 90, 105]) {

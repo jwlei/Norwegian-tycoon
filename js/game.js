@@ -446,7 +446,7 @@ function isUpwardFlick(x, y, coneDegrees = 160) {
         Math.tan((180 - coneDegrees) * Math.PI / 360);
 }
 
-const CARD_TOUCH_PICKUP_CONE = 145;
+const CARD_TOUCH_PICKUP_CONE = 130;
 const CARD_FLICK_MIN_DISTANCE = 10;
 const CARD_FLICK_MIN_VELOCITY = 0.4;
 const CARD_FLICK_RELEASE_GRACE_MS = 120;
