@@ -1942,6 +1942,9 @@ select:focus-visible {
 
 .card-drag-layer > .game-card.is-returning {
     transition: transform 320ms cubic-bezier(.2,.8,.25,1);
+    /* A card gliding back can be caught again for a retry. */
+    pointer-events: auto;
+    touch-action: none;
 }
 
 .card-drag-preview > img {
