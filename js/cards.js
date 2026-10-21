@@ -206,7 +206,10 @@ class Card {
             <rect x="1.5" y="1.5" width="77" height="117" fill="url(#card-foil-texture)" opacity=".7"/>
         </g>`;
     }
+    static imageCache = new Map();
     toImageDataUri(style = "normal", cardFoil = "none") {
+        const cacheKey = JSON.stringify([this.suit, this.rank, style, cardFoil]);
+        if (Card.imageCache.has(cacheKey)) { return Card.imageCache.get(cacheKey); }
         const code = Card.suitInfo(this.suit).code;
         const rank = this.rank === 1 ? "A" : this.rank > 10 ? { 11: "J", 12: "Q", 13: "K" }[this.rank] : String(this.rank);
         const isRed = (this.suit === 2 || this.suit === 4);
@@ -371,7 +374,13 @@ class Card {
             ${style === "silver" ? "" : foil}
             ${Card.foilOverlay(cardFoil)}
         </svg>`;
-        return Card.imageSource(svg);
+        const source = Card.imageSource(svg);
+        // Bound retained SVGs when players browse many style/foil combinations.
+        if (Card.imageCache.size >= 256) {
+            Card.imageCache.delete(Card.imageCache.keys().next().value);
+        }
+        Card.imageCache.set(cacheKey, source);
+        return source;
     }
     static imageSource(svg) {
         return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
