@@ -139,7 +139,6 @@
         "Skjuler meldinger på spillbrettet for deg. Hendelser vises fortsatt i spilloggen.": "Hides board messages for you. Events still appear in the game log.",
         "Animasjonshastighet": "Animation speed",
         "Varighet på meldinger om spillhendelser": "Duration of game event messages",
-        "Personlig animasjonshastighet": "Personal animation speed",
         "Rask bruker 50 % kortere tid, Sakte 50 % lengre tid enn Vanlig. Botene venter 1 / 2 / 3 sekunder, og alltid til kortanimasjonene er ferdige. I nettspill bestemmes bottempoet av den som styrer botene.": "Fast takes 50% less time, Slow 50% more time than Normal. Bots wait 1 / 2 / 3 seconds, and always until card animations finish. In online games, bot pace follows the client controlling the bots.",
         "Kunne ikke oppdatere turen. Prøver igjen.": "Could not update the turn. Retrying.",
         "Venter på at handlingen lagres.": "Waiting for the action to be saved.",

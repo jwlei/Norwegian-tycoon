@@ -753,13 +753,6 @@ button {
     gap: 12px;
 }
 
-.public-lobby-entry__speed {
-    margin-right: auto;
-    color: var(--muted);
-    font-size: 0.7rem;
-    font-weight: 400;
-}
-
 @media (max-width: 600px) {
     #mainMenu button.public-lobby-entry {
         flex-wrap: wrap;

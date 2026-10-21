@@ -1,8 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+    xmlns:xhtml="http://www.w3.org/1999/xhtml">
     <url>
         <loc>https://playboms.eu/</loc>
         <changefreq>monthly</changefreq>
         <priority>1.0</priority>
+    </url>
+    <url>
+        <loc>https://playboms.eu/rules/</loc>
+        <xhtml:link rel="alternate" hreflang="nb" href="https://playboms.eu/rules/" />
+        <xhtml:link rel="alternate" hreflang="en" href="https://playboms.eu/en/rules/" />
+        <xhtml:link rel="alternate" hreflang="x-default" href="https://playboms.eu/rules/" />
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
+    </url>
+    <url>
+        <loc>https://playboms.eu/en/rules/</loc>
+        <xhtml:link rel="alternate" hreflang="nb" href="https://playboms.eu/rules/" />
+        <xhtml:link rel="alternate" hreflang="en" href="https://playboms.eu/en/rules/" />
+        <xhtml:link rel="alternate" hreflang="x-default" href="https://playboms.eu/rules/" />
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
     </url>
 </urlset>

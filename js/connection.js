@@ -1727,11 +1727,9 @@
                 button.className = "public-lobby-entry";
                 button.dataset.lobbyId = lobby.id;
                 var name = document.createElement("span");
-                var speed = document.createElement("small");
-                speed.className = "public-lobby-entry__speed";
                 var status = document.createElement("span");
                 status.className = "public-lobby-entry__status";
-                button.append(name, speed, status);
+                button.append(name, status);
                 button.addEventListener("click", function () {
                     joinGameById(lobby.id, showPublicLobbyError);
                 });
@@ -1742,11 +1740,9 @@
                 var lobby = available.get(id);
                 button.classList.toggle("is-running", !lobby.waiting);
                 var name = `${lobby.host} · ${lobby.players}/${MAX_PLAYERS}`;
-                var speed = localizedMessage("Personlig animasjonshastighet");
                 var status = lobby.waiting ? "Venter i lobby" : "Spill pågår";
                 if (button.children[0].textContent != name) { button.children[0].textContent = name; }
-                if (button.children[1].textContent != speed) { button.children[1].textContent = speed; }
-                if (button.children[2].textContent != status) { button.children[2].textContent = status; }
+                if (button.children[1].textContent != status) { button.children[1].textContent = status; }
             });
         }
 
