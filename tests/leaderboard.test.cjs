@@ -106,8 +106,8 @@ test("every numeric column sorts both ways; normalized placement prefers 1 and u
     assert.deepEqual(rows.map(row => row.id), ["c", "a", "b"], "Sorting must not mutate the stored activity list");
 });
 
-function uiFixture() {
-    const f = fixture();
+function uiFixture(records = {}) {
+    const f = fixture(records);
     const node = () => ({
         children: [], dataset: {}, attributes: {}, listeners: {}, textContent: "", style: {},
         getBoundingClientRect: () => ({ left: 20, right: 80, top: 100, height: 40, width: 60 }),
@@ -184,7 +184,7 @@ test("clicking a name shows an ID popup for exactly five seconds without adding 
     const f = uiFixture();
     f.leaderboard.load = async () => [
         { id: "AbC123", name: "Latest name", roundsPlayed: 20 },
-        { id: "x".repeat(50), name: "Latest name", roundsPlayed: 10 }
+        { id: "aBc789", name: "Latest name", roundsPlayed: 10 }
     ];
     await f.open();
     const rows = f.elements.leaderboardRows.children;
@@ -209,7 +209,7 @@ test("clicking a name shows an ID popup for exactly five seconds without adding 
     assert.equal(popup.textContent, "");
     assert.equal(f.timers.size, 0);
     rows[1].children[0].children[0].listeners.click();
-    assert.equal(popup.textContent, `ID ${"x".repeat(50)}`);
+    assert.equal(popup.textContent, "ID aBc789");
     f.headers[1].listeners.click();
     assert.equal(popup.hidden, true);
     assert.equal(f.timers.size, 0);
@@ -221,6 +221,37 @@ test("clicking a name shows an ID popup for exactly five seconds without adding 
     f.elements.dialogLeaderboard.listeners.scroll();
     assert.equal(popup.hidden, true);
     assert.equal(f.timers.size, 0);
+});
+
+test("loaded leaderboard IDs belong to each player, not a stored ID field or the viewer", async () => {
+    const f = uiFixture({
+        AZaz09: { name: "Ada", lastActiveAt: 2, roundsPlayed: 20, id: "wrong1" },
+        aZAZ90: { name: "Grace", lastActiveAt: 1, roundsPlayed: 10, id: "wrong2" }
+    });
+    f.context.getPlayerKey = () => "Viewer";
+    await f.open();
+    assert.deepEqual(f.names(), ["Ada", "Grace"]);
+    for (const [index, id] of ["AZaz09", "aZAZ90"].entries()) {
+        const row = f.elements.leaderboardRows.children[index];
+        assert.equal(row.children.length, 7);
+        row.children[0].children[0].listeners.click();
+        assert.equal(f.elements.leaderboardPlayerId.textContent, `ID ${id}`);
+    }
+});
+
+test("legacy, missing and malformed IDs show an unavailable message without inventing an ID", async () => {
+    const ids = ["x".repeat(50), undefined, null, "", "AbC12", "AbC1234", "AbC12!", " Åb123", "AbC123\n", 123456, ["AbC123"]];
+    for (const id of ids) {
+        const f = uiFixture();
+        f.leaderboard.load = async () => [{ id, name: "Legacy", roundsPlayed: 20 }];
+        await f.open();
+        const row = f.elements.leaderboardRows.children[0];
+        assert.equal(row.children[1].textContent, "20");
+        row.children[0].children[0].listeners.click();
+        assert.equal(f.elements.leaderboardPlayerId.hidden, false);
+        assert.equal(f.elements.leaderboardPlayerId.textContent, "Sekstegns-ID utilgjengelig");
+        assert.equal([...f.timers.values()][0].delay, 5000);
+    }
 });
 
 test("leaderboard reports loading, emptiness and errors, and ignores an older request", async () => {
