@@ -1550,3 +1550,88 @@ test("hover leaves cards level, and cancellation or lost capture clears drag til
         f.runFrame(1032);
     }
 });
+
+function roundStartHandFixture({ serverOffset = 0, mode = "button" } = {}) {
+    const f = fixture();
+    f.preferences.set("PlayInputMode", mode);
+    f.context.navigator = {};
+    f.context.window.requestAnimationFrame = () => 0;
+    const shared = source("shared.js");
+    vm.runInContext(shared.slice(shared.indexOf("function hasClass("), shared.indexOf("function generatePlayerKey(")), f.context);
+    f.context.Element.prototype.focus = function () {};
+    const hand = new Element();
+    Object.defineProperty(hand, "innerHTML", { set() { this.children = []; }, get() { return ""; } });
+    f.nodes.set("playerHand", hand);
+    vm.runInContext(`GamePresence.serverOffset = ${serverOffset};`, f.context);
+    const { PresidentGame, PresidentPlayer, PresidentCard, GameLayout } = f.types;
+    const player = new PresidentPlayer("Owner", "owner");
+    player.turn = 1;
+    player.cards.push(new PresidentCard(1, 4), new PresidentCard(2, 4), new PresidentCard(3, 9));
+    const other = new PresidentPlayer("Other", "other");
+    other.cards.push(new PresidentCard(4, 5));
+    const plays = [];
+    const game = Object.assign(Object.create(PresidentGame.prototype), {
+        id: "room", status: "S", round: 1, turn: 0, players: [player, other], piles: [],
+        rules: {}, controllers: {}, connectionOnline: true, localWritePending: false,
+        turnPause: null, exchangeReady: null, shuffleStartedAt: null
+    });
+    game.playCards = (actor, pile) => plays.push(Array.from(pile, card => `${card.suit}:${card.rank}`));
+    const cards = () => hand.children.filter(card => card.classes.has("game-card"));
+    const selected = () => cards().filter(card => card.classes.has("is-selected")).map(card => card.dataset.cardKey);
+    const render = () => GameLayout.updatePlayerView(game, player);
+    return { ...f, hand, game, player, plays, cards, selected, render,
+        playButton: f.context.document.getElementById("playButton"),
+        set now(value) { f.now = value; } };
+}
+
+test("the first move unlocks as soon as the shuffle presentation ends, whatever the local clock skew", () => {
+    for (const serverOffset of [-1500, -400, 0, 400, 1500]) {
+        const f = roundStartHandFixture({ serverOffset });
+        // The host stamps the shuffle with the shared session clock; this client's local clock may differ.
+        f.game.shuffleStartedAt = 10000;
+        let revealedAt = null;
+        for (let local = 10000 - serverOffset; local <= 14000 - serverOffset; local += 50) {
+            f.now = local;
+            f.render();
+            if (f.cards().length > 0) { revealedAt = local; break; }
+        }
+        assert.notEqual(revealedAt, null, `offset ${serverOffset}`);
+        assert.equal(f.game.isTurnPaused(), false, `offset ${serverOffset}`);
+        assert.ok(f.cards().every(card => card.disabled === false), `offset ${serverOffset}: cards stay selectable`);
+        assert.deepEqual(f.selected().sort(), ["1:4", "2:4"], "Auto-suggest picks the lowest pair");
+        assert.equal(f.playButton.disabled, false);
+        f.playButton.onclick();
+        assert.deepEqual(f.plays, [["1:4", "2:4"]], `offset ${serverOffset}: the suggestion is playable without toggling`);
+    }
+});
+
+test("auto-suggested round starts keep manual choice and refresh the play button after a pending write", () => {
+    const f = roundStartHandFixture();
+    f.now = 50000;
+    f.game.exchangeReady = { id: "gate" };
+    f.render();
+    assert.ok(f.cards().every(card => card.disabled), "The exchange summary gate still pauses play");
+    f.game.exchangeReady = null;
+    f.game.localWritePending = true;
+    f.render();
+    assert.deepEqual(f.selected().sort(), ["1:4", "2:4"]);
+    assert.equal(f.playButton.disabled, true, "A pending write blocks the play button");
+    f.game.localWritePending = false;
+    f.render();
+    assert.equal(f.playButton.disabled, false, "Write completion without card changes re-enables play");
+    const nine = f.cards().find(card => card.dataset.cardKey == "3:9");
+    nine.onclick();
+    assert.deepEqual(f.selected(), ["3:9"]);
+    for (let snapshot = 0; snapshot < 3; snapshot++) {
+        f.render();
+        assert.deepEqual(f.selected(), ["3:9"], "Repeated snapshots do not reapply the suggestion");
+    }
+    f.game.localWritePending = true;
+    f.render();
+    f.game.localWritePending = false;
+    f.render();
+    assert.deepEqual(f.selected(), ["3:9"]);
+    assert.equal(f.playButton.disabled, false);
+    f.playButton.onclick();
+    assert.deepEqual(f.plays, [["3:9"]]);
+});
