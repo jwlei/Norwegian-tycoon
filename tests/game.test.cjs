@@ -390,6 +390,31 @@ test("received-card summaries combine receipts after exchanges and use 3/5/7-sec
     }
 });
 
+test("each exchange stage displays only its own receipts, including before the round starts", async () => {
+    const fixture = exchangeSummaryFixture("normal");
+    const { game, context, content, overlay } = fixture;
+    game.exchangeReady = { id: "mandatory", startedAt: 100000, until: 107000,
+        ready: {}, receiptIds: ["first"] };
+    context.syncExchangeSummary(game);
+    assert.equal(game.status, "G");
+    assert.equal(overlay.hidden, false);
+    assert.equal(content.children.length, 3);
+    assert.equal(content.children[1].textContent, "Du fikk 5 og Konge fra Sender.");
+    content.children.at(-1).onclick();
+    await new Promise(resolve => setImmediate(resolve));
+    game.exchangeReady = { id: "extra", startedAt: 100000, until: 107000,
+        ready: {}, receiptIds: ["second"] };
+    context.syncExchangeSummary(game);
+    assert.equal(overlay.hidden, false);
+    assert.equal(content.children.length, 3);
+    assert.equal(content.children[1].textContent, "Du fikk Kløver 3 fra Sender.");
+    content.children.at(-1).onclick();
+    await new Promise(resolve => setImmediate(resolve));
+    game.status = "S";
+    context.syncExchangeSummary(game);
+    assert.equal(overlay.hidden, true, "The final transition must not replay earlier receipts");
+});
+
 test("Continue and background dismissal mark readiness early without dismissing on card clicks", () => {
     for (const method of ["button", "background"]) {
         const fixture = exchangeSummaryFixture("slow");
@@ -519,8 +544,12 @@ test("confirmed outgoing exchanges automatically deliver cards and start the rou
     assert.deepEqual(events.map(event => event.type), [
         "exchange-cards-received", "exchange-cards-received"
     ]);
+    assert.throws(() => game.skipOptionalTrade(optionalOffer, 0), /kan ikke avslå/);
+    assert.equal(game.exchangeReady.receiptIds.length, 2);
+    game.exchangeReady = null;
     game.skipOptionalTrade(optionalOffer, 0);
     assert.equal(game.status, "S");
+    assert.equal(game.exchangeReady, null, "Previously summarized receipts must not replay");
     assert.equal(game.piles.length, 0);
 });
 
@@ -712,7 +741,7 @@ test("turn countdowns and extensions wait for play, discard and shuffle animatio
     }
 });
 
-test("consent stays private and remains available after a trade starts until cards are given", () => {
+test("consent stays private and forcing waits for the receiver's explicit choice", () => {
     const element = () => {
         const classes = new Set();
         return {
@@ -760,13 +789,13 @@ test("consent stays private and remains available after a trade starts until car
     }
     for (const player of players.slice(0, 2)) {
         const nodes = render(player);
-        const consentButton = nodes.find(node => node.textContent == "Sneaky?");
+        const consentButton = nodes.find(node => node.textContent == "Ureglementert bytte");
         assert.ok(consentButton.className.includes("exchange-sneaky-toggle"));
         assert.equal(consentButton.attributes["aria-pressed"], "true");
         assert.equal(nodes.some(node => /samtykket|Sneaky-samtykke:/.test(node.textContent)), false);
     }
     game.piles[0].sneakyVotes = [0];
-    assert.equal(render(players[1]).find(node => node.textContent == "Sneaky?")
+    assert.equal(render(players[1]).find(node => node.textContent == "Ureglementert bytte")
         .attributes["aria-pressed"], "false");
     game.piles[0].sneakyVotes = [0, 1];
     const originalOffer = game.piles[0];
@@ -780,7 +809,7 @@ test("consent stays private and remains available after a trade starts until car
             const recipient = render(players[from + 1]);
             assert.equal(recipient.some(node => node.textContent == "Tving bytte" ||
                 node.textContent == "Ingen bytte"), false);
-            assert.ok(recipient.some(node => node.textContent == "Sneaky?"));
+            assert.ok(recipient.some(node => node.textContent == "Ureglementert bytte"));
             assert.ok(recipient.some(node => node.textContent.includes(`${players[from].name} som`) &&
                 node.textContent.includes("bestemmer om det blir bytte")));
             players[from].playerKey = `key-${from}`;
@@ -795,17 +824,16 @@ test("consent stays private and remains available after a trade starts until car
     const start = render(players[0]).find(node => node.textContent === "Tving bytte");
     assert.equal(start.disabled, false);
     start.onclick();
-    for (const player of players.slice(0, 2)) {
-        assert.ok(render(player).some(node => /Trekk sneaky/.test(node.textContent)));
-    }
-    players[2].name = "Other";
+    assert.equal(game.piles[0].mode, "Tilbud");
+    assert.ok(render(players[0]).some(node => /Venter på at Recipient/.test(node.textContent)));
+    assert.ok(render(players[1]).some(node => /Sender har tvunget et bytte/.test(node.textContent)));
+    assert.equal(render(players[0]).some(node => node.textContent == "Vanlig bytte"), false);
+    const responses = render(players[1]);
+    assert.ok(responses.some(node => node.textContent == "Vanlig bytte"));
+    responses.find(node => node.textContent == "Ureglementert bytte").onclick();
+    assert.ok(game.piles.every(exchange => exchange.mode == "Velg" && exchange.sneakyLocked));
     for (const player of players.slice(0, 2)) {
         assert.equal(render(player).some(node => node.className?.includes("exchange-sneaky-toggle")), false);
-    }
-    players[2].name = "ekrem";
-    game.piles.forEach(exchange => { exchange.sneakyLocked = true; });
-    for (const player of players.slice(0, 2)) {
-        assert.equal(render(player).some(node => /Trekk sneaky|Sneaky bytte$/.test(node.textContent)), false);
     }
     const bestExchange = {
         id: "best", mode: "Best", from: 2, to: 0, count: 2,
@@ -863,6 +891,8 @@ test("the President can start a normal voluntary exchange without sneaky consent
     game.update = () => {};
 
     game.startOptionalTrade(offer);
+    assert.equal(game.piles[0].mode, "Tilbud");
+    game.respondToForcedTrade(offer, 1, false);
 
     assert.equal(game.piles.length, 2);
     assert.ok(game.piles.every(exchange => exchange.mode === "Velg"));
@@ -871,9 +901,8 @@ test("the President can start a normal voluntary exchange without sneaky consent
     assert.ok(game.piles.every(exchange => !isCardAllowedForExchange(exchange, new PresidentCard(1, 14))));
     assert.throws(() => game.toggleSneakyTrade(game.piles[0], 0), /ikke tilgjengelig/);
     players[2].name = "joachim";
-    game.toggleSneakyTrade(game.piles.find(exchange => exchange.from === 0), 0);
-    game.toggleSneakyTrade(game.piles.find(exchange => exchange.from === 1), 1);
-    assert.ok(game.piles.every(exchange => isCardAllowedForExchange(exchange, new PresidentCard(1, 14))));
+    assert.throws(() => game.toggleSneakyTrade(game.piles[0], 0), /kan ikke endres/);
+    assert.ok(game.piles.every(exchange => !isCardAllowedForExchange(exchange, new PresidentCard(1, 14))));
 });
 
 test("sneaky requires exactly three players and a named human, including a non-participating third player", () => {
@@ -1026,9 +1055,9 @@ test("trade start toasts report either outcome once and only to participants", (
         vm.runInContext("notifyStartedTrades(game); notifyStartedTrades(game)", context);
         assert.equal(messages.length, 1);
         if (consent) {
-            assert.equal(messages[0], "Oooh.. Sneaky..");
+            assert.equal(messages[0], "Ureglementert bytte: alle kort kan brukes.");
         } else {
-            assert.match(messages[0], /ikke nådd.*7–J/);
+            assert.match(messages[0], /Vanlig bytte.*7–J/);
         }
     }
 });
@@ -1066,7 +1095,7 @@ test("mutual sneaky consent after trade initiation produces one additional parti
     notify();
     notify();
     assert.equal(messages.length, 2);
-    assert.equal(messages[1], "Oooh.. Sneaky..");
+    assert.equal(messages[1], "Ureglementert bytte: alle kort kan brukes.");
 });
 
 function savedPreferencesContext(cookieMode = "enabled", storage = new Map(), storageBlocked = false) {
@@ -1828,6 +1857,58 @@ test("stale game saves preserve shared exchange readiness and cannot revive a co
     assert.equal(record.exchangeReady, null, "A new round clears previous readiness");
 });
 
+test("mid-exchange summary gates persist and stale saves retain acknowledgments without replaying receipts", () => {
+    const { game } = setupGame();
+    game.status = "G";
+    game.piles = [];
+    const receipt = { id: "pair-1", sender: "A", recipient: "B", cards: [],
+        summaryGateId: "stage-1" };
+    const gate = { id: "stage-1", startedAt: 1, until: 7001, ready: {}, receiptIds: ["pair-1"] };
+    let record = { status: "G", runde: game.round, shuffleStartedAt: null,
+        spillBunke: [], exchangeReceipts: [], exchangeReady: null };
+    game.databaseRef = { transaction(transform) {
+        const next = transform(record);
+        if (next) { record = next; }
+    } };
+    game.exchangeReceipts = [receipt];
+    game.exchangeReady = gate;
+    game.save();
+    assert.equal(record.exchangeReady.id, "stage-1");
+    record.exchangeReady = { ...record.exchangeReady, ready: { guest: true } };
+    game.save();
+    assert.equal(record.exchangeReady.ready.guest, true);
+    record.exchangeReady = null;
+    game.exchangeReceipts = [{ ...receipt, summaryGateId: undefined }];
+    game.save();
+    assert.equal(record.exchangeReady, null);
+    assert.equal(record.exchangeReceipts[0].summaryGateId, "stage-1");
+    game.status = "S";
+    game.save();
+    assert.equal(record.exchangeReady, null, "A stale transition to play cannot revive a completed stage gate");
+});
+
+test("stale offer saves cannot undo forcing or resurrect an exchange after the receiver answers", () => {
+    const { game } = setupGame();
+    game.status = "G";
+    game.piles = [{ id: "offer", tradeId: "trade", kind: "playerTrade", mode: "Tilbud",
+        from: 0, to: 1, count: 1, cards: [], sneakyVotes: [] }];
+    let record = { status: "G", runde: game.round, shuffleStartedAt: null,
+        spillBunke: [{ ...game.serializePiles()[0], forcedAt: 1234 }] };
+    let rejected = 0;
+    game.databaseRef = { transaction(transform) {
+        const next = transform(record);
+        if (next) { record = next; } else { rejected++; }
+    } };
+    game.save();
+    assert.equal(rejected, 1);
+    assert.equal(record.spillBunke[0].forcedAt, 1234);
+    game.piles[0].forcedAt = 1234;
+    record.spillBunke = [{ ...record.spillBunke[0], modus: "Velg" }];
+    game.save();
+    assert.equal(rejected, 2);
+    assert.equal(record.spillBunke[0].modus, "Velg");
+});
+
 test("the play button rejects empty and illegal selections without playing", () => {
     for (const options of [{ selection: [] }, { valid: false }]) {
         const state = playButtonContext(options);
@@ -1986,6 +2067,55 @@ test("bot scheduling follows animation speed and restores it after fast-forward"
             { fast: 0.5, normal: 1, slow: 1.5 }[speed]),
         setTimeout: (callback, delay) => { timers.push(delay); return timers.length; },
         clearTimeout: id => cleared.push(id)
+    });
+
+    test("bot exchange pacing waits five to ten seconds for each new action, independent of speed", () => {
+        const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+        const { GamePresence } = loadGame();
+        for (const roll of [0, 0.5, 0.999999]) {
+            let now = 100000;
+            const timers = [];
+            const actions = [];
+            const player = { name: "Bot", playerKey: "PC" };
+            const game = { id: "paced", status: "G", round: 2, players: [player],
+                piles: [{ id: "first", from: 0, to: 1, mode: "Velg" }], fastForward: true };
+            const context = vm.createContext({
+                Math: Object.assign(Object.create(Math), { random: () => roll }),
+                currentGame: game, connection: null, shuffleEndsAt: 0, Date: { now: () => now },
+                GamePresence: {
+                    canDrive: () => true, onlyBotsRemain: () => true, isBot: () => true,
+                    now: () => now, roundToken: record => GamePresence.roundToken(record)
+                },
+                activeTradeOffer: () => null, getExchangeId: exchange => exchange.id,
+                animationDuration: () => { throw new Error("Exchange pacing must ignore animation speed"); },
+                setTimeout: (callback, delay) => { timers.push({ callback, delay }); return timers.length; },
+                clearTimeout() {},
+                playBotTurn: () => {
+                    actions.push(now);
+                    game.piles = game.piles[0].id == "first"
+                        ? [{ id: "second", from: 0, to: 1, mode: "Velg" }] : [];
+                }
+            });
+            vm.runInContext(source.slice(source.indexOf("        var botLoopTimer = null;"),
+                source.indexOf("        document.getElementById('BnFHovedmeny')")), context);
+            context.scheduleBotLoop();
+            const firstDelay = timers[0].delay;
+            assert.ok(firstDelay >= 5000 && firstDelay <= 10000);
+            now += 4999;
+            context.runBotLoop();
+            assert.equal(actions.length, 0);
+            assert.equal(timers.at(-1).delay, firstDelay - 4999, "Polling must not reset the deadline");
+            now += firstDelay - 4999;
+            context.runBotLoop();
+            assert.equal(actions.length, 1);
+            const secondDelay = timers.at(-1).delay;
+            assert.ok(secondDelay >= 5000 && secondDelay <= 10000);
+            context.scheduleBotLoop();
+            assert.equal(actions.length, 1);
+            now += secondDelay;
+            context.runBotLoop();
+            assert.equal(actions.length, 2);
+        }
     });
     vm.runInContext(source.slice(source.indexOf("        var botLoopTimer = null;"),
         source.indexOf("        document.getElementById('BnFHovedmeny')")), context);
@@ -3953,7 +4083,11 @@ test("mandatory exchanges use one card for two players, two for three, and vice-
         for (const exchange of mandatory) { game.giveExchangeCards(exchange); }
         if (count == 3) {
             assert.equal(game.status, "G");
+            const gate = game.exchangeReady;
+            game.exchangeReady = null;
             for (const offer of Array.from(game.piles)) { game.skipOptionalTrade(offer, offer.from); }
+            assert.equal(game.exchangeReady, null, "Skipping offers must not repeat the mandatory receipt summary");
+            game.exchangeReady = gate;
         }
         assert.equal(game.status, "S");
         assert.equal(game.turn, count - 1, "The Bum starts after the exchange");

@@ -1131,6 +1131,15 @@ class GameLayout {
             case "G": {
                 table.className = "exchange-panel";
                 this.clearTableContent(table);
+                if (game.exchangeReady != null) {
+                    var receiptWaiting = document.createElement("p");
+                    receiptWaiting.className = "exchange-ready-hint";
+                    receiptWaiting.setAttribute("role", "status");
+                    receiptWaiting.textContent = "Venter på at spillerne bekrefter mottatte kort …";
+                    table.appendChild(receiptWaiting);
+                    document.getElementById("exchangePrompt").textContent = receiptWaiting.textContent;
+                    break;
+                }
                 var currentPlayerIndex = player == null ? -1 : game.players.indexOf(player);
                 var outgoingExchanges = game.piles.filter(exchange =>
                     exchange.from == currentPlayerIndex &&
@@ -1156,7 +1165,9 @@ class GameLayout {
                 } else if (game.piles.some(exchange => exchange.mode == "Kan se")) {
                     progress.textContent = "Motta kortene som venter";
                 } else if (game.piles.some(exchange => exchange.mode == "Tilbud")) {
-                    progress.textContent = "Tving bytte eller velg Ingen bytte";
+                    progress.textContent = activeTradeOffer(game)?.forcedAt != null
+                        ? "Venter på mottakerens valg av bytte."
+                        : "Tving bytte eller velg Ingen bytte";
                 } else {
                     progress.textContent = "Venter på at byttene fullføres";
                 }
@@ -1233,11 +1244,17 @@ class GameLayout {
                         case "Tilbud":
                             var fromRole = game.placementTitle(fromPlayer.lastPlacement).title;
                             var toRole = game.placementTitle(toPlayer.lastPlacement).title;
-                            title.textContent = isSender
+                            title.textContent = exchange.forcedAt != null
+                                ? (isRecipient
+                                    ? `${fromPlayer.name} har tvunget et bytte. Ureglementert bytte?`
+                                    : isSender
+                                        ? `Venter på at ${toPlayer.name} velger ureglementert eller vanlig bytte.`
+                                        : `${fromPlayer.name} har tvunget et bytte med ${toPlayer.name}.`)
+                                : isSender
                                 ? `Du som ${fromRole} kan tvinge bytte av kort mellom 7–J med ${toRole}.`
                                 : `${fromPlayer.name} som ${fromRole} bestemmer om det blir bytte med ${toPlayer.name}.`;
-                            if (isSneakyTradeAvailable(game)) {
-                                title.textContent += " Om begge velger sneaky, kan alle kort byttes.";
+                            if (isSneakyTradeAvailable(game) && exchange.forcedAt == null) {
+                                title.textContent += " Om begge velger ureglementert bytte, kan alle kort byttes.";
                             }
                             break;
                         default:
@@ -1269,12 +1286,13 @@ class GameLayout {
                         buttonSpan.className = "exchange-offer__actions";
                         var voters = exchange.sneakyVotes || [];
                         var isParticipant = isSender || isRecipient;
-                        var canInitiate = isSender;
+                        var canInitiate = isSender && exchange.forcedAt == null && !game.exchangeReady;
                         var participantIndex = currentPlayerIndex;
-                        if (isParticipant && isSneakyTradeAvailable(game)) {
+                        if (isParticipant && isSneakyTradeAvailable(game) &&
+                            exchange.forcedAt == null && !game.exchangeReady) {
                             var sneakyButton = document.createElement("button");
                             sneakyButton.type = "button";
-                            sneakyButton.textContent = "Sneaky?";
+                            sneakyButton.textContent = "Ureglementert bytte";
                             sneakyButton.className = "exchange-offer__sneaky exchange-sneaky-toggle";
                             sneakyButton.setAttribute("aria-pressed", String(voters.includes(participantIndex)));
                             sneakyButton.onclick = function () {
@@ -1286,7 +1304,8 @@ class GameLayout {
                             var startButton = document.createElement("button");
                             startButton.type = "button";
                             startButton.textContent = "Tving bytte";
-                            startButton.disabled = !hasSneakyConsent(exchange, game) &&
+                            startButton.disabled = !(isSneakyTradeAvailable(game) &&
+                                voters.includes(exchange.from)) &&
                                 (!hasLegalTradeCard(game, exchange.from, exchange) ||
                                     !hasLegalTradeCard(game, exchange.to, exchange));
                             startButton.title = startButton.disabled
@@ -1305,6 +1324,16 @@ class GameLayout {
                                 game.skipOptionalTrade(exchange, participantIndex);
                             };
                             buttonSpan.appendChild(skipButton);
+                        }
+                        if (exchange.forcedAt != null && isRecipient && !game.exchangeReady) {
+                            for (const sneaky of [true, false]) {
+                                var responseButton = document.createElement("button");
+                                responseButton.type = "button";
+                                responseButton.textContent = sneaky ? "Ureglementert bytte" : "Vanlig bytte";
+                                responseButton.disabled = sneaky && !isSneakyTradeAvailable(game);
+                                responseButton.onclick = () => game.respondToForcedTrade(exchange, participantIndex, sneaky);
+                                buttonSpan.appendChild(responseButton);
+                            }
                         }
                     } else {
                         var outgoingForSender = game.piles.filter(candidate =>
@@ -1328,7 +1357,7 @@ class GameLayout {
                             var tradeStatus = document.createElement("span");
                             tradeStatus.className = "trade-status";
                             tradeStatus.textContent = hasSneakyConsent(exchange, game)
-                                ? "Sneaky bytte: alle kort kan brukes."
+                                ? "Ureglementert bytte: alle kort kan brukes."
                                 : "Vanlig bytte: kort 7–J.";
                             exchangeStatus.appendChild(tradeStatus);
                             var consentCanChange = game.piles
@@ -1344,8 +1373,8 @@ class GameLayout {
                                 sneakyButton.type = "button";
                                 sneakyButton.className = "exchange-sneaky-toggle";
                                 sneakyButton.textContent = voters.includes(currentPlayerIndex)
-                                    ? "Trekk sneaky-samtykke"
-                                    : "Sneaky bytte";
+                                    ? "Trekk ureglementert samtykke"
+                                    : "Ureglementert bytte";
                                 sneakyButton.setAttribute("aria-pressed", String(
                                     voters.includes(currentPlayerIndex)
                                 ));

@@ -76,10 +76,9 @@ test("bot-initiated sneaky offers require both votes and complete legally throug
     playBotTurn(game, game.players[0], () => { throw new Error("Decision must be cached"); });
     assert.equal(rolls, 1);
     playBotTurn(game, game.players[1], () => 0);
-    assert.equal(game.piles[0].mode, "Tilbud");
-    playBotTurn(game, game.players[0], () => { throw new Error("Decision must be cached"); });
     assert.equal(game.piles.filter(exchange => exchange.mode == "Tilbud").length, 0);
     assert.ok(game.piles.every(exchange => exchange.sneakyVotes.length === 2));
+    assert.ok(game.piles.every(exchange => exchange.mode == "Velg"), "Responding must not also give cards");
     for (let step = 0; step < 8 && game.status === "G"; step++) {
         for (const player of game.players) {
             if (game.status === "G") { playBotTurn(game, player, () => 0); }
@@ -90,15 +89,18 @@ test("bot-initiated sneaky offers require both votes and complete legally throug
         game.piles.reduce((sum, pile) => sum + pile.length, 0), before);
 });
 
-test("sneaky consent may be added after initiation until a card is given", () => {
+test("forced exchanges wait for explicit receiver consent and lock that decision", () => {
     const game = optionalTradeGame();
     const offer = game.piles[0];
     game.toggleSneakyTrade(offer, 0);
     game.startOptionalTrade(offer);
+    assert.throws(() => game.startOptionalTrade(offer), /Venter/);
+    assert.throws(() => game.respondToForcedTrade(offer, 0, true), /ikke lenger/);
+    game.respondToForcedTrade(offer, 1, true);
     const outgoing = game.piles.find(exchange => exchange.from === 0);
     const incoming = game.piles.find(exchange => exchange.from === 1);
-    assert.ok(game.piles.every(exchange => !exchange.sneakyLocked));
-    game.toggleSneakyTrade(incoming, 1);
+    assert.ok(game.piles.every(exchange => exchange.sneakyLocked));
+    assert.throws(() => game.toggleSneakyTrade(incoming, 1), /kan ikke endres/);
     assert.ok(game.piles.every(exchange => exchange.sneakyVotes.length === 2));
     assert.ok(game.piles.every(exchange => isCardAllowedForExchange(exchange, card(14))));
     outgoing.cards = [card(14)];
@@ -114,6 +116,8 @@ test("bots cannot unlock sneaky by using an eligible name and fall back to norma
     const offer = game.piles[0];
     assert.throws(() => game.toggleSneakyTrade(offer, 0), /ikke tilgjengelig/);
     playBotTurn(game, game.players[0], () => 0);
+    assert.equal(game.piles[0].mode, "Tilbud");
+    playBotTurn(game, game.players[1], () => 0);
     assert.ok(game.piles.every(exchange => (exchange.sneakyVotes || []).length == 0));
     assert.ok(game.piles.every(exchange => exchange.mode != "Tilbud"));
 });
@@ -128,6 +132,7 @@ test("mutual consent at initiation allows cards outside 7–J without requiring 
     game.toggleSneakyTrade(offer, 1);
     assert.equal(game.piles.length, 1);
     game.startOptionalTrade(offer);
+    game.respondToForcedTrade(offer, 1, true);
     const outgoing = game.piles.find(exchange => exchange.from === 0);
     outgoing.cards = [card(14)];
     game.giveExchangeCards(outgoing);
@@ -138,8 +143,9 @@ test("a bot declining sneaky consent cannot leave the initiating bot stuck forev
     const game = optionalTradeGame();
     playBotTurn(game, game.players[0], () => 0);
     playBotTurn(game, game.players[1], () => 0.99);
-    assert.equal(game.piles[0].botDecisions[1], "skip");
-    playBotTurn(game, game.players[0], () => { throw new Error("Decision must be cached"); });
+    assert.ok(game.piles.every(exchange => exchange.sneakyVotes.length == 1));
+    playBotTurn(game, game.players[0], () => 0.99);
+    playBotTurn(game, game.players[1], () => 0.99);
     assert.ok(game.piles.every(pile => pile.mode !== "Tilbud"));
     assert.equal(game.status, "S");
 });
@@ -150,6 +156,39 @@ test("optional bot decisions survive exchange serialization and host handoff", (
     const restored = PresidentGame.deserializeExchanges(game.serializePiles());
     assert.equal(restored[0].botDecisions[0], "sneaky");
     assert.equal(restored[0].botDecisions[1], "skip");
+});
+
+test("forced recipient consent survives handoff, rejects stale answers and respects a normal answer", () => {
+    const game = optionalTradeGame();
+    const offer = game.piles[0];
+    game.toggleSneakyTrade(offer, 0);
+    game.toggleSneakyTrade(offer, 1);
+    game.startOptionalTrade(offer);
+    assert.deepEqual(Array.from(offer.sneakyVotes), [0], "Pre-forcing votes cannot replace an explicit answer");
+    const forcedAt = offer.forcedAt;
+    game.piles = PresidentGame.deserializeExchanges(game.serializePiles());
+    const restored = game.piles[0];
+    assert.equal(restored.forcedAt, forcedAt);
+    assert.equal(restored.receiverChoice, null);
+    assert.throws(() => game.toggleSneakyTrade(restored, 0), /kan ikke endres/);
+    assert.throws(() => game.respondToForcedTrade(restored, 2, true), /ikke lenger/);
+    game.respondToForcedTrade(restored, 1, false);
+    assert.ok(game.piles.every(exchange => exchange.mode == "Velg" && exchange.sneakyLocked));
+    assert.ok(game.piles.every(exchange => !isCardAllowedForExchange(exchange, card(14), game)));
+    assert.throws(() => game.respondToForcedTrade(restored, 1, true), /ikke lenger/);
+});
+
+test("declining unrestricted exchange without legal normal cards cancels explicitly without losing cards", () => {
+    const game = optionalTradeGame();
+    game.players[0].cards = new CardDeck(card(14));
+    game.players[1].cards = new CardDeck(card(13, 2));
+    const offer = game.piles[0];
+    game.toggleSneakyTrade(offer, 0);
+    game.startOptionalTrade(offer);
+    game.respondToForcedTrade(offer, 1, false);
+    assert.equal(game.status, "S");
+    assert.equal(game.skippedTrades[0].reason, "noLegalCards");
+    assert.deepEqual(game.players.map(player => player.cards.length), [1, 1, 3]);
 });
 
 test("only the initiator may decline an optional trade, regardless of role or bot control", () => {
@@ -192,6 +231,7 @@ test("President then Neutral control sequential trades and received cards cannot
     assert.throws(() => game.skipOptionalTrade(first, 1), /kan ikke avslå/);
     first.sneakyVotes = [0, 1];
     game.startOptionalTrade(first);
+    game.respondToForcedTrade(first, 1, true);
     assert.equal(activeTradeOffer(game), null);
     assert.throws(() => game.startOptionalTrade(second), /ikke lenger/);
     const outgoing = game.piles.find(exchange => exchange.tradeId == "trade" && exchange.from == 0);
@@ -202,7 +242,9 @@ test("President then Neutral control sequential trades and received cards cannot
     incoming.cards = [game.players[1].cards.find(c => c.rank == 8)];
     game.giveExchangeCards(incoming);
     assert.equal(activeTradeOffer(game), second);
-    assert.ok(second.offerUntil > Date.now());
+    assert.equal(second.offerUntil, undefined, "The next offer timer must wait for the receipt summary");
+    assert.ok(game.exchangeReady);
+    game.exchangeReady = null;
     assert.throws(() => game.skipOptionalTrade(second, 2), /kan ikke avslå/);
     game.exchangeReceipts = JSON.parse(JSON.stringify(game.exchangeReceipts));
     let available = getAvailableExchangeCards(game, 1, second);
@@ -214,22 +256,16 @@ test("President then Neutral control sequential trades and received cards cannot
     assert.throws(() => game.startOptionalTrade(second), /7 til J/);
     game.players[1].cards = neutralHand;
     game.startOptionalTrade(second);
+    game.respondToForcedTrade(second, 2, false);
     const neutral = game.piles.find(exchange => exchange.from == 1);
     neutral.cards = [received];
     assert.throws(() => game.giveExchangeCards(neutral), /ikke gyldige/);
     assert.equal(neutral.mode, "Velg");
     neutral.cards = [];
-    game.toggleSneakyTrade(neutral, 1);
+    assert.throws(() => game.toggleSneakyTrade(neutral, 1), /kan ikke endres/);
     assert.equal(getAvailableExchangeCards(game, 1, neutral).some(c =>
         c.suit == received.suit && c.rank == received.rank), false);
-    game.toggleSneakyTrade(neutral, 2);
-    available = getAvailableExchangeCards(game, 1, neutral);
-    assert.ok(available.some(c => c.suit == received.suit && c.rank == received.rank));
-    game.toggleSneakyTrade(neutral, 2);
-    assert.equal(getAvailableExchangeCards(game, 1, neutral).some(c =>
-        c.suit == received.suit && c.rank == received.rank), false);
-    game.toggleSneakyTrade(neutral, 2);
-    neutral.cards = [received];
+    neutral.cards = [neutralHand.find(c => c.rank == 10)];
     game.giveExchangeCards(neutral);
     assert.equal(neutral.mode, "Gitt");
 });
@@ -245,6 +281,7 @@ test("a Neutral bot cannot pass the President's received card on in a normal exc
     offer.from = 1;
     offer.to = 2;
     game.startOptionalTrade(offer);
+    game.respondToForcedTrade(offer, 2, false);
     const outgoing = game.piles.find(exchange => exchange.from == 1);
     playBotTurn(game, game.players[1], () => 0.99);
     assert.equal(outgoing.mode, "Gitt");
@@ -522,9 +559,12 @@ test("target bots can consent to sneaky but never initiate a normal trade or mut
     assert.equal(BotAI.chooseOptionalTrade(game, game.players[0], offer, () => 0), "skip");
 
     const startedTrade = optionalTradeGame();
+    startedTrade.toggleSneakyTrade(startedTrade.piles[0], 0);
     startedTrade.startOptionalTrade(startedTrade.piles[0]);
     playBotTurn(startedTrade, startedTrade.players[1], () => 0);
     assert.ok(startedTrade.piles.every(exchange => exchange.sneakyVotes.length === 2));
+    assert.ok(startedTrade.piles.every(exchange => exchange.mode === "Velg"));
+    playBotTurn(startedTrade, startedTrade.players[1], () => 0);
     assert.ok(startedTrade.piles.some(exchange => exchange.mode === "Gitt"));
 });
 

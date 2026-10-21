@@ -1,5 +1,5 @@
 function playBotTurn(game, player, random = Math.random) {
-    if (game.status == "S" && game.isTurnPaused()) { return; }
+    if ((game.status == "S" || game.status == "G") && game.isTurnPaused()) { return; }
     if (game.status == "G") {
         game.piles.slice().filter(exchange =>
             exchange.mode == "Kan se" && game.players[exchange.to] == player
@@ -8,10 +8,20 @@ function playBotTurn(game, player, random = Math.random) {
         });
         if (game.status == "G") {
             var seat = game.players.indexOf(player);
+            var handledOffer = false;
             game.piles.slice().filter(exchange =>
                 exchange == activeTradeOffer(game) && (exchange.from == seat || exchange.to == seat)
             ).forEach(exchange => {
                 if (!game.piles.includes(exchange) || exchange.mode != "Tilbud") { return; }
+                handledOffer = true;
+                if (exchange.forcedAt != null) {
+                    if (exchange.to == seat && exchange.receiverChoice == null) {
+                        game.respondToForcedTrade(exchange, seat,
+                            isSneakyTradeAvailable(game) && BotAI.chooseSneakyConsent(player, random));
+                    }
+                    return;
+                }
+                if (exchange.from != seat) { return; }
                 if (!exchange.botDecisions) { exchange.botDecisions = {}; }
                 var decision = exchange.botDecisions[seat];
                 if (!decision) {
@@ -28,7 +38,7 @@ function playBotTurn(game, player, random = Math.random) {
                     if (!game.piles.includes(exchange)) { return; }
                 }
                 if (exchange.from != seat) { return; }
-                if ((decision == "sneaky" && hasSneakyConsent(exchange, game)) ||
+                if ((decision == "sneaky" && isSneakyTradeAvailable(game)) ||
                     (decision == "normal" && hasLegalTradeCard(game, exchange.from, exchange) &&
                         hasLegalTradeCard(game, exchange.to, exchange))) {
                     game.startOptionalTrade(exchange);
@@ -38,6 +48,7 @@ function playBotTurn(game, player, random = Math.random) {
                     game.skipOptionalTrade(exchange, seat);
                 }
             });
+            if (handledOffer) { return; }
         }
         if (game.status == "G") {
             game.piles.slice().filter(exchange =>
@@ -100,6 +111,7 @@ function playBotTurn(game, player, random = Math.random) {
                 game.giveExchangeCards(exchange);
             });
         }
+        return;
     }
     if (game.status == "S" && player.turn == 1 && player.placement == 0) {
         var cards = BotAI.chooseMove(BotAI.observe(game, player), player.botSkill, random);

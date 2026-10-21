@@ -70,6 +70,24 @@ test("exchange readiness has a shared seven-second deadline so suspended tabs ca
     assert.equal(deadline.until, start + 7000 + Presence.actionMs);
 });
 
+test("mid-exchange receipt gates pause input and accept acknowledgments before the next trade", () => {
+    const record = exchangeRoom();
+    record.status = "G";
+    record.spillBunke = [{ id: "pending", modus: "Tilbud", fra: 0, til: 1,
+        forcedAt: start, receiverChoice: null }];
+    assert.equal(Presence.actionToken(record, record.spillere[1], 1, start), null);
+    const first = Presence.acknowledgeExchange(record, "round-2", "owner", "Owner", start + 1000);
+    assert.ok(first.exchangeReady);
+    const next = Presence.acknowledgeExchange(first, "round-2", "guest", "Guest", start + 2000);
+    assert.equal(next.status, "G");
+    assert.equal(next.exchangeReady, null);
+    const guestId = Presence.playerId(next.spillere[1]);
+    assert.equal(next.actionDeadlines[guestId].until, start + 2000 + Presence.actionMs);
+    assert.equal(Presence.actionToken(next, next.spillere[0], 0, start + 2000), null);
+    assert.ok(Presence.actionToken(next, next.spillere[1], 1, start + 2000));
+    assert.equal(Presence.reconcile(record, start + 7000).exchangeReady, null);
+});
+
 test("bots, disconnected players and bot-controlled seats never block exchange readiness", () => {
     for (const mode of ["bot", "offline", "controlled", "gaveUp", "finished"]) {
         const record = exchangeRoom();

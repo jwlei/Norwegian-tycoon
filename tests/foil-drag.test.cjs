@@ -1156,6 +1156,43 @@ test("touching the hand cancels queued auto-centering before it can fight a manu
     }
 });
 
+test("auto-scroll scales duration with distance without throttling animation frames", () => {
+    for (const [distance, duration] of [[24, 180], [60, Math.sqrt(42000)], [700, 700], [1000, 700]]) {
+        for (const direction of [-1, 1]) {
+            const f = fixture();
+            const hand = new Element();
+            hand.scrollLeft = 1200;
+            const target = 1200 + distance * direction;
+            f.context.animateHandScroll(hand, target);
+            f.runFrame(1000);
+            f.runFrame(1000 + duration / 2);
+            assert.ok(Math.abs(hand.scrollLeft - (1200 + distance * direction / 2)) < 1e-6);
+            assert.equal(f.pendingFrames, 1);
+            f.runFrame(1000 + duration + 0.001);
+            assert.equal(hand.scrollLeft, target);
+            assert.equal(f.pendingFrames, 0);
+        }
+    }
+});
+
+test("auto-scroll still honors explicit durations, reduced motion and manual cancellation", () => {
+    const f = fixture();
+    const hand = new Element();
+    hand.scrollLeft = 0;
+    f.context.animateHandScroll(hand, 60, 700);
+    f.runFrame(1000);
+    f.runFrame(1350);
+    assert.equal(hand.scrollLeft, 30);
+    f.context.stopCardHandInertia();
+    assert.equal(f.pendingFrames, 0);
+    f.runFrame(1700);
+    assert.equal(hand.scrollLeft, 30);
+    f.reducedMotion = true;
+    f.context.animateHandScroll(hand, 60);
+    assert.equal(hand.scrollLeft, 60);
+    assert.equal(f.pendingFrames, 0);
+});
+
 test("scroll inertia advances monotonically and stops at the hand boundary without bouncing", () => {
     for (const direction of [-1, 1]) {
         const f = fixture();

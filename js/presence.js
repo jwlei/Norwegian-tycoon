@@ -67,7 +67,7 @@ class GamePresence {
 
     static exchangeWaitingPlayers(record, now = this.now()) {
         var gate = record.exchangeReady;
-        if (record.status != "S" || !gate || now >= gate.until) { return []; }
+        if (!["S", "G"].includes(record.status) || !gate || now >= gate.until) { return []; }
         return (record.players || record.spillere || []).filter(player =>
             (player.placement ?? player.plassering) == 0 &&
             player.gaveUp !== true &&
@@ -78,7 +78,7 @@ class GamePresence {
     }
 
     static acknowledgeExchange(record, gateId, playerKey, playerName, now = this.now()) {
-        if (!record || record.status != "S" || record.exchangeReady?.id != gateId) { return; }
+        if (!record || !["S", "G"].includes(record.status) || record.exchangeReady?.id != gateId) { return; }
         var player = (record.spillere || []).find(candidate =>
             candidate.spillerKey == playerKey && candidate.nick == playerName &&
             candidate.plassering == 0 && candidate.gaveUp !== true);
@@ -112,7 +112,7 @@ class GamePresence {
     }
 
     static isActionPaused(record, now = this.now()) {
-        if (record.status == "S" && record.exchangeReady != null) { return true; }
+        if (["S", "G"].includes(record.status) && record.exchangeReady != null) { return true; }
         if ((record.status == "S" || record.status == "G") && record.shuffleStartedAt != null &&
             now < Number(record.shuffleStartedAt) + SHUFFLE_DURATION_MS) {
             return true;
@@ -135,7 +135,9 @@ class GamePresence {
         if (record.status == "G") {
             var exchanges = (record.spillBunke || []).filter(exchange =>
                 ((exchange.modus == "Velg" || exchange.modus == "Best") && exchange.fra == index) ||
-                (exchange.modus == "Kan se" && exchange.til == index));
+                (exchange.modus == "Kan se" && exchange.til == index) ||
+                (exchange.modus == "Tilbud" && exchange.forcedAt != null &&
+                    exchange.receiverChoice == null && exchange.til == index));
             if (exchanges.length > 0) {
                 return JSON.stringify([record.shuffleStartedAt, exchanges.map(exchange =>
                     [exchange.id, exchange.modus, (exchange.sneakyVotes || []).includes(index)])]);
@@ -152,7 +154,7 @@ class GamePresence {
         if (this.isExpired(record, now)) {
             return Object.assign({}, record, { status: "V" });
         }
-        if (record.status == "S" && record.exchangeReady != null &&
+        if (["S", "G"].includes(record.status) && record.exchangeReady != null &&
             this.exchangeWaitingPlayers(record, now).length == 0) {
             record = Object.assign({}, record, { exchangeReady: null });
             changed = true;

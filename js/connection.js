@@ -118,7 +118,7 @@
                 (currentGame.status == "S" || currentGame.status == "G");
             var now = connection ? connection.now() : Date.now();
             var offer = activeTradeOffer(currentGame);
-            if (offer) {
+            if (offer && !GamePresence.isActionPaused(currentGame, now)) {
                 var offerRemaining = offer.offerUntil == null ? 120 :
                     Math.max(0, Math.ceil((offer.offerUntil - now) / 1000));
                 countdown.textContent = `${Math.floor(offerRemaining / 60)}:${String(offerRemaining % 60).padStart(2, "0")}`;
@@ -839,7 +839,10 @@
             trades.forEach(trade => {
                 if (game.notifiedSkippedTrades.has(trade.id)) { return; }
                 game.notifiedSkippedTrades.add(trade.id);
-                if (game.skippedTrades != null && trade.recipient == currentPlayerName) {
+                if (game.skippedTrades != null && trade.reason == "noLegalCards" &&
+                    [trade.sender, trade.recipient].includes(currentPlayerName)) {
+                    showGameToast("Byttet ble avbrutt fordi vanlig bytte krever at begge har kort fra 7 til J.", game);
+                } else if (game.skippedTrades != null && trade.recipient == currentPlayerName) {
                     showGameToast(`${trade.sender} valgte å ikke gjennomføre ekstra bytte med deg.`, game);
                 }
             });
@@ -862,8 +865,8 @@
                 game.notifiedTrades.add(key);
                 if (sneaky) { game.notifiedTrades.add(sneakyKey); }
                 showGameToast(sneaky
-                    ? "Oooh.. Sneaky.."
-                    : "Sneaky-samtykke ikke nådd. Byttet starter med kort 7–J.", game);
+                    ? "Ureglementert bytte: alle kort kan brukes."
+                    : "Vanlig bytte: kort 7–J.", game);
             });
         }
 
@@ -1023,7 +1026,7 @@
             var gate = game.exchangeReady;
             var player = game.getPlayer(currentPlayerName);
             var overlay = document.getElementById("receivedCardsOverlay");
-            if (game.status != "S" || gate == null || player == null ||
+            if (!["S", "G"].includes(game.status) || gate == null || player == null ||
                 player.placement != 0 || player.gaveUp === true ||
                 player.playerKey != getPlayerKey() || GamePresence.isBot(game, player)) {
                 clearExchangeSummary();
@@ -1038,7 +1041,8 @@
                 return;
             }
             if (receivedSummaryId == gate.id) { return; }
-            var receipts = (game.exchangeReceipts || []).filter(receipt => receipt.recipient == player.name);
+            var receipts = (game.exchangeReceipts || []).filter(receipt => receipt.recipient == player.name &&
+                (!gate.receiptIds || gate.receiptIds.includes(receipt.id)));
             if (receipts.length == 0) {
                 completeExchangeSummary(game, gate.id);
                 return;
@@ -2555,6 +2559,24 @@
 
         var botLoopTimer = null;
         var botLoopFastForward = false;
+        var botExchangeDeadlines = new Map();
+        function botExchangeReadyAt(game, player, now) {
+            var seat = game.players.indexOf(player);
+            var exchanges = game.piles.filter(exchange =>
+                (exchange.mode == "Tilbud" && exchange == activeTradeOffer(game) &&
+                    (exchange.forcedAt != null ? exchange.to == seat : exchange.from == seat)) ||
+                (["Velg", "Best"].includes(exchange.mode) && exchange.from == seat) ||
+                (exchange.mode == "Kan se" && exchange.to == seat));
+            if (exchanges.length == 0) { return null; }
+            var token = JSON.stringify([game.id, GamePresence.roundToken(game), seat,
+                exchanges.map(exchange => [getExchangeId(exchange), exchange.mode, exchange.forcedAt || null])]);
+            var previous = botExchangeDeadlines.get(seat);
+            if (previous?.token != token) {
+                previous = { token, until: now + 5000 + Math.floor(Math.random() * 5001) };
+                botExchangeDeadlines.set(seat, previous);
+            }
+            return previous.until;
+        }
         function scheduleBotLoop() {
             var fastForward = !!currentGame && currentGame.fastForward === true &&
                 (GamePresence.onlyBotsRemain(currentGame) || currentGame.turnPause?.pendingGameEnd === true);
@@ -2563,12 +2585,22 @@
                 botLoopTimer = null;
                 botLoopFastForward = fastForward;
             }
-            if (botLoopTimer != null || currentGame == null ||
+            if (currentGame == null ||
                 currentGame.exchangeReady != null ||
                 currentGame.localWritePending ||
                 !GamePresence.canDrive(currentGame, connection ? connection.now() : Date.now()) ||
                 (currentGame.status != "S" && currentGame.status != "G")) { return; }
-            var delay = currentGame.turnPause?.presentationVersion == 1
+            var now = GamePresence.now();
+            var exchangeDeadlines = currentGame.status == "G"
+                ? currentGame.players.filter(player => GamePresence.isBot(currentGame, player) ||
+                    player.leaveAfterExchange === true)
+                    .map(player => botExchangeReadyAt(currentGame, player, now))
+                    .filter(until => until != null)
+                : [];
+            if (botLoopTimer != null) { return; }
+            if (currentGame.status == "G" && exchangeDeadlines.length == 0) { return; }
+            var delay = currentGame.status == "G" ? Math.max(0, Math.min(...exchangeDeadlines) - now) :
+                currentGame.turnPause?.presentationVersion == 1
                 ? Math.max(0, currentGame.turnPause.botUntil - GamePresence.now())
                 : animationDuration(currentGame, 2000);
             if (currentGame.turnPause != null) {
@@ -2599,7 +2631,10 @@
                 currentGame.players.filter(player =>
                     GamePresence.isBot(currentGame, player) || player.leaveAfterExchange === true
                 ).forEach(player => {
-                    playBotTurn(currentGame, player);
+                    var until = botExchangeReadyAt(currentGame, player, GamePresence.now());
+                    if (until != null && GamePresence.now() >= until) {
+                        playBotTurn(currentGame, player);
+                    }
                 });
             } else if (currentGame.status == "S" && currentGame.turn >= 0 && GamePresence.isBot(currentGame, currentGame.players[currentGame.turn])) {
                 playBotTurn(currentGame, currentGame.players[currentGame.turn]);

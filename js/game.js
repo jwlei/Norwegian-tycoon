@@ -525,9 +525,14 @@ function stopCardHandInertia() {
     }
 }
 
-function animateHandScroll(element, targetScrollLeft, duration = 700) {
+function animateHandScroll(element, targetScrollLeft, duration = null) {
     stopCardHandInertia();
     var startScrollLeft = element.scrollLeft;
+    // Small corrections otherwise spend most frames rounding to the same scroll pixel.
+    if (duration == null) {
+        duration = Math.max(180, Math.min(700,
+            700 * Math.sqrt(Math.abs(targetScrollLeft - startScrollLeft) / 700)));
+    }
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         element.scrollLeft = targetScrollLeft;
         return;
