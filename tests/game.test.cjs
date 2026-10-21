@@ -1310,6 +1310,42 @@ test("splash only displays the matching player ID after a remembered PIN login",
     assert.equal(splash.hidden, true);
 });
 
+test("splash and loaded leaderboard share the exact case-sensitive ID for each identity", async () => {
+    const context = savedPreferencesContext();
+    const records = {
+        AZaz09: { name: "Ada", lastActiveAt: 2, roundsPlayed: 20 },
+        aZAZ90: { name: "Grace", lastActiveAt: 1, roundsPlayed: 10 }
+    };
+    context.PlayerIdentity.isDefaultName = () => false;
+    context.firebase = { database: () => ({ ref(name) {
+        assert.equal(name, "playerStats");
+        return {
+            orderByChild() { return this; },
+            limitToLast() { return this; },
+            async once() {
+                return { forEach(callback) {
+                    for (const [key, record] of Object.entries(records)) {
+                        callback({ key, val: () => record });
+                    }
+                } };
+            }
+        };
+    } }) };
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "leaderboard.js"), "utf8");
+    vm.runInContext(source.slice(0, source.indexOf("function initializeLeaderboard()")), context);
+    const rows = await vm.runInContext("PlayerLeaderboard.load()", context);
+    for (const record of rows) {
+        context.setCookie("SpillerKey", record.id, 1000);
+        context.setCookie("playerPinProfile",
+            encodeURIComponent(JSON.stringify([record.name.toLowerCase(), record.id])), 1000);
+        context.saveLastUsedPlayerName(record.name);
+        assert.equal(context.document.getElementById("splashPlayerName").textContent,
+            `${record.name} · ID ${record.id}`);
+        assert.equal(context.getPlayerKey(), record.id);
+        assert.match(record.id, /^[A-Za-z0-9]{6}$/);
+    }
+});
+
 test("PIN recovery displays legacy IDs without shortening them or changing their identity", () => {
     const context = savedPreferencesContext();
     const key = "x".repeat(50);

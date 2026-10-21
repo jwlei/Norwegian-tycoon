@@ -51,6 +51,7 @@
         "Henter runder…": "Loading rounds…",
         "Kunne ikke hente runder. Åpne menyen igjen for å prøve på nytt.": "Could not load rounds. Reopen the menu to retry.",
         "Henter leaderboard…": "Loading leaderboard…",
+        "Sekstegns-ID utilgjengelig": "Six-character ID unavailable",
         "Ingen registrerte runder ennå.": "No rounds recorded yet.",
         "Kunne ikke hente leaderboard. Lukk og åpne igjen for å prøve på nytt.": "Could not load the leaderboard. Close and reopen it to retry.",
         "Sorterbart leaderboard": "Sortable leaderboard",
