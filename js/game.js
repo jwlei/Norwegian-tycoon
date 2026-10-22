@@ -332,7 +332,7 @@ function showInvalidCardWarning(game) {
     invalidCardAttemptCount++;
     if (invalidCardAttemptCount >= 3 && !invalidCardWarningShown) {
         invalidCardWarningShown = true;
-        showDialog("KanIkkeLeggeKort", true);
+        showDialog("CannotPlay", true);
     }
 }
 

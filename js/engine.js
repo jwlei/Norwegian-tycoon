@@ -561,15 +561,15 @@ class PresidentGame extends Game {
                     var placementTotal = number(previous.normalizedPlacementTotal) +
                         1 + 2 * (player.placement - 1) / (playerCount - 1);
                     var isPresident = player.placement == 1;
-                    var isBoms = player.placement == playerCount;
+                    var isBum = player.placement == playerCount;
                     roundStats = {
                         completedRounds, roundsPlayed, normalizedPlacementTotal: placementTotal,
                         placementScore: placementTotal / roundsPlayed,
-                        bomsCount: number(previous.bomsCount) + Number(isBoms),
+                        bomsCount: number(previous.bomsCount) + Number(isBum),
                         longestPresidentStreak: Math.max(number(previous.longestPresidentStreak),
                             isPresident ? Math.max(1, number(player.presidentStreak)) : 0),
                         longestBomsStreak: Math.max(number(previous.longestBomsStreak),
-                            isBoms ? Math.max(1, number(player.bomsStreak)) : 0),
+                            isBum ? Math.max(1, number(player.bomsStreak)) : 0),
                         ...(!hasDefaultName ? { lastActiveAt: Math.max(number(previous.lastActiveAt), finishedAt) } : {})
                     };
                 }
@@ -1394,18 +1394,18 @@ class PresidentGame extends Game {
         if (hasPreviousPlacements || this.players.length == 2) { this.dealStarterStep = null; }
         if (hasPreviousPlacements) {
             var presidentIndex = this.players.findIndex(player => player.placement == 1);
-            var bomsIndex = this.players.findIndex(player => player.placement == this.players.length);
+            var bumIndex = this.players.findIndex(player => player.placement == this.players.length);
             var vicePresidentIndex = this.players.findIndex(player => player.placement == 2);
-            var viceBomsIndex = this.players.findIndex(player =>
+            var viceBumIndex = this.players.findIndex(player =>
                 player.placement == this.players.length - 1
             );
             var neutralIndex = this.players.findIndex(player =>
                 player.placement == 2
             );
-            if (presidentIndex < 0 || bomsIndex < 0) {
+            if (presidentIndex < 0 || bumIndex < 0) {
                 throw ("Forrige rundes President eller Boms mangler.");
             }
-            this.roundStarterName = this.players[bomsIndex].name;
+            this.roundStarterName = this.players[bumIndex].name;
             this.players.forEach(player => {
                 player.cards.sortCards();
                 player.lastPlacement = player.placement;
@@ -1417,34 +1417,34 @@ class PresidentGame extends Game {
             this.skippedTrades = [];
             this.setTurn(null);
             if (this.players.length >= 4) {
-                if (vicePresidentIndex < 0 || viceBomsIndex < 0) {
+                if (vicePresidentIndex < 0 || viceBumIndex < 0) {
                     throw ("Forrige rundes visepresident eller viseboms mangler.");
                 }
                 this.players[presidentIndex].messages.push("Skal gi to kort til bomsen.");
                 this.players[vicePresidentIndex].messages.push("Skal gi ett kort til visebomsen.");
-                this.players[viceBomsIndex].messages.push("Gir sitt beste kort til visepresidenten.");
-                this.players[bomsIndex].messages.push("Gir sine to beste kort til presidenten.");
+                this.players[viceBumIndex].messages.push("Gir sitt beste kort til visepresidenten.");
+                this.players[bumIndex].messages.push("Gir sine to beste kort til presidenten.");
                 this.piles = [{
                     text: "Presidenten skal gi bomsen to kort:",
                     from: presidentIndex,
-                    to: bomsIndex,
+                    to: bumIndex,
                     count: 2,
                     mode: "Velg"
                 }, {
                     text: "Visepresidenten skal gi visebomsen ett kort:",
                     from: vicePresidentIndex,
-                    to: viceBomsIndex,
+                    to: viceBumIndex,
                     count: 1,
                     mode: "Velg"
                 }, {
                     text: "Visebomsen skal gi visepresidenten sitt beste kort:",
-                    from: viceBomsIndex,
+                    from: viceBumIndex,
                     to: vicePresidentIndex,
                     count: 1,
                     mode: "Best"
                 }, {
                     text: "Bomsen skal gi presidenten sine to beste kort:",
-                    from: bomsIndex,
+                    from: bumIndex,
                     to: presidentIndex,
                     count: 2,
                     mode: "Best"
@@ -1453,12 +1453,12 @@ class PresidentGame extends Game {
                 this.piles = [{
                     text: this.players.length == 2 ? "Presidenten skal velge ett kort til Boms:" : "Presidenten skal velge to kort til Boms:",
                     from: presidentIndex,
-                    to: bomsIndex,
+                    to: bumIndex,
                     count: this.players.length == 2 ? 1 : 2,
                     mode: "Velg"
                 }, {
                     text: this.players.length == 2 ? "Boms må gi sitt beste kort til Presidenten:" : "Boms må gi sine to beste kort til Presidenten:",
-                    from: bomsIndex,
+                    from: bumIndex,
                     to: presidentIndex,
                     count: this.players.length == 2 ? 1 : 2,
                     mode: "Best"
@@ -1476,12 +1476,12 @@ class PresidentGame extends Game {
                         cards: [],
                         sneakyVotes: []
                     }, {
-                        id: `offer:${this.round}:${neutralIndex}:${bomsIndex}`,
-                        tradeId: `trade:${this.round}:${neutralIndex}:${bomsIndex}`,
+                        id: `offer:${this.round}:${neutralIndex}:${bumIndex}`,
+                        tradeId: `trade:${this.round}:${neutralIndex}:${bumIndex}`,
                         kind: "playerTrade",
                         text: "Nøytral kan starte et tvunget bytte med Boms:",
                         from: neutralIndex,
-                        to: bomsIndex,
+                        to: bumIndex,
                         count: 1,
                         mode: "Tilbud",
                         cards: [],

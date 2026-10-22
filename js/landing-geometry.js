@@ -6,6 +6,14 @@
     const EDGE = 3;
     const VIEW_SHEAR = .28;
     const LIGHT = { x: -.4, y: -.5, z: 1 };
+    const CONTACT = .64;
+    const SLIDE = 1 - CONTACT;
+    // Slide-to-air distance ratio that gives one constant deceleration from throw to rest.
+    const UNIFORM_SLIDE = 1 / (2 * CONTACT / SLIDE + (CONTACT / SLIDE) ** 2);
+    // Points on each card outline (four corners of 17 points each), listed before interior samples.
+    const CONTOUR_POINTS = 68;
+    // A blurred shadow stays visible to about 2.5 blur radii beyond its edge.
+    const HALO = 2.5;
     const radians = degrees => degrees * Math.PI / 180;
     const degrees = angle => angle * 180 / Math.PI;
     const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
@@ -86,20 +94,68 @@
         return points;
     }
 
-    function contains(pose, x, y) {
-        const a = rotate(1, 0, 0, pose), b = rotate(0, 1, 0, pose);
-        const determinant = a.x * b.y - b.x * a.y;
-        const dx = x - pose.x, dy = y - pose.y;
-        const u = Math.abs((dx * b.y - b.x * dy) / determinant);
-        const v = Math.abs((a.x * dy - dx * a.y) / determinant);
+    function insideOutline(pose, u, v, margin = 0) {
         const width = pose.width || WIDTH, height = pose.height || HEIGHT;
         const radius = (pose.radius ?? 8.75) * width / 80, radiusY = (pose.radius ?? 8.75) * height / 120;
-        const halfWidth = width / 2 - .75 * width / 80, halfHeight = height / 2 - .75 * height / 120;
+        const halfWidth = width / 2 - .75 * width / 80 + margin, halfHeight = height / 2 - .75 * height / 120 + margin;
+        u = Math.abs(u);
+        v = Math.abs(v);
         if (u > halfWidth + 1e-7 || v > halfHeight + 1e-7) { return false; }
-        const cornerX = Math.max(0, u - halfWidth + radius);
-        const cornerY = Math.max(0, v - halfHeight + radiusY);
         if (!radius || !radiusY) { return true; }
-        return (cornerX / radius) ** 2 + (cornerY / radiusY) ** 2 <= 1 + 1e-7;
+        const cornerX = Math.max(0, u - halfWidth + radius + margin);
+        const cornerY = Math.max(0, v - halfHeight + radiusY + margin);
+        return (cornerX / (radius + margin)) ** 2 + (cornerY / (radiusY + margin)) ** 2 <= 1 + 1e-7;
+    }
+
+    // Inverts an affine map from card-local (u, v) to 2D, given the images of the unit axes.
+    function insideAffine(pose, a, b, origin, x, y, margin = 0) {
+        const determinant = a.x * b.y - b.x * a.y;
+        const dx = x - origin.x, dy = y - origin.y;
+        return insideOutline(pose, (dx * b.y - b.x * dy) / determinant, (a.x * dy - dx * a.y) / determinant, margin);
+    }
+
+    function contains(pose, x, y) {
+        return insideAffine(pose, rotate(1, 0, 0, pose), rotate(0, 1, 0, pose), pose, x, y);
+    }
+
+    // Per-pose memo, rebuilt if the same pose object is later changed.
+    function memo(map, pose, compute) {
+        const entry = map.get(pose);
+        if (entry && entry.x === pose.x && entry.y === pose.y && entry.z === pose.z && entry.pitch === pose.pitch &&
+            entry.yaw === pose.yaw && entry.roll === pose.roll && entry.width === pose.width &&
+            entry.height === pose.height) { return entry.value; }
+        const value = compute(pose);
+        map.set(pose, { x: pose.x, y: pose.y, z: pose.z, pitch: pose.pitch, yaw: pose.yaw, roll: pose.roll,
+            width: pose.width, height: pose.height, value });
+        return value;
+    }
+
+    const footprints = new WeakMap();
+    // The card's projected top face and underside, with a screen-space bounding box around both.
+    function footprint(pose) {
+        return memo(footprints, pose, () => {
+            const a = screen(rotate(1, 0, 0, pose)), b = screen(rotate(0, 1, 0, pose)), top = screen(pose);
+            const n = rotate(0, 0, 1, pose);
+            const base = screen({ x: pose.x - n.x * EDGE, y: pose.y - n.y * EDGE, z: pose.z - n.z * EDGE });
+            const w = (pose.width || WIDTH) / 2 + 1, h = (pose.height || HEIGHT) / 2 + 1;
+            const ex = Math.abs(a.x) * w + Math.abs(b.x) * h, ey = Math.abs(a.y) * w + Math.abs(b.y) * h;
+            return { a, b, top, base, minX: Math.min(top.x, base.x) - ex, maxX: Math.max(top.x, base.x) + ex,
+                minY: Math.min(top.y, base.y) - ey, maxY: Math.max(top.y, base.y) + ey };
+        });
+    }
+
+    // Whether a screen point lies within the card's projected top face.
+    function screenContains(pose, x, y) {
+        const f = footprint(pose);
+        return insideAffine(pose, f.a, f.b, f.top, x, y);
+    }
+
+    // Whether a screen point is hidden by the card, including its 3px edge (top face or underside).
+    // Slivers under a quarter pixel cannot show a shadow, so they count as covered.
+    function screenCovers(pose, x, y) {
+        const f = footprint(pose);
+        if (x < f.minX || x > f.maxX || y < f.minY || y > f.maxY) { return false; }
+        return insideAffine(pose, f.a, f.b, f.top, x, y, .25) || insideAffine(pose, f.a, f.b, f.base, x, y, .25);
     }
 
     function supportHeight(cards, x, y) {
@@ -177,8 +233,134 @@
             z: point.z - distances[index] * LIGHT.z
         }));
         const gap = distances.reduce((sum, distance) => sum + distance, 0) / distances.length;
-        return { points: projected, blur: .6 + Math.min(90, gap) * .1,
-            opacity: .36 - Math.min(100, gap) * .0016, gap };
+        return { points: projected, blur: blurFor(gap), opacity: .36 - Math.min(100, gap) * .0016, gap };
+    }
+
+    function blurFor(gap) {
+        return .6 + Math.min(90, gap) * .1;
+    }
+
+    const sampleCache = new WeakMap(), castCache = new WeakMap(), boundsCache = new WeakMap();
+
+    // Outline points at most `spacing` apart, including along the straight edges between the rounded corners.
+    function outline(pose, z, spacing) {
+        const corners = silhouette(pose, z), points = [];
+        corners.forEach((a, index) => {
+            const b = corners[(index + 1) % corners.length];
+            const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) / spacing));
+            for (let step = 0; step < steps; step++) {
+                const t = step / steps;
+                points.push({ x: mix(a.x, b.x, t), y: mix(a.y, b.y, t), z: mix(a.z, b.z, t) });
+            }
+        });
+        return points;
+    }
+
+    function interior(pose, z) {
+        return samples(pose, z).slice(CONTOUR_POINTS);
+    }
+
+    // Exposure is sampled densely along the edge, where partly covered cards leave thin visible slivers.
+    const surfaceSamples = pose => memo(sampleCache, pose, () => outline(pose, 0, 4).concat(interior(pose, 0)));
+    const castSamples = pose => memo(castCache, pose, () => {
+        const contour = outline(pose, -EDGE, 6);
+        return { contour, points: contour.concat(interior(pose, -EDGE)) };
+    });
+
+    // Screen box containing every shadow the caster can cast, from its own footprint down to the felt.
+    function shadowBounds(caster) {
+        return memo(boundsCache, caster, () => {
+            const f = footprint(caster);
+            let { minX, maxX, minY, maxY } = f;
+            for (const point of castSamples(caster).contour) {
+                const distance = Math.max(0, point.z) / LIGHT.z;
+                const s = screen({ x: point.x - distance * LIGHT.x, y: point.y - distance * LIGHT.y, z: 0 });
+                minX = Math.min(minX, s.x); maxX = Math.max(maxX, s.x);
+                minY = Math.min(minY, s.y); maxY = Math.max(maxY, s.y);
+            }
+            const spread = HALO * blurFor(caster.z);
+            return { minX: minX - spread, maxX: maxX + spread, minY: minY - spread, maxY: maxY + spread };
+        });
+    }
+
+    // Whether a point on some surface lies in the caster's shadow, widened by `margin` for the blur halo.
+    function shadowedBy(caster, point, margin = 0) {
+        const surface = plane(caster), n = surface.normal;
+        const toward = n.x * LIGHT.x + n.y * LIGHT.y + n.z * LIGHT.z;
+        if (toward <= 1e-9) { return false; }
+        const t = -(signedDistance(point, surface) + EDGE) / toward;
+        if (t <= 0) { return false; }
+        // Follow the light ray to the underside, then step to the top face for the outline test.
+        const x = point.x + LIGHT.x * t + n.x * EDGE, y = point.y + LIGHT.y * t + n.y * EDGE;
+        return insideAffine(caster, rotate(1, 0, 0, caster), rotate(0, 1, 0, caster), caster, x, y, margin);
+    }
+
+    function coveredBy(occluders, point) {
+        const s = screen(point);
+        for (const occluder of occluders) {
+            if (screenCovers(occluder, s.x, s.y)) { return true; }
+        }
+        return false;
+    }
+
+    // Receiver surface points not hidden beneath occluders; a shadow can only show at these points.
+    function exposedPoints(receiver, occluders) {
+        return surfaceSamples(receiver).filter(point => !coveredBy(occluders, point));
+    }
+
+    // The caster's underside projected along the light onto a surface (null for the felt), plus a ring just
+    // outside the shadow edge where its blur halo still shows. `outlineOnly` skips the interior samples.
+    function projectedSamples(caster, surface, outlineOnly = false) {
+        const target = surface || { normal: { x: 0, y: 0, z: 1 }, point: { x: 0, y: 0, z: 0 } };
+        const n = target.normal;
+        const denominator = n.x * LIGHT.x + n.y * LIGHT.y + n.z * LIGHT.z;
+        const points = [], contour = [];
+        let total = 0;
+        const source = castSamples(caster);
+        for (const [index, point] of (outlineOnly ? source.contour : source.points).entries()) {
+            const distance = signedDistance(point, target) / denominator;
+            if (distance <= 0) { continue; }
+            const projected = { x: point.x - distance * LIGHT.x, y: point.y - distance * LIGHT.y, z: point.z - distance * LIGHT.z };
+            points.push(projected);
+            if (index < source.contour.length) { contour.push(projected); total += distance; }
+        }
+        if (!contour.length) { return { points, contour, halo: [] }; }
+        const cx = contour.reduce((sum, point) => sum + point.x, 0) / contour.length;
+        const cy = contour.reduce((sum, point) => sum + point.y, 0) / contour.length;
+        const spread = HALO * blurFor(total / contour.length);
+        const halo = contour.map(point => {
+            const dx = point.x - cx, dy = point.y - cy, length = Math.hypot(dx, dy) || 1;
+            const x = point.x + dx / length * spread, y = point.y + dy / length * spread;
+            return { x, y, z: surface ? heightAt(surface, x, y) : 0 };
+        });
+        return { points, contour, halo };
+    }
+
+    // True when some of the caster's shadow on `receiver` (null for the felt) is not hidden beneath `occluders`.
+    // `exposed` optionally supplies the receiver's points already known to be uncovered by part of the occluders.
+    function shadowVisible(caster, receiver, occluders, exposed = null) {
+        const covered = point => coveredBy(occluders, point);
+        if (!receiver) {
+            // Most felt shadows show at their soft edge, so test the outline before the interior.
+            const { contour, halo } = projectedSamples(caster, null, true);
+            if (halo.some(point => !covered(point)) || contour.some(point => !covered(point))) { return true; }
+            return projectedSamples(caster, null).points.some(point => !covered(point));
+        }
+        const bounds = shadowBounds(caster), f = footprint(receiver);
+        if (f.maxX < bounds.minX || f.minX > bounds.maxX || f.maxY < bounds.minY || f.minY > bounds.maxY) { return false; }
+        const open = exposed || exposedPoints(receiver, occluders);
+        // A fully covered receiver can never show a shadow, whatever casts it.
+        if (!open.length) { return false; }
+        const spread = HALO * blurFor(Math.max(0, caster.z - receiver.z));
+        for (const point of open) {
+            if (shadowedBy(caster, point, spread) && !covered(point)) { return true; }
+        }
+        // Catch shadows smaller than the sample spacing by also testing the shadow's own outline and halo.
+        const { contour, halo } = projectedSamples(caster, plane(receiver), true);
+        for (const point of halo.concat(contour)) {
+            if (contains(receiver, point.x, point.y) && !covered(point)) { return true; }
+        }
+        return false;
     }
 
     function flight(start, target, progress, arc = 32) {
@@ -194,23 +376,38 @@
         };
     }
 
+    // Slide length for a throw whose airborne part covers `distance`, before the per-card cap.
+    function slideDistance(distance, power = .55, height = HEIGHT) {
+        const ratio = UNIFORM_SLIDE * (.75 + .45 * clamp(power, 0, 1));
+        return clamp(distance * ratio, 3, height * .45);
+    }
+
+    // Same as slideDistance, measured from the hand to the final resting point.
+    function slideDistanceToRest(distance, power = .55, height = HEIGHT) {
+        const ratio = UNIFORM_SLIDE * (.75 + .45 * clamp(power, 0, 1));
+        return clamp(distance * ratio / (1 + ratio), 3, height * .45);
+    }
+
     function position(start, impact, momentum, progress) {
         const t = clamp(progress, 0, 1);
-        if (t < .58) {
-            const travel = t / .58, ease = 1 - (1 - travel) ** 3;
-            const tangent = (travel ** 3 - travel ** 2) * 3 * .58 / .42;
-            return { x: mix(start.x, impact.x, ease) + momentum.x * tangent,
-                y: mix(start.y, impact.y, ease) + momentum.y * tangent,
-                roll: mix(start.roll, impact.roll, ease) + momentum.spin * tangent };
+        if (t < CONTACT) {
+            // A quadratic arrival matching the slide's initial velocity keeps speed and deceleration continuous.
+            const u = t / CONTACT, rate = 2 * CONTACT / SLIDE;
+            const curve = (from, to, end) => {
+                const outgoing = end * rate, incoming = 2 * (to - from) - outgoing;
+                return from + incoming * u + (outgoing - incoming) * u * u / 2;
+            };
+            return { x: curve(start.x, impact.x, momentum.x), y: curve(start.y, impact.y, momentum.y),
+                roll: curve(start.roll, impact.roll, momentum.spin) };
         }
-        const slide = 1 - ((1 - t) / .42) ** 3;
+        const slide = 1 - ((1 - t) / SLIDE) ** 2;
         return { x: impact.x + momentum.x * slide, y: impact.y + momentum.y * slide,
             roll: impact.roll + momentum.spin * slide };
     }
 
     function motion(cards, start, impact, momentum, progress, contact = null) {
         const t = clamp(progress, 0, 1);
-        const contactTime = .58;
+        const contactTime = CONTACT;
         const dimensions = Object.fromEntries(["width", "height", "radius"]
             .filter(key => start[key] !== undefined).map(key => [key, start[key]]));
         const target = contact || landing(cards, impact.x, impact.y, impact.roll, dimensions);
@@ -234,8 +431,9 @@
         return { pose: rest, phase: t === 1 ? "settled" : "contact", bounce };
     }
 
-    const api = { WIDTH, HEIGHT, EDGE, VIEW_SHEAR, LIGHT, rotate, world, screen, plane, heightAt,
-        signedDistance, silhouette, contains, samples, supportHeight, landing, minimumHeight, shadow, flight, position, motion };
+    const api = { WIDTH, HEIGHT, EDGE, VIEW_SHEAR, LIGHT, CONTACT, slideDistance, slideDistanceToRest, rotate, world, screen, plane, heightAt,
+        signedDistance, silhouette, contains, screenContains, screenCovers, samples, supportHeight, landing, minimumHeight, shadow,
+        shadowedBy, shadowVisible, exposedPoints, flight, position, motion };
     if (typeof module !== "undefined" && module.exports) { module.exports = api; }
     else { root.LandingGeometry = api; }
 })(globalThis);

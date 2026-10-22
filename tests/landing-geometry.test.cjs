@@ -126,12 +126,12 @@ test("flight joins first contact continuously, then slides, bounces, rocks and s
     const start = { ...flat(260, 470, 60), pitch: -16, yaw: 13, roll: -8 };
     const impact = { x: 260, y: 220, roll: 6 };
     const momentum = { x: 12, y: -8, spin: 3, power: .7 };
-    const before = G.motion(cards, start, impact, momentum, .58 - 1e-7);
-    const contact = G.motion(cards, start, impact, momentum, .58);
+    const before = G.motion(cards, start, impact, momentum, G.CONTACT - 1e-7);
+    const contact = G.motion(cards, start, impact, momentum, G.CONTACT);
     for (const key of ["x", "y", "z", "pitch", "yaw", "roll"]) {
         assert.ok(Math.abs(before.pose[key] - contact.pose[key]) < .0001, `${key} continuous at impact`);
     }
-    const after = G.motion(cards, start, impact, momentum, .58 + 1e-7);
+    const after = G.motion(cards, start, impact, momentum, G.CONTACT + 1e-7);
     for (const key of ["x", "y", "roll"]) {
         const incoming = (contact.pose[key] - before.pose[key]) / 1e-7;
         const outgoing = (after.pose[key] - contact.pose[key]) / 1e-7;
@@ -142,7 +142,7 @@ test("flight joins first contact continuously, then slides, bounces, rocks and s
         const motion = G.motion(cards, start, impact, momentum, step / 100);
         assert.ok(nearestGap(cards, motion.pose) >= .059, "Card stays above all sampled support points");
         maxBounce = Math.max(maxBounce, motion.bounce);
-        if (step > 58) {
+        if (step > G.CONTACT * 100) {
             const rest = G.landing(cards, motion.pose.x, motion.pose.y, motion.pose.roll);
             rock = Math.max(rock, Math.abs(motion.pose.pitch - rest.pitch));
         }
@@ -161,6 +161,46 @@ test("flight joins first contact continuously, then slides, bounces, rocks and s
 
 test("cards do not cast a shadow upward onto a higher receiver", () => {
     assert.equal(G.shadow(flat(), flat(0, 0, 25)).points.length, 0);
+});
+
+test("shadow visibility counts the blur halo but ignores areas hidden under cards and their edges", () => {
+    const resting = flat(200, 220);
+    assert.ok(G.shadowVisible(resting, null, [resting]), "A resting card's soft contact halo still shows on the felt");
+    const above = flat(200, 220, 6.12);
+    assert.equal(G.shadowVisible(above, resting, [above]), false, "A card exactly on another hides its own shadow");
+    const lifted = { ...above, z: 40 };
+    assert.ok(G.shadowVisible(lifted, resting, [lifted]), "Raised cards cast a visible shadow beside themselves");
+    const cover = { ...flat(200, 220, 9.18), width: 200, height: 260 };
+    assert.equal(G.shadowVisible(above, resting, [above, cover]), false, "A larger card on top hides everything beneath");
+    const faceBottom = 220 - .28 * 6.12 + (84 - .75 * 168 / 120);
+    assert.equal(G.screenContains(above, 200, faceBottom + .6), false);
+    assert.ok(G.screenCovers(above, 200, faceBottom + .6), "The 3px edge below the face counts as cover");
+});
+
+test("a thrown card decelerates smoothly into its slide instead of braking in the air", () => {
+    const start = { ...flat(300, 700, 40), pitch: 10, yaw: -12, roll: 0 };
+    const rest = { x: 300, y: 300, roll: 8 };
+    const distance = 400, slide = G.slideDistanceToRest(distance, .55);
+    const momentum = { x: 0, y: -slide, spin: .64, power: .55 };
+    const impact = { x: rest.x, y: rest.y + slide, roll: rest.roll - momentum.spin };
+    assert.ok(Math.abs(slide - distance * .13) < 3, "Default throws slide about 13% of the travel");
+    const at = t => G.position(start, impact, momentum, t);
+    const speed = t => {
+        const a = at(t - 1e-5), b = at(t + 1e-5);
+        return Math.hypot(b.x - a.x, b.y - a.y) / 2e-5;
+    };
+    const samples = Array.from({ length: 99 }, (_, i) => (i + 1) / 100);
+    const speeds = samples.map(speed);
+    speeds.slice(1).forEach((value, index) =>
+        assert.ok(value <= speeds[index] + 1e-6, `Speed never increases (${samples[index + 1]})`));
+    // Constant deceleration: the speed change per step is the same in the air and while sliding.
+    const deceleration = samples.slice(1).map((t, index) => speeds[index] - speeds[index + 1]);
+    const range = Math.max(...deceleration) / Math.min(...deceleration);
+    assert.ok(range < 1.15, `Deceleration varies by ${range.toFixed(3)}x`);
+    assert.ok(speed(G.CONTACT) / speed(.01) > .3, "The card still carries real speed when it touches down");
+    assert.ok(Math.abs(at(1).y - rest.y) < 1e-9);
+    assert.ok(Math.abs(at(1).roll - rest.roll) < 1e-9);
+    assert.equal(G.slideDistanceToRest(4000, 1, 190), 190 * .45, "Long throws cap the slide");
 });
 
 test("sandbox loads only native card assets, never the production WebGL renderer", () => {

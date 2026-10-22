@@ -1599,15 +1599,15 @@ test("all twenty color themes have previews and persist without cookies", () => 
 test("color themes remain usable with blocked storage, validate saved values and update translated labels", () => {
     const { context, options, elements, events, dialogs } = colorThemeContext(new Map(), true);
     elements.colorThemeOpenButton.click();
-    assert.deepEqual(dialogs.splice(0), [["Innstillinger", false], ["Fargetema", true]]);
+    assert.deepEqual(dialogs.splice(0), [["Settings", false], ["ColorTheme", true]]);
     options.find(option => option.dataset.colorTheme === "forest").click();
     assert.equal(context.getCookie("ColorTheme"), "forest");
-    assert.deepEqual(dialogs.splice(0), [["Fargetema", false], ["Innstillinger", true]]);
+    assert.deepEqual(dialogs.splice(0), [["ColorTheme", false], ["Settings", true]]);
     context.window.I18n = { msg: name => name === "Skoggrønn" ? "Forest green" : name };
     events.languagechange();
     assert.equal(elements.colorThemeCurrentName.textContent, "Forest green");
     elements.colorThemeCloseButton.click();
-    assert.deepEqual(dialogs.splice(0), [["Fargetema", false], ["Innstillinger", true]]);
+    assert.deepEqual(dialogs.splice(0), [["ColorTheme", false], ["Settings", true]]);
     events.storage({ key: "norwegian-tycoon-cookie-ColorTheme", newValue: "gray" });
     assert.equal(context.document.documentElement.dataset.colorTheme, "gray");
     events.storage({ key: "unrelated", newValue: "amber" });
@@ -1836,7 +1836,7 @@ test("normal exchange rendering fades illegal cards while sneaky exchanges allow
     }
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
     const start = source.indexOf("                                var isSelectedForExchange");
-    const end = source.indexOf("                                if (!elemKort.disabled)", start);
+    const end = source.indexOf("                                if (!cardButton.disabled)", start);
     for (const sneaky of [false, true]) {
         for (const rank of [6, 7, 11, 12, 14]) {
             const classes = new Set();
@@ -1845,10 +1845,10 @@ test("normal exchange rendering fades illegal cards while sneaky exchanges allow
                 var activeExchange = { id: "trade", kind: "playerTrade", from: 0, to: 1,
                     cards: [], count: 1, mode: "Velg", sneakyVotes: ${sneaky ? "[0, 1]" : "[]"} };
                 var game = { players: [player,{name:"Other",playerKey:"other"},{name:"ekrem",playerKey:"eligible"}], piles: [activeExchange] };`, context);
-            context.elemKort = { classList: { add: name => classes.add(name) } };
+            context.cardButton = { classList: { add: name => classes.add(name) } };
             vm.runInContext(source.slice(start, end), context);
             const illegal = !sneaky && (rank < 7 || rank > 11);
-            assert.equal(context.elemKort.disabled, illegal);
+            assert.equal(context.cardButton.disabled, illegal);
             assert.equal(classes.has("is-unplayable"), illegal);
         }
     }
@@ -2404,7 +2404,7 @@ test("bot scheduling follows animation speed and restores it after fast-forward"
                 }
             });
             vm.runInContext(source.slice(source.indexOf("        var botLoopTimer = null;"),
-                source.indexOf("        document.getElementById('BnFHovedmeny')")), context);
+                source.indexOf("        document.getElementById('mainMenuButton')")), context);
             context.scheduleBotLoop();
             const firstDelay = timers[0].delay;
             assert.ok(firstDelay >= 5000 && firstDelay <= 10000);
@@ -2425,7 +2425,7 @@ test("bot scheduling follows animation speed and restores it after fast-forward"
         }
     });
     vm.runInContext(source.slice(source.indexOf("        var botLoopTimer = null;"),
-        source.indexOf("        document.getElementById('BnFHovedmeny')")), context);
+        source.indexOf("        document.getElementById('mainMenuButton')")), context);
     context.scheduleBotLoop();
     assert.equal(timers.at(-1), 3000);
     game.fastForward = true;
@@ -2806,7 +2806,7 @@ test("the starter toast waits until exchange is complete and the starter can pla
     const context = vm.createContext({
         currentGame: { status: "G", roundStarterName: "Bjørn", piles: [] }, currentPlayerName: "Bjørn",
         starterFlashTimer: null, STARTER_FLASH_DURATION_MS: 1000,
-        announcedStarterRound: null, announcedBomsStarterGame: null,
+        announcedStarterRound: null, announcedBumStarterGame: null,
         GamePresence: { now: () => 1000, isActionPaused: game => game.paused === true },
         showGameToast: (text, game, duration, pauseId, endsTrick, includeInLog) =>
             messages.push({ text, includeInLog }),
@@ -3273,7 +3273,7 @@ test("joining a voided or expired room does not leave the current game", async (
             }) }) }
         });
         const start = source.indexOf("        function joinGameById(");
-        const end = source.indexOf("        document.getElementById('dialogKobleSpillOk')", start);
+        const end = source.indexOf("        document.getElementById('dialogJoinGameOk')", start);
         vm.runInContext(source.slice(start, end), context);
         context.joinGameById("123", text => { failure = text; });
         await Promise.resolve();
@@ -3306,7 +3306,7 @@ test("takeover bots run on the backup client after 120 seconds while host transf
         setTimeout: () => { scheduled++; return scheduled; }
     });
     const start = source.indexOf("        var botLoopTimer = null;");
-    const end = source.indexOf("        document.getElementById('BnFHovedmeny')", start);
+    const end = source.indexOf("        document.getElementById('mainMenuButton')", start);
     vm.runInContext(source.slice(start, end), context);
     context.runBotLoop();
     assert.equal(plays, 0);
@@ -3489,7 +3489,7 @@ test("invites generate gameid links and accept both new and legacy links", () =>
                 getElementById: () => ({ addEventListener(type, callback) { click = callback; } })
             }
         });
-        const inviteListenerStart = source.indexOf("        document.getElementById('BnFInviterSpill').addEventListener", end);
+        const inviteListenerStart = source.indexOf("        document.getElementById('inviteButton').addEventListener", end);
         const inviteListenerEnd = source.indexOf("        var GAME_SPEED_MS", inviteListenerStart);
         vm.runInContext(source.slice(start, end) + source.slice(inviteListenerStart, inviteListenerEnd), context);
         assert.equal(joined, expected);
@@ -3507,7 +3507,7 @@ test("Messenger sharing uses the invitation URL and explains unsupported desktop
     const inviteUrl = "https://playboms.eu/?gameid=123";
     const context = vm.createContext({
         navigator: { userAgent: "Android" }, window: { location: {} },
-        document: { getElementById: id => id == "dialogVisLinkStatus" ? status : { value: inviteUrl } }
+        document: { getElementById: id => id == "dialogShareLinkStatus" ? status : { value: inviteUrl } }
     });
     vm.runInContext(html.slice(start, end), context);
     await context.shareInviteMessenger();
@@ -3576,14 +3576,14 @@ test("an empty new-game name is marked invalid without registering a profile", a
             }
         }
     });
-    const start = source.indexOf("        document.getElementById('dialogSporOmNickOk').addEventListener");
-    const end = source.indexOf("        document.getElementById('BnPGiOpp')", start);
+    const start = source.indexOf("        document.getElementById('dialogPlayerNameOk').addEventListener");
+    const end = source.indexOf("        document.getElementById('leaveGameButton')", start);
     vm.runInContext(source.slice(start, end), context);
-    await context.document.getElementById("dialogSporOmNickOk").click();
+    await context.document.getElementById("dialogPlayerNameOk").click();
     assert.equal(addedPlayer, undefined);
     assert.equal(context.currentPlayerName, null);
     assert.equal(context.pendingNewGameName, true);
-    const name = context.document.getElementById("dialogSporOmNickTxt");
+    const name = context.document.getElementById("dialogPlayerNameTxt");
     assert.equal(name.classList["input-soft-error"], true);
     assert.equal(name.attributes["aria-invalid"], "true");
 });
@@ -3607,8 +3607,8 @@ test("canceling a new-game name prompt voids the empty lobby after creation and 
         leaveCurrentGame() { state.left = true; context.currentGame = null; },
         document: { getElementById: () => cancelButton }
     });
-    const start = source.indexOf('        document.getElementById("dialogSporOmNickCancel").addEventListener');
-    const end = source.indexOf("        document.getElementById('dialogSporOmNickOk')", start);
+    const start = source.indexOf('        document.getElementById("dialogPlayerNameCancel").addEventListener');
+    const end = source.indexOf("        document.getElementById('dialogPlayerNameOk')", start);
     vm.runInContext(source.slice(start, end), context);
     const cancel = cancelButton.click();
     assert.equal(state.dialogs[0][1], false);
@@ -3639,7 +3639,7 @@ test("secret style remains available on the main menu through the saved name", (
         GameLayout.savedPlayerName = name;
         GameLayout.cardStylePlayerName = null;
         GameLayout.updateSharedView(null, null);
-        assert.equal(elements.get("BnFRegler").hidden, false);
+        assert.equal(elements.get("rulesButton").hidden, false);
         assert.equal(GameLayout.cardStylePlayerName, name);
         assert.equal(GameLayout.cardStyle(), name == "Guest" ? "normal" : "botanical");
         assert.equal(document.documentElement.dataset.cardStyle, GameLayout.cardStyle());
@@ -4681,7 +4681,7 @@ test("name suffixes remain within 24 code points and can skip used suffixes", ()
 
 test("name input validates the 24-character boundary without truncating letters or emoji", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
-    const start = source.indexOf('        document.getElementById("dialogSporOmNickTxt").addEventListener("input"');
+    const start = source.indexOf('        document.getElementById("dialogPlayerNameTxt").addEventListener("input"');
     const end = source.indexOf('        document.getElementById("playerRecoveryPin")', start);
     const { sanitizePlayerName } = loadGame();
     let validate;
@@ -4693,7 +4693,7 @@ test("name input validates the 24-character boundary without truncating letters 
     };
     const context = vm.createContext({
         sanitizePlayerName,
-        document: { getElementById: id => id == "dialogSporOmNickTxt" ? input : { textContent: "" } }
+        document: { getElementById: id => id == "dialogPlayerNameTxt" ? input : { textContent: "" } }
     });
     vm.runInContext(source.slice(start, end), context);
     for (const symbol of ["A", "あ", "\u{1f600}"]) {
@@ -5247,7 +5247,7 @@ test("settings expose animation speed and enable Flick on desktop and mobile", (
         vm.runInContext(source.slice(begin, source.indexOf('        document.querySelectorAll(".animation-speed-option")', begin)), context);
         const settingsStart = source.indexOf("        function openSettings()");
         vm.runInContext(source.slice(settingsStart,
-            source.indexOf('        document.getElementById("BnInnstillinger")', settingsStart)), context);
+            source.indexOf('        document.getElementById("settingsButton")', settingsStart)), context);
         context.openSettings();
         assert.equal(setting.hidden, false);
         assert.equal(buttons[0].disabled, false);
@@ -5393,7 +5393,7 @@ test("public lobby metadata publishes the shared turn speed, defaulting older ro
 test("settings have three log-style categories with game speed directly below message duration", () => {
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
     const css = fs.readFileSync(path.join(__dirname, "..", "css", "theme.css"), "utf8");
-    const settings = html.slice(html.indexOf('id="dialogInnstillinger"'), html.indexOf('id="dialogFargetema"'));
+    const settings = html.slice(html.indexOf('id="dialogSettings"'), html.indexOf('id="dialogColorTheme"'));
     assert.equal((settings.match(/class="settings-category"/g) || []).length, 3);
     assert.match(settings, /data-speed="slow"[\s\S]*?<\/div>\s*<div class="setting-row setting-turn-speed"/);
     assert.match(css, /\.game-log__trick,\s*\.settings-category\s*\{/);

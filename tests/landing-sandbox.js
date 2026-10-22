@@ -200,11 +200,12 @@
     function startFlight(impact, start, velocity = { x: 0, y: -1 }) {
         const power = Number(document.getElementById("strength").value) / 100;
         const length = Math.max(1, Math.hypot(velocity.x, velocity.y));
-        const momentum = { x: velocity.x / length * (5 + power * 18),
-            y: velocity.y / length * (5 + power * 18), spin: (velocity.x / length * 5 + 2) * power, power };
         const margin = G.WIDTH / 2 + 30;
         impact.x = Math.max(margin, Math.min(width - margin, impact.x));
         impact.y = Math.max(130, Math.min(360, impact.y));
+        const slide = G.slideDistance(Math.hypot(impact.x - start.x, impact.y - start.y), power);
+        const momentum = { x: velocity.x / length * slide,
+            y: velocity.y / length * slide, spin: (velocity.x / length * 5 + 2) * power, power };
         throwState = { impact, start: { ...start }, momentum };
         currentProgress = 0;
         document.getElementById("hand-label").setAttribute("visibility", "hidden");

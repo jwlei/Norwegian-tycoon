@@ -22,10 +22,14 @@ function fixture() {
             this.style = { width: "", height: "", setProperty: (k, v) => this.properties.set(k, v),
                 getPropertyValue: k => this.properties.get(k) || "" };
             this.classes = new Set();
-            this.classList = { add: name => this.classes.add(name), remove: name => this.classes.delete(name) };
+            this.classList = { add: name => this.classes.add(name), remove: name => this.classes.delete(name),
+                contains: name => this.classes.has(name),
+                toggle: (name, force) => (force ?? !this.classes.has(name)) ? this.classes.add(name) : this.classes.delete(name) };
         }
         setAttribute(key, value) { this.attributes[key] = String(value); }
         getAttribute(key) { return this.attributes[key]; }
+        hasAttribute(key) { return key in this.attributes; }
+        removeAttribute(key) { delete this.attributes[key]; }
         appendChild(child) { child.parent = this; this.children.push(child); }
         insertBefore(child) { child.parent = this; this.children.unshift(child); }
         replaceChildren(...children) { this.children = children; }
@@ -35,7 +39,7 @@ function fixture() {
         animate() { return { playState: "running", effect: { getComputedTiming: () => ({ progress: .5 }) } }; }
     }
     const context = vm.createContext({
-        LandingGeometry: G, console: { warn: (...args) => warnings.push(args) },
+        LandingGeometry: G, console: { warn: (...args) => warnings.push(args) }, queueMicrotask,
         DOMParser: class { parseFromString() { return { querySelector: () => ({ getAttribute: () => "8" }) }; } },
         document: { hidden: false, querySelectorAll: () => [],
             createElementNS: (ns, tag) => { created.push(tag); return new Node(tag); } },
@@ -50,8 +54,17 @@ function fixture() {
         parent.querySelectorAll = () => elements;
         return parent;
     };
-    return { Depth: context.CardDepth, element, Node, table, created, frames, warnings, context };
+    const card = (left, top = 200) => {
+        const node = new Node("div");
+        node.image = element.image;
+        node.left = left;
+        node.top = top;
+        return node;
+    };
+    return { Depth: context.CardDepth, element, Node, table, card, created, frames, warnings, context };
 }
+
+const numbers = d => d.match(/-?\d+\.\d+/g).map(Number);
 
 test("native SVG keeps seven silhouette sheets at exactly 3px, with no canvas or WebGL", () => {
     const f = fixture();
@@ -62,7 +75,8 @@ test("native SVG keeps seven silhouette sheets at exactly 3px, with no canvas or
     assert.equal(state.world.z, 3.06);
     assert.equal(state.svg.attributes.viewBox, "-56 -84 112 168");
     assert.equal(state.face.attributes.href, f.element.image.src);
-    assert.equal(state.layers[0].attributes.d, f.Depth.path(G.silhouette(state.world, -3).map(G.screen), { x: 0, y: 0 }));
+    const expected = numbers(f.Depth.path(G.silhouette(state.world, -3).map(G.screen), { x: 0, y: 0 }));
+    numbers(state.layers[0].attributes.d).forEach((value, index) => assert.ok(Math.abs(value - expected[index]) <= .0011));
     assert.ok(f.created.every(tag => tag !== "canvas"));
     assert.doesNotMatch(source, /getContext|devicePixelRatio|drawImage|WebGL|supersampl/);
     assert.equal(f.frames.size, 0);
@@ -73,6 +87,7 @@ test("unchanged poses do not redraw, while rotation updates geometry and foil tr
     f.Depth.attach(f.element);
     const state = f.Depth.states.get(f.element);
     const before = state.layers[0].attributes.d, key = state.key;
+    const transform = f.element.properties.get("--depth-face-transform");
     let writes = 0;
     state.face.setAttribute = () => writes++;
     f.Depth.update(f.element, {});
@@ -81,7 +96,20 @@ test("unchanged poses do not redraw, while rotation updates geometry and foil tr
     f.Depth.update(f.element, { pitch: 16, yaw: -24, roll: 12 });
     assert.ok(writes > 0);
     assert.notEqual(state.layers[0].attributes.d, before);
-    assert.equal(f.element.properties.get("--depth-roll"), "12deg");
+    assert.notEqual(f.element.properties.get("--depth-face-transform"), transform);
+    assert.equal(f.element.properties.has("--depth-roll"), false, "Unused per-frame style writes were removed");
+});
+
+test("a lift-only update after an exact height uses the lift again", () => {
+    const f = fixture();
+    f.Depth.attach(f.element);
+    const state = f.Depth.states.get(f.element);
+    f.Depth.update(f.element, { z: 40 });
+    assert.equal(state.world.z, 40);
+    f.Depth.update(f.element, { lift: 0 });
+    assert.ok(Math.abs(state.world.z - 3.06) < 1e-9);
+    f.Depth.update(f.element, { pitch: 5 });
+    assert.ok(Math.abs(state.world.z - G.minimumHeight([], state.world)) < 1e-9, "Lift persists until changed");
 });
 
 test("table cards fit actual supporting footprints and keep compact receiver shadows", () => {
@@ -95,14 +123,102 @@ test("table cards fit actual supporting footprints and keep compact receiver sha
     assert.equal(first.rest.z, 3.06);
     assert.ok(top.rest.yaw > .2);
     assert.equal(top.receiverStates.length, 1);
-    assert.equal(top.shadowEntries.length, 2);
-    assert.equal(top.shadowEntries[0].shape.parent, top.scene.floor, "Felt shadow is below all card faces");
-    assert.equal(top.shadowEntries[1].shape.parent, first.receiverShadows, "Receiver face occlusion uses normal paint order");
+    const floor = top.shadowEntries.get("floor"), onFirst = top.shadowEntries.get(first);
+    assert.equal(floor.shape.parent, top.scene.floor, "Felt shadow is below all card faces");
+    assert.equal(onFirst.shape.parent, first.receiverShadows, "Receiver face occlusion uses normal paint order");
     assert.equal(first.receiverShadows.attributes["clip-path"], `url(#${first.id}-clip)`);
-    assert.ok(Number(top.shadowEntries[1].shape.dataset.blur) < 1);
+    assert.equal(onFirst.shape.hasAttribute("filter"), false, "Near-contact shadows skip the blur filter");
+    assert.equal(onFirst.filter, null);
     const previous = { ...top.rest };
     f.Depth.prepareTable(table);
     assert.deepEqual({ ...top.rest }, previous, "Repeated layout does not accumulate height or tilt");
+});
+
+test("shadows onto fully covered cards are skipped; visible ones are kept", () => {
+    const f = fixture();
+    // Five identical cards stacked exactly: each card hides its own shadow, so only the felt shadow shows.
+    const stack = Array.from({ length: 5 }, () => f.card(200));
+    f.Depth.prepareTable(f.table(stack));
+    const top = f.Depth.states.get(stack[4]);
+    const visible = [...top.shadowEntries].filter(([, entry]) => entry.shape.style.display !== "none");
+    assert.deepEqual(visible.map(([key]) => key === "floor" ? "floor" : key.tableIndex), ["floor"]);
+    assert.equal(top.shadowEntries.size, 1, "Hidden receivers never create shadow elements");
+    // A card offset to the side leaves part of the one beneath visible, so its shadow reaches it.
+    const side = [f.card(200), f.card(200), f.card(290)];
+    f.Depth.prepareTable(f.table(side));
+    const offset = f.Depth.states.get(side[2]);
+    assert.ok(offset.shadowEntries.get(f.Depth.states.get(side[1])));
+    assert.equal(offset.shadowEntries.get(f.Depth.states.get(side[0])), undefined, "Card 0 is fully covered by card 1");
+});
+
+test("large tables keep full shadows on the top cards and simplify the rest", () => {
+    const f = fixture();
+    // A staircase of 16 cards: every card leaves part of the one beneath it visible.
+    const cards = Array.from({ length: 16 }, (_, index) => f.card(100 + index * 30));
+    f.Depth.prepareTable(f.table(cards));
+    const states = cards.map(card => f.Depth.states.get(card));
+    const visible = state => [...state.shadowEntries].filter(([, entry]) => entry.shape.style.display !== "none");
+    for (const state of states.slice(0, 8)) {
+        assert.equal(f.Depth.detailed(state), false);
+        assert.deepEqual(visible(state).map(([key]) => key), ["floor"], "Simplified cards cast only a felt shadow");
+        const floor = state.shadowEntries.get("floor");
+        assert.equal(floor.host, state.scene.pileFloor, "…into the pile's shared blurred group");
+        assert.equal(floor.shape.hasAttribute("filter"), false, "…without a filter of its own");
+    }
+    const pileFilter = states[0].scene.pileFloor.attributes.filter;
+    assert.match(pileFilter, /^url\(#card-depth-pile-\d+\)$/);
+    assert.ok(Number(states[0].scene.pileBlur.attributes.stdDeviation) >= .6, "The shared blur keeps bottom shadows soft");
+    const top = states[15];
+    assert.equal(f.Depth.detailed(top), true);
+    assert.ok(cards.slice(8).every(card => card.classes.has("is-depth-detailed")));
+    assert.ok(cards.slice(0, 8).every(card => !card.classes.has("is-depth-detailed")));
+    assert.equal(top.shadowEntries.get("floor").host, top.scene.floor);
+    assert.ok(visible(top).some(([key]) => key === states[14]), "Top cards still shadow the cards beneath them");
+    const ontoSimplified = states[8].shadowEntries.get(states[7]);
+    assert.ok(ontoSimplified && ontoSimplified.shape.style.display !== "none");
+    assert.equal(ontoSimplified.shape.hasAttribute("filter"), ontoSimplified.blurValue >= f.Depth.SHARP_BLUR,
+        "Shadows onto simplified cards keep their normal blur");
+    // Small tables are not simplified.
+    const small = Array.from({ length: 6 }, (_, index) => f.card(100 + index * 30));
+    f.Depth.prepareTable(f.table(small));
+    assert.ok(small.every(card => f.Depth.detailed(f.Depth.states.get(card))));
+});
+
+test("on large tables, landing cards only shadow the detailed top cards, and cleared bottom cards are shadowless", () => {
+    const f = fixture();
+    const cards = Array.from({ length: 16 }, (_, index) => f.card(100 + index * 12));
+    f.Depth.prepareTable(f.table(cards));
+    const states = cards.map(card => f.Depth.states.get(card));
+    const flight = new f.Node("span");
+    flight.image = f.element.image;
+    f.Depth.attach(flight);
+    const motion = f.Depth.landingMotion(flight, cards[15], { x: 600, y: 600, z: 0, pitch: 8, yaw: -6, roll: 0 });
+    const state = f.Depth.states.get(flight);
+    for (let i = 0; i <= 20; i++) { f.Depth.update(flight, motion.poseAtProgress(i / 20)); }
+    const shadowed = [...state.shadowEntries.keys()].filter(key => key !== "floor");
+    assert.ok(shadowed.length > 0);
+    assert.ok(shadowed.every(receiver => f.Depth.detailed(receiver)), "No per-frame work on simplified cards");
+    assert.deepEqual({ ...motion.poseAtProgress(1) }, { ...states[15].rest }, "Nearby supports still give the exact resting pose");
+    const cleared = new f.Node("span");
+    cleared.image = f.element.image;
+    f.Depth.attach(cleared);
+    const clearedState = f.Depth.states.get(cleared);
+    clearedState.shadowless = true;
+    f.Depth.update(cleared, { z: 20 });
+    assert.equal(clearedState.shadowEntries.get("floor").shape.style.display, "none");
+});
+
+test("revealing a hidden card re-evaluates which shadows beneath it are visible", async () => {
+    const f = fixture();
+    const stack = [f.card(200), f.card(200), f.card(200)];
+    stack[1].style.opacity = "0";
+    f.Depth.prepareTable(f.table(stack));
+    const top = f.Depth.states.get(stack[2]), bottom = f.Depth.states.get(stack[0]);
+    assert.ok(top.shadowEntries.get(bottom), "With the middle card hidden, the top card shadows the bottom card");
+    stack[1].style.opacity = "";
+    f.Depth.setHidden(stack[1], false);
+    await new Promise(resolve => queueMicrotask(resolve));
+    assert.equal(top.shadowEntries.get(bottom).shape.style.display, "none");
 });
 
 test("production trajectory retains contact momentum and lands exactly on the persistent table pose", () => {
@@ -114,7 +230,7 @@ test("production trajectory retains contact momentum and lands exactly on the pe
     const motion = f.Depth.landingMotion(flight, f.element,
         { x: 400, y: 500, z: 0, pitch: 10, yaw: -12, roll: 16 }, .7);
     const sample = motion.poseAtProgress;
-    const final = sample(1), contact = sample(.58), rebound = sample(.7);
+    const final = sample(1), contact = sample(G.CONTACT), rebound = sample(.7);
     assert.deepEqual({ ...final }, { ...f.Depth.states.get(f.element).rest });
     assert.ok(Math.hypot(contact.x - final.x, contact.y - final.y) > 1);
     assert.ok(rebound.z > G.minimumHeight([], rebound) + .1);
@@ -126,17 +242,17 @@ test("production trajectory retains contact momentum and lands exactly on the pe
     }
 });
 
-test("hidden destinations do not leave duplicate external shadows, and detach removes hosted shadows", () => {
+test("hidden destinations do not leave duplicate external shadows, and detach removes hosted shadows", async () => {
     const f = fixture();
     f.Depth.prepareTable(f.table([f.element]));
-    const state = f.Depth.states.get(f.element), entry = state.shadowEntries[0];
+    const state = f.Depth.states.get(f.element), entry = state.shadowEntries.get("floor");
     f.Depth.setHidden(f.element, true);
     assert.equal(entry.shape.style.display, "none");
     f.Depth.setHidden(f.element, false);
+    await new Promise(resolve => queueMicrotask(resolve));
     assert.equal(entry.shape.style.display, "");
     f.Depth.detach(f.element);
     assert.equal(entry.shape.removed, true);
-    assert.equal(entry.filter.removed, true);
 });
 
 test("a refreshed table receives ongoing flight shadows instead of retaining detached hosts", () => {
@@ -149,7 +265,7 @@ test("a refreshed table receives ongoing flight shadows instead of retaining det
     f.Depth.attach(flight);
     f.Depth.landingMotion(flight, f.element, { x: 400, y: 500, z: 0, pitch: 10, yaw: 5, roll: 0 });
     f.Depth.update(flight, { x: 300, y: 400 });
-    const state = f.Depth.states.get(flight), previous = state.shadowEntries[0];
+    const state = f.Depth.states.get(flight), previous = state.shadowEntries.get("floor");
     const replacement = new f.Node("div");
     replacement.dataset.cardKey = "1:7";
     replacement.closest = f.element.closest;
@@ -158,7 +274,62 @@ test("a refreshed table receives ongoing flight shadows instead of retaining det
     f.Depth.prepareTable(f.table([replacement]));
     assert.equal(previous.shape.removed, true);
     assert.equal(state.scene, f.Depth.states.get(replacement).scene);
-    assert.equal(state.shadowEntries[0].shape.parent, state.scene.floor);
+    assert.equal(state.scene.flights.length, 1);
+    assert.equal(state.scene.flights[0], state);
+    assert.equal(state.shadowEntries.get("floor").shape.parent, state.scene.floor);
+});
+
+test("later cards of a play cast onto earlier flights, which stand in for their hidden table cards", () => {
+    const f = fixture();
+    const [first, second] = [f.card(200), f.card(230)];
+    for (const [index, card] of [first, second].entries()) {
+        card.dataset.cardKey = `${index + 1}:7`;
+        card.closest = () => ({ dataset: { playSignature: "round:pair" } });
+        card.style.opacity = "0";
+    }
+    f.Depth.prepareTable(f.table([first, second]));
+    const flights = [first, second].map(() => {
+        const flight = new f.Node("span");
+        flight.image = f.element.image;
+        flight.style.width = "112px";
+        flight.style.height = "168px";
+        f.Depth.attach(flight);
+        return flight;
+    });
+    const motions = flights.map((flight, index) => f.Depth.landingMotion(flight, [first, second][index],
+        { x: 300 + index * 20, y: 600, z: 0, pitch: 8, yaw: -6, roll: 0 }));
+    const lower = f.Depth.states.get(flights[0]), upper = f.Depth.states.get(flights[1]);
+    assert.equal(upper.receiverStates.length, 1);
+    assert.equal(upper.receiverStates[0], lower);
+    // Animate both in start order through one frame loop; the upper card sees the lower card's current pose.
+    const animation = progress => ({ playState: "running", effect: { getComputedTiming: () => ({ progress }) } });
+    f.Depth.follow(flights[0], animation(1), motions[0].poseAtProgress);
+    f.Depth.follow(flights[1], animation(.9), motions[1].poseAtProgress);
+    assert.equal([...f.Depth.followers.keys()].indexOf(flights[0]), 0);
+    const onLower = upper.shadowEntries.get(lower);
+    assert.ok(onLower && onLower.shape.style.display !== "none");
+    assert.equal(onLower.shape.parent, lower.receiverShadows);
+    assert.equal(f.frames.size, 1, "All followers share one animation frame");
+});
+
+test("flights move with the table when the page scrolls, keeping their shadows aligned", () => {
+    const f = fixture();
+    f.Depth.prepareTable(f.table([f.element]));
+    const flight = new f.Node("span");
+    flight.image = f.element.image;
+    f.Depth.attach(flight);
+    f.Depth.landingMotion(flight, f.element, { x: 400, y: 600, z: 0, pitch: 8, yaw: -6, roll: 0 });
+    const state = f.Depth.states.get(flight);
+    assert.equal(state.scene.table.classes.has("is-landing"), true, "Landing caches the pile's top layers");
+    state.scene.table.top = 150;
+    state.scene.table.left = 190;
+    f.Depth.followScroll();
+    assert.equal(flight.style.translate, "-10px -50px");
+    const scene = state.scene;
+    f.Depth.detach(flight);
+    assert.equal(flight.style.translate, "");
+    assert.equal(f.Depth.anchored.size, 0);
+    assert.equal(scene.table.classes.has("is-landing"), false, "Layers are released once nothing is landing");
 });
 
 test("animation follow cancels queued work and releases disconnected cards", () => {

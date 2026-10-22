@@ -51,9 +51,20 @@ node --test
 
 Dragged cards, return glides, plays, exchanges, discards, and resting table cards use a 3px laminated edge following the actual SVG outline. Seven native SVG paper slices and the original artwork replace the supersampled WebGL renderer: there are no canvas copies, GPU contexts, texture caches, or render-target multipliers. Existing card designs, pixel outlines, foil overlays, and table guidance are retained.
 
-Resting pitch/yaw comes from sampled heights of the cards beneath each footprint, with the approved gentler lean on crossed piles. A fixed top-left light projects shorter, tighter shadows onto the felt and supporting card planes. Flight, first contact, sliding/spinning momentum, diminishing rebounds, and settlement share the same geometry and shadow model; the final flight pose matches the persistent table card. This is an approximate support model, not a full rigid-body simulation.
+Resting pitch/yaw comes from sampled heights of the cards beneath each footprint, with the approved gentler lean on crossed piles. A fixed top-left light projects shorter, tighter shadows onto the felt and supporting card planes. Flight, first contact, sliding/spinning momentum, diminishing rebounds, and settlement share the same geometry and shadow model; the final flight pose matches the persistent table card. Thrown cards decelerate at one constant rate from release, through touchdown at 64% of the animation, to rest: they carry about a third of their launch speed into a slide of roughly 13% of the throw distance (capped at 45% of a card height) instead of braking in the air. This is an approximate support model, not a full rigid-body simulation.
 
 Unchanged poses are not redrawn, static table cards have no animation loop, and flight work is cancelled on cleanup. Invalid artwork retains the original image and logs a warning. Reduced-motion preferences skip flights and rebounds while retaining resting depth and contact shadows. Native SVG filters still have a rendering cost; this is not a phone benchmark.
+
+Shadow rendering is bounded on large tables:
+
+- A shadow is only drawn where some of it can be seen: receivers whose visible area (including the blur halo, and treating each card's 3px edge as cover) misses the shadow are skipped entirely. Partly covered shadows rely on normal paint order, so no masks are needed.
+- Shadows sharper than 1.25px skip the blur filter.
+- Tables with more than 12 cards keep full shadows on the top 8 cards only. Lower cards cast just a felt shadow, and those felt shadows share one blur filter. Landing cards only shadow the top cards, and cleared cards from deep in the pile fade out without a shadow.
+- While cards land, the top cards and the felt shadows are cached as compositor layers, so the moving shadow does not repaint the whole pile.
+- Cleared cards cast only their own felt shadow.
+- Table layout measures every card before writing, so the browser lays out the pile once.
+
+In a pair, triple or quad, later cards cast shadows onto the earlier cards while they are still flying. All animated cards update in one frame loop, in start order. If the page scrolls during a landing, the flying cards move with the table, so they and their shadows stay aligned.
 
 Serve the repository as above and open [card drag and landing](tests/card-tilt-sandbox.html) or [mouse drag and flick](tests/mouse-drag-sandbox.html) to exercise the production interactions without Firebase.
 

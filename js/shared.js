@@ -24,13 +24,13 @@ function showDialog(dialogName, isVisible) {
         dialog.setAttribute("aria-hidden", "true");
         game.inert = false;
         if (dialog.returnFocusElement instanceof HTMLElement && dialog.returnFocusElement.isConnected) {
-            const menuToggle = document.getElementById("BnGameMenuToggle");
+            const menuToggle = document.getElementById("gameMenuToggleButton");
             const menuIsClosed = !game.classList.contains("GameMenuOpen");
             if (menuIsClosed && dialog.returnFocusElement.closest("#gameMenu")) {
                 if (menuToggle && game.classList.contains("game-active")) {
                     menuToggle.focus();
                 } else {
-                    document.getElementById("BnHNySpill").focus();
+                    document.getElementById("newGameButton").focus();
                 }
             } else {
                 dialog.returnFocusElement.focus();
@@ -225,19 +225,19 @@ function initializeColorTheme() {
         }
     });
     document.getElementById("colorThemeOpenButton").addEventListener("click", () => {
-        showDialog("Innstillinger", false);
-        showDialog("Fargetema", true);
+        showDialog("Settings", false);
+        showDialog("ColorTheme", true);
     });
     document.getElementById("colorThemeCloseButton").addEventListener("click", () => {
-        showDialog("Fargetema", false);
-        showDialog("Innstillinger", true);
+        showDialog("ColorTheme", false);
+        showDialog("Settings", true);
     });
     options.forEach(button => {
         button.addEventListener("click", () => {
             setCookie("ColorTheme", button.dataset.colorTheme, 1000);
             applyColorTheme(button.dataset.colorTheme);
-            showDialog("Fargetema", false);
-            showDialog("Innstillinger", true);
+            showDialog("ColorTheme", false);
+            showDialog("Settings", true);
         });
     });
 }

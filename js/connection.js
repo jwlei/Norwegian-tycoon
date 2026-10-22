@@ -204,7 +204,7 @@
         var gameLogTrickCount = 0;
         var gameLogNeedsTrickHeader = true;
         var appShell = document.getElementById("gameShell");
-        var gameMenuToggle = document.getElementById("BnGameMenuToggle");
+        var gameMenuToggle = document.getElementById("gameMenuToggleButton");
         var gameMenu = document.getElementById("gameMenu");
         var playerNameCookie = "norwegian_tycoon_player_name";
         document.addEventListener("lobby-player-error", function (event) {
@@ -247,23 +247,23 @@
         }
 
         function promptForPlayerName(isRename = false, errorMessage = "") {
-            document.querySelector("#dialogSporOmNick .dialog-title").textContent =
+            document.querySelector("#dialogPlayerName .dialog-title").textContent =
                 isRename ? "Bytt spillernavn" : "Hva vil du hete?";
-            document.getElementById("dialogSporOmNickTxt").value =
+            document.getElementById("dialogPlayerNameTxt").value =
                 isRename && currentPlayerName != null
                     ? currentPlayerName
                     : readLastUsedPlayerName();
             document.getElementById("playerNameError").textContent = errorMessage;
-            document.getElementById("dialogSporOmNickTxt").classList.remove("input-soft-error");
-            document.getElementById("dialogSporOmNickTxt").setAttribute("aria-invalid", "false");
+            document.getElementById("dialogPlayerNameTxt").classList.remove("input-soft-error");
+            document.getElementById("dialogPlayerNameTxt").setAttribute("aria-invalid", "false");
             document.getElementById("playerRecoveryPin").value = "";
             document.getElementById("playerRecoveryPin").classList.remove("input-soft-error");
             document.getElementById("playerRecoveryPin").setAttribute("aria-invalid", "false");
             document.getElementById("playerUsePin").setAttribute("aria-pressed", "false");
             document.getElementById("playerPinFields").hidden = true;
-            document.getElementById("dialogSporOmNickOk").textContent =
+            document.getElementById("dialogPlayerNameOk").textContent =
                 isRename ? "Lagre navn" : "Bli spiller";
-            showDialog("SporOmNick", true);
+            showDialog("PlayerName", true);
         }
 
         var pendingSpectatorJoinName = null;
@@ -424,7 +424,7 @@
         var starterFlashTimer = null;
         var handDealTimer = null;
         var announcedStarterRound = null;
-        var announcedBomsStarterGame = null;
+        var announcedBumStarterGame = null;
 
         function clearShuffleAnimation(keepFlash = false) {
             if (shuffleTicker != null) {
@@ -458,11 +458,11 @@
             announcedStarterRound = roundKey;
             var starter = game.players[game.turn];
             var starterName = starter.name;
-            var isFirstBomsStart = starter.lastPlacement == game.players.length &&
-                announcedBomsStarterGame != game.id;
-            if (isFirstBomsStart) { announcedBomsStarterGame = game.id; }
-            var isPlayerReminder = !isFirstBomsStart && starterName == currentPlayerName;
-            showGameToast(isFirstBomsStart
+            var isFirstBumStart = starter.lastPlacement == game.players.length &&
+                announcedBumStarterGame != game.id;
+            if (isFirstBumStart) { announcedBumStarterGame = game.id; }
+            var isPlayerReminder = !isFirstBumStart && starterName == currentPlayerName;
+            showGameToast(isFirstBumStart
                 ? `${starterName} er Boms og starter.`
                 : (isPlayerReminder ? "Du begynner" : `${starterName} begynner`),
                 game, undefined, null, false, !isPlayerReminder);
@@ -665,9 +665,9 @@
         }
 
         function showConnectGameDialog() {
-            document.getElementById("dialogKobleSpillId").value = null;
+            document.getElementById("dialogJoinGameId").value = null;
             document.getElementById("joinGameError").innerHTML = "";
-            showDialog("KobleSpill", true);
+            showDialog("JoinGame", true);
         }
 
         function connectToAnotherGame() {
@@ -857,7 +857,7 @@
             } else {
                 gameLogEntries.forEach(entry => appendGameLogEntry(entry, false));
             }
-            showDialog("Spillogg", true);
+            showDialog("GameLog", true);
             log.scrollTop = log.scrollHeight;
         }
 
@@ -924,7 +924,7 @@
                         displayColor: player.displayColor
                     }))
                 };
-                var logIsOpen = document.getElementById("dialogSpillogg")
+                var logIsOpen = document.getElementById("dialogGameLog")
                     .classList.contains("dialog-container--visible");
                 if (gameLogNeedsTrickHeader) {
                     var trickEntry = { trick: ++gameLogTrickCount };
@@ -1584,14 +1584,14 @@
             }
         });
 
-        document.getElementById('BnHNySpill').addEventListener('click', function () {
-            document.getElementById("dialogNyttSpillOffentlig").checked = true;
-            showDialog("NyttSpill", true);
+        document.getElementById('newGameButton').addEventListener('click', function () {
+            document.getElementById("dialogNewGamePublic").checked = true;
+            showDialog("NewGame", true);
         });
 
-        document.getElementById('dialogNyttSpillOk').addEventListener('click', function () {
-            var isPublic = document.getElementById("dialogNyttSpillOffentlig").checked;
-            showDialog("NyttSpill", false);
+        document.getElementById('dialogNewGameOk').addEventListener('click', function () {
+            var isPublic = document.getElementById("dialogNewGamePublic").checked;
+            showDialog("NewGame", false);
             startNewGame(isPublic);
         });
 
@@ -1808,11 +1808,11 @@
             clearSelectedCardsFromBackground(event);
         });
 
-        document.getElementById('BnHKobleSpill').addEventListener('click', function () {
+        document.getElementById('joinGameButton').addEventListener('click', function () {
             showConnectGameDialog();
         });
 
-        document.getElementById('BnFKobleSpill').addEventListener('click', connectToAnotherGame);
+        document.getElementById('lobbyMainMenuButton').addEventListener('click', connectToAnotherGame);
 
         function joinGameById(id, onFail) {
             showPublicLobbyError("");
@@ -1822,7 +1822,7 @@
                 return;
             }
             if (currentGame != null && String(currentGame.id) == targetId) {
-                showDialog("KobleSpill", false);
+                showDialog("JoinGame", false);
                 return;
             }
             // Check the target first so a failed attempt keeps the current game.
@@ -1840,7 +1840,7 @@
                     if (currentGame == null) {
                         onFail("Kunne ikke koble til. Er spill-nummeret riktig?");
                     } else {
-                        showDialog("KobleSpill", false);
+                        showDialog("JoinGame", false);
                         if (shouldJoin) {
                             shouldJoin = false;
                             joinRememberedPlayerOrPrompt();
@@ -1852,10 +1852,10 @@
             });
         }
 
-        document.getElementById('dialogKobleSpillOk').addEventListener('click', function () {
-            joinGameById(document.getElementById("dialogKobleSpillId").value, function (text) {
+        document.getElementById('dialogJoinGameOk').addEventListener('click', function () {
+            joinGameById(document.getElementById("dialogJoinGameId").value, function (text) {
                 document.getElementById('joinGameError').innerHTML = text;
-                document.getElementById('dialogKobleSpillId').focus();
+                document.getElementById('dialogJoinGameId').focus();
             });
         });
 
@@ -2072,7 +2072,7 @@
         firebase.database().ref(".info/serverTimeOffset").on("value", updateSessionClock);
         updateResumeButton();
 
-        document.getElementById('BnFInviterSpill').addEventListener('click', function () {
+        document.getElementById('inviteButton').addEventListener('click', function () {
             if (currentGame == null) { throw ('Må lage spill før du inviterer.') }
             const inviteUrl = new URL(document.baseURI);
             inviteUrl.search = "";
@@ -2314,8 +2314,8 @@
 
         document.getElementById("cardStyleOpenButton").addEventListener("click", function () {
             refreshPlayerPresidentWins();
-            showDialog("Innstillinger", false);
-            showDialog("Korttype", true);
+            showDialog("Settings", false);
+            showDialog("CardStyle", true);
         });
 
         // Card style and foil follow the player ID, so a PIN login restores them on other devices.
@@ -2422,8 +2422,8 @@
             }
         });
         document.getElementById("cardStyleCloseButton").addEventListener("click", function () {
-            showDialog("Korttype", false);
-            showDialog("Innstillinger", true);
+            showDialog("CardStyle", false);
+            showDialog("Settings", true);
         });
 
         function updateCardFoilButtons() {
@@ -2459,8 +2459,8 @@
                             syncPlayerCardAppearance(currentGame);
                         }
                         if (currentGame != null) { refreshAfterTurnPause(currentGame); }
-                        showDialog("Kortfolie", false);
-                        showDialog("Innstillinger", true);
+                        showDialog("CardFoil", false);
+                        showDialog("Settings", true);
                     });
                     options.appendChild(row);
                 });
@@ -2507,12 +2507,12 @@
         document.addEventListener("languagechange", updateCardFoilButtons);
         document.getElementById("cardFoilOpenButton").addEventListener("click", function () {
             refreshPlayerPresidentWins();
-            showDialog("Innstillinger", false);
-            showDialog("Kortfolie", true);
+            showDialog("Settings", false);
+            showDialog("CardFoil", true);
         });
         document.getElementById("cardFoilCloseButton").addEventListener("click", function () {
-            showDialog("Kortfolie", false);
-            showDialog("Innstillinger", true);
+            showDialog("CardFoil", false);
+            showDialog("Settings", true);
         });
 
         document.getElementById("hideToastsToggleButton").addEventListener("click", function () {
@@ -2541,8 +2541,8 @@
                 updateCardStyleButtons();
                 updateCardFoilButtons();
                 if (currentGame != null) { refreshAfterTurnPause(currentGame); }
-                showDialog("Korttype", false);
-                showDialog("Innstillinger", true);
+                showDialog("CardStyle", false);
+                showDialog("Settings", true);
             });
         });
 
@@ -2551,17 +2551,17 @@
             updateSavedPlayerName();
             updateCardStyleButtons();
             refreshPlayerPresidentWins();
-            GameLayout.setVisible("BnPByttNavn", !inGame || currentGame.status == "O");
+            GameLayout.setVisible("changeNameButton", !inGame || currentGame.status == "O");
             document.querySelector(".setting-turn-speed").hidden = false;
             document.getElementById("settingsGameId").hidden = !inGame;
             updateAutoSuggestionButton();
             updateSpeedButtons();
             updateTurnSpeedButtons();
             updatePlayInputButtons();
-            showDialog("Innstillinger", true);
+            showDialog("Settings", true);
         }
 
-        document.getElementById("BnInnstillinger").addEventListener("click", openSettings);
+        document.getElementById("settingsButton").addEventListener("click", openSettings);
         window.addEventListener("resize", () => GameLayout.fitNames());
         document.getElementById("homeButton").addEventListener("click", function () {
             if (currentGame == null) { return; }
@@ -2578,7 +2578,7 @@
 
         document.addEventListener("languagechange", function () {
             if (currentGame != null &&
-                document.getElementById("dialogSpillogg").classList.contains("dialog-container--visible")) {
+                document.getElementById("dialogGameLog").classList.contains("dialog-container--visible")) {
                 showGameLog();
             }
         });
@@ -2754,7 +2754,7 @@
             scheduleBotLoop();
         }
 
-        document.getElementById('BnFHovedmeny').addEventListener('click', function () {
+        document.getElementById('mainMenuButton').addEventListener('click', function () {
             if (currentGame != null) {
                 if (currentPlayerName == null || currentGame.status == "F") {
                     leaveCurrentGame();
@@ -2772,14 +2772,14 @@
             }
         });
 
-        document.getElementById('BnPNySpiller').addEventListener('click', function () {
+        document.getElementById('joinAsPlayerButton').addEventListener('click', function () {
             if (currentPlayerName != null) { throw ('Skal ikke lage ny spiller når man allerede har en spiller.') }
             promptForPlayerName();
         });
 
-        document.getElementById('BnPByttNavn').addEventListener('click', function () {
+        document.getElementById('changeNameButton').addEventListener('click', function () {
             if (currentGame != null && currentGame.status != "O") { return; }
-            showDialog("Innstillinger", false);
+            showDialog("Settings", false);
             promptForPlayerName(currentPlayerName != null || currentGame == null);
         });
 
@@ -2790,7 +2790,7 @@
             if (enabled) { document.getElementById("playerRecoveryPin").focus(); }
             else { document.getElementById("playerRecoveryPin").value = ""; }
         });
-        document.getElementById("dialogSporOmNickTxt").addEventListener("input", function () {
+        document.getElementById("dialogPlayerNameTxt").addEventListener("input", function () {
             var name = this.value.trim();
             var invalid = name == "" || Array.from(name).length > 24 || sanitizePlayerName(name) != name;
             this.classList.toggle("input-soft-error", invalid);
@@ -2803,7 +2803,7 @@
             this.setAttribute("aria-invalid", String(invalid));
         });
         document.getElementById("playerRecoveryPin").addEventListener("keydown", function (event) {
-            if (event.key == "Enter") { document.getElementById("dialogSporOmNickOk").click(); }
+            if (event.key == "Enter") { document.getElementById("dialogPlayerNameOk").click(); }
         });
 
         async function applyPlayerIdentity(name) {
@@ -2853,8 +2853,8 @@
             playerRoundsPlayed = 0;
         }
 
-        document.getElementById("dialogSporOmNickCancel").addEventListener("click", async function () {
-            showDialog("SporOmNick", false);
+        document.getElementById("dialogPlayerNameCancel").addEventListener("click", async function () {
+            showDialog("PlayerName", false);
             if (!pendingNewGameName) { return; }
             var game = currentGame;
             pendingNewGameName = false;
@@ -2873,12 +2873,12 @@
             }
         });
 
-        document.getElementById('dialogSporOmNickOk').addEventListener('click', async function () {
-            var requestedName = document.getElementById('dialogSporOmNickTxt').value.trim();
+        document.getElementById('dialogPlayerNameOk').addEventListener('click', async function () {
+            var requestedName = document.getElementById('dialogPlayerNameTxt').value.trim();
             var invalidName = requestedName == "" || Array.from(requestedName).length > 24 ||
                 sanitizePlayerName(requestedName) != requestedName;
-            document.getElementById("dialogSporOmNickTxt").classList.toggle("input-soft-error", invalidName);
-            document.getElementById("dialogSporOmNickTxt").setAttribute("aria-invalid", String(invalidName));
+            document.getElementById("dialogPlayerNameTxt").classList.toggle("input-soft-error", invalidName);
+            document.getElementById("dialogPlayerNameTxt").setAttribute("aria-invalid", String(invalidName));
             if (invalidName) {
                 return;
             }
@@ -2889,7 +2889,7 @@
             pinField.setAttribute("aria-invalid", String(invalidPin));
             if (invalidPin) { return; }
             if (requestedName != "") {
-                var submit = document.getElementById("dialogSporOmNickOk");
+                var submit = document.getElementById("dialogPlayerNameOk");
                 if (submit.disabled) { return; }
                 submit.disabled = true;
                 try {
@@ -2900,7 +2900,7 @@
                     watchCardAppearance();
                     if (currentGame == null) {
                         saveLastUsedPlayerName(requestedName);
-                        showDialog("SporOmNick", false);
+                        showDialog("PlayerName", false);
                         return;
                     }
                     if (currentPlayerName != null) {
@@ -2924,13 +2924,13 @@
                         saveLastUsedPlayerName(currentPlayerName);
                         GameLayout.updateSharedView(currentGame, renameResult.player);
                         GameLayout.updatePlayerView(currentGame, renameResult.player);
-                        showDialog("SporOmNick", false);
+                        showDialog("PlayerName", false);
                     } else {
                         if (currentGame.status == "S" || currentGame.status == "G") {
                             pendingSpectatorJoinName = requestedName;
                             saveLastUsedPlayerName(requestedName);
                             registerWaitingSpectator(currentGame);
-                            showDialog("SporOmNick", false);
+                            showDialog("PlayerName", false);
                             return;
                         }
                         var key = getPlayerKey();
@@ -2945,7 +2945,7 @@
                             saveLastUsedPlayerName(currentPlayerName);
                             GameLayout.updateSharedView(currentGame, newPlayerResult.player);
                             GameLayout.updatePlayerView(currentGame, newPlayerResult.player);
-                            showDialog("SporOmNick", false);
+                            showDialog("PlayerName", false);
                         } else {
                             document.getElementById('playerNameError').textContent = newPlayerResult.text;
                         }
@@ -2960,7 +2960,7 @@
             }
         });
 
-        document.getElementById('BnPGiOpp').addEventListener('click', function () {
+        document.getElementById('leaveGameButton').addEventListener('click', function () {
             showChoiceDialog(
                 "Vil du forlate runden og gå til hovedmenyen? De andre spillerne fortsetter.",
                 ["Ja, gå til hovedmenyen", "Fortsett spillet"],
@@ -2968,7 +2968,7 @@
             );
         });
 
-        document.getElementById('BnFNyAutoSpiller').addEventListener('click', async function () {
+        document.getElementById('addBotButton').addEventListener('click', async function () {
             if (currentGame == null || !isLobbyHost(currentGame) ||
                 (currentGame.status != "O" && currentGame.status != "F") ||
                 currentGame.gameEndVote != null) {
@@ -2996,11 +2996,11 @@
         GameLayout.updateSharedView(null, null);
         GameLayout.updatePlayerView(null, null);
 
-        document.getElementById('BnFRegler').addEventListener('click', function () {
-            showDialog("Regler", true);
+        document.getElementById('rulesButton').addEventListener('click', function () {
+            showDialog("Rules", true);
         });
 
-        document.getElementById('BnFSpillogg').addEventListener('click', showGameLog);
+        document.getElementById('gameLogButton').addEventListener('click', showGameLog);
 
         setInterval(() => {
             updateTurnTimer();
@@ -3010,10 +3010,10 @@
                 return `${hours}:${((remainingMinutes < 10) ? "0" : "")}${remainingMinutes}`;
             }
             if (currentGame && currentGame.round > 0) {
-                document.getElementById("SpanSpillStat").innerHTML =
+                document.getElementById("gameStatusText").innerHTML =
                     `Runde ${currentGame.round} - ${formatTime(currentGame.elapsedMinutes())}`;
             } else {
-                document.getElementById("SpanSpillStat").innerHTML = "";
+                document.getElementById("gameStatusText").innerHTML = "";
             }
         }, 1000);
     }

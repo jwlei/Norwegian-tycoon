@@ -24,6 +24,12 @@
     pointer-events: none;
     z-index: 0;
 }
+/* While cards land, cache the felt shadows and the top cards as layers so the moving
+   shadow only repaints what it touches. Lower cards stay together in one cached layer. */
+.table-card-pile.is-landing > .card-depth-floor,
+.table-card-pile.is-landing .table-play__card.is-depth-detailed {
+    will-change: transform;
+}
 .card-preview--gold .card-depth-face {
     filter: drop-shadow(0 0 10px rgb(240 190 60 / 45%));
 }

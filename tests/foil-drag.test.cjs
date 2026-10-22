@@ -321,13 +321,13 @@ test("the foil selector persists independently, updates previews and never regis
     assert.equal(nodes.get("cardFoilCurrentName").textContent, "Rutenett");
     assert.equal(radiant.attributes["aria-pressed"], "true");
     assert.equal(options.children[0].querySelector(".card-foil-option__select").attributes["aria-pressed"], "false");
-    assert.deepEqual(dialogs.slice(-2), [["Kortfolie", false], ["Innstillinger", true]]);
+    assert.deepEqual(dialogs.slice(-2), [["CardFoil", false], ["Settings", true]]);
     gold.onclick();
     assert.equal(preferences.get("CardFoil"), "radiant");
     nodes.get("cardFoilOpenButton").onclick();
-    assert.deepEqual(dialogs.slice(-2), [["Innstillinger", false], ["Kortfolie", true]]);
+    assert.deepEqual(dialogs.slice(-2), [["Settings", false], ["CardFoil", true]]);
     nodes.get("cardFoilCloseButton").onclick();
-    assert.deepEqual(dialogs.slice(-2), [["Kortfolie", false], ["Innstillinger", true]]);
+    assert.deepEqual(dialogs.slice(-2), [["CardFoil", false], ["Settings", true]]);
 });
 
 test("foil locks show win requirements, block locked selection and exempt the named players", () => {

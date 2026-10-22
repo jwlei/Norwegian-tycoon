@@ -166,22 +166,22 @@ class GameLayout {
     static canUseBotanicalStyle() {
         return Card.normalizeStyle("botanical", GameLayout.cardStylePlayerName || "", getPlayerKey()) == "botanical";
     }
-    static cardImageHtml(K, width = null, rotering = null, style = "normal", foil = GameLayout.cardFoil()) {
-        return `<img draggable="false" src='${K.toImageDataUri(style, foil)}' ${((width != null) ? "width='" + width + "'" : "")} alt='${K.getName()}' ${((rotering != null) ? "transform: translateX(" + rotering + "px) rotate(" + rotering + "deg);" : "")} />`;
+    static cardImageHtml(card, width = null, rotation = null, style = "normal", foil = GameLayout.cardFoil()) {
+        return `<img draggable="false" src='${card.toImageDataUri(style, foil)}' ${((width != null) ? "width='" + width + "'" : "")} alt='${card.getName()}' ${((rotation != null) ? "transform: translateX(" + rotation + "px) rotate(" + rotation + "deg);" : "")} />`;
     }
-    static createCardImage(K, width, style = "normal", foil = GameLayout.cardFoil()) {
+    static createCardImage(card, width, style = "normal", foil = GameLayout.cardFoil()) {
         var e = document.createElement("img");
         e.draggable = false;
-        e.src = K.toImageDataUri(style, foil);
+        e.src = card.toImageDataUri(style, foil);
         if (width != null) { e.width = width };
-        e.alt = K.getName();
+        e.alt = card.getName();
         return e;
     }
     static updateSharedView(game, player) {
         if (game == null || game.status == "O") { this.clearCardFlights(); }
         document.getElementById("homeButton").hidden = game == null;
-        document.getElementById("BnFRegler").hidden = false;
-        document.getElementById("BnFSpillogg").hidden = game == null || game.status == "O";
+        document.getElementById("rulesButton").hidden = false;
+        document.getElementById("gameLogButton").hidden = game == null || game.status == "O";
         var capacity = document.getElementById("lobbyCapacity");
         capacity.hidden = game == null || game.status != "O";
         if (!capacity.hidden) {
@@ -201,7 +201,7 @@ class GameLayout {
         setClass(appShell, "game-active", (game != null));
         setClass(appShell, "Lobby", (game != null && game.status == "O"));
         setClass(appShell, "GameFinished", (game != null && game.status == "F"));
-        var menuToggle = document.getElementById("BnGameMenuToggle");
+        var menuToggle = document.getElementById("gameMenuToggleButton");
         var mainMenu = document.getElementById("mainMenu");
         var gameControls = document.querySelectorAll("#gameMenu, #playerList, #gameTable, #playerActions, #playerHand");
         var showMenu = (game == null);
@@ -268,14 +268,14 @@ class GameLayout {
         }
     }
     static updateMainMenu() {
-        this.setVisible("BnHNySpill", true);
-        this.setVisible("BnHKobleSpill", true);
+        this.setVisible("newGameButton", true);
+        this.setVisible("joinGameButton", true);
     }
     static updateGameButtons(game) {
         this.el("gameIdDisplay").textContent = game.id;
         this.el("settingsGameIdValue").textContent = game.id;
         this.el("settingsGameId").hidden = false;
-        this.el("BnInnstillinger").title = `Innstillinger · Spill-ID ${game.id}`;
+        this.el("settingsButton").title = `Innstillinger · Spill-ID ${game.id}`;
         var waitingForPlayers = game.status == "O" && game.players.length < 2;
         this.el("gameMenu").classList.toggle("waiting-for-players", waitingForPlayers);
         var startButton = this.el("startGameButton");
@@ -295,60 +295,60 @@ class GameLayout {
                 startButton.textContent = waitingForPlayers ? "Venter på flere spillere" :
                     (game.allHumansReady() ? "Start spill" : "Venter på spillere");
                 startButton.disabled = !isLobbyHost(game) || !game.allHumansReady() || waitingForPlayers;
-                this.setVisible("BnFInviterSpill", true);
-                this.setVisible("BnFKobleSpill", false);
+                this.setVisible("inviteButton", true);
+                this.setVisible("lobbyMainMenuButton", false);
                 var lobbyHost = isLobbyHost(game);
-                this.setVisible("BnFNyAutoSpiller", lobbyHost);
+                this.setVisible("addBotButton", lobbyHost);
                 var lobbyFull = game.players.length >= MAX_PLAYERS;
-                this.el("BnFNyAutoSpiller").classList.toggle("is-full", lobbyFull);
-                this.el("BnFNyAutoSpiller").disabled = lobbyFull;
-                this.el("BnFNyAutoSpiller").textContent = lobbyFull ? "Maks antall spillere nådd" : "Legg til bot";
-                if (!lobbyHost) { this.setVisible("BnFNyAutoSpiller_Off", false); }
+                this.el("addBotButton").classList.toggle("is-full", lobbyFull);
+                this.el("addBotButton").disabled = lobbyFull;
+                this.el("addBotButton").textContent = lobbyFull ? "Maks antall spillere nådd" : "Legg til bot";
+                if (!lobbyHost) { this.setVisible("addBotButton_Off", false); }
                 this.setVisible("startGameButton", lobbyHost);
                 this.setVisible("startGameButton_Off", false);
-                this.setVisible("BnFHovedmeny", false);
+                this.setVisible("mainMenuButton", false);
                 break;
             case "S":
             case "G":
-                this.setVisible("BnFInviterSpill", false);
+                this.setVisible("inviteButton", false);
                 updateAutoSuggestionButton();
-                this.setVisible("BnFKobleSpill", false);
-                this.setVisible("BnFNyAutoSpiller", false);
-                this.el("BnFNyAutoSpiller").classList.remove("is-full");
-                this.el("BnFNyAutoSpiller").disabled = false;
-                this.el("BnFNyAutoSpiller").textContent = "Legg til bot";
-                this.setVisible("BnFNyAutoSpiller_Off", false);
+                this.setVisible("lobbyMainMenuButton", false);
+                this.setVisible("addBotButton", false);
+                this.el("addBotButton").classList.remove("is-full");
+                this.el("addBotButton").disabled = false;
+                this.el("addBotButton").textContent = "Legg til bot";
+                this.setVisible("addBotButton_Off", false);
                 this.setVisible("startGameButton", false);
                 this.setVisible("startGameButton_Off", false);
-                this.setVisible("BnFHovedmeny", false);
+                this.setVisible("mainMenuButton", false);
                 break;
             case "F":
                 this.el("startGameButton").textContent =
                     game.gameEndVote != null || game.roundStartVote != null
                         ? "Avstemning pågår"
                         : "Start ny runde";
-                this.setVisible("BnFInviterSpill", game.gameEndVote == null);
-                this.setVisible("BnFKobleSpill", false);
+                this.setVisible("inviteButton", game.gameEndVote == null);
+                this.setVisible("lobbyMainMenuButton", false);
                 var finishedGameHost = isLobbyHost(game);
-                this.el("BnFNyAutoSpiller").classList.remove("is-full");
-                this.el("BnFNyAutoSpiller").disabled = false;
-                this.el("BnFNyAutoSpiller").textContent = "Legg til bot";
+                this.el("addBotButton").classList.remove("is-full");
+                this.el("addBotButton").disabled = false;
+                this.el("addBotButton").textContent = "Legg til bot";
                 this.setVisible(
-                    "BnFNyAutoSpiller",
+                    "addBotButton",
                     finishedGameHost &&
                         game.players.length < MAX_PLAYERS &&
                         game.roundStartVote == null &&
                         game.gameEndVote == null
                 );
                 if (!finishedGameHost || game.gameEndVote != null) {
-                    this.setVisible("BnFNyAutoSpiller_Off", false);
+                    this.setVisible("addBotButton_Off", false);
                 }
                 this.setVisible(
                     "startGameButton",
                     finishedGameHost && game.roundStartVote == null && game.gameEndVote == null
                 );
                 if (game.gameEndVote != null) { this.setVisible("startGameButton_Off", false); }
-                this.setVisible("BnFHovedmeny", false);
+                this.setVisible("mainMenuButton", false);
                 break;
             default:
                 throw ('Ukjent spillstatus.');
@@ -541,7 +541,7 @@ class GameLayout {
                 removeButton.remove();
             }
             playerElement.classList.toggle("is-my-turn", player.placement == 0 && isTurn);
-            playerElement.classList.toggle("EttKort", player.placement == 0 && player.cards.length == 1);
+            playerElement.classList.toggle("OneCard", player.placement == 0 && player.cards.length == 1);
             playerElement.classList.toggle("is-finished", player.placement != 0);
             return playerElement;
         };
@@ -768,14 +768,14 @@ class GameLayout {
                 flightFrames = Array.from({ length: 81 }, (_, index) => {
                     var progress = index / 80;
                     var pose = landingPose.positionAtProgress(progress);
-                    var amount = Math.max(0, 1 - progress / .58);
-                    var scale = 1 + (source.width / targetBounds.width - 1) * Math.pow(Math.max(0, 1 - progress / .58), 3);
+                    var amount = Math.max(0, 1 - progress / LandingGeometry.CONTACT);
+                    var scale = 1 + (source.width / targetBounds.width - 1) * amount * amount;
                     return {
                         offset: progress,
                         transform: `translate(${pose.x - flightLeft - targetBounds.width / 2}px, ${pose.y - flightTop - targetBounds.height / 2}px) scale(${scale})`,
                         "--pointer-x": `${50 + yaw * amount / 18 * 45}%`,
                         "--pointer-y": `${50 - pitch * amount / 18 * 45}%`,
-                        "--foil-activity": Math.max(0, 1 - progress / .58),
+                        "--foil-activity": amount,
                         opacity: 1
                     };
                 });
@@ -906,7 +906,6 @@ class GameLayout {
         }
         var cards = Array.from(table.querySelectorAll(".table-play__card"));
         var cardBounds = cards.map(card => GameLayout.unrotatedCardBounds(card));
-        var discardedDepth = [];
         cards.forEach((card, index) => {
             var bounds = cardBounds[index];
             if (bounds.width == 0 || bounds.height == 0) { return; }
@@ -943,24 +942,17 @@ class GameLayout {
             });
             if (usesDepth) {
                 var sourceDepth = CardDepth.states.get(card);
-                if (sourceDepth && sourceDepth.world && typeof LandingGeometry != "undefined") {
-                    var initial = sourceDepth.world;
-                    var flightDepth = CardDepth.states.get(flight);
-                    var below = [...discardedDepth];
-                    discardedDepth.push(flightDepth);
-                    CardDepth.bind(flightDepth, sourceDepth.scene, below);
-                    CardDepth.update(flight, initial);
-                    CardDepth.follow(flight, animation, progress => {
-                        var pose = { ...initial, x: initial.x + horizontalOffset * progress,
-                            y: initial.y - Math.max(150, window.innerHeight * .4) * progress,
-                            roll: initial.roll + spin * progress, z: initial.z + 18 * progress };
-                        pose.z = Math.max(pose.z, LandingGeometry.minimumHeight(below.map(state => state.world), pose));
-                        return pose;
-                    });
-                } else {
-                    CardDepth.update(flight, { pitch: 0, yaw: 0, roll: rotation, lift: 0 });
-                    CardDepth.follow(flight, animation, progress => ({ roll: rotation + spin * progress, lift: 18 * progress }));
-                }
+                // Cards from deep in a large pile were mostly hidden; as they fade out they cast no shadow at all.
+                if (sourceDepth && !CardDepth.detailed(sourceDepth)) { CardDepth.states.get(flight).shadowless = true; }
+                var initial = sourceDepth && sourceDepth.world
+                    ? { pitch: sourceDepth.world.pitch, yaw: sourceDepth.world.yaw, z: sourceDepth.world.z }
+                    : { pitch: 0, yaw: 0, z: undefined };
+                // Cleared cards fade as they rise, so a floor shadow is enough; no card-to-card shadows.
+                CardDepth.update(flight, initial.z == null ? { pitch: 0, yaw: 0, roll: rotation, lift: 0 }
+                    : { ...initial, roll: rotation });
+                CardDepth.follow(flight, animation, progress => initial.z == null
+                    ? { roll: rotation + spin * progress, lift: 18 * progress }
+                    : { ...initial, roll: rotation + spin * progress, z: initial.z + 18 * progress });
             }
             card.style.opacity = "0";
             if (usesDepth && typeof CardDepth.setHidden == "function") { CardDepth.setHidden(card, true); }
@@ -1260,7 +1252,7 @@ class GameLayout {
                 if (game.players.length == 0) {
                     // Show guidance while the room is waiting for players.
                     table.className = "table-explanation";
-                    this.setTableContent(table, document.getElementById("DivBord_Bordforklaring").innerHTML);
+                    this.setTableContent(table, document.getElementById("tableExplanation").innerHTML);
                 } else {
                     // Show the deck while players are joining.
                     table.className = "table-decks";
@@ -1952,11 +1944,11 @@ class GameLayout {
                 var hiddenElement = this.el(id);
                 if (hiddenElement != null) { hiddenElement.hidden = true; }
             });
-            this.setVisible("BnPNySpiller", false);
+            this.setVisible("joinAsPlayerButton", false);
             this.setVisible("passButton", false);
             this.setVisible("passButton_Off", false);
-            this.setVisible("BnPGiOpp", false);
-            this.setVisible("BnPByttNavn", true);
+            this.setVisible("leaveGameButton", false);
+            this.setVisible("changeNameButton", true);
             return;
         }
         var pauseActive = game.isTurnPaused();
@@ -1972,7 +1964,7 @@ class GameLayout {
             }
         };
         this.setVisible(
-            "BnPNySpiller",
+            "joinAsPlayerButton",
             player == null &&
                 (game.status == "O" || game.status == "F") &&
             (game.players.length < MAX_PLAYERS || game.players.some(candidate => candidate.playerKey == "PC")) &&
@@ -1994,9 +1986,9 @@ class GameLayout {
             !GamePresence.isBot(game, player) && !canPass &&
             (game.topPile() != null || player.turn != 1 || pauseActive)
         );
-        this.setVisible("BnPGiOpp", false);
+        this.setVisible("leaveGameButton", false);
         this.setVisible(
-            "BnPByttNavn",
+            "changeNameButton",
             game.status == "O"
         );
     }
@@ -2704,7 +2696,7 @@ class GameLayout {
             if (player.cards.length == 0) {
                 setClass(element, "card-hand", false);
                 setClass(element, "hand-explanation", true);
-                element.innerHTML = document.getElementById("DivKort_Kortforklaring").innerHTML;
+                element.innerHTML = document.getElementById("handExplanation").innerHTML;
             } else {
                 setClass(element, "card-hand", true);
                 setClass(element, "hand-explanation", false);
@@ -2713,43 +2705,43 @@ class GameLayout {
                 var cardIndex = -1;
                 player.cards.forEach(k => {
                     cardIndex++;
-                    var elemKort = document.createElement("button");
-                    elemKort.type = "button";
-                    elemKort.disabled = true;
+                    var cardButton = document.createElement("button");
+                    cardButton.type = "button";
+                    cardButton.disabled = true;
                     var fanPosition = (player.cards.length > 1)
                         ? Math.round(100 * ((cardIndex / (player.cards.length - 1)) - 0.5)) / 10
                         : 0;
                     var cardKey = `${k.suit}:${k.rank}`;
-                    elemKort.className = "game-card";
-                    elemKort.dataset.cardKey = cardKey;
-                    elemKort.dataset.foil = handFoil;
-                    elemKort.dataset.cardStyle = handStyle;
-                    elemKort.style.setProperty("--card-offset", "0px");
-                    elemKort.style.setProperty("--card-rotation", `${fanPosition}deg`);
-                    elemKort.appendChild(GameLayout.createCardImage(k, null, handStyle, handFoil));
+                    cardButton.className = "game-card";
+                    cardButton.dataset.cardKey = cardKey;
+                    cardButton.dataset.foil = handFoil;
+                    cardButton.dataset.cardStyle = handStyle;
+                    cardButton.style.setProperty("--card-offset", "0px");
+                    cardButton.style.setProperty("--card-rotation", `${fanPosition}deg`);
+                    cardButton.appendChild(GameLayout.createCardImage(k, null, handStyle, handFoil));
                     var isSelected = selectedCardKeys.has(cardKey);
                     var isPlayable = isPlayingTurn && playableStrengths.has(k.strengthRank);
                     if (isSelected) {
-                        elemKort.classList.add("is-selected");
+                        cardButton.classList.add("is-selected");
                         if (!previouslySelectedCardKeys.has(cardKey)) {
-                            elemKort.classList.add("is-rising");
+                            cardButton.classList.add("is-rising");
                         }
                     } else if (previouslySelectedCardKeys.has(cardKey)) {
-                        elemKort.classList.add("is-lowering");
+                        cardButton.classList.add("is-lowering");
                     }
                     if (displayedExchange && displayedExchange.cards.some(card =>
                         card.suit == k.suit && card.rank == k.rank
                     )) {
-                        elemKort.classList.add("is-exchange-selected");
+                        cardButton.classList.add("is-exchange-selected");
                     }
                     if (recentlyReceivedCards.owner == `${game.id}:${player.name}` &&
                         recentlyReceivedCards.keys.has(cardKey)) {
-                        elemKort.classList.add("is-received");
+                        cardButton.classList.add("is-received");
                     }
                     if (isPlayable) {
-                        elemKort.classList.add("is-playable");
+                        cardButton.classList.add("is-playable");
                     } else if (isPlayingTurn) {
-                        elemKort.classList.add("is-unplayable");
+                        cardButton.classList.add("is-unplayable");
                     }
                     if (selectedCardStrength != null && !isSelected) {
                         var mixTopPile = game.topPile();
@@ -2760,10 +2752,10 @@ class GameLayout {
                                 : (hasFourOfKindOnTop(game) ? 4 : mixTopPile.length));
                         if (k.strengthRank == selectedCardStrength && isPlayable) {
                             if (selectedCardKeys.size < mixLimit) {
-                                elemKort.classList.add("is-mixable");
+                                cardButton.classList.add("is-mixable");
                             } else {
-                                elemKort.classList.remove("is-playable");
-                                elemKort.classList.add("is-unplayable");
+                                cardButton.classList.remove("is-playable");
+                                cardButton.classList.add("is-unplayable");
                             }
                         }
                     }
@@ -2783,18 +2775,18 @@ class GameLayout {
                                 ) &&
                                     isCardAllowedForExchange(activeExchange, k, game) &&
                                     activeExchange.cards.length < activeExchange.count;
-                                elemKort.disabled = activeExchange.cards.length != activeExchange.count &&
+                                cardButton.disabled = activeExchange.cards.length != activeExchange.count &&
                                     !isSelectedForExchange && !canSelectForExchange;
-                                if (elemKort.disabled) {
-                                    elemKort.classList.add("is-unplayable");
+                                if (cardButton.disabled) {
+                                    cardButton.classList.add("is-unplayable");
                                 }
-                                if (!elemKort.disabled) {
-                                elemKort.tabIndex = 0;
-                                elemKort.setAttribute(
+                                if (!cardButton.disabled) {
+                                cardButton.tabIndex = 0;
+                                cardButton.setAttribute(
                                     "aria-label",
                                     `${k.getName()}${isSelectedForExchange ? ", valgt for bytte" : ", velg for bytte"}`
                                 );
-                                elemKort.onclick = function () {
+                                cardButton.onclick = function () {
                                     if (suppressNextCardClick) {
                                         suppressNextCardClick = false;
                                         return;
@@ -2806,21 +2798,21 @@ class GameLayout {
                             break;
                         case "S":
                             if (isPlayingTurn) {
-                                elemKort.disabled = false;
-                                elemKort.tabIndex = 0;
-                                elemKort.setAttribute(
+                                cardButton.disabled = false;
+                                cardButton.tabIndex = 0;
+                                cardButton.setAttribute(
                                     "aria-label",
                                     `${k.getName()}${isPlayable ? ", kan spilles" : ", kan ikke spilles nå"}`
                                 );
-                                elemKort.title = isPlayable
+                                cardButton.title = isPlayable
                                     ? (GameLayout.playInputMode() == "button"
                                         ? "Klikk for å velge. Trykk Legg ut, Enter eller mellomrom for å spille."
                                         : GameLayout.playInputMode() == "both"
                                             ? "Klikk for å velge. Dra til brettet, flick opp eller trykk Legg ut, Enter eller mellomrom for å spille."
                                             : "Klikk for å velge. Dra til brettet, flick opp eller trykk Enter eller mellomrom for å legge ut.")
                                     : "Dette kortet kan ikke spilles nå";
-                                elemKort.setAttribute("aria-pressed", String(isSelected));
-                                elemKort.onclick = function () {
+                                cardButton.setAttribute("aria-pressed", String(isSelected));
+                                cardButton.onclick = function () {
                                     if (suppressNextCardClick) {
                                         suppressNextCardClick = false;
                                         return;
@@ -2905,26 +2897,26 @@ class GameLayout {
                                     }
                                 };
                             } else if (player.turn == 1 && game.isTurnPaused()) {
-                                elemKort.title = "Vent litt før neste trekk";
-                                elemKort.setAttribute("aria-label", `${k.getName()}, vent før neste trekk`);
+                                cardButton.title = "Vent litt før neste trekk";
+                                cardButton.setAttribute("aria-label", `${k.getName()}, vent før neste trekk`);
                             }
                             break;
                         default:
                             break;
                     }
-                    if (!elemKort.disabled) {
-                        elemKort.onkeydown = function (event) {
+                    if (!cardButton.disabled) {
+                        cardButton.onkeydown = function (event) {
                             if ((event.key == "Enter" || event.key == " ") && !event.repeat) {
                                 event.preventDefault();
                                 if (game.status == "S" && selectedCardKeys.has(cardKey)) {
                                     playSelectedCards();
                                 } else {
-                                    elemKort.click();
+                                    cardButton.click();
                                 }
                             } else if (event.key == "ArrowLeft" || event.key == "ArrowRight") {
                                 event.preventDefault();
                                 var cards = Array.from(element.querySelectorAll(".game-card:not(:disabled)"));
-                                var currentIndex = cards.indexOf(elemKort);
+                                var currentIndex = cards.indexOf(cardButton);
                                 var direction = (event.key == "ArrowRight") ? 1 : -1;
                                 var nextCard = cards[currentIndex + direction];
                                 if (nextCard) {
@@ -2933,7 +2925,7 @@ class GameLayout {
                             }
                         };
                     }
-                    element.appendChild(elemKort)
+                    element.appendChild(cardButton)
                 });
             }
         } else {

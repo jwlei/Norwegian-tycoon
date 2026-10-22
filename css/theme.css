@@ -737,12 +737,12 @@ button {
     outline-offset: 2px;
 }
 
-#dialogNyttSpill .dialog-footer {
+#dialogNewGame .dialog-footer {
     float: none;
     justify-content: center;
 }
 
-#dialogNyttSpill .dialog-footer > button {
+#dialogNewGame .dialog-footer > button {
     flex: 0 1 160px;
 }
 
@@ -822,11 +822,11 @@ button:disabled {
     animation: splash-action-enter 380ms cubic-bezier(.2,.8,.25,1) both;
 }
 
-#mainMenu:not(.is-hidden) > #BnHNySpill {
+#mainMenu:not(.is-hidden) > #newGameButton {
     animation-delay: 80ms;
 }
 
-#mainMenu:not(.is-hidden) > #BnHKobleSpill {
+#mainMenu:not(.is-hidden) > #joinGameButton {
     animation-delay: 140ms;
 }
 
@@ -2417,13 +2417,13 @@ select:focus-visible {
     margin-bottom: 14px;
 }
 
-#BnFNyAutoSpiller {
+#addBotButton {
     -webkit-tap-highlight-color: transparent;
 }
 
 @media (hover: none) {
-    #gameMenu #BnFNyAutoSpiller:hover,
-    #gameMenu #BnFNyAutoSpiller:active {
+    #gameMenu #addBotButton:hover,
+    #gameMenu #addBotButton:active {
         padding: 8px 12px;
         transform: none;
         background: var(--surface-soft);
@@ -2481,8 +2481,8 @@ select:focus-visible {
     padding: 7px 10px;
 }
 
-#dialogRegler .dialog-window,
-#dialogSpillogg .dialog-window,
+#dialogRules .dialog-window,
+#dialogGameLog .dialog-window,
 #dialogLeaderboard .dialog-window {
     display: flex;
     flex-direction: column;
@@ -2490,15 +2490,15 @@ select:focus-visible {
     overflow: hidden;
 }
 
-#dialogRegler .dialog-title,
-#dialogSpillogg .dialog-title,
+#dialogRules .dialog-title,
+#dialogGameLog .dialog-title,
 #dialogLeaderboard .dialog-title {
     flex: 0 0 auto;
     padding-bottom: 12px;
 }
 
-#dialogRegler .rules-content,
-#dialogSpillogg .game-log,
+#dialogRules .rules-content,
+#dialogGameLog .game-log,
 #dialogLeaderboard .leaderboard-content {
     flex: 1 1 auto;
     min-height: 0;
@@ -2508,11 +2508,11 @@ select:focus-visible {
     padding: 8px 16px 16px;
 }
 
-#dialogRegler .dialog-footer,
-#dialogSpillogg .dialog-footer,
-#dialogInnstillinger .dialog-footer,
-#dialogKorttype .dialog-footer,
-#dialogKortfolie .dialog-footer,
+#dialogRules .dialog-footer,
+#dialogGameLog .dialog-footer,
+#dialogSettings .dialog-footer,
+#dialogCardStyle .dialog-footer,
+#dialogCardFoil .dialog-footer,
 #dialogLeaderboard .dialog-footer {
     float: none;
     flex: 0 0 auto;
@@ -2520,11 +2520,11 @@ select:focus-visible {
     border-top: 1px solid var(--line);
 }
 
-#dialogRegler .dialog-footer > button,
-#dialogSpillogg .dialog-footer > button,
-#dialogInnstillinger .dialog-footer > button,
-#dialogKorttype .dialog-footer > button,
-#dialogKortfolie .dialog-footer > button,
+#dialogRules .dialog-footer > button,
+#dialogGameLog .dialog-footer > button,
+#dialogSettings .dialog-footer > button,
+#dialogCardStyle .dialog-footer > button,
+#dialogCardFoil .dialog-footer > button,
 #dialogLeaderboard .dialog-footer > button {
     width: min(100%, 240px);
     flex: 0 1 auto;
@@ -3169,14 +3169,14 @@ select:focus-visible {
     animation: game-surface-enter 420ms 95ms cubic-bezier(.2,.8,.25,1) both;
 }
 
-#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > :not(#BnFInviterSpill):not(#BnFRegler):not(#BnFSpillogg):not(#BnPGiOpp) {
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > :not(#inviteButton):not(#rulesButton):not(#gameLogButton):not(#leaveGameButton) {
     display: none !important;
 }
 
-#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInviterSpill,
-#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFRegler,
-#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFSpillogg,
-#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnPGiOpp {
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #inviteButton,
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #rulesButton,
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #gameLogButton,
+#gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #leaveGameButton {
     display: inline-flex;
     min-width: 0;
     min-height: 38px;
@@ -3195,10 +3195,10 @@ select:focus-visible {
     padding-inline: 56px;
 }
 
-#BnInnstillinger,
+#settingsButton,
 #homeButton,
-#BnFSpillogg,
-#BnFRegler {
+#gameLogButton,
+#rulesButton {
     position: fixed;
     z-index: 32;
     top: calc(env(safe-area-inset-top) + 8px);
@@ -3230,8 +3230,8 @@ select:focus-visible {
 #gameShell .topbar-actions > button {
     position: static;
 }
-#homeButton[hidden], #BnFSpillogg[hidden], #BnFRegler[hidden] { display: none; }
-#homeButton svg, #BnFSpillogg svg, #BnFRegler svg {
+#homeButton[hidden], #gameLogButton[hidden], #rulesButton[hidden] { display: none; }
+#homeButton svg, #gameLogButton svg, #rulesButton svg {
     display: block;
     flex: 0 0 24px;
     width: 24px;
@@ -3258,7 +3258,7 @@ select:focus-visible {
     text-align: center;
 }
 
-.settings-list #BnPByttNavn { width: 100%; }
+.settings-list #changeNameButton { width: 100%; }
 
 #spectatorJoinToast {
     pointer-events: none;
@@ -3565,17 +3565,17 @@ select:focus-visible {
     }
 }
 
-#BnInnstillinger:hover {
+#settingsButton:hover {
     background: var(--surface);
 }
 
-#BnInnstillinger .settings-gear {
+#settingsButton .settings-gear {
     width: 24px;
     height: 24px;
     transition: transform 300ms ease;
 }
 
-#BnInnstillinger:hover .settings-gear {
+#settingsButton:hover .settings-gear {
     transform: rotate(60deg);
 }
 
@@ -3909,10 +3909,10 @@ select:focus-visible {
         grid-template-rows: 40px 36px minmax(58px, 1fr) 132px calc(var(--shell-hand-card-height) + 32px);
     }
 
-    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInviterSpill,
-    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFRegler,
-    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFSpillogg,
-    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnPGiOpp {
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #inviteButton,
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #rulesButton,
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #gameLogButton,
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #leaveGameButton {
         min-height: 32px;
         padding-top: 4px;
         padding-bottom: 4px;
@@ -4151,10 +4151,10 @@ select:focus-visible {
 }
 
 #gameShell.game-active.GameFinished > #gameMenu > #gameMetadata,
-#gameShell.game-active.GameFinished > #gameMenu > #BnFKobleSpill,
-#gameShell.game-active.GameFinished > #gameMenu > #BnPByttNavn,
-#gameShell.game-active.GameFinished > #gameMenu > #BnPNySpiller,
-#gameShell.game-active.GameFinished > #gameMenu > #BnPGiOpp,
+#gameShell.game-active.GameFinished > #gameMenu > #lobbyMainMenuButton,
+#gameShell.game-active.GameFinished > #gameMenu > #changeNameButton,
+#gameShell.game-active.GameFinished > #gameMenu > #joinAsPlayerButton,
+#gameShell.game-active.GameFinished > #gameMenu > #leaveGameButton,
 #gameShell.game-active.GameFinished > #gameMenu .lobby-wait-hint {
     display: none !important;
 }
@@ -4196,7 +4196,7 @@ select:focus-visible {
     text-align: center;
 }
 
-#gameShell.game-active.Lobby > #gameMenu > #BnFHovedmeny {
+#gameShell.game-active.Lobby > #gameMenu > #mainMenuButton {
     display: none;
 }
 
@@ -4247,7 +4247,7 @@ select:focus-visible {
 }
 
 #gameShell.game-active.Lobby #gameMetadata > br,
-#gameShell.game-active.Lobby #SpanSpillStat { display: none; }
+#gameShell.game-active.Lobby #gameStatusText { display: none; }
 
 #gameShell.game-active.Lobby #startGameButton {
     background: var(--success-fill);
@@ -4259,8 +4259,8 @@ select:focus-visible {
     background: var(--success-hover);
 }
 
-#gameShell.game-active.Lobby #gameMenu #BnFNyAutoSpiller.is-full,
-#gameShell.game-active.Lobby #gameMenu #BnFNyAutoSpiller.is-full:hover {
+#gameShell.game-active.Lobby #gameMenu #addBotButton.is-full,
+#gameShell.game-active.Lobby #gameMenu #addBotButton.is-full:hover {
     border-color: var(--danger);
     background: var(--danger-light);
     color: #fff;
@@ -4281,14 +4281,14 @@ select:focus-visible {
     transform: none;
 }
 
-#gameShell.game-active.Lobby #gameMenu.waiting-for-players #BnFNyAutoSpiller {
+#gameShell.game-active.Lobby #gameMenu.waiting-for-players #addBotButton {
     border-color: var(--success);
     background: var(--success-fill);
     color: var(--on-success);
     box-shadow: 0 0 0 3px var(--success-glow), 0 5px 16px var(--success-glow);
 }
 
-#gameShell.game-active.Lobby #gameMenu.waiting-for-players #BnFNyAutoSpiller:hover {
+#gameShell.game-active.Lobby #gameMenu.waiting-for-players #addBotButton:hover {
     background: var(--success-hover);
 }
 
@@ -4736,7 +4736,7 @@ select:focus-visible {
         grid-template-rows: 60px 56px minmax(0, 1fr) 132px calc(var(--shell-hand-card-height) + 98px);
     }
 
-    #gameShell > #BnInnstillinger {
+    #gameShell > #settingsButton {
         left: calc(max(0px, (100vw - 980px) / 2) + 8px);
     }
 
@@ -4750,11 +4750,11 @@ select:focus-visible {
         grid-row: 1;
     }
 
-    #BnFSpillogg {
+    #gameLogButton {
         grid-column: 1;
     }
 
-    #BnFRegler {
+    #rulesButton {
         grid-column: 2;
     }
 
@@ -4784,10 +4784,10 @@ select:focus-visible {
         height: var(--shell-hand-card-height);
     }
 
-    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFInviterSpill,
-    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFRegler,
-    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnFSpillogg,
-    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #BnPGiOpp {
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #inviteButton,
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #rulesButton,
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #gameLogButton,
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #leaveGameButton {
         min-height: 34px;
         font-size: 0.8rem;
     }

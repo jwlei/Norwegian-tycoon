@@ -462,7 +462,7 @@ function clientFixture() {
     });
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const start = source.indexOf("        async function applyPlayerIdentity(");
-    const end = source.indexOf('        document.getElementById("dialogSporOmNickCancel")', start);
+    const end = source.indexOf('        document.getElementById("dialogPlayerNameCancel")', start);
     vm.runInContext(source.slice(start, end), f.context);
     return { ...f, elements, get key() { return key; } };
 }
@@ -613,12 +613,12 @@ test("an enabled PIN rejects invalid length while disabling PIN ignores the hidd
 
 test("name dialog has one optional PIN input and no repeat or separate registration controls", () => {
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-    const dialog = html.slice(html.indexOf('id="dialogSporOmNick"'), html.indexOf('id="dialogVisLink"'));
+    const dialog = html.slice(html.indexOf('id="dialogPlayerName"'), html.indexOf('id="dialogShareLink"'));
     assert.doesNotMatch(dialog, /type="password"/);
     assert.match(dialog, /type="text" id="playerRecoveryPin"[^>]*maxlength="6"/);
     assert.match(dialog, /id="playerUsePin" class="setting-row" aria-pressed="false"/);
     assert.match(dialog, /id="playerPinFields" hidden/);
-    assert.match(dialog, /<label for="dialogSporOmNickTxt">Skriv inn navnet ditt, maks 24 tegn<\/label>[\s\S]*?<input[^>]*id="dialogSporOmNickTxt"/);
+    assert.match(dialog, /<label for="dialogPlayerNameTxt">Skriv inn navnet ditt, maks 24 tegn<\/label>[\s\S]*?<input[^>]*id="dialogPlayerNameTxt"/);
     assert.doesNotMatch(dialog, /playerNameHint/);
     assert.match(dialog, /placeholder="PIN \(6 sifre\)"/);
     assert.doesNotMatch(dialog, /playerNewPin|playerConfirmPin|playerSetPin|oninput=/);

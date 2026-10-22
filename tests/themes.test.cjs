@@ -11,7 +11,7 @@ const themes = ["amoled", "gray", "burgundy", "darcula", "high-contrast-amber", 
 const highContrastThemes = ["high-contrast-amber", "high-contrast-blue", "high-contrast-violet"];
 
 test("rules separate player counts, keep voting on the voting screen, and translate every paragraph", () => {
-    const rules = html.slice(html.indexOf('id="dialogRegler"'), html.indexOf('id="dialogSpillogg"'));
+    const rules = html.slice(html.indexOf('id="dialogRules"'), html.indexOf('id="dialogGameLog"'));
     assert.match(rules, /Spill alle kortene dine\./);
     assert.match(rules, /Kortstyrke:/);
     assert.match(rules, /<strong>Hvem starter:<\/strong> <span>Hjerter 3 starter første runde, eller en tilfeldig spiller med to spillere\. Deretter starter Boms\.<\/span>/);
@@ -276,9 +276,9 @@ test("desktop uses taller two-line toasts and the same shell and toolbar in ever
     assert.match(desktop, /--toast-stack-height:\s*102px;/);
     assert.match(desktop, /--toast-stack-height:\s*48px;/);
     assert.match(desktop, /#gameShell\s*\{[^}]*width:\s*min\(100%, 980px\);[^}]*margin:\s*0 auto;/);
-    assert.match(desktop, /#gameShell > #BnInnstillinger\s*\{/);
+    assert.match(desktop, /#gameShell > #settingsButton\s*\{/);
     assert.match(desktop, /#gameShell > \.topbar-actions\s*\{[^}]*grid-template-columns:\s*repeat\(3, 44px\);/);
-    for (const [id, column] of [["BnFSpillogg", 1], ["BnFRegler", 2], ["homeButton", 3]]) {
+    for (const [id, column] of [["gameLogButton", 1], ["rulesButton", 2], ["homeButton", 3]]) {
         assert.match(desktop, new RegExp(`#${id} \\{\\s*grid-column: ${column};`));
     }
 });
@@ -314,7 +314,7 @@ test("splash profile text wraps so long names cannot hide the logged-in player I
 });
 
 test("leaderboard uses a centered title and no visible hint text", () => {
-    const dialog = html.slice(html.indexOf('id="dialogLeaderboard"'), html.indexOf('id="dialogResultater"'));
+    const dialog = html.slice(html.indexOf('id="dialogLeaderboard"'), html.indexOf('id="dialogResults"'));
     assert.match(dialog, /class="dialog-title">Leaderboard<\/div>/);
     assert.match(css, /#dialogLeaderboard \.dialog-title\s*\{[^}]*text-align:\s*center;/);
     assert.doesNotMatch(dialog, /leaderboard-description/);
@@ -350,7 +350,7 @@ test("required cards pulse for one second then rest for two, without competing w
 });
 
 test("settings use concise hints and mode-specific card control descriptions inside the option", () => {
-    const settings = html.slice(html.indexOf('id="dialogInnstillinger"'), html.indexOf('id="dialogFargetema"'));
+    const settings = html.slice(html.indexOf('id="dialogSettings"'), html.indexOf('id="dialogColorTheme"'));
     assert.match(settings, /<strong>Meldinger<\/strong><small>Varighet på meldinger om spillhendelser<\/small>/);
     assert.match(settings, /<small>Maks synlige meldinger<\/small>/);
     for (const value of [1, 2]) {
@@ -363,9 +363,9 @@ test("settings use concise hints and mode-specific card control descriptions ins
     assert.match(settings, /data-play-input="both"[^>]*>Begge<\/button>/);
     assert.match(settings, /<\/span>\s*<span class="setting-row__text" aria-live="polite">\s*<small id="playInputFlickHint">Dra kort og slipp på brettet, eller flick dem opp\.<\/small>\s*<small id="playInputButtonHint" hidden>Velg kort og bekreft med spillknappen<\/small>\s*<\/span>\s*<\/div>/);
     assert.doesNotMatch(settings, /<p class="color-theme-description">/);
-    const themes = html.slice(html.indexOf('id="dialogFargetema"'), html.indexOf('id="dialogKortfolie"'));
+    const themes = html.slice(html.indexOf('id="dialogColorTheme"'), html.indexOf('id="dialogCardFoil"'));
     assert.doesNotMatch(themes, /color-theme-description/);
-    const foils = html.slice(html.indexOf('id="dialogKortfolie"'), html.indexOf('id="dialogKobleSpill"'));
+    const foils = html.slice(html.indexOf('id="dialogCardFoil"'), html.indexOf('id="dialogJoinGame"'));
     assert.match(foils, /<p class="color-theme-description">Folie legges over kortstilen<\/p>/);
     const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
     for (const text of ["Messages", "Max visible messages", "Duration of game event messages", "Drag cards and release on the board or flick them up.",
@@ -375,7 +375,7 @@ test("settings use concise hints and mode-specific card control descriptions ins
 });
 
 test("settings and appearance close buttons use the same centered layout as rules", () => {
-    for (const id of ["dialogInnstillinger", "dialogKorttype", "dialogKortfolie"]) {
+    for (const id of ["dialogSettings", "dialogCardStyle", "dialogCardFoil"]) {
         assert.match(css, new RegExp(`#${id} \\.dialog-footer,[\\s\\S]*?float: none;[\\s\\S]*?justify-content: center;`));
         assert.match(css, new RegExp(`#${id} \\.dialog-footer > button,[\\s\\S]*?width: min\\(100%, 240px\\);`));
     }
