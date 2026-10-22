@@ -1846,7 +1846,6 @@ class GameLayout {
             player.turn,
             game.isTurnPaused() ? 1 : 0,
             game.connectionOnline === false ? 0 : 1,
-            game.localWritePending === true ? 1 : 0,
             GamePresence.isBot(game, player) ? 1 : 0,
             game.piles.map(pile => `${pile.strengthRank}/${pile.map(keyOf).join(",")}`).join("|"),
             player.cards.map(keyOf).join(","),
@@ -1902,7 +1901,10 @@ class GameLayout {
             game.status == "S" &&
             player.placement == 0 &&
             player.turn == 1;
-        var canPass = isPassTurn && !pauseActive && game.canPass(player);
+        var canPass = isPassTurn && !pauseActive;
+        this.el("passButton").disabled = game.connectionOnline === false ||
+            (player != null && GamePresence.isBot(game, player)) ||
+            game.localWritePending === true || pauseActive;
         this.setVisible("passButton", canPass);
         this.setVisible(
             "passButton_Off",
@@ -2544,9 +2546,12 @@ class GameLayout {
         var selectedPile = new CardPile(player.name, ...player.cards.filter(card =>
             selectedCardKeys.has(`${card.suit}:${card.rank}`)
         ));
-        playButton.disabled = game.localWritePending || playButton.hidden || !isPlayingTurn ||
-            game.connectionOnline === false || selectedPile.length == 0 ||
-            !game.canPlayPile(player, selectedPile);
+        var updatePlayButtonDisabled = function () {
+            playButton.disabled = game.localWritePending || playButton.hidden || !isPlayingTurn ||
+                game.connectionOnline === false || selectedPile.length == 0 ||
+                !game.canPlayPile(player, selectedPile);
+        };
+        updatePlayButtonDisabled();
         playButton.onclick = () => playSelectedCards();
         var selectCardsForSwipe = function (card) {
             if (!playableStrengths.has(card.strengthRank)) { return false; }
@@ -2873,6 +2878,7 @@ class GameLayout {
         element._rebindHand = function (newGame, newPlayer) {
             game = newGame;
             player = newPlayer;
+            updatePlayButtonDisabled();
         };
         if (displayedExchange && displayedExchange.mode == "Best") {
             this.centerHandSelection(element, ownerKey, displayedExchange.cards.map(card =>

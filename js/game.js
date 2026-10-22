@@ -463,14 +463,14 @@ function isCardDropOnTable(event) {
         event.clientY >= bounds.top && event.clientY <= bounds.bottom;
 }
 
-function isUpwardFlick(x, y, coneDegrees = 160) {
+function isUpwardFlick(x, y, coneDegrees = 130) {
     return y > 0 && y + 1e-6 >= Math.abs(x) *
         Math.tan((180 - coneDegrees) * Math.PI / 360);
 }
 
 const CARD_TOUCH_PICKUP_CONE = 130;
 const CARD_FLICK_MIN_DISTANCE = 10;
-const CARD_FLICK_MIN_VELOCITY = 0.4;
+const CARD_FLICK_MIN_VELOCITY = 0.35;
 const CARD_FLICK_RELEASE_GRACE_MS = 120;
 const CARD_FLICK_RECOIL_TOLERANCE = 3;
 

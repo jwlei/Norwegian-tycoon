@@ -746,7 +746,7 @@ test("releasing a dragged hand outside the board animates the preview back", () 
     assert.equal(f.card.classList.contains("is-drag-source"), false);
 });
 
-test("slow drops play only on the board and flicks require 10 pixels at 0.4 pixels per millisecond", () => {
+test("slow drops play only on the board and flicks require 10 pixels at 0.35 pixels per millisecond", () => {
     const f = fixture();
     f.context.document.getElementById("gameTable");
     const drag = { canDragToPlay: true, canSwipeToPlay: false, didPlayDrag: true,
@@ -762,9 +762,9 @@ test("slow drops play only on the board and flicks require 10 pixels at 0.4 pixe
     drag.lastFlickVelocity = 0.4;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), false);
     drag.lastFlickDistance = 10;
-    drag.lastFlickVelocity = 0.39;
+    drag.lastFlickVelocity = 0.34;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), false);
-    drag.lastFlickVelocity = 0.4;
+    drag.lastFlickVelocity = 0.35;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), true);
     drag.lastFlickDistance = -16;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), false);
@@ -941,9 +941,9 @@ test("slow long drags outside the board never play, but fresh upward flicks do o
     }
 });
 
-test("short flicks work throughout the upward 160 degree cone on mouse and touch", () => {
+test("short flicks work throughout the upward 130 degree cone on mouse and touch", () => {
     for (const desktop of [false, true]) {
-        for (const angle of [-80, -75, -70, -60, -45, 0, 45, 60, 70, 75, 80]) {
+        for (const angle of [-65, -64, -60, -45, 0, 45, 60, 64, 65]) {
             const f = pointerFixture({ desktop });
             const radians = angle * Math.PI / 180;
             const x = 100 + Math.sin(radians) * 13;
@@ -962,6 +962,32 @@ test("short flicks work throughout the upward 160 degree cone on mouse and touch
             f.hand.onpointerup(f.event(x, y));
             assert.equal(f.state.plays, 1, `${desktop ? "mouse" : "touch"} at ${angle} degrees`);
             assert.equal(f.state.scrolls, 0);
+        }
+    }
+});
+
+test("mouse and touch accept a gentler flick but reject release strokes outside 130 degrees", () => {
+    for (const desktop of [false, true]) {
+        const gentle = pointerFixture({ desktop });
+        gentle.hand.onpointerdown(gentle.event(100, 500));
+        gentle.advance(1050);
+        gentle.hand.onpointermove(gentle.event(100, 482));
+        gentle.hand.onpointerup(gentle.event(100, 482));
+        assert.equal(gentle.state.plays, 1, "360 px/s is above the reduced speed threshold");
+        for (const angle of [-80, -70, -65.1, 65.1, 70, 80]) {
+            const f = pointerFixture({ desktop });
+            f.hand.onpointerdown(f.event(100, 500));
+            f.advance(1100);
+            f.hand.onpointermove(f.event(100, 480));
+            f.advance(1300);
+            f.hand.onpointermove(f.event(100, 480));
+            const radians = angle * Math.PI / 180;
+            const x = 100 + Math.sin(radians) * 30;
+            const y = 480 - Math.cos(radians) * 30;
+            f.advance(1330);
+            f.hand.onpointermove(f.event(x, y));
+            f.hand.onpointerup(f.event(x, y));
+            assert.equal(f.state.plays, 0, `Reject ${angle} degrees after pickup`);
         }
     }
 });

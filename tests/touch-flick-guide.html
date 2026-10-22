@@ -106,8 +106,8 @@
     <div class="row">
         <div><label for="speed">Actual speed</label>
             <select id="speed">
-                <option value="0.4">Minimum: 400 px/s</option>
-                <option value="0.39">Too slow: 390 px/s</option>
+                <option value="0.35">Minimum: 350 px/s</option>
+                <option value="0.34">Too slow: 340 px/s</option>
                 <option value="0.8">Faster: 800 px/s</option>
             </select>
         </div>
@@ -134,8 +134,8 @@
             <li><strong>Initial pickup: 130 degrees</strong>, from -65 to +65 degrees from straight up, including the edges.</li>
             <li><strong>Scroll: within 15 degrees of horizontal.</strong> The 10-degree gaps between pickup and scrolling wait for clearer movement.</li>
             <li>Initial intent needs 8 px on either axis. A 10 px diagonal at 45 degrees is therefore not enough to pick up yet. Scrolling needs 12 px horizontally.</li>
-            <li><strong>After pickup: 160-degree release cone</strong> (-80 to +80). The mode stays locked: horizontal movement no longer scrolls.</li>
-            <li><strong>Minimum flick: 10 px at 0.4 px/ms</strong> (400 CSS px/s). Straight up, that is 10 px in 25 ms, or 32 px in 80 ms. The recent final stroke is sampled over 80 ms; movement before that can be slow.</li>
+            <li><strong>After pickup: 130-degree release cone</strong> (-65 to +65). The mode stays locked: horizontal movement no longer scrolls.</li>
+            <li><strong>Minimum flick: 10 px at 0.35 px/ms</strong> (350 CSS px/s). Straight up, that is 10 px in about 28.6 ms, or 28 px in 80 ms. The recent final stroke is sampled over 80 ms; movement before that can be slow.</li>
             <li>Up to 3 px of vertical recoil does not split a short stroke, including before it first qualifies as a flick. Reversal is measured cumulatively from the furthest point, not separately per event.</li>
             <li>A recognized flick stays valid for 120 ms through up to 3 px of lift-off recoil or a brief slowdown. A deliberate reversal or sideways drag cancels it; tiny movements do not restart that clock.</li>
             <li>You can hold the card for seconds before finishing with a flick. A slow drop onto the table also works.</li>

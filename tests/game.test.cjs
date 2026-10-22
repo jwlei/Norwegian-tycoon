@@ -1880,8 +1880,19 @@ function playButtonContext(options = {}) {
     const start = source.indexOf("        var playSelectedCards = function (");
     const end = source.indexOf("        var selectCardsForSwipe", start);
     vm.runInContext(source.slice(start, end), context);
-    return { game, player, playButton, played, selectedCardKeys, warnings: () => warnings };
+    return { game, player, playButton, played, selectedCardKeys, context, warnings: () => warnings };
 }
+
+test("rebinding an unchanged hand refreshes play availability while a save is pending", () => {
+    const { game, playButton, context } = playButtonContext();
+    assert.equal(playButton.disabled, false);
+    game.localWritePending = true;
+    vm.runInContext("updatePlayButtonDisabled()", context);
+    assert.equal(playButton.disabled, true);
+    game.localWritePending = false;
+    vm.runInContext("updatePlayButtonDisabled()", context);
+    assert.equal(playButton.disabled, false);
+});
 
 test("the play button plays exactly the selected cards and clears the selection", () => {
     for (const playInput of ["button", "both"]) {
@@ -2497,6 +2508,10 @@ test("connection and seat-control changes invalidate the hand's play-button stat
         isTurnPaused: () => false
     };
     const onlineSignature = GameLayout.handSignature(game, player);
+    game.localWritePending = true;
+    assert.equal(GameLayout.handSignature(game, player), onlineSignature,
+        "Pending saves update controls without rebuilding or restarting hand animations");
+    game.localWritePending = false;
     game.connectionOnline = false;
     assert.notEqual(GameLayout.handSignature(game, player), onlineSignature);
     game.connectionOnline = true;
@@ -2505,6 +2520,30 @@ test("connection and seat-control changes invalidate the hand's play-button stat
     assert.notEqual(GameLayout.handSignature(game, player), onlineSignature);
     game.controllers = {};
     assert.equal(GameLayout.handSignature(game, player), onlineSignature);
+});
+
+test("pending saves disable Pass without swapping its visible and inactive buttons", () => {
+    const { GameLayout, game, players, document } = exchangeStatusFixture();
+    game.status = "S";
+    players[0].turn = 1;
+    players[0].placement = 0;
+    game.piles = [];
+    game.isTurnPaused = () => false;
+    GameLayout.updatePlayerStatus = () => {};
+    const button = document.getElementById("passButton");
+    const inactive = document.getElementById("passButton_Off");
+    for (const pending of [false, true, false]) {
+        game.localWritePending = pending;
+        GameLayout.updatePlayerButtons(game, players[0]);
+        assert.equal(button.style.display, "inline");
+        assert.equal(inactive.style.display, "none");
+        assert.equal(button.disabled, pending);
+    }
+    game.isTurnPaused = () => true;
+    GameLayout.updatePlayerButtons(game, players[0]);
+    assert.equal(button.style.display, "none");
+    assert.equal(inactive.style.display, "inline");
+    assert.equal(button.disabled, true);
 });
 
 test("a gift requires the same owner on the first and fourth consecutive singles", () => {

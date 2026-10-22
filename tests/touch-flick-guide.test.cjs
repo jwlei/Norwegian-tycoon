@@ -11,10 +11,10 @@ vm.runInContext(guide.slice(0, guide.indexOf("const touchGuide")), context);
 const example = context.touchFlickExample;
 
 test("mobile examples use the game's exact minimum speed and stroke thresholds", () => {
-    assert.equal(example(0, "initial", 10, 0.4).flick, true);
+    assert.equal(example(0, "initial", 10, 0.35).flick, true);
     assert.equal(example(0, "initial", 10, 0.4).duration, 25);
     assert.equal(example(0, "initial", 32, 0.4).duration, 80);
-    assert.equal(example(0, "initial", 32, 0.39).flick, false);
+    assert.equal(example(0, "initial", 32, 0.34).flick, false);
     assert.equal(example(0, "initial", 9, 0.4).flick, false);
     assert.equal(example(45, "initial", 10, 0.4).axis, null, "8 px initial intent is required on one axis");
     assert.equal(example(45, "initial", 32, 0.4).flick, true);
@@ -39,11 +39,11 @@ test("mobile examples distinguish 130-degree pickup, undecided gaps and horizont
     assert.equal(example(180, "initial", 32, 0.4).flick, false);
 });
 
-test("mobile release examples retain the wider locked cone and show the release-delay boundary", () => {
-    for (const angle of [-80, -75, 0, 75, 80]) {
+test("mobile release examples use the 130-degree cone and show the release-delay boundary", () => {
+    for (const angle of [-65, -60, 0, 60, 65]) {
         assert.equal(example(angle, "release", 32, 0.4).flick, true);
     }
-    for (const angle of [-81, 81, 90, 180]) {
+    for (const angle of [-80, -70, -65.1, 65.1, 70, 80, 90, 180]) {
         assert.equal(example(angle, "release", 32, 0.4).flick, false);
     }
     assert.equal(example(0, "release", 32, 0.4, 120).flick, true);
