@@ -1894,6 +1894,21 @@ test("rebinding an unchanged hand refreshes play availability while a save is pe
     assert.equal(playButton.disabled, false);
 });
 
+test("rebinding uses fresh snapshot card instances to validate the Play button", () => {
+    const { game, player, playButton, context } = playButtonContext();
+    game.canPlayPile = (owner, pile) => pile.every(card => owner.cards.includes(card));
+    const newPlayer = {
+        ...player,
+        cards: player.cards.map(card => new card.constructor(card.suit, card.rank))
+    };
+    context.newPlayer = newPlayer;
+    vm.runInContext("player = newPlayer; updatePlayButtonDisabled()", context);
+    assert.equal(playButton.disabled, false);
+    game.canPlayPile = () => false;
+    vm.runInContext("updatePlayButtonDisabled()", context);
+    assert.equal(playButton.disabled, true);
+});
+
 test("the play button plays exactly the selected cards and clears the selection", () => {
     for (const playInput of ["button", "both"]) {
         const { player, playButton, played, selectedCardKeys } = playButtonContext({ playInput });

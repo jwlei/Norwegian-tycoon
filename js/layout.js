@@ -2543,10 +2543,10 @@ class GameLayout {
         playButton.hidden = GameLayout.playInputMode() == "flick" ||
             game.status != "S" || player.placement != 0 ||
             GamePresence.isBot(game, player);
-        var selectedPile = new CardPile(player.name, ...player.cards.filter(card =>
-            selectedCardKeys.has(`${card.suit}:${card.rank}`)
-        ));
         var updatePlayButtonDisabled = function () {
+            var selectedPile = new CardPile(player.name, ...player.cards.filter(card =>
+                selectedCardKeys.has(`${card.suit}:${card.rank}`)
+            ));
             playButton.disabled = game.localWritePending || playButton.hidden || !isPlayingTurn ||
                 game.connectionOnline === false || selectedPile.length == 0 ||
                 !game.canPlayPile(player, selectedPile);
