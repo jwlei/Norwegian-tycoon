@@ -652,3 +652,25 @@ test("a lobby changed during recovery is not overwritten and leaves the old cook
     assert.equal(f.key, "clean-browser");
     assert.equal(f.records["rooms/test"].status, "S");
 });
+
+test("card style and foil are stored on the player ID and validated when read back", async () => {
+    const f = fixture();
+    const writes = {};
+    const baseRef = f.context.firebase.database().ref;
+    f.context.firebase = { database: () => ({ ref: name => Object.assign(baseRef(name), {
+        async set(value) { writes[name] = value; }
+    }) }) };
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "cards.js"), "utf8"), f.context);
+    await f.identity.saveAppearance("UserC1", "cosmic", "galaxy", 1234);
+    assert.deepEqual(JSON.parse(JSON.stringify(writes)),
+        { "playerAppearance/UserC1": { style: "cosmic", foil: "galaxy", updatedAt: 1234 } });
+    await f.identity.saveAppearance("PC", "cosmic", "galaxy", 1234);
+    await f.identity.saveAppearance("", "cosmic", "galaxy", 1234);
+    assert.deepEqual(Object.keys(writes), ["playerAppearance/UserC1"]);
+    assert.deepEqual(JSON.parse(JSON.stringify(f.identity.normalizeAppearance({ style: "bogus", foil: "holo", updatedAt: "5" }))),
+        { style: null, foil: "holo", updatedAt: 5 });
+    assert.deepEqual(JSON.parse(JSON.stringify(f.identity.normalizeAppearance({ style: "botanical", foil: "bad" }))),
+        { style: "botanical", foil: null, updatedAt: 0 });
+    assert.equal(f.identity.normalizeAppearance({ style: 7, foil: {} }), null);
+    assert.equal(f.identity.normalizeAppearance(null), null);
+});

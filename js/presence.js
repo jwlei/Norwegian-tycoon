@@ -18,8 +18,27 @@ class GamePresence {
 
     static isExpired(record, now = this.now()) {
         if (record == null) { return false; }
+        if (record.status == "V") { return true; }
+        var expiresAt = this.expiresAt(record);
+        return expiresAt != null && now > expiresAt;
+    }
+
+    static expiresAt(record) {
+        if (record == null || record.status == "V") { return null; }
         var lastAction = this.lastActivityAt(record);
-        return record.status == "V" || (lastAction != null && now - lastAction > this.sessionMs);
+        if (record.status == "O") {
+            // Lobbies stay open while any human is connected; once everyone is gone,
+            // the session window runs from the most recent activity or disconnect.
+            var humans = (record.players || record.spillere || []).filter(player =>
+                (player.playerKey || player.spillerKey) != "PC");
+            if (humans.some(player => this.isOnline(record.presence, player))) { return null; }
+            var leftAt = humans.map(player => this.disconnectedAt(record.presence, player))
+                .filter(value => value != null);
+            if (leftAt.length > 0) {
+                lastAction = Math.max(lastAction ?? 0, ...leftAt);
+            }
+        }
+        return lastAction != null ? lastAction + this.sessionMs : null;
     }
 
     static playerId(player) {

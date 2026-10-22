@@ -63,12 +63,12 @@
                     return;
                 }
                 document.getElementById("resumeGameButton").hidden = false;
-                var lastAction = GamePresence.lastActivityAt(record);
-                if (lastAction != null) {
+                var expiresAt = GamePresence.expiresAt(record);
+                if (expiresAt != null) {
                     resumeExpiryTimer = setTimeout(() => {
                         if (resumeSeat == seat) { resumeListener(snapshot); }
                     },
-                        Math.max(1, lastAction + GamePresence.sessionMs + 1 - GamePresence.now()));
+                        Math.max(1, expiresAt + 1 - GamePresence.now()));
                 }
             };
             ref.on("value", resumeListener, function (error) {
@@ -243,6 +243,7 @@
             splashName.textContent = name + (name && hasPinProfile ? ` · ID ${key}` : "");
             splashName.hidden = name == "";
             document.getElementById("settingsPlayerName").textContent = name;
+            watchCardAppearance();
         }
 
         function promptForPlayerName(isRename = false, errorMessage = "") {
@@ -2317,6 +2318,68 @@
             showDialog("Korttype", true);
         });
 
+        // Card style and foil follow the player ID, so a PIN login restores them on other devices.
+        var cardAppearanceWatch;
+        function localCardAppearanceUpdatedAt() {
+            try { return Number(localStorage.getItem("cardAppearanceUpdatedAt")) || 0; } catch (error) { return 0; }
+        }
+        function storedCardAppearance() {
+            var style = null;
+            try { style = localStorage.getItem("cardStyle"); } catch (error) { }
+            return { style: style || "normal", foil: GameLayout.cardFoil(), chosen: style != null || getCookie("CardFoil") != "" };
+        }
+        function uploadCardAppearance(updatedAt) {
+            try { localStorage.setItem("cardAppearanceUpdatedAt", String(updatedAt)); } catch (error) { }
+            var local = storedCardAppearance();
+            PlayerIdentity.saveAppearance(getPlayerKey(), local.style, local.foil, updatedAt)
+                .catch(error => console.error("Kunne ikke lagre kortutseendet på spiller-IDen.", error));
+        }
+        function rememberCardAppearanceChoice() {
+            uploadCardAppearance(Math.max(GamePresence.now(), localCardAppearanceUpdatedAt() + 1));
+        }
+        function applyRemoteCardAppearance(snapshot) {
+            var remote = PlayerIdentity.normalizeAppearance(snapshot.val());
+            var localAt = localCardAppearanceUpdatedAt();
+            if (remote == null || remote.updatedAt < localAt) {
+                var local = storedCardAppearance();
+                if (localAt > 0 || local.chosen) { uploadCardAppearance(localAt || GamePresence.now()); }
+                return;
+            }
+            if (remote.updatedAt == localAt) { return; }
+            try {
+                if (remote.style != null) { localStorage.setItem("cardStyle", remote.style); }
+                localStorage.setItem("cardAppearanceUpdatedAt", String(remote.updatedAt));
+            } catch (error) { }
+            if (remote.foil != null) { setCookie("CardFoil", remote.foil, 1000); }
+            document.documentElement.dataset.cardStyle = GameLayout.cardStyle();
+            updateCardStyleButtons();
+            updateCardFoilButtons();
+            if (currentGame) {
+                currentGame.cardStyleSyncFailed = null;
+                syncPlayerCardAppearance(currentGame);
+                refreshAfterTurnPause(currentGame);
+            }
+        }
+        function watchCardAppearance() {
+            var key = getPlayerKey();
+            if (cardAppearanceWatch && cardAppearanceWatch.key == key) { return; }
+            if (cardAppearanceWatch) {
+                cardAppearanceWatch.ref.off("value", applyRemoteCardAppearance);
+                // A recovered ID's saved appearance takes precedence over this device's choice.
+                try { localStorage.removeItem("cardAppearanceUpdatedAt"); } catch (error) { }
+            }
+            cardAppearanceWatch = null;
+            try {
+                var ref = PlayerIdentity.appearanceRef(key);
+                if (typeof ref.on != "function") { return; }
+                ref.on("value", applyRemoteCardAppearance, error =>
+                    console.warn("Kunne ikke hente kortutseendet for spiller-IDen.", error));
+                cardAppearanceWatch = { key, ref };
+            } catch (error) {
+                console.warn("Kunne ikke hente kortutseendet for spiller-IDen.", error);
+            }
+        }
+
         function syncPlayerCardAppearance(game) {
             var player = game.getPlayer(currentPlayerName);
             if (!player || player.playerKey != getPlayerKey() || game.connectionOnline === false) { return; }
@@ -2388,6 +2451,7 @@
                             return;
                         }
                         setCookie("CardFoil", option.id, 1000);
+                        rememberCardAppearanceChoice();
                         updateCardStyleButtons();
                         updateCardFoilButtons();
                         if (currentGame != null) {
@@ -2469,6 +2533,7 @@
                 var style = button.closest(".card-style-option").dataset.cardStyle;
                 if (!isCardStyleUnlocked(style, currentPlayerName || readLastUsedPlayerName())) { return; }
                 try { localStorage.setItem("cardStyle", style); } catch (error) { }
+                rememberCardAppearanceChoice();
                 if (currentGame) {
                     currentGame.cardStyleSyncFailed = null;
                     syncPlayerCardAppearance(currentGame);
@@ -2832,6 +2897,7 @@
                         throw new Error("Kan ikke endre navn under spill.");
                     }
                     await applyPlayerIdentity(requestedName);
+                    watchCardAppearance();
                     if (currentGame == null) {
                         saveLastUsedPlayerName(requestedName);
                         showDialog("SporOmNick", false);
