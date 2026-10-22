@@ -1377,7 +1377,7 @@ function savedPreferencesContext(cookieMode = "enabled", storage = new Map(), st
             }
         },
         currentGame: null, playerNameCookie: "norwegian_tycoon_player_name",
-        GameLayout: { cardStyle: () => "normal" }, sanitizePlayerName,
+        GameLayout: { cardStyle: () => "normal" }, sanitizePlayerName, watchCardAppearance() {},
         PlayerIdentity: { normalizeName: name => name.trim().normalize("NFC").toLowerCase() }
     });
     const shared = fs.readFileSync(path.join(__dirname, "..", "js", "shared.js"), "utf8");

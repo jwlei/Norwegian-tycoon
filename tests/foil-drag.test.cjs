@@ -281,6 +281,8 @@ test("the foil selector persists independently, updates previews and never regis
     let styleUpdates = 0;
     context.updateCardStyleButtons = () => styleUpdates++;
     context.updateCardAppearancePreview = () => {};
+    let appearanceSaves = 0;
+    context.rememberCardAppearanceChoice = () => appearanceSaves++;
     const connection = source("connection.js");
     const helperStart = connection.indexOf("        function bindCardPreviewTilt(wrapper)");
     vm.runInContext(connection.slice(helperStart,
@@ -313,6 +315,7 @@ test("the foil selector persists independently, updates previews and never regis
     assert.equal(radiant.classList.contains("card-style-option"), false);
     radiant.onclick();
     assert.equal(preferences.get("CardFoil"), "radiant");
+    assert.equal(appearanceSaves, 1, "foil choices are saved to the player ID");
     assert.equal(preferences.get("CardStyle"), undefined);
     assert.equal(styleUpdates, 1);
     assert.equal(nodes.get("cardFoilCurrentName").textContent, "Rutenett");

@@ -189,5 +189,22 @@ const PlayerIdentity = {
     },
     async winsForName(name, playerKey) {
         return (await this.statsForName(name, playerKey)).presidentWins;
+    },
+    appearanceRef(playerKey) {
+        return firebase.database().ref(`playerAppearance/${playerKey}`);
+    },
+    normalizeAppearance(record) {
+        if (!record || typeof record != "object") { return null; }
+        const style = typeof record.style == "string" &&
+            (record.style == "botanical" || Card.normalizeStyle(record.style) == record.style) ? record.style : null;
+        const foil = typeof record.foil == "string" && Card.normalizeFoil(record.foil) == record.foil
+            ? record.foil : null;
+        const updatedAt = Number.isFinite(Number(record.updatedAt)) ? Number(record.updatedAt) : 0;
+        return style == null && foil == null ? null : { style, foil, updatedAt };
+    },
+    async saveAppearance(playerKey, style, foil, updatedAt = Date.now()) {
+        const value = this.normalizeAppearance({ style, foil, updatedAt });
+        if (!playerKey || playerKey == "PC" || value == null) { return; }
+        await this.appearanceRef(playerKey).set(value);
     }
 };
