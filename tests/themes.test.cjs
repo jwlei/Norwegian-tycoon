@@ -249,11 +249,11 @@ test("auto-suggestion is enabled by default and lives below the board on the lef
     assert.ok(!connection.includes('document.getElementById("autoSuggestionToggleButton").hidden'));
 });
 
-test("Suggest move and opt-in Auto pass are stacked matching controls with translations", () => {
+test("Suggest move and opt-in Auto pass share a row with fast-forward", () => {
     assert.match(html, /<span>Foreslå trekk<\/span>/);
     assert.match(html, /id="autoPassToggleButton"[^>]*aria-pressed="false"/);
     assert.ok(html.indexOf('id="autoPassToggleButton"') > html.indexOf('id="autoSuggestionToggleButton"'));
-    assert.match(css, /#suggestionControls\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*align-items:\s*flex-start;/);
+    assert.match(css, /#suggestionControls\s*\{[^}]*display:\s*flex;[^}]*align-items:\s*center;[^}]*gap:\s*4px;/);
     assert.match(css, /#gameShell\.game-active:not\(\.Lobby\):not\(\.GameFinished\) > #playerActions\s*\{[^}]*padding-top:\s*80px;/);
     const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
     assert.ok(translations.includes('"Foreslå trekk": "Suggest move"'));
