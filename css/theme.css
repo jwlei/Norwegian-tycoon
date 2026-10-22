@@ -3838,7 +3838,7 @@ select:focus-visible {
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);
         --shell-hand-card-height: clamp(82px, 17dvh, 128px);
-        grid-template-rows: 56px 60px minmax(0, 1fr) 132px calc(var(--shell-hand-card-height) + 62px);
+        grid-template-rows: 56px 60px minmax(0, 1fr) 124px calc(var(--shell-hand-card-height) + 62px);
     }
 
     #gameShell.game-active > #playerList {
@@ -3872,7 +3872,7 @@ select:focus-visible {
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);
         --shell-hand-card-height: clamp(72px, 23dvh, 116px);
-        grid-template-rows: 56px 52px minmax(0, 1fr) 132px calc(var(--shell-hand-card-height) + 46px);
+        grid-template-rows: 56px 52px minmax(0, 1fr) 124px calc(var(--shell-hand-card-height) + 46px);
     }
 
     #gameShell.game-active > #playerList {
@@ -3894,6 +3894,12 @@ select:focus-visible {
     #gameShell.game-active > #playerHand {
         grid-column: 1 / -1;
         grid-row: 5 / 6;
+    }
+}
+
+@media (max-width: 760px) and (min-height: 501px) {
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) > #playerActions {
+        padding-top: 76px;
     }
 }
 
