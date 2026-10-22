@@ -20,7 +20,7 @@ function touchFlickExample(angle, stage, distance, speed, hold = 0) {
     } else if (distance < CARD_FLICK_MIN_DISTANCE) {
         verdict = "Too short. A flick needs at least 10 px of recent movement.";
     } else if (speed < CARD_FLICK_MIN_VELOCITY) {
-        verdict = "Too slow. Finish at 400 px/s or faster to flick.";
+        verdict = `Too slow. Finish at ${CARD_FLICK_MIN_VELOCITY * 1000} px/s or faster to flick.`;
     } else if (hold > 120) {
         verdict = "Released too late. The recognized flick is more than 120 ms old.";
     } else {
@@ -64,7 +64,7 @@ const touchGuide = (() => {
         stop();
         example = touchFlickExample(Number(get("angle").value), stage,
             Number(get("distance").value), Number(get("speed").value), Number(get("hold").value));
-        const halfCone = stage == "initial" ? CARD_TOUCH_PICKUP_CONE / 2 : 80;
+        const halfCone = CARD_TOUCH_PICKUP_CONE / 2;
         sector(get("pickup-zone"), -halfCone, halfCone);
         sector(get("scroll-left"), -105, -75);
         sector(get("scroll-right"), 75, 105);
