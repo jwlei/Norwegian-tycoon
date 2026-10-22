@@ -631,7 +631,7 @@ test("drag previews escape hand clipping, follow both axes without a distance ca
     assert.equal(f.nodes.get("gameTable").classList.contains("is-card-drop-target"), false);
 });
 
-test("velocity tilt reverses pitch and yaw, clamps and settles all selected cards together", () => {
+test("velocity tilt lifts the leading edges, clamps and settles all selected cards together", () => {
     const f = fixture();
     const hand = new Element();
     const card = new Element();
@@ -648,26 +648,26 @@ test("velocity tilt reverses pitch and yaw, clamps and settles all selected card
     f.runFrame(1016);
     const pitch = parseFloat(card._dragPreview.properties.get("--tilt-x"));
     const yaw = parseFloat(card._dragPreview.properties.get("--tilt-y"));
-    assert.ok(pitch > 0 && pitch < 18, "dragging up tilts the top edge away from the viewer");
-    assert.ok(yaw > 0 && yaw < 18, "dragging right tilts the card in the reversed yaw direction");
+    assert.ok(pitch < 0 && pitch > -18, "dragging up lifts the top edge");
+    assert.ok(yaw < 0 && yaw > -18, "dragging right lifts the right edge");
     assert.ok(Math.abs(hand._cardDragPreview.pitch - hand._cardDragPreview.yaw * 0.7) < 1e-10);
-    assert.ok(parseFloat(card._dragPreview.properties.get("--pointer-x")) > 50);
-    assert.ok(parseFloat(card._dragPreview.properties.get("--pointer-y")) > 50);
+    assert.ok(parseFloat(card._dragPreview.properties.get("--pointer-x")) < 50);
+    assert.ok(parseFloat(card._dragPreview.properties.get("--pointer-y")) < 50);
     assert.equal(card._dragPreview.classList.contains("is-tilting"), true);
     for (const selected of [second, third]) {
-        assert.ok(parseFloat(selected._dragPreview.properties.get("--tilt-x")) > pitch);
+        assert.ok(parseFloat(selected._dragPreview.properties.get("--tilt-x")) < pitch);
         assert.equal(selected._dragPreview.properties.get("--tilt-y"), `${yaw.toFixed(2)}deg`);
         assert.equal(selected._dragPreview.properties.get("--pointer-x"), card._dragPreview.properties.get("--pointer-x"));
-        assert.ok(parseFloat(selected._dragPreview.properties.get("--pointer-y")) >
+        assert.ok(parseFloat(selected._dragPreview.properties.get("--pointer-y")) <
             parseFloat(card._dragPreview.properties.get("--pointer-y")));
     }
-    assert.ok(parseFloat(third._dragPreview.properties.get("--tilt-x")) >
+    assert.ok(parseFloat(third._dragPreview.properties.get("--tilt-x")) <
         parseFloat(second._dragPreview.properties.get("--tilt-x")));
     f.runFrame(1032);
     assert.ok(Math.abs(hand._cardDragPreview.targetPitch) < 18);
     f.context.moveCardDragPreview(hand, { clientX: -10000, clientY: 10000 }, 100, 100);
     f.runFrame(1048);
-    assert.ok(parseFloat(card._dragPreview.properties.get("--tilt-x")) > 0,
+    assert.ok(parseFloat(card._dragPreview.properties.get("--tilt-x")) < 0,
         "a brief direction reversal must ease through the existing rotation rather than snap");
     for (let time = 1064; time < 2600; time += 16) { f.runFrame(time); }
     assert.equal(card._dragPreview.properties.get("--tilt-x"), "0deg");
@@ -704,8 +704,8 @@ test("drag tilt is driven by frame velocity rather than total drag distance", ()
         assert.equal(f.pendingFrames, 0);
         return target;
     }
-    assert.ok(Math.abs(pitchForFrameDuration(16) - 7.875) < 1e-10);
-    assert.ok(Math.abs(pitchForFrameDuration(32) - 3.9375) < 1e-10);
+    assert.ok(Math.abs(pitchForFrameDuration(16) + 7.875) < 1e-10);
+    assert.ok(Math.abs(pitchForFrameDuration(32) + 3.9375) < 1e-10);
 });
 
 test("a non-board release glides drag previews back before restoring the hand cards", () => {
