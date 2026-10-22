@@ -47,10 +47,14 @@ Run the automated tests with Node.js:
 node --test
 ```
 
-### Card depth and anti-aliasing
+### Card depth and landing
 
-Dragged cards, return glides, plays, exchanges, and discard flights use a 3px laminated edge following the actual SVG outline, with soft shadows projected from a fixed top-left light. The complete rotated card is rendered at 2x output resolution and downsampled before display (Study 4), rather than supersampling only the source artwork. Existing card designs and foil overlays are retained.
+Dragged cards, return glides, plays, exchanges, discards, and resting table cards use a 3px laminated edge following the actual SVG outline. Seven native SVG paper slices and the original artwork replace the supersampled WebGL renderer: there are no canvas copies, GPU contexts, texture caches, or render-target multipliers. Existing card designs, pixel outlines, foil overlays, and table guidance are retained.
 
-Moving cards share one WebGL renderer. Render targets are capped at 1536 pixels per side, effective pixel density at 2, the texture cache at eight appearances, and simultaneous GPU previews at eight cards. Additional cards in large clears keep their native image animation. Unchanged poses are not redrawn; animation frames and per-preview resources are released on cleanup. If WebGL is unavailable or lost, or the preview budget is reached, the original image rendering is retained and a warning is logged. Reduced-motion preferences still disable tilt and flight animations.
+Resting pitch/yaw comes from sampled heights of the cards beneath each footprint, with the approved gentler lean on crossed piles. A fixed top-left light projects shorter, tighter shadows onto the felt and supporting card planes. Flight, first contact, sliding/spinning momentum, diminishing rebounds, and settlement share the same geometry and shadow model; the final flight pose matches the persistent table card. This is an approximate support model, not a full rigid-body simulation.
+
+Unchanged poses are not redrawn, static table cards have no animation loop, and flight work is cancelled on cleanup. Invalid artwork retains the original image and logs a warning. Reduced-motion preferences skip flights and rebounds while retaining resting depth and contact shadows. Native SVG filters still have a rendering cost; this is not a phone benchmark.
 
 Serve the repository as above and open [card drag and landing](tests/card-tilt-sandbox.html) or [mouse drag and flick](tests/mouse-drag-sandbox.html) to exercise the production interactions without Firebase.
+
+The [contact and landing lab](tests/landing-sandbox.html) uses the same support geometry in an isolated, inspectable scene. Try bare felt, a pile edge, or crossed cards; drag to choose a landing position, add cards, or scrub through first contact and rebound. The two interaction sandboxes above exercise the production renderer and game lifecycle.

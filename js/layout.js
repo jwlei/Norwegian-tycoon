@@ -635,6 +635,9 @@ class GameLayout {
             if (onComplete) { onComplete(); }
             return;
         }
+        if (typeof CardDepth != "undefined" && typeof CardDepth.prepareTable == "function") {
+            CardDepth.prepareTable(playElement.closest(".table-card-pile") || playElement);
+        }
         if (document.hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
             if (onComplete) { onComplete(); }
             return;
@@ -650,6 +653,7 @@ class GameLayout {
             // until the whole play can be revealed on the current table.
             landedCards.forEach(({ target, flight }) => {
                 target.style.opacity = "";
+                if (typeof CardDepth != "undefined" && typeof CardDepth.setHidden == "function") { CardDepth.setHidden(target, false); }
                 if (typeof CardDepth != "undefined") { CardDepth.detach(flight); }
                 flight.remove();
             });
@@ -727,10 +731,16 @@ class GameLayout {
             document.body.appendChild(flight);
             if (typeof CardDepth != "undefined") { CardDepth.attach(flight); }
             var usesDepth = typeof CardDepth != "undefined" && CardDepth.states.has(flight);
+            var landingPose = usesDepth && typeof CardDepth.landingMotion == "function"
+                ? CardDepth.landingMotion(flight, target, {
+                    x: flightLeft + targetBounds.width / 2, y: flightTop + targetBounds.height / 2,
+                    z: 0, pitch, yaw, roll: startRotation
+                }, pile.motion ? pile.motion.power : .55) : null;
             target.style.opacity = "0";
+            if (usesDepth && typeof CardDepth.setHidden == "function") { CardDepth.setHidden(target, true); }
             landedCards.push({ target, flight });
             pendingAnimations++;
-            var animation = flight.animate([
+            var flightFrames = [
                 {
                     transform: flightTransform(0, 0, startRotation, 1),
                     "--pointer-x": source.pointerX || `${50 + yaw / 18 * 45}%`,
@@ -753,15 +763,33 @@ class GameLayout {
                     "--foil-activity": 0,
                     opacity: 1
                 }
-            ], {
+            ];
+            if (landingPose) {
+                flightFrames = Array.from({ length: 81 }, (_, index) => {
+                    var progress = index / 80;
+                    var pose = landingPose.positionAtProgress(progress);
+                    var amount = Math.max(0, 1 - progress / .58);
+                    var scale = 1 + (source.width / targetBounds.width - 1) * Math.pow(Math.max(0, 1 - progress / .58), 3);
+                    return {
+                        offset: progress,
+                        transform: `translate(${pose.x - flightLeft - targetBounds.width / 2}px, ${pose.y - flightTop - targetBounds.height / 2}px) scale(${scale})`,
+                        "--pointer-x": `${50 + yaw * amount / 18 * 45}%`,
+                        "--pointer-y": `${50 - pitch * amount / 18 * 45}%`,
+                        "--foil-activity": Math.max(0, 1 - progress / .58),
+                        opacity: 1
+                    };
+                });
+            }
+            var animation = flight.animate(flightFrames, {
                 duration: animationDuration(typeof currentGame != "undefined" ? currentGame : null),
                 delay: animationDuration(typeof currentGame != "undefined" ? currentGame : null, cardIndex * 55),
-                easing: "cubic-bezier(.22,.8,.25,1)",
+                easing: landingPose ? "linear" : "cubic-bezier(.22,.8,.25,1)",
                 fill: "both"
             });
             if (usesDepth) {
                 CardDepth.update(flight, { pitch, yaw, roll: startRotation, lift: 18 });
                 CardDepth.follow(flight, animation, progress => {
+                    if (landingPose) { return landingPose.poseAtProgress(progress); }
                     var firstSegment = progress <= 0.68;
                     var amount = firstSegment ? progress / 0.68 : (progress - 0.68) / 0.32;
                     var interpolate = (start, middle, end) => progress >= 1 ? end : firstSegment
@@ -866,6 +894,7 @@ class GameLayout {
                     if (table == null) { return; }
                     table.querySelectorAll(".table-play__card").forEach(card => {
                         card.style.opacity = "";
+                        if (typeof CardDepth != "undefined" && typeof CardDepth.setHidden == "function") { CardDepth.setHidden(card, false); }
                     });
                 });
             }
@@ -877,6 +906,7 @@ class GameLayout {
         }
         var cards = Array.from(table.querySelectorAll(".table-play__card"));
         var cardBounds = cards.map(card => GameLayout.unrotatedCardBounds(card));
+        var discardedDepth = [];
         cards.forEach((card, index) => {
             var bounds = cardBounds[index];
             if (bounds.width == 0 || bounds.height == 0) { return; }
@@ -912,10 +942,28 @@ class GameLayout {
                 fill: "forwards"
             });
             if (usesDepth) {
-                CardDepth.update(flight, { pitch: 0, yaw: 0, roll: rotation, lift: 0 });
-                CardDepth.follow(flight, animation, progress => ({ roll: rotation + spin * progress, lift: 18 * progress }));
+                var sourceDepth = CardDepth.states.get(card);
+                if (sourceDepth && sourceDepth.world && typeof LandingGeometry != "undefined") {
+                    var initial = sourceDepth.world;
+                    var flightDepth = CardDepth.states.get(flight);
+                    var below = [...discardedDepth];
+                    discardedDepth.push(flightDepth);
+                    CardDepth.bind(flightDepth, sourceDepth.scene, below);
+                    CardDepth.update(flight, initial);
+                    CardDepth.follow(flight, animation, progress => {
+                        var pose = { ...initial, x: initial.x + horizontalOffset * progress,
+                            y: initial.y - Math.max(150, window.innerHeight * .4) * progress,
+                            roll: initial.roll + spin * progress, z: initial.z + 18 * progress };
+                        pose.z = Math.max(pose.z, LandingGeometry.minimumHeight(below.map(state => state.world), pose));
+                        return pose;
+                    });
+                } else {
+                    CardDepth.update(flight, { pitch: 0, yaw: 0, roll: rotation, lift: 0 });
+                    CardDepth.follow(flight, animation, progress => ({ roll: rotation + spin * progress, lift: 18 * progress }));
+                }
             }
             card.style.opacity = "0";
+            if (usesDepth && typeof CardDepth.setHidden == "function") { CardDepth.setHidden(card, true); }
             pendingAnimations++;
             var animationFinished = false;
             var finishAnimation = function () {
@@ -973,6 +1021,7 @@ class GameLayout {
                 board.querySelectorAll(".table-card-pile").forEach(pile => {
                     pile.style.setProperty("--board-width", `${bounds.width}px`);
                     pile.style.setProperty("--board-height", `${bounds.height}px`);
+                    if (typeof CardDepth != "undefined") { CardDepth.prepareTable(pile); }
                 });
             });
             GameLayout.tableSizeObserver.observe(board);
@@ -1198,6 +1247,7 @@ class GameLayout {
             table.querySelectorAll(".table-play__card[data-card-key]").forEach(card => {
                 if (playedCardKeys.has(card.dataset.cardKey)) {
                     card.style.opacity = "";
+                    if (typeof CardDepth != "undefined" && typeof CardDepth.setHidden == "function") { CardDepth.setHidden(card, false); }
                 }
             });
             this.flashClubThree(game, table, pauseId);
@@ -1541,6 +1591,7 @@ class GameLayout {
                 }
                 if (pileView != null) {
                     table.appendChild(pileView.element);
+                    if (typeof CardDepth != "undefined") { CardDepth.prepareTable(pileView.element); }
                     if (shouldAnimatePlayedPause) {
                         var transitionPlay = displayPiles[displayPiles.length - 1];
                         var transitionElement = pileView.newlyPlayed.find(play =>

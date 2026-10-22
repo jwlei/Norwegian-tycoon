@@ -1,11 +1,11 @@
 "use strict";
 
-// One renderer serves all moving cards. Only the resolved 2D output lives on each preview.
 class CardDepth {
-    static cache = new Map();
     static states = new WeakMap();
+    static scenes = new WeakMap();
+    static nextId = 0;
     static warned = false;
-    static disabled = false;
+    static paper = ["#dedbc7", "#bdbea9", "#e7e2cf", "#c5c5b1", "#dedbc7", "#b5bba4", "#e7e2cf"];
 
     static warn(error) {
         if (!this.warned) {
@@ -14,305 +14,231 @@ class CardDepth {
         }
     }
 
-    static initialize() {
-        if (this.gl || this.disabled) { return !!this.gl; }
-        this.source = document.createElement("canvas");
-        const gl = this.source.getContext("webgl", {
-            alpha: true, antialias: false, premultipliedAlpha: true, depth: false, stencil: false
-        });
-        if (!gl) {
-            this.disabled = true;
-            this.warn("WebGL is not supported.");
-            return false;
-        }
-        this.gl = gl;
-        this.source.addEventListener("webglcontextlost", event => {
-            event.preventDefault();
-            this.disabled = true;
-            this.warn("The GPU context was lost.");
-            for (const state of [...this.active]) { this.detach(state.element); }
-        });
-        const compile = (type, source) => {
-            const shader = gl.createShader(type);
-            if (!shader) { throw new Error("Could not allocate a card shader."); }
-            gl.shaderSource(shader, source);
-            gl.compileShader(shader);
-            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-                const error = gl.getShaderInfoLog(shader);
-                gl.deleteShader(shader);
-                throw new Error(error);
-            }
-            return shader;
-        };
-        const vertex = compile(gl.VERTEX_SHADER, `
-            attribute vec3 position;
-            attribute vec2 uv;
-            varying vec2 texcoord;
-            void main() {
-                gl_Position = vec4(position.xy, 0.0, position.z);
-                texcoord = uv;
-            }`);
-        const fragment = compile(gl.FRAGMENT_SHADER, `
-            precision mediump float;
-            uniform sampler2D image;
-            uniform vec3 tone;
-            uniform vec2 light;
-            uniform float face;
-            varying vec2 texcoord;
-            void main() {
-                vec4 pixel = texture2D(image, texcoord);
-                vec3 color = mix(tone, pixel.rgb, face);
-                float shade = dot(vec2(0.5) - texcoord, light) * 0.10;
-                color = mix(color, vec3(1.0), max(0.0, shade) * face);
-                color *= 1.0 + min(0.0, shade) * face;
-                gl_FragColor = vec4(color * pixel.a, pixel.a);
-            }`);
-        const program = gl.createProgram();
-        if (!program) { throw new Error("Could not allocate the card rendering program."); }
-        gl.attachShader(program, vertex);
-        gl.attachShader(program, fragment);
-        gl.linkProgram(program);
-        gl.deleteShader(vertex);
-        gl.deleteShader(fragment);
-        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-            throw new Error(gl.getProgramInfoLog(program));
-        }
-        gl.useProgram(program);
-        gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-        const position = gl.getAttribLocation(program, "position");
-        const uv = gl.getAttribLocation(program, "uv");
-        gl.enableVertexAttribArray(position);
-        gl.enableVertexAttribArray(uv);
-        gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 20, 0);
-        gl.vertexAttribPointer(uv, 2, gl.FLOAT, false, 20, 12);
-        this.tone = gl.getUniformLocation(program, "tone");
-        this.light = gl.getUniformLocation(program, "light");
-        this.face = gl.getUniformLocation(program, "face");
-        this.limit = Math.min(1536, gl.getParameter(gl.MAX_TEXTURE_SIZE),
-            gl.getParameter(gl.MAX_RENDERBUFFER_SIZE), ...gl.getParameter(gl.MAX_VIEWPORT_DIMS));
-        gl.enable(gl.BLEND);
-        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-        return true;
+    static node(tag, attributes, parent) {
+        const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
+        for (const [key, value] of Object.entries(attributes)) { element.setAttribute(key, String(value)); }
+        if (parent) { parent.appendChild(element); }
+        return element;
     }
 
-    static async textures(src) {
-        if (this.cache.has(src)) {
-            const cached = this.cache.get(src);
-            this.cache.delete(src);
-            this.cache.set(src, cached);
-            return cached;
-        }
-        const pending = (async () => {
-            const image = new Image();
-            image.src = src;
-            await image.decode();
-            const svg = new DOMParser().parseFromString(decodeURIComponent(src.slice(src.indexOf(",") + 1)), "image/svg+xml");
-            const outline = svg.querySelector("svg > rect");
-            if (!outline) { throw new Error("The card SVG has no outer rectangle."); }
-            const silhouette = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-            silhouette.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-            silhouette.setAttribute("viewBox", "0 0 80 120");
-            const rect = outline.cloneNode();
-            rect.setAttribute("fill", "white");
-            rect.setAttribute("stroke", "white");
-            silhouette.appendChild(rect);
-            const mask = new Image();
-            mask.src = `data:image/svg+xml,${encodeURIComponent(new XMLSerializer().serializeToString(silhouette))}`;
-            await mask.decode();
-            const gl = this.gl;
-            const textures = [mask, image].map((source, index) => {
-                const canvas = document.createElement("canvas");
-                canvas.width = 512;
-                canvas.height = 768;
-                const context = canvas.getContext("2d");
-                if (!context) { throw new Error("Canvas 2D is unavailable."); }
-                context.drawImage(source, 0, 0, canvas.width, canvas.height);
-                const texture = gl.createTexture();
-                if (!texture) { throw new Error("Could not allocate a card texture."); }
-                gl.bindTexture(gl.TEXTURE_2D, texture);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-                const sampling = index === 1 && Number(outline.getAttribute("rx")) === 0 ? gl.NEAREST : gl.LINEAR;
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, sampling);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, sampling);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
-                return texture;
-            });
-            const error = gl.getError();
-            if (error !== gl.NO_ERROR) {
-                textures.forEach(texture => gl.deleteTexture(texture));
-                throw new Error(`Card texture upload failed (WebGL error ${error}).`);
-            }
-            return { textures, outline: {
-                x: Number(outline.getAttribute("x")) - Number(outline.getAttribute("stroke-width")) / 2,
-                y: Number(outline.getAttribute("y")) - Number(outline.getAttribute("stroke-width")) / 2,
-                radius: Number(outline.getAttribute("rx")) + Number(outline.getAttribute("stroke-width")) / 2
-            } };
-        })();
-        this.cache.set(src, pending);
-        try {
-            const result = await pending;
-            // A bounded cache avoids retaining every appearance across long sessions.
-            if (this.cache.size > 8) {
-                const [key, oldest] = this.cache.entries().next().value;
-                this.cache.delete(key);
-                const entry = await oldest;
-                // Live previews own their textures until detached.
-                if (![...this.active].some(state => state.src === key)) {
-                    entry.textures.forEach(texture => this.gl.deleteTexture(texture));
-                } else {
-                    this.retired.set(entry, key);
-                }
-            }
-            return result;
-        } catch (error) {
-            this.cache.delete(src);
-            throw error;
-        }
+    static path(points, origin) {
+        return points.length ? points.map((point, index) =>
+            `${index ? "L" : "M"}${(point.x - origin.x).toFixed(3)},${(point.y - origin.y).toFixed(3)}`
+        ).join("") + "Z" : "";
     }
-
-    static active = new Set();
-    static retired = new Map();
 
     static attach(element) {
         if (this.states.has(element)) { return; }
-        if (this.active.size >= 8) {
-            this.warn("The eight-card rendering budget is in use.");
-            return;
-        }
         const image = element.querySelector("img");
         if (!image) { return; }
+        const inherited = element.querySelector(".card-depth-svg");
+        if (inherited) { inherited.remove(); }
+        element.classList.remove("has-card-depth");
         try {
-            if (!this.initialize() || this.disabled) { return; }
-        } catch (error) {
-            this.disabled = true;
-            this.warn(error);
-            return;
-        }
-        const canvas = document.createElement("canvas");
-        canvas.className = "card-depth-canvas";
-        canvas.setAttribute("aria-hidden", "true");
-        const context = canvas.getContext("2d");
-        if (!context) { this.warn("Canvas 2D is unavailable."); return; }
-        const shadow = document.createElement("canvas");
-        shadow.className = "card-depth-shadow";
-        shadow.setAttribute("aria-hidden", "true");
-        const shadowContext = shadow.getContext("2d");
-        if (!shadowContext) { this.warn("Shadow canvas is unavailable."); return; }
-        const state = { element, canvas, context, shadow, shadowContext, src: image.src,
-            pose: { pitch: 0, yaw: 0, roll: 0, lift: 18 }, frame: null };
-        this.states.set(element, state);
-        this.active.add(state);
-        this.textures(image.src).then(entry => {
-            if (this.states.get(element) !== state || this.disabled) { return; }
-            if (element.isConnected === false) { this.detach(element); return; }
-            state.entry = entry;
-            element.append(shadow, canvas);
+            const source = new DOMParser().parseFromString(
+                decodeURIComponent(image.src.slice(image.src.indexOf(",") + 1)), "image/svg+xml");
+            const rect = source.querySelector("svg > rect");
+            if (!rect) { throw new Error("The card SVG has no outer rectangle."); }
+            const id = `card-depth-${this.nextId++}`;
+            const svg = this.node("svg", { class: "card-depth-svg", "aria-hidden": "true", focusable: "false" });
+            const defs = this.node("defs", {}, svg);
+            const freeShadow = this.node("g", {}, svg);
+            const faceGroup = this.node("g", { class: "card-depth-face" }, svg);
+            const layers = this.paper.map(fill => this.node("path", { fill }, faceGroup));
+            const face = this.node("image", { href: image.src }, faceGroup);
+            const gradient = this.node("linearGradient", { id: `${id}-light`, x1: 0, y1: 0, x2: 1, y2: 1 }, defs);
+            this.node("stop", { offset: 0, "stop-color": "#fff" }, gradient);
+            this.node("stop", { offset: 1, "stop-color": "#0b2112", "stop-opacity": .3 }, gradient);
+            const light = this.node("path", { fill: `url(#${id}-light)`, opacity: .13 }, faceGroup);
+            const clip = this.node("clipPath", { id: `${id}-clip`, clipPathUnits: "userSpaceOnUse" }, defs);
+            const outline = this.node("path", {}, clip);
+            const receiverShadows = this.node("g", { "clip-path": `url(#${id}-clip)` }, svg);
+            const radius = Number(rect.getAttribute("rx") || 0);
+            const state = { element, svg, defs, freeShadow, layers, face, light, outline, receiverShadows, id,
+                radius: radius ? radius + .75 : 0, pose: { pitch: 0, yaw: 0, roll: 0, lift: 18 },
+                receiverStates: [], shadowEntries: [], frame: null, hidden: element.style.opacity === "0" };
+            this.states.set(element, state);
+            element.appendChild(svg);
             element.classList.add("has-card-depth");
             this.update(element, state.pose);
-        }).catch(error => { this.warn(error); this.detach(element); });
+        } catch (error) {
+            this.warn(error);
+            this.detach(element);
+        }
+    }
+
+    static dimensions(element) {
+        return { width: parseFloat(element.style.width) || element.offsetWidth,
+            height: parseFloat(element.style.height) || element.offsetHeight };
     }
 
     static update(element, pose) {
         const state = this.states.get(element);
-        if (!state || this.disabled) { return; }
+        if (!state) { return; }
         state.pose = { ...state.pose, ...pose };
-        element.style.setProperty("--depth-pitch", `${state.pose.pitch}deg`);
-        element.style.setProperty("--depth-yaw", `${state.pose.yaw}deg`);
-        element.style.setProperty("--depth-roll", `${state.pose.roll}deg`);
-        if (!state.entry) { return; }
-        const width = parseFloat(element.style.width) || element.offsetWidth;
-        const height = parseFloat(element.style.height) || element.offsetHeight;
+        const { width, height } = this.dimensions(element);
         if (!width || !height) { return; }
-        const { pitch, yaw, roll, lift } = state.pose;
-        const key = [width, height, pitch, yaw, roll, lift, window.devicePixelRatio].join(":");
+        const G = LandingGeometry;
+        const local = { ...state.pose, width, height, radius: state.radius, x: 0, y: 0, z: 0 };
+        const z = state.pose.z ?? G.minimumHeight([], local) + state.pose.lift;
+        const world = { ...local, x: state.pose.x || 0, y: state.pose.y || 0, z };
+        state.world = world;
+        const origin = { x: world.x, y: world.y };
+        const key = [width, height, world.x, world.y, z, world.pitch, world.yaw, world.roll,
+            ...state.receiverStates.flatMap(receiver => {
+                const p = receiver.world;
+                return [p.x, p.y, p.z, p.pitch, p.yaw, p.roll];
+            })].join(":");
         if (state.key === key) { return; }
         state.key = key;
-        const ry = yaw * Math.PI / 180, rx = pitch * Math.PI / 180, rz = roll * Math.PI / 180;
-        const cy = Math.cos(ry), sy = Math.sin(ry), cx = Math.cos(rx), sx = Math.sin(rx);
-        const cr = Math.cos(rz), sr = Math.sin(rz);
-        const rotate = (x, y, z) => {
-            const a = cr * x - sr * y, b = sr * x + cr * y;
-            return [cy * a + sy * z, sx * sy * a + cx * b - sx * cy * z,
-                -cx * sy * a + sx * b + cx * cy * z];
-        };
-        const size = Math.ceil(Math.hypot(width, height) + 120);
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const pixels = Math.max(1, Math.min(Math.round(size * dpr), Math.floor(this.limit / 2)));
-        const resolution = pixels * 2;
-        const gl = this.gl;
-        if (this.source.width !== resolution) { this.source.width = this.source.height = resolution; }
-        for (const canvas of [state.canvas, state.shadow]) {
-            if (canvas.width !== pixels) { canvas.width = canvas.height = pixels; }
-            canvas.style.width = canvas.style.height = `${size}px`;
-        }
-        state.canvas.dataset.renderSize = String(resolution);
-        state.canvas.dataset.outputSize = String(pixels);
-        gl.viewport(0, 0, resolution, resolution);
-        gl.clearColor(0, 0, 0, 0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-        const lx = -.55 * cy + .7 * sx * sy - cx * sy;
-        const ly = -.7 * cx + sx;
-        gl.uniform2f(this.light, lx * cr + ly * sr, -lx * sr + ly * cr);
-        const lz = -.55 * sy - .7 * sx * cy + cx * cy;
-        const edgeTone = Math.round(174 + Math.max(-1, Math.min(1, lz)) * 24);
-        const corners = [[-width / 2, -height / 2, 0, 0], [width / 2, -height / 2, 1, 0],
-            [-width / 2, height / 2, 0, 1], [width / 2, height / 2, 1, 1]];
-        for (let sheet = 16; sheet >= -1; sheet--) {
-            const face = sheet === -1;
-            const z = face ? .01 : -3 * sheet / 16;
-            const vertices = corners.map(([x, y, u, v]) => {
-                const [a, b, c] = rotate(x, y, z);
-                return [a / (size / 2), -b / (size / 2), 1 - c / 900, u, v];
-            });
-            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(
-                [0, 1, 2, 2, 1, 3].flatMap(index => vertices[index])), gl.DYNAMIC_DRAW);
-            const tone = sheet % 2 ? [edgeTone - 14, edgeTone - 12, edgeTone - 25]
-                : [edgeTone + 22, edgeTone + 20, edgeTone + 5];
-            gl.uniform3f(this.tone, ...tone.map(value => value / 255));
-            gl.uniform1f(this.face, face ? 1 : 0);
-            gl.bindTexture(gl.TEXTURE_2D, state.entry.textures[face ? 1 : 0]);
-            gl.drawArrays(gl.TRIANGLES, 0, 6);
-        }
-        state.context.clearRect(0, 0, pixels, pixels);
-        state.context.imageSmoothingEnabled = true;
-        state.context.imageSmoothingQuality = "high";
-        state.context.drawImage(this.source, 0, 0, pixels, pixels);
-        const ctx = state.shadowContext;
-        ctx.clearRect(0, 0, pixels, pixels);
-        ctx.save();
-        ctx.scale(pixels / size, pixels / size);
-        ctx.translate(size / 2, size / 2);
-        const outline = state.entry.outline;
-        const points = [];
-        const xInset = outline.x * width / 80, yInset = outline.y * height / 120;
-        const radiusX = outline.radius * width / 80, radiusY = outline.radius * height / 120;
-        for (const [x, y, angle] of [[-width / 2 + xInset + radiusX, -height / 2 + yInset + radiusY, 180],
-            [width / 2 - xInset - radiusX, -height / 2 + yInset + radiusY, 270],
-            [width / 2 - xInset - radiusX, height / 2 - yInset - radiusY, 0],
-            [-width / 2 + xInset + radiusX, height / 2 - yInset - radiusY, 90]]) {
-            for (let step = 0; step <= 12; step++) {
-                const radians = (angle + step * 7.5) * Math.PI / 180;
-                points.push(rotate(x + Math.cos(radians) * radiusX, y + Math.sin(radians) * radiusY, 0));
+        state.svg.setAttribute("viewBox", `${-width / 2} ${-height / 2} ${width} ${height}`);
+        state.layers.forEach((layer, index) => layer.setAttribute("d", this.path(
+            G.silhouette(world, -3 * (1 - index / (state.layers.length - 1))).map(G.screen), origin)));
+        const a = G.screen(G.rotate(1, 0, 0, world)), b = G.screen(G.rotate(0, 1, 0, world));
+        const transform = `matrix(${a.x}, ${a.y}, ${b.x}, ${b.y}, 0, ${-G.VIEW_SHEAR * z})`;
+        state.face.setAttribute("x", -width / 2);
+        state.face.setAttribute("y", -height / 2);
+        state.face.setAttribute("width", width);
+        state.face.setAttribute("height", height);
+        state.face.setAttribute("transform", transform);
+        const outline = this.path(G.silhouette(world).map(G.screen), origin);
+        state.light.setAttribute("d", outline);
+        state.outline.setAttribute("d", outline);
+        state.svg.dataset.pitch = String(world.pitch);
+        state.svg.dataset.yaw = String(world.yaw);
+        state.svg.dataset.height = String(z);
+        element.style.setProperty("--depth-pitch", `${world.pitch}deg`);
+        element.style.setProperty("--depth-yaw", `${world.yaw}deg`);
+        element.style.setProperty("--depth-roll", `${world.roll}deg`);
+        element.style.setProperty("--depth-face-transform", transform);
+        // Shadows live on their receivers, so intervening cards occlude them without per-card masks.
+        [null, ...state.receiverStates].forEach((receiver, index) => {
+            let entry = state.shadowEntries[index];
+            const host = receiver || state.scene || state;
+            if (!entry) {
+                const id = `${state.id}-shadow-${index}`;
+                const filter = this.node("filter", { id, x: "-50%", y: "-50%", width: "200%", height: "200%",
+                    "color-interpolation-filters": "sRGB" }, host.defs);
+                const blur = this.node("feGaussianBlur", { stdDeviation: .6 }, filter);
+                const shape = this.node("path", { fill: "#020b05", filter: `url(#${id})` },
+                    receiver ? host.receiverShadows : state.scene ? host.floor : state.freeShadow);
+                entry = { filter, shape, blur };
+                state.shadowEntries.push(entry);
             }
-        }
-        const clearance = lift + Math.max(...points.map(point => Math.abs(point[2]))) + 7;
-        ctx.filter = `blur(${5 + lift * .16}px)`;
-        ctx.fillStyle = `rgba(1, 9, 4, ${.34 - lift * .0015})`;
-        ctx.beginPath();
-        points.forEach(([x, y, z], index) => {
-            const a = x + .55 * (clearance + z), b = y + .7 * (clearance + z);
-            if (index) { ctx.lineTo(a, b); } else { ctx.moveTo(a, b); }
+            const shadow = G.shadow(world, receiver ? receiver.world : null);
+            entry.shape.setAttribute("d", this.path(shadow.points, receiver ? receiver.world :
+                state.scene ? state.scene.origin : origin));
+            entry.shape.setAttribute("opacity", shadow.opacity);
+            entry.shape.style.display = state.hidden ? "none" : "";
+            entry.shape.dataset.blur = String(shadow.blur);
+            entry.blur.setAttribute("stdDeviation", shadow.blur);
         });
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
+    }
+
+    static bind(state, scene, receivers) {
+        if (state.scene === scene && state.receiverStates.length === receivers.length &&
+            state.receiverStates.every((receiver, index) => receiver === receivers[index])) { return; }
+        state.shadowEntries.forEach(entry => { entry.shape.remove(); entry.filter.remove(); });
+        state.shadowEntries = [];
+        state.scene = scene;
+        state.receiverStates = receivers;
+        state.key = null;
+    }
+
+    static setHidden(element, hidden) {
+        const state = this.states.get(element);
+        if (!state) { return; }
+        state.hidden = hidden;
+        state.shadowEntries.forEach(entry => { entry.shape.style.display = hidden ? "none" : ""; });
+    }
+
+    static prepareTable(table) {
+        table = table.querySelector(".table-card-pile") || table;
+        const elements = [...table.querySelectorAll(".table-play__card")];
+        if (!elements.length) { return; }
+        let scene = this.scenes.get(table);
+        if (!scene) {
+            const svg = this.node("svg", { class: "card-depth-floor", "aria-hidden": "true", focusable: "false" });
+            const defs = this.node("defs", {}, svg);
+            const floor = this.node("g", {}, svg);
+            table.insertBefore(svg, table.firstChild);
+            scene = { svg, defs, floor };
+            this.scenes.set(table, scene);
+        }
+        const box = table.getBoundingClientRect();
+        scene.origin = { x: box.left, y: box.top };
+        scene.svg.setAttribute("viewBox", `0 0 ${box.width || 1} ${box.height || 1}`);
+        elements.forEach(element => this.attach(element));
+        const bounds = elements.map(element => element.getBoundingClientRect());
+        const layoutKey = [box.left, box.top, box.width, box.height, ...elements.flatMap((element, index) => {
+            const b = bounds[index], d = this.dimensions(element);
+            return [b.left, b.top, d.width, d.height, element.style.getPropertyValue("--pile-rotation")];
+        })].join(":");
+        if (scene.layoutKey === layoutKey && scene.elements.length === elements.length &&
+            scene.elements.every((element, index) => element === elements[index])) {
+            elements.forEach(element => this.setHidden(element, element.style.opacity === "0"));
+            this.refreshFlights(scene, elements);
+            return;
+        }
+        scene.layoutKey = layoutKey;
+        scene.elements = elements;
+        const supports = [], receiverStates = [];
+        elements.forEach((element, index) => {
+            const state = this.states.get(element);
+            if (!state) { return; }
+            const { width, height } = this.dimensions(element), box = bounds[index];
+            const pose = LandingGeometry.landing(supports, box.left + box.width / 2, box.top + box.height / 2,
+                parseFloat(element.style.getPropertyValue("--pile-rotation")) || 0, { width, height, radius: state.radius });
+            this.bind(state, scene, [...receiverStates]);
+            state.rest = pose;
+            state.key = null;
+            this.setHidden(element, element.style.opacity === "0");
+            this.update(element, pose);
+            supports.push(pose);
+            receiverStates.push(state);
+        });
+        this.refreshFlights(scene, elements);
+    }
+
+    static refreshFlights(scene, elements) {
+        document.querySelectorAll(".card-flight").forEach(element => {
+            const state = this.states.get(element);
+            if (!state || !state.destination) { return; }
+            const target = elements.find(card => card.dataset.cardKey === state.destination.key &&
+                card.closest(".table-play").dataset.playSignature === state.destination.signature);
+            const destination = target && this.states.get(target);
+            if (!destination) { return; }
+            this.bind(state, scene, destination.receiverStates);
+            this.update(element, state.pose);
+        });
+    }
+
+    static landingMotion(element, target, start, power = .55) {
+        const state = this.states.get(element), destination = this.states.get(target);
+        if (!state || !destination || !destination.rest) { return null; }
+        const G = LandingGeometry, rest = destination.rest;
+        if (target.dataset.cardKey && typeof target.closest === "function") {
+            state.destination = { key: target.dataset.cardKey, signature: target.closest(".table-play").dataset.playSignature };
+        }
+        this.bind(state, destination.scene, destination.receiverStates);
+        const distance = Math.max(1, Math.hypot(rest.x - start.x, rest.y - start.y));
+        const momentum = { x: (rest.x - start.x) / distance * (5 + power * 18),
+            y: (rest.y - start.y) / distance * (5 + power * 18), spin: (rest.roll - start.roll) * .08, power };
+        const impact = { x: rest.x - momentum.x, y: rest.y - momentum.y, roll: rest.roll - momentum.spin };
+        const initial = { ...start, width: rest.width, height: rest.height, radius: rest.radius };
+        const supports = destination.receiverStates.map(receiver => receiver.world);
+        initial.z = G.minimumHeight(supports, initial) + 18;
+        const contact = G.landing(supports, impact.x, impact.y, impact.roll, initial);
+        return {
+            poseAtProgress: progress => progress >= 1 ? rest : G.motion(supports, initial, impact, momentum, progress, contact).pose,
+            positionAtProgress: progress => G.position(initial, impact, momentum, progress)
+        };
     }
 
     static follow(element, animation, poseAtProgress) {
         const state = this.states.get(element);
         if (!state) { return; }
-        if (state.frame != null) { cancelAnimationFrame(state.frame); }
+        this.cancelFollow(element);
         const tick = () => {
             state.frame = null;
             if (this.states.get(element) !== state) { return; }
@@ -346,17 +272,10 @@ class CardDepth {
     static detach(element) {
         const state = this.states.get(element);
         if (!state) { return; }
-        if (state.frame != null) { cancelAnimationFrame(state.frame); }
-        state.canvas.remove();
-        state.shadow.remove();
+        this.cancelFollow(element);
+        state.shadowEntries.forEach(entry => { entry.shape.remove(); entry.filter.remove(); });
+        state.svg.remove();
         element.classList.remove("has-card-depth");
         this.states.delete(element);
-        this.active.delete(state);
-        for (const [entry, src] of this.retired) {
-            if (![...this.active].some(active => active.src === src)) {
-                entry.textures.forEach(texture => this.gl.deleteTexture(texture));
-                this.retired.delete(entry);
-            }
-        }
     }
 }

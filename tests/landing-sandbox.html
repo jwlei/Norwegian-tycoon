@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="robots" content="noindex">
+    <title>Contact &amp; landing - card sandbox</title>
+    <link rel="icon" href="../icons/clover-four.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="landing-sandbox.css">
+    <script src="../js/cards.js" defer></script>
+    <script src="../js/landing-geometry.js" defer></script>
+    <script src="landing-sandbox.js" defer></script>
+</head>
+<body>
+<main>
+    <header><a href="../">Boms og President</a><span>LANDING LAB / SANDBOX ONLY</span></header>
+    <section class="intro">
+        <p class="eyebrow">NATIVE SVG &middot; NO WEBGL &middot; NO SUPERSAMPLING</p>
+        <h1>Weight, without the workload.</h1>
+        <p>A 3px edge, a surface-aware resting pose, and one continuous shadow from your hand to the table.</p>
+    </section>
+    <section class="toolbar" aria-label="Experiment controls">
+        <label for="surface">Landing surface
+            <select id="surface">
+                <option value="bare">Bare felt</option>
+                <option value="edge" selected>Across a pile edge</option>
+                <option value="stack">Crossed card pile</option>
+            </select>
+        </label>
+        <div class="actions">
+            <button id="throw" type="button">Throw card</button>
+            <button id="next" type="button" disabled>Add another</button>
+            <button id="reset" class="quiet" type="button">Reset table</button>
+        </div>
+        <label class="check"><input id="slow" type="checkbox" checked> Slow motion</label>
+        <label class="strength" for="strength">Throw strength
+            <input id="strength" type="range" min="10" max="100" value="55">
+        </label>
+    </section>
+    <div class="table-wrap">
+        <div class="table-heading"><span><i></i> LIGHT FROM TOP LEFT</span><span id="render-note">Native SVG / 3px stock</span></div>
+        <svg id="scene" viewBox="0 0 900 580" role="group" aria-label="Interactive card landing table">
+            <defs id="definitions"></defs>
+            <rect class="felt" x="8" y="8" width="884" height="564" rx="30"></rect>
+            <path id="target-guide" class="target-guide"></path>
+            <text id="target-label" class="scene-label" text-anchor="middle">LAND HERE</text>
+            <g id="floor-shadows" aria-hidden="true"></g>
+            <g id="cards"></g>
+            <text id="hand-label" class="scene-label" text-anchor="middle">DRAG THIS CARD / OR PRESS THROW</text>
+        </svg>
+        <p class="table-hint">Drag the lower card onto any part of the table. Empty felt stays flat; overlapping cards create a small resting pitch and yaw.</p>
+    </div>
+    <section class="timeline" aria-label="Flight inspection">
+        <button id="pause" class="quiet" type="button" disabled>Pause</button>
+        <label for="progress">Inspect the landing <output id="progress-value">0%</output>
+            <input id="progress" type="range" min="0" max="1000" value="0" disabled>
+        </label>
+        <button id="replay" class="quiet" type="button" disabled>Replay</button>
+    </section>
+    <div class="metrics" aria-label="Current card geometry">
+        <div><span>Height above felt</span><output id="height">-</output></div>
+        <div><span>Resting pitch / yaw</span><output id="angles">-</output></div>
+        <div><span>Nearest support gap</span><output id="gap">-</output></div>
+        <div><span>Shadow on support</span><output id="shadow-blur">-</output></div>
+    </div>
+    <p id="status" role="status">Preparing table.</p>
+    <section class="notes">
+        <article><h2>Contact, not a sticker</h2><p>The underside rests on the felt or cards beneath it. A small support-dependent tilt exposes the edge without making the card hover.</p></article>
+        <article><h2>One shadow model</h2><p>Light rays hit the felt and each supporting card plane. Close shadows tighten and darken; elevated edges cast a wider, softer shadow.</p></article>
+        <article><h2>No render-target multiplier</h2><p>Seven native SVG paper slices and the original card artwork. No canvas copies, GPU contexts, or idle animation loop. This is a prototype, not a phone benchmark.</p></article>
+    </section>
+    <footer>Uses the shared production support geometry. This sandbox has no network, game state, or saved settings.</footer>
+    <noscript><p class="error">JavaScript is required to render this sandbox.</p></noscript>
+</main>
+</body>
+</html>
