@@ -631,7 +631,7 @@ test("drag previews escape hand clipping, follow both axes without a distance ca
     assert.equal(f.nodes.get("gameTable").classList.contains("is-card-drop-target"), false);
 });
 
-test("velocity tilt lifts the leading edge, inverts yaw, clamps and settles all selected cards together", () => {
+test("velocity tilt lifts the leading edges, clamps and settles all selected cards together", () => {
     const f = fixture();
     const hand = new Element();
     const card = new Element();
@@ -648,8 +648,8 @@ test("velocity tilt lifts the leading edge, inverts yaw, clamps and settles all 
     f.runFrame(1016);
     const pitch = parseFloat(card._dragPreview.properties.get("--tilt-x"));
     const yaw = parseFloat(card._dragPreview.properties.get("--tilt-y"));
-    assert.ok(pitch < 0 && pitch > -18, "dragging up raises the top edge toward the viewer");
-    assert.ok(yaw < 0 && yaw > -18);
+    assert.ok(pitch < 0 && pitch > -18, "dragging up lifts the top edge");
+    assert.ok(yaw < 0 && yaw > -18, "dragging right lifts the right edge");
     assert.ok(Math.abs(hand._cardDragPreview.pitch - hand._cardDragPreview.yaw * 0.7) < 1e-10);
     assert.ok(parseFloat(card._dragPreview.properties.get("--pointer-x")) < 50);
     assert.ok(parseFloat(card._dragPreview.properties.get("--pointer-y")) < 50);
