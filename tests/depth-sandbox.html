@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="robots" content="noindex">
+    <title>Depth lab - Boms og President</title>
+    <link rel="icon" href="../icons/clover-four.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="depth-sandbox.css">
+    <script src="../js/cards.js" defer></script>
+    <script src="depth-renderer.js" defer></script>
+    <script src="depth-sandbox.js" defer></script>
+</head>
+<body>
+<main>
+    <header class="masthead">
+        <a class="brand" href="../"><img src="../icons/clover-four.svg" alt="" width="24" height="24"> Boms og President</a>
+        <span class="lab-tag">EXPERIMENTAL / DEPTH LAB</span>
+    </header>
+
+    <section class="intro" aria-labelledby="title">
+        <div>
+            <p class="eyebrow">MATERIAL STUDIES &mdash; 04</p>
+            <h1 id="title">A smoother edge.<br><span>Keep the detail.</span></h1>
+        </div>
+        <p class="intro-copy">Study 3's exact SVG silhouettes, now comparing complete-card rendering.
+            Same 3px edge and top-left light. Compare smoothness without losing the print.
+            <strong>Move over a card, drag on touch, or use the controls below.</strong></p>
+    </section>
+
+    <section class="workbench" aria-label="Shared card controls">
+        <div class="control-heading"><span class="status-dot"></span> THE WORKBENCH <span>All five cards, one pose</span></div>
+        <div class="controls">
+            <label for="yaw">Yaw <output id="yaw-value" for="yaw"></output>
+                <input id="yaw" type="range" min="-55" max="55" value="-24" step="1">
+            </label>
+            <label for="pitch">Tilt <output id="pitch-value" for="pitch"></output>
+                <input id="pitch" type="range" min="-40" max="40" value="16" step="1">
+            </label>
+            <label for="lift">Lift <output id="lift-value" for="lift"></output>
+                <input id="lift" type="range" min="0" max="40" value="18" step="1">
+            </label>
+            <label for="thickness">Edge <output id="thickness-value" for="thickness"></output>
+                <input id="thickness" type="range" min="1" max="8" value="3" step="0.5">
+            </label>
+            <div class="control-actions">
+                <button id="animate" type="button" aria-pressed="false">Auto orbit</button>
+                <button id="reset" class="quiet-button" type="button">Reset</button>
+            </div>
+        </div>
+        <p class="control-note">Keyboard: Tab to a card, then use arrow keys. Escape restores the shared pose.
+            Default edge: 3px. Fixed top-left light projects the rotating outline down and right. Reduced motion disables auto orbit.</p>
+    </section>
+
+    <section aria-labelledby="cards-title">
+        <div class="section-heading"><h2 id="cards-title">Five anti-aliasing comparisons</h2><span>Same SVG outline. Same 3px stock.</span></div>
+        <p class="section-copy">The old source-only treatments did not address final CSS compositing.
+            Here the entire projected card is rendered first, then explicitly downsampled to screen pixels.
+            Compare the CSS baseline with 1x rendering, MSAA, and true 2x / 4x output supersampling.</p>
+        <div id="card-studies" class="card-grid"></div>
+        <noscript><p class="error">Enable JavaScript to generate the interactive card studies.</p></noscript>
+    </section>
+
+    <section class="ui-section" aria-labelledby="ui-title">
+        <div class="section-heading">
+            <div><p class="eyebrow">BEYOND THE CARDS</p><h2 id="ui-title">Give the interface some weight.</h2></div>
+            <button id="depth-toggle" type="button" aria-pressed="true">Depth on</button>
+        </div>
+        <p class="section-copy">Three small changes, not a redesign. Toggle depth to compare with the flat starting point.</p>
+        <div id="ui-studies" class="ui-grid">
+            <article class="ui-study">
+                <div class="ui-preview table-preview">
+                    <div class="mini-table">
+                        <span class="table-caption">YOUR TABLE</span>
+                        <div class="mini-hand" aria-hidden="true"><img alt=""><img alt=""><img alt=""></div>
+                        <span class="table-caption">Your move</span>
+                    </div>
+                </div>
+                <div class="study-copy"><span class="study-number">01 / SURFACE</span><h3>A place to play</h3>
+                    <p>A recessed felt surface, a soft vignette, and a catching rim. The table becomes a place, rather than a rectangle.</p></div>
+            </article>
+            <article class="ui-study">
+                <div class="ui-preview controls-preview">
+                    <div class="control-demo">
+                        <span class="demo-label">QUICK PLAY</span>
+                        <div class="segmented" role="group" aria-label="Demo player count">
+                            <button type="button" data-players="2" aria-pressed="false">2</button>
+                            <button type="button" data-players="3" aria-pressed="true">3</button>
+                            <button type="button" data-players="4" aria-pressed="false">4</button>
+                        </div>
+                        <button id="demo-play" class="tactile-button" type="button">Start a table <span aria-hidden="true">&nearr;</span></button>
+                        <span id="demo-status" class="demo-status" role="status">3 players &middot; just a preview</span>
+                    </div>
+                </div>
+                <div class="study-copy"><span class="study-number">02 / CONTROLS</span><h3>Buttons with a little give</h3>
+                    <p>An inset track, a raised selection, and a button that presses down. Clear hierarchy without a heavy drop shadow.</p></div>
+            </article>
+            <article class="ui-study">
+                <div class="ui-preview lobby-preview">
+                    <div class="lobby-stack">
+                        <div class="lobby-sheet sheet-back" aria-hidden="true"></div>
+                        <div class="lobby-sheet sheet-middle" aria-hidden="true"></div>
+                        <div class="lobby-sheet sheet-front">
+                            <div class="lobby-top"><span class="demo-label">THE EVENING TABLE</span><span class="live-dot">LIVE</span></div>
+                            <div class="player-row"><span class="avatar">N</span><span>Nora<small>Ready to play</small></span><span class="ready-mark" aria-label="Ready">&#10003;</span></div>
+                            <div class="player-row"><span class="avatar avatar-gold">E</span><span>Erik<small>Choosing cards</small></span><span class="waiting-mark" aria-label="Waiting">&bull;&bull;&bull;</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="study-copy"><span class="study-number">03 / LAYERS</span><h3>Hierarchy you can feel</h3>
+                    <p>Overlapping panels, illuminated top borders, and nested player rows separate foreground from background.</p></div>
+            </article>
+        </div>
+    </section>
+    <footer><span>A visual playground, not a game setting. Nothing is saved.</span><a href="card-tilt-sandbox.html">Open the drag &amp; landing sandbox &nearr;</a></footer>
+</main>
+</body>
+</html>
