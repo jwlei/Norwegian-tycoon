@@ -46,3 +46,11 @@ Run the automated tests with Node.js:
 ```sh
 node --test
 ```
+
+### Card depth and anti-aliasing
+
+Dragged cards, return glides, plays, exchanges, and discard flights use a 3px laminated edge following the actual SVG outline, with soft shadows projected from a fixed top-left light. The complete rotated card is rendered at 2x output resolution and downsampled before display (Study 4), rather than supersampling only the source artwork. Existing card designs and foil overlays are retained.
+
+Moving cards share one WebGL renderer. Render targets are capped at 1536 pixels per side, effective pixel density at 2, the texture cache at eight appearances, and simultaneous GPU previews at eight cards. Additional cards in large clears keep their native image animation. Unchanged poses are not redrawn; animation frames and per-preview resources are released on cleanup. If WebGL is unavailable or lost, or the preview budget is reached, the original image rendering is retained and a warning is logged. Reduced-motion preferences still disable tilt and flight animations.
+
+Serve the repository as above and open [card drag and landing](tests/card-tilt-sandbox.html) or [mouse drag and flick](tests/mouse-drag-sandbox.html) to exercise the production interactions without Firebase.

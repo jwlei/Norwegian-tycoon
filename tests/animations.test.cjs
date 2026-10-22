@@ -89,6 +89,7 @@ test("normal play animation restores the original movement, easing and card stag
         },
         getBoundingClientRect: () => ({ left: 200, top: 200, width: 80, height: 120 })
     });
+
     const targetImage = element();
     const context = load({
         window: { innerWidth: 1000, innerHeight: 800, matchMedia: () => ({ matches: false }) },
@@ -133,6 +134,62 @@ test("normal play animation restores the original movement, easing and card stag
         assert.equal(frames[1].offset, 0.68);
         assert.match(frames[2].transform, /translate\(200px, 200px\)/);
     }
+});
+
+test("depth flights render rotation internally, preserve foil activity, and release renderer state", () => {
+    const flights = [], animations = [], followers = [];
+    const states = new Map();
+    const depth = {
+        states,
+        attach(element) { states.set(element, {}); },
+        update(element, pose) { states.get(element).pose = pose; },
+        follow(element, animation, poseAtProgress) { followers.push(poseAtProgress); },
+        detach(element) { states.delete(element); }
+    };
+    const element = () => ({
+        dataset: {}, style: {}, setAttribute() {}, appendChild() {},
+        cloneNode: () => element(), remove() { this.removed = true; },
+        animate(frames, timing) {
+            const animation = { frames, timing };
+            animations.push(animation);
+            return animation;
+        }
+    });
+    const target = {
+        dataset: { cardStyle: "normal", foil: "rainbow" },
+        style: { getPropertyValue: () => "15" }, animate() {}, querySelector: element,
+        getBoundingClientRect: () => ({ left: 200, top: 200, width: 80, height: 120 })
+    };
+    const context = load({
+        CardDepth: depth, target,
+        window: { innerWidth: 1000, innerHeight: 800, matchMedia: () => ({ matches: false }) },
+        document: { createElement: element, body: { appendChild: flight => flights.push(flight) } }
+    });
+    vm.runInContext(`
+        var pile = new CardPile("Owner", new PresidentCard(1,7));
+        pile.motion = {x:0,y:0,power:1,spin:10,pitch:12,yaw:-10};
+        GameLayout.animatePlayedCards({querySelector:()=>target}, pile, {
+            playerOrigins:new Map(), cardOrigins:new Map([["1:7",{
+                left:0,top:500,width:120,height:180,rotation:0,pitch:12,yaw:-10
+            }]])
+        });
+    `, context);
+    assert.equal(states.size, 1);
+    assert.equal(flights[0].dataset.foil, "rainbow");
+    for (const frame of animations[0].frames) {
+        assert.doesNotMatch(frame.transform, /rotate|perspective/);
+        assert.match(frame.transform, /scale/);
+    }
+    assert.equal(animations[0].frames[0]["--foil-activity"], 1);
+    assert.equal(animations[0].timing.duration, 520);
+    assert.equal(followers[0](0).pitch, 12);
+    assert.equal(followers[0](0).yaw, -10);
+    assert.equal(followers[0](1).pitch, 0);
+    assert.equal(followers[0](1).yaw, 0);
+    assert.equal(followers[0](1).roll, 15);
+    animations[0].oncancel();
+    assert.equal(states.size, 0);
+    assert.equal(flights[0].removed, true);
 });
 
 test("throw metadata survives both pile deserializers and clamps finite motion values", () => {

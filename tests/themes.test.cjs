@@ -300,7 +300,7 @@ test("PIN toggle aligns with the full-width name field without horizontal button
 
 test("visible release and versioned local assets use version 0.9.9", () => {
     assert.ok(html.includes('aria-label="Spillversjon 0.9.9">v0.9.9</span>'));
-    const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"]+)"/g),
+    const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"&]+)/g),
         match => match[1]);
     assert.ok(versions.length > 0);
     assert.ok(versions.every(version => version === "0.9.9"));

@@ -384,6 +384,10 @@ function startCardDragPreview(hand, event) {
         preview.style.setProperty("--tilt-y", "0deg");
         preview.style.setProperty("--drag-scale", "1");
         layer.appendChild(preview);
+        if (typeof CardDepth != "undefined") {
+            CardDepth.attach(preview);
+            CardDepth.update(preview, { lift: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 18 });
+        }
         card.classList.add("is-drag-source");
         card._dragPreview = preview;
         cards.push(card);
@@ -427,6 +431,9 @@ function animateCardDragTilt(drag, time) {
         preview.style.setProperty("--pointer-x", `${(50 + drag.yaw / 18 * 45).toFixed(2)}%`);
         preview.style.setProperty("--pointer-y", `${(50 + pitch / 18 * 45).toFixed(2)}%`);
         preview.classList.toggle("is-tilting", !settled && !reducedMotion);
+        if (typeof CardDepth != "undefined") {
+            CardDepth.update(preview, { pitch, yaw: drag.yaw, lift: reducedMotion ? 0 : 18 });
+        }
     });
     if (!settled) {
         drag.frame = requestAnimationFrame(nextTime => animateCardDragTilt(drag, nextTime));
@@ -510,6 +517,7 @@ function shouldPlayCardDrag(drag, event) {
 
 function removeCardDragPreview(drag) {
     if (drag.frame != null) { cancelAnimationFrame(drag.frame); drag.frame = null; }
+    if (typeof CardDepth != "undefined") { drag.previews.forEach(preview => CardDepth.detach(preview)); }
     drag.cards.forEach((card, index) => {
         // A newer drag may already own this card; leave its state alone.
         if (card._dragPreview != drag.previews[index]) { return; }
@@ -560,6 +568,7 @@ function returnCardDragPreview(hand) {
         preview.style.setProperty("--pointer-x", "50%");
         preview.style.setProperty("--pointer-y", "50%");
         preview.classList.remove("is-tilting");
+        if (typeof CardDepth != "undefined") { CardDepth.returnToHand(preview); }
     });
     document.getElementById("gameTable").classList.remove("is-card-drop-target");
     // The layer lives outside the hand, so forward presses on the gliding card to it.
@@ -626,6 +635,10 @@ function catchReturningCardDrag(hand, target, event) {
         preview.style.setProperty("--drag-scale", `${1 + (start.scale - 1) * remaining}`);
         preview.style.setProperty("--tilt-x", `${(start.tiltX * remaining).toFixed(2)}deg`);
         preview.style.setProperty("--tilt-y", `${(start.tiltY * remaining).toFixed(2)}deg`);
+        if (typeof CardDepth != "undefined") {
+            CardDepth.cancelFollow(preview);
+            CardDepth.update(preview, { pitch: start.tiltX * remaining, yaw: start.tiltY * remaining, lift: 18 });
+        }
     });
     drag.pitch = drag.targetPitch = (drag.releasePitch || 0) * remaining;
     drag.yaw = drag.targetYaw = (drag.releaseYaw || 0) * remaining;

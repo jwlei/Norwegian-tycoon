@@ -1,0 +1,29 @@
+.has-card-depth {
+    overflow: visible;
+    filter: none;
+}
+.has-card-depth > img { visibility: hidden; }
+.card-depth-canvas, .card-depth-shadow {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    max-width: none;
+    pointer-events: none;
+}
+.card-depth-canvas { z-index: 0; }
+.card-depth-shadow { z-index: -1; }
+.card-preview--gold > .card-depth-canvas {
+    filter: drop-shadow(0 0 10px rgb(240 190 60 / 45%));
+}
+.card-preview--neon > .card-depth-canvas {
+    filter: drop-shadow(0 0 10px rgb(85 237 255 / 45%)) drop-shadow(0 0 18px rgb(255 96 200 / 25%));
+}
+.card-drag-layer > .game-card.has-card-depth {
+    transform: translate3d(var(--drag-offset-x, 0px), var(--drag-offset-y, 0px), 0) scale(var(--drag-scale, 1));
+}
+/* Preserve the existing foil treatments on the projected face, not on the ground shadow. */
+.has-card-depth::before, .has-card-depth::after {
+    transform: perspective(900px) rotateX(var(--depth-pitch, 0deg))
+        rotateY(var(--depth-yaw, 0deg)) rotate(var(--depth-roll, 0deg));
+}

@@ -650,6 +650,7 @@ class GameLayout {
             // until the whole play can be revealed on the current table.
             landedCards.forEach(({ target, flight }) => {
                 target.style.opacity = "";
+                if (typeof CardDepth != "undefined") { CardDepth.detach(flight); }
                 flight.remove();
             });
             if (onComplete) { onComplete(); }
@@ -707,6 +708,10 @@ class GameLayout {
             }
             var flightTransform = function (x, y, rotation, amount, tiltPitch = pitch * amount, tiltYaw = yaw * amount) {
                 var translation = `translate(${x}px, ${y}px)`;
+                if (usesDepth) {
+                    var depthScale = hasTilt ? 1 + (source.width / targetBounds.width - 1) * amount : 1;
+                    return `${translation} scale(${depthScale})`;
+                }
                 if (!hasTilt) {
                     return `${x == 0 && y == 0 ? "translate(0, 0)" : translation} rotate(${rotation}deg)`;
                 }
@@ -720,6 +725,8 @@ class GameLayout {
             flight.style.width = `${targetBounds.width}px`;
             flight.style.height = `${targetBounds.height}px`;
             document.body.appendChild(flight);
+            if (typeof CardDepth != "undefined") { CardDepth.attach(flight); }
+            var usesDepth = typeof CardDepth != "undefined" && CardDepth.states.has(flight);
             target.style.opacity = "0";
             landedCards.push({ target, flight });
             pendingAnimations++;
@@ -752,6 +759,21 @@ class GameLayout {
                 easing: "cubic-bezier(.22,.8,.25,1)",
                 fill: "both"
             });
+            if (usesDepth) {
+                CardDepth.update(flight, { pitch, yaw, roll: startRotation, lift: 18 });
+                CardDepth.follow(flight, animation, progress => {
+                    var firstSegment = progress <= 0.68;
+                    var amount = firstSegment ? progress / 0.68 : (progress - 0.68) / 0.32;
+                    var interpolate = (start, middle, end) => progress >= 1 ? end : firstSegment
+                        ? start + (middle - start) * amount : middle + (end - middle) * amount;
+                    return {
+                        pitch: hasTilt ? interpolate(pitch, middlePitch, 0) : 0,
+                        yaw: hasTilt ? interpolate(yaw, middleYaw, 0) : 0,
+                        roll: interpolate(startRotation, middleRotation, targetRotation),
+                        lift: 18 * (1 - progress)
+                    };
+                });
+            }
             var animationFinished = false;
             var finishAnimation = function () {
                 if (animationFinished) { return; }
@@ -781,6 +803,7 @@ class GameLayout {
             if (typeof flight.getAnimations == "function") {
                 flight.getAnimations().forEach(animation => animation.cancel());
             }
+            if (typeof CardDepth != "undefined") { CardDepth.detach(flight); }
             flight.remove();
         });
     }
@@ -867,16 +890,19 @@ class GameLayout {
             flight.style.width = `${bounds.width}px`;
             flight.style.height = `${bounds.height}px`;
             document.body.appendChild(flight);
+            if (typeof CardDepth != "undefined") { CardDepth.attach(flight); }
+            var usesDepth = typeof CardDepth != "undefined" && CardDepth.states.has(flight);
             var horizontalOffset = ((index % 7) - 3) * 35 + (Math.random() - 0.5) * 24;
             var spin = (index % 2 == 0 ? -1 : 1) * (35 + (index % 5) * 12) +
                 (Math.random() - 0.5) * 50;
             var animation = flight.animate([
                 {
-                    transform: `translate(0, 0) rotate(${rotation}deg)`,
+                    transform: usesDepth ? "translate(0, 0)" : `translate(0, 0) rotate(${rotation}deg)`,
                     opacity: 1
                 },
                 {
-                    transform: `translate(${horizontalOffset}px, ${-Math.max(150, window.innerHeight * 0.4)}px) rotate(${rotation + spin}deg)`,
+                    transform: `translate(${horizontalOffset}px, ${-Math.max(150, window.innerHeight * 0.4)}px)` +
+                        (usesDepth ? "" : ` rotate(${rotation + spin}deg)`),
                     opacity: 0
                 }
             ], {
@@ -885,12 +911,17 @@ class GameLayout {
                 easing: "cubic-bezier(.45,0,.8,.4)",
                 fill: "forwards"
             });
+            if (usesDepth) {
+                CardDepth.update(flight, { pitch: 0, yaw: 0, roll: rotation, lift: 0 });
+                CardDepth.follow(flight, animation, progress => ({ roll: rotation + spin * progress, lift: 18 * progress }));
+            }
             card.style.opacity = "0";
             pendingAnimations++;
             var animationFinished = false;
             var finishAnimation = function () {
                 if (animationFinished) { return; }
                 animationFinished = true;
+                if (typeof CardDepth != "undefined") { CardDepth.detach(flight); }
                 flight.remove();
                 pendingAnimations--;
                 completeIfReady();
