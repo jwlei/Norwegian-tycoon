@@ -23,6 +23,8 @@
     --danger-light: #a1283b;
     --status-ink: #17212b;
     --shadow: 0 12px 32px rgb(0 0 0 / 35%);
+    --card-body-color: #202226;
+    --card-depth-shadow: 0 1px 0 rgb(0 0 0 / 35%), 0 2px 0 rgb(0 0 0 / 22%), 0 4px 7px rgb(0 0 0 / 18%);
 }
 
 :root[data-theme="light"] {
@@ -1387,9 +1389,9 @@ select:focus-visible {
     padding: 0;
     border: 0;
     border-radius: 8px;
-    background: transparent;
+    background: var(--card-body-color);
     color: inherit;
-    box-shadow: none;
+    box-shadow: var(--card-depth-shadow);
     text-shadow: none;
     -webkit-appearance: none;
     appearance: none;
@@ -1405,11 +1407,21 @@ select:focus-visible {
     border: 0;
     object-fit: fill;
     border-radius: 8px;
-    filter: drop-shadow(0 4px 8px rgb(0 0 0 / 24%));
 }
 
-#playerHand.card-hand.is-my-turn > .game-card > img {
-    filter: none;
+.game-card,
+.card-preview,
+.table-play__card,
+.card-flight,
+.card-discard-flight {
+    background: var(--card-body-color);
+    box-shadow: var(--card-depth-shadow);
+    transform-style: preserve-3d;
+}
+
+:is(.game-card, .card-preview, .table-play__card, .card-flight, .card-discard-flight) > img {
+    transform: translateZ(1px) scale(.985);
+    transform-origin: center;
 }
 
 .game-card {
@@ -1814,8 +1826,8 @@ select:focus-visible {
 }
 
 .game-card:hover:not(.is-selected) {
-    background: transparent;
-    box-shadow: none;
+    background: var(--card-body-color);
+    box-shadow: var(--card-depth-shadow);
 }
 
 .game-card.is-selected {
@@ -1883,7 +1895,7 @@ select:focus-visible {
 
 .game-card:active {
     padding: 0;
-    background: transparent;
+    background: var(--card-body-color);
 }
 
 .game-card.is-selected:active {
@@ -2839,7 +2851,7 @@ select:focus-visible {
     border: 0;
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 3px 10px rgb(0 0 0 / 26%);
+    box-shadow: var(--card-depth-shadow);
     transform: rotate(var(--pile-rotation, 0deg));
     transform-origin: center;
     isolation: isolate;
@@ -2927,7 +2939,6 @@ select:focus-visible {
     pointer-events: none;
     overflow: hidden;
     border-radius: 8px;
-    filter: drop-shadow(0 4px 8px rgb(0 0 0 / 28%));
 }
 
 .card-flight > img {
@@ -2947,7 +2958,7 @@ select:focus-visible {
     border: 0;
     border-radius: 8px;
     object-fit: fill;
-    box-shadow: 0 3px 10px rgb(0 0 0 / 26%);
+    box-shadow: var(--card-depth-shadow);
 }
 
 .card-discard-flight > img {
