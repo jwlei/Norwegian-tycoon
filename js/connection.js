@@ -917,25 +917,17 @@
             var players = game.players.slice().filter(player => player.name)
                 .sort((a, b) => b.name.length - a.name.length);
             if (includeInLog) {
-                var logEntry = {
-                    message: message,
-                    players: players.map(player => ({
-                        name: player.name,
-                        displayColor: player.displayColor
-                    }))
-                };
-                var logIsOpen = document.getElementById("dialogGameLog")
-                    .classList.contains("dialog-container--visible");
-                if (gameLogNeedsTrickHeader) {
-                    var trickEntry = { trick: ++gameLogTrickCount };
-                    gameLogEntries.push(trickEntry);
-                    if (logIsOpen) { appendGameLogEntry(trickEntry); }
-                    gameLogNeedsTrickHeader = false;
+                var pause = game.turnPause;
+                if (pause != null && pause.id == pauseId &&
+                    pause.message == message && pause.playedPile != null) {
+                    var played = pause.playedPile;
+                    var pile = new CardPile(played.name, ...PresidentCard.deserializeDeck(played.cards));
+                    var playMessage = `${played.name}: ${pile.describe()}.`;
+                    if (playMessage != message) {
+                        recordGameLogEntry(playMessage, players);
+                    }
                 }
-                gameLogEntries.push(logEntry);
-                if (logIsOpen) {
-                    appendGameLogEntry(logEntry);
-                }
+                recordGameLogEntry(message, players);
             }
             if (endsTrick) { gameLogNeedsTrickHeader = true; }
             if (gameToastsHidden() || game.status == "F") {
@@ -959,6 +951,26 @@
                 clearTimeout(gameToastTimer);
             }
             gameToastTimer = setTimeout(() => hideGameToast(false, true), duration);
+        }
+
+        function recordGameLogEntry(message, players) {
+            var logEntry = {
+                message: message,
+                players: players.map(player => ({
+                    name: player.name,
+                    displayColor: player.displayColor
+                }))
+            };
+            var logIsOpen = document.getElementById("dialogGameLog")
+                .classList.contains("dialog-container--visible");
+            if (gameLogNeedsTrickHeader) {
+                var trickEntry = { trick: ++gameLogTrickCount };
+                gameLogEntries.push(trickEntry);
+                if (logIsOpen) { appendGameLogEntry(trickEntry); }
+                gameLogNeedsTrickHeader = false;
+            }
+            gameLogEntries.push(logEntry);
+            if (logIsOpen) { appendGameLogEntry(logEntry); }
         }
 
         function archiveGameToast(toast) {

@@ -237,8 +237,9 @@ test("auto-suggestion is enabled by default and lives below the board on the lef
     assert.ok(control > html.indexOf('id="playerActions"'));
     assert.ok(control < html.indexOf('id="playerHand"'));
     assert.match(html, /id="autoSuggestionToggleButton"[^>]*aria-pressed="true"/);
-    assert.match(html, /class="auto-suggestion-on" aria-hidden="true">✦/);
-    assert.match(html, /class="auto-suggestion-off" aria-hidden="true">✧/);
+    assert.match(html, /<svg class="auto-suggestion-on"[^>]*aria-hidden="true"[^>]*>.*<circle cx="16"/);
+    assert.match(html, /<svg class="auto-suggestion-off"[^>]*aria-hidden="true"[^>]*>.*<circle cx="8"/);
+    assert.match(css, /#autoSuggestionToggleButton\[aria-pressed="true"\] > \.auto-suggestion-on,\s*#autoPassToggleButton\[aria-pressed="true"\] > \.auto-pass-on\s*\{\s*color:\s*var\(--success\);/);
     assert.match(css, /#suggestionControls\s*\{[^}]*top:\s*4px;[^}]*left:\s*8px;/);
     assert.match(css, /#fastForwardButton,\s*#autoSuggestionToggleButton,\s*#autoPassToggleButton\s*\{[^}]*color:\s*var\(--muted\);/);
     assert.match(css, /#autoSuggestionToggleButton > \[aria-hidden\],\s*#autoPassToggleButton > \[aria-hidden\]\s*\{[^}]*font-size:\s*20px;/);
@@ -254,7 +255,7 @@ test("Suggest move and opt-in Auto pass share a row with fast-forward", () => {
     assert.match(html, /id="autoPassToggleButton"[^>]*aria-pressed="false"/);
     assert.ok(html.indexOf('id="autoPassToggleButton"') > html.indexOf('id="autoSuggestionToggleButton"'));
     assert.match(css, /#suggestionControls\s*\{[^}]*display:\s*flex;[^}]*align-items:\s*center;[^}]*gap:\s*4px;/);
-    assert.match(css, /#gameShell\.game-active:not\(\.Lobby\):not\(\.GameFinished\) > #playerActions\s*\{[^}]*padding-top:\s*80px;/);
+    assert.match(css, /#gameShell\.game-active:not\(\.Lobby\):not\(\.GameFinished\) > #playerActions\s*\{[^}]*padding-top:\s*calc\(80px - var\(--mobile-table-extra-space, 0px\)\);/);
     const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
     assert.ok(translations.includes('"Foreslå trekk": "Suggest move"'));
     assert.ok(translations.includes('"Auto-pass": "Auto pass"'));
@@ -266,6 +267,19 @@ test("auto pass uses distinct switch icons with right-on and left-off positions"
     assert.match(control, /<svg class="auto-pass-off"[^>]*aria-hidden="true"[^>]*>.*<circle cx="8"/);
     assert.doesNotMatch(control, /auto-suggestion-on|auto-suggestion-off/);
     assert.match(css, /#autoPassToggleButton\[aria-pressed="true"\] > \.auto-pass-on\s*\{\s*color:\s*var\(--success\);/);
+});
+
+test("mobile tables reclaim seventy percent of a pass button from action spacing", () => {
+    assert.match(css, /@media \(max-width: 760px\), \(max-height: 500px\) and \(pointer: coarse\)\s*\{\s*#gameShell\.game-active:not\(\.Lobby\):not\(\.GameFinished\)\s*\{\s*--mobile-table-extra-space:\s*calc\(var\(--mobile-pass-button-height, 44px\) \* 0\.7\);/);
+    assert.match(css, /--mobile-pass-button-height:\s*36px;/);
+    assert.equal(Array.from(css.matchAll(/calc\((?:124|132)px - var\(--mobile-table-extra-space, 0px\)\)/g)).length, 3);
+    assert.match(css, /padding-top:\s*calc\(80px - var\(--mobile-table-extra-space, 0px\)\);/);
+});
+
+test("Norwegian passed-player badges use Pass", () => {
+    const layout = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    assert.match(layout, /else if \(isPassed\) \{\s*turnText = "Pass";/);
+    assert.doesNotMatch(layout, /"Passet"/);
 });
 
 test("desktop uses taller two-line toasts and the same shell and toolbar in every screen", () => {

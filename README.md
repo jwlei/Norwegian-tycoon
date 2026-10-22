@@ -31,6 +31,8 @@ Boms og President (also known as Norwegian Tycoon) is a free card game for 2–4
 - **Accessible interaction and motion:** The interface includes keyboard-operable controls, dialog focus management, ARIA state/status announcements, touch and pointer card interactions, and reduced-motion handling.
 - **Testing:** Automated tests use Node.js's built-in test runner and cover game rules, bots, identity, presence, leaderboard behavior, themes, and card interactions.
 
+On mobile, the playing table gains roughly 70% of the Pass button's height from the action area's top spacing, without shrinking the button or hand. Suggest move and Auto-pass use matching on/off switches. The game log includes the cards played on finishing moves before the placement announcement, even when board messages are hidden.
+
 ## Running locally
 
 The project is a static website with no build step. Serve the repository root over localhost or HTTPS, then open it in a browser. For example, with Python installed:
@@ -52,6 +54,8 @@ node --test
 Dragged cards, return glides, plays, exchanges, discards, and resting table cards use a 3px laminated edge following the actual SVG outline. Seven native SVG paper slices and the original artwork replace the supersampled WebGL renderer: there are no canvas copies, GPU contexts, texture caches, or render-target multipliers. Existing card designs, pixel outlines, foil overlays, and table guidance are retained.
 
 Resting pitch/yaw comes from sampled heights of the cards beneath each footprint, with the approved gentler lean on crossed piles. A fixed top-left light projects shorter, tighter shadows onto the felt and supporting card planes. Flight, first contact, sliding/spinning momentum, diminishing rebounds, and settlement share the same geometry and shadow model; the final flight pose matches the persistent table card. Thrown cards decelerate at one constant rate from release, through touchdown at 64% of the animation, to rest: they carry about a third of their launch speed into a slide of roughly 13% of the throw distance (capped at 45% of a card height) instead of braking in the air. This is an approximate support model, not a full rigid-body simulation.
+
+Pairs, triples and quads keep their readable fan but add a stable, random-looking per-card splay: up to 3px sideways, 5px along the table and 2 degrees of extra rotation. Each card still slides along its incoming throw direction into its own final pose, rather than skidding sideways. The splay is derived from the deal, play and card identity so refreshes and other clients keep the same layout; single cards are unchanged.
 
 Unchanged poses are not redrawn, static table cards have no animation loop, and flight work is cancelled on cleanup. Invalid artwork retains the original image and logs a warning. Reduced-motion preferences skip flights and rebounds while retaining resting depth and contact shadows. Native SVG filters still have a rendering cost; this is not a phone benchmark.
 

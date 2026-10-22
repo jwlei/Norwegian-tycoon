@@ -500,7 +500,7 @@ class GameLayout {
                     turnText = isCurrentPlayer ? "Din tur" : "Tur";
                     turnLabel = isCurrentPlayer ? "Du har tur" : "Denne spilleren har tur";
                 } else if (isPassed) {
-                    turnText = "Passet";
+                    turnText = "Pass";
                     turnLabel = `${player.name} har passet`;
                 }
                 if (turnElement.textContent != turnText) {
@@ -972,7 +972,7 @@ class GameLayout {
         completeIfReady();
     }
     // Deterministic within each board-size class; the player's seat biases the tilt.
-    // All cards in one play share the tilt and fan out evenly, so the play stays readable as a pair, triple, etc.
+    // Grouped cards share a readable fan, with stable per-card splay that survives table redraws.
     static pileCardJitter(game, pile, card, stackIndex, cardIndex = 0, smallScreen = false) {
         var seed = 2166136261;
         var first = pile[0];
@@ -980,9 +980,11 @@ class GameLayout {
         for (var i = 0; i < text.length; i++) {
             seed = Math.imul(seed ^ text.charCodeAt(i), 16777619) >>> 0;
         }
-        var unit = function (shift) {
-            return (((seed >>> shift) & 255) / 255) - 0.5;
+        var unit = function (shift, value = seed) {
+            return (((value >>> shift) & 255) / 255) - 0.5;
         };
+        var cardSeed = Math.imul(seed ^ (card.suit * 31 + card.rank), 2654435761) >>> 0;
+        var splay = pile.length > 1;
         var seatCount = Math.max(1, game.players.length);
         var seat = game.players.findIndex(player => player.name == pile.name);
         var seatBias = (seat < 0 || seatCount < 2)
@@ -994,10 +996,12 @@ class GameLayout {
         var arc = Math.abs(cardIndex - (pile.length - 1) / 2);
         return {
             angle: Math.round(Math.max(smallScreen ? -40 : -30, Math.min(smallScreen ? 40 : 30,
-                seatBias + unit(0) * 20 + fanAngle +
+                seatBias + unit(0) * 20 + fanAngle + (splay ? unit(0, cardSeed) * 4 : 0) +
                 (pile.motion ? pile.motion.spin * (smallScreen ? 1.4 : 1) : 0))) * 10) / 10,
-            x: Math.round(unit(8) * 14 + (cardIndex - (pile.length - 1) / 2) * power * 8),
-            y: Math.round(unit(16) * 10 + arc * (3 + power * 4))
+            x: Math.round(unit(8) * 14 + (cardIndex - (pile.length - 1) / 2) * power * 8 +
+                (splay ? unit(8, cardSeed) * 6 : 0)),
+            y: Math.round(unit(16) * 10 + arc * (3 + power * 4) +
+                (splay ? unit(16, cardSeed) * 10 : 0))
         };
     }
     static createTablePile(game, piles, existingPileSignatures, hiddenCardKeys = new Set()) {

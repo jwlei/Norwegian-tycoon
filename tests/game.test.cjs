@@ -83,6 +83,7 @@ test("toast visibility limit is independent of animation speed and keeps at most
         window: { matchMedia: () => ({ matches: reducedMotion }) },
         Date: { now: () => 3000 }, gameToastExpiresAt: 3000,
         gameToastTimer: null, activeToastPauseId: null, archivedToasts: [],
+        turnPauseRefreshTimer: null, lastShownTurnPauseId: null, completeLocalPresentation() {},
         GAME_SPEED_MS: { fast: 3000 }, currentGameSpeed: () => "fast",
         ensureGameLog() {}, clearTimeout() {},
         setTimeout: (callback, delay) => { timers.push({ callback, delay }); return timers.length; },
@@ -94,13 +95,16 @@ test("toast visibility limit is independent of animation speed and keeps at most
         },
         gameLogNeedsTrickHeader: false, gameLogTrickCount: 0, gameLogEntries: [],
         localizedMessage: message => message, appendColoredGameMessage() {},
-        game: { players: [] }
+        game: { players: [] },
+        CardPile: loadGame().CardPile, PresidentCard: loadGame().PresidentCard
     });
     const hideStart = source.indexOf("        function gameToastsHidden(");
     const hideEnd = source.indexOf("        function resetGameLog", hideStart);
     const showStart = source.indexOf("        function showGameToast(");
     const showEnd = source.indexOf("        var receivedCardTimer", showStart);
     vm.runInContext(source.slice(hideStart, hideEnd) + source.slice(showStart, showEnd), context);
+    vm.runInContext(source.slice(source.indexOf("        function handleTurnPause("),
+        source.indexOf("        var presentationSnapshots")), context);
     vm.runInContext('showGameToast("Next", game)', context);
     assert.equal(clones, 0);
     assert.equal(context.gameToastExpiresAt, 6000);
@@ -170,6 +174,38 @@ test("toast visibility limit is independent of animation speed and keeps at most
     assert.equal(context.gameLogEntries.length, reminderLogCount);
     assert.equal(context.gameLogTrickCount, reminderTrickCount);
     assert.equal(context.gameLogNeedsTrickHeader, true, "A reminder must not consume the next trick header");
+
+    hideToasts = true;
+    const { game, players, types } = setupGame();
+    players.splice(2);
+    players[0].cards = [new types.PresidentCard(1, 5)];
+    players[1].cards = [new types.PresidentCard(2, 7)];
+    game.save = () => {};
+    game.setTurn(0);
+    const finalPile = new types.CardPile(players[0].name, ...players[0].cards);
+    game.playCards(players[0], finalPile);
+    assert.equal(game.turnPause.pendingGameEnd, true);
+    context.game = game;
+    const finalLogCount = context.gameLogEntries.length;
+    vm.runInContext('handleTurnPause(game)', context);
+    assert.deepEqual(Array.from(context.gameLogEntries.slice(finalLogCount), entry => entry.message || entry.trick), [
+        context.gameLogTrickCount,
+        `${players[0].name}: ${finalPile.describe()}.`,
+        game.turnPause.message
+    ], "The actual final cards precede the placement announcement, even with hidden toasts");
+    assert.equal(visible, false);
+    const afterFinalLogCount = context.gameLogEntries.length;
+    vm.runInContext('handleTurnPause(game)', context);
+    assert.equal(context.gameLogEntries.length, afterFinalLogCount, "Repeated snapshots do not duplicate the final play");
+    const ordinaryPile = new types.CardPile(players[1].name, new types.PresidentCard(2, 8));
+    game.turnPause = {
+        id: "ordinary-play",
+        playedPile: { name: players[1].name, cards: types.PresidentCard.serializeDeck(ordinaryPile) },
+        message: `${players[1].name}: ${ordinaryPile.describe()}.`
+    };
+    const ordinaryLogCount = context.gameLogEntries.length;
+    vm.runInContext('showGameToast(game.turnPause.message, game, undefined, game.turnPause.id)', context);
+    assert.equal(context.gameLogEntries.length, ordinaryLogCount + 1, "Ordinary plays are not logged twice");
 });
 
 test("toast expiry fades quickly at fast speed and cancels safely when a new message arrives", () => {

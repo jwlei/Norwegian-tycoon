@@ -3462,6 +3462,7 @@ select:focus-visible {
     display: none;
 }
 
+#autoSuggestionToggleButton[aria-pressed="true"] > .auto-suggestion-on,
 #autoPassToggleButton[aria-pressed="true"] > .auto-pass-on {
     color: var(--success);
 }
@@ -3838,7 +3839,7 @@ select:focus-visible {
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);
         --shell-hand-card-height: clamp(82px, 17dvh, 128px);
-        grid-template-rows: 56px 60px minmax(0, 1fr) 124px calc(var(--shell-hand-card-height) + 62px);
+        grid-template-rows: 56px 60px minmax(0, 1fr) calc(124px - var(--mobile-table-extra-space, 0px)) calc(var(--shell-hand-card-height) + 62px);
     }
 
     #gameShell.game-active > #playerList {
@@ -3872,7 +3873,7 @@ select:focus-visible {
     #gameShell.game-active {
         grid-template-columns: minmax(0, 1fr);
         --shell-hand-card-height: clamp(72px, 23dvh, 116px);
-        grid-template-rows: 56px 52px minmax(0, 1fr) 124px calc(var(--shell-hand-card-height) + 46px);
+        grid-template-rows: 56px 52px minmax(0, 1fr) calc(124px - var(--mobile-table-extra-space, 0px)) calc(var(--shell-hand-card-height) + 46px);
     }
 
     #gameShell.game-active > #playerList {
@@ -3906,7 +3907,7 @@ select:focus-visible {
 @media (orientation: landscape) and (max-height: 500px) {
     #gameShell.game-active {
         --shell-hand-card-height: clamp(54px, 18vh, 76px);
-        grid-template-rows: 40px 36px minmax(58px, 1fr) 132px calc(var(--shell-hand-card-height) + 32px);
+        grid-template-rows: 40px 36px minmax(58px, 1fr) calc(132px - var(--mobile-table-extra-space, 0px)) calc(var(--shell-hand-card-height) + 32px);
     }
 
     #gameShell.game-active:not(.Lobby):not(.GameFinished) > #gameMenu > #inviteButton,
@@ -4607,7 +4608,19 @@ select:focus-visible {
 }
 
 #gameShell.game-active:not(.Lobby):not(.GameFinished) > #playerActions {
-    padding-top: 80px;
+    padding-top: calc(80px - var(--mobile-table-extra-space, 0px));
+}
+
+@media (max-width: 760px), (max-height: 500px) and (pointer: coarse) {
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) {
+        --mobile-table-extra-space: calc(var(--mobile-pass-button-height, 44px) * 0.7);
+    }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+    #gameShell.game-active:not(.Lobby):not(.GameFinished) {
+        --mobile-pass-button-height: 36px;
+    }
 }
 
 #gameShell.GameFinished #suggestionControls {

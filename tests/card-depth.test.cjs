@@ -255,6 +255,26 @@ test("hidden destinations do not leave duplicate external shadows, and detach re
     assert.equal(entry.shape.removed, true);
 });
 
+test("splayed group landings slide with throw inertia and settle at their individual rotations", () => {
+    const f = fixture();
+    const cards = [f.card(200, 200), f.card(220, 205), f.card(240, 202), f.card(260, 208)];
+    cards.forEach((card, index) => card.style.setProperty("--pile-rotation", `${index * 7 - 10}deg`));
+    f.Depth.prepareTable(f.table(cards));
+    cards.forEach((card, index) => {
+        const flight = f.card(400, 500);
+        f.Depth.attach(flight);
+        const start = { x: 400 + index * 20, y: 500, z: 0, pitch: 8, yaw: -6, roll: 0 };
+        const motion = f.Depth.landingMotion(flight, card, start, .6);
+        const final = motion.poseAtProgress(1), contact = motion.poseAtProgress(G.CONTACT);
+        const travel = { x: final.x - start.x, y: final.y - start.y };
+        const slide = { x: final.x - contact.x, y: final.y - contact.y };
+        assert.ok(slide.x * travel.x + slide.y * travel.y > 0, "Slide continues along the incoming throw");
+        assert.ok(Math.abs(slide.x * travel.y - slide.y * travel.x) < 1e-7, "No arbitrary sideways skid");
+        assert.equal(final.roll, index * 7 - 10);
+        assert.deepEqual({ ...final }, { ...f.Depth.states.get(card).rest });
+    });
+});
+
 test("a refreshed table receives ongoing flight shadows instead of retaining detached hosts", () => {
     const f = fixture();
     f.element.dataset.cardKey = "1:7";

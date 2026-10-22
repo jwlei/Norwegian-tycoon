@@ -261,6 +261,40 @@ test("small boards allow more directional inertia while large-board rotation sta
     }
 });
 
+test("pairs, triples and quads have subtle per-card splay that survives serialization and redraws", () => {
+    const context = load();
+    const groups = vm.runInContext(`
+        var game = {shuffleStartedAt:123,players:[{name:"Owner"}]};
+        [2,3,4].map(count => {
+            var pile = new CardPile("Owner", ...Array.from({length:count}, (_, i) => new PresidentCard(i + 1,7)));
+            pile.motion = {x:.2,y:-.5,power:.6,spin:0,pitch:0,yaw:0};
+            var sample = play => play.map((card,i) => GameLayout.pileCardJitter(game,play,card,8+i,i));
+            var single = new CardPile("Owner", pile[0]);
+            single.motion = pile.motion;
+            return { count, cards: sample(pile),
+                base: GameLayout.pileCardJitter(game,single,single[0],8),
+                repeated: sample(PresidentCard.deserializePiles([JSON.parse(JSON.stringify(pile))])[0]) };
+        });
+    `, context);
+    for (const { count, cards, base, repeated } of groups) {
+        assert.deepEqual(JSON.parse(JSON.stringify(cards)), JSON.parse(JSON.stringify(repeated)));
+        const offsets = cards.map((card, index) => {
+            const center = index - (count - 1) / 2;
+            const offsets = {
+                angle: card.angle - base.angle - center * 8.4,
+                x: card.x - base.x - center * .6 * 8,
+                y: card.y - base.y - Math.abs(center) * 5.4
+            };
+            assert.ok(Math.abs(offsets.angle) <= 2.1, "Extra rotation stays within two degrees");
+            assert.ok(Math.abs(offsets.x) <= 4, "Sideways splay stays subtle");
+            assert.ok(Math.abs(offsets.y) <= 6, "Cards retain a readable grouped landing");
+            return offsets;
+        });
+        assert.ok(new Set(offsets.map(value => value.angle.toFixed(1))).size > 1);
+        assert.ok(new Set(offsets.map(value => value.y.toFixed(1))).size > 1);
+    }
+});
+
 test("played flights retain source tilt, scale and foil position and settle level before cleanup", () => {
     const flights = [];
     const animations = [];
