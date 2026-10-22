@@ -407,8 +407,8 @@ function animateCardDragTilt(drag, time) {
     var velocityY = (drag.pointerY - drag.sampledY) / Math.max(16, elapsed);
     drag.sampledX = drag.pointerX;
     drag.sampledY = drag.pointerY;
-    var targetPitch = drag.returning || reducedMotion ? 0 : Math.max(-18, Math.min(18, velocityY * 720)) * 0.7;
-    var targetYaw = drag.returning || reducedMotion ? 0 : Math.max(-18, Math.min(18, -velocityX * 720));
+    var targetPitch = drag.returning || reducedMotion ? 0 : Math.max(-18, Math.min(18, -velocityY * 720)) * 0.7;
+    var targetYaw = drag.returning || reducedMotion ? 0 : Math.max(-18, Math.min(18, velocityX * 720));
     var targetBlend = 1 - Math.exp(-elapsed / 100);
     drag.targetPitch = reducedMotion || drag.returning ? 0 : drag.targetPitch + (targetPitch - drag.targetPitch) * targetBlend;
     drag.targetYaw = reducedMotion || drag.returning ? 0 : drag.targetYaw + (targetYaw - drag.targetYaw) * targetBlend;
