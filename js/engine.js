@@ -270,6 +270,7 @@ class PresidentGame extends Game {
             throw ("Sluttavstemningen må være ferdig før neste runde starter.");
         }
         this.endGameVoteResolvedForStart = false;
+        this.lastHumanActionAt = GamePresence.now();
         this.shuffleStartedAt = GamePresence.now();
         this.fastForward = false;
         if (this.status == "O" || this.status == "F") {
@@ -304,7 +305,12 @@ class PresidentGame extends Game {
             throw ("Kan ikke endre klar-status nå.");
         }
         var index = this.players.indexOf(player);
-        return this.databaseRef.child(`spillere/${index}/ready`).set(ready === true).catch(error => {
+        var now = GamePresence.now();
+        this.lastHumanActionAt = Math.max(Number(this.lastHumanActionAt) || 0, now);
+        return this.databaseRef.update({
+            [`spillere/${index}/ready`]: ready === true,
+            lastHumanActionAt: this.lastHumanActionAt
+        }).catch(error => {
             console.error("Kunne ikke lagre klar-status.", error);
         });
     }
@@ -908,6 +914,9 @@ class PresidentGame extends Game {
                 }
                 next.status = "O";
                 next.playedCards = [];
+                if (incomingPlayer.playerKey != "PC") {
+                    next.lastHumanActionAt = Math.max(GamePresence.lastActivityAt(current) ?? 0, GamePresence.now());
+                }
                 if (incomingPlayer.playerKey != "PC" &&
                     (next.hostKey == null || (next.hostName == null && next.hostKey == incomingPlayer.playerKey))) {
                     next.hostKey = incomingPlayer.playerKey;

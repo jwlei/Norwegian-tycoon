@@ -4924,17 +4924,18 @@ test("ready state persists and is reset on returning to the lobby", () => {
     assert.ok(game.players.every(player => player.ready === false));
 });
 
-test("readiness writes only the current player's ready field", async () => {
+test("readiness writes only the current player's ready field and the lobby activity time", async () => {
     const { game, players } = setupGame();
     game.status = "O";
     const writes = [];
     game.databaseRef = {
-        child(key) {
-            return { set: value => { writes.push({ key, value }); return Promise.resolve(); } };
-        }
+        update(value) { writes.push(value); return Promise.resolve(); }
     };
     await game.setReady(players[0], true);
-    assert.deepEqual(writes, [{ key: "spillere/0/ready", value: true }]);
+    assert.equal(writes.length, 1);
+    assert.deepEqual(Object.keys(writes[0]).sort(), ["lastHumanActionAt", "spillere/0/ready"]);
+    assert.equal(writes[0]["spillere/0/ready"], true);
+    assert.equal(typeof writes[0].lastHumanActionAt, "number");
     assert.throws(() => game.setReady(players[1], true), /klar-status/);
 });
 

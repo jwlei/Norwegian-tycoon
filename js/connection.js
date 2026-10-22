@@ -63,12 +63,12 @@
                     return;
                 }
                 document.getElementById("resumeGameButton").hidden = false;
-                var lastAction = GamePresence.lastActivityAt(record);
-                if (lastAction != null) {
+                var expiresAt = GamePresence.expiresAt(record);
+                if (expiresAt != null) {
                     resumeExpiryTimer = setTimeout(() => {
                         if (resumeSeat == seat) { resumeListener(snapshot); }
                     },
-                        Math.max(1, lastAction + GamePresence.sessionMs + 1 - GamePresence.now()));
+                        Math.max(1, expiresAt + 1 - GamePresence.now()));
                 }
             };
             ref.on("value", resumeListener, function (error) {

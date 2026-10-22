@@ -556,6 +556,32 @@ test("session expiry is strictly after ten minutes and uses only human activity 
     assert.equal(Presence.reconcile({ ...room(), status: "V" }, start), undefined);
 });
 
+test("lobbies are never voided while a human is connected, however long they idle", () => {
+    const record = { ...room(), status: "O", lastHumanActionAt: start };
+    session(record, 0, true, start);
+    session(record, 1, false, start);
+    const later = start + 10 * Presence.sessionMs;
+    assert.equal(Presence.expiresAt(record), null);
+    assert.equal(Presence.isExpired(record, later), false);
+    assert.equal(Presence.reconcile(record, later)?.status ?? "O", "O");
+});
+
+test("an empty lobby expires a session window after the last human left", () => {
+    const record = { ...room(), status: "O", lastHumanActionAt: start };
+    session(record, 0, false, start + 50000);
+    session(record, 1, false, start + 20000);
+    assert.equal(Presence.expiresAt(record), start + 50000 + Presence.sessionMs);
+    assert.equal(Presence.isExpired(record, start + 50000 + Presence.sessionMs), false);
+    assert.equal(Presence.isExpired(record, start + 50001 + Presence.sessionMs), true);
+    assert.equal(Presence.reconcile(record, start + 50001 + Presence.sessionMs).status, "V");
+});
+
+test("connected humans do not keep running games alive without acting", () => {
+    const record = { ...room(), status: "S", lastHumanActionAt: start };
+    session(record, 0, true, start);
+    assert.equal(Presence.isExpired(record, start + Presence.sessionMs + 1), true);
+});
+
 test("legacy reconciliation freezes the session baseline before later bot saves change ts", () => {
     const original = { ...room(), status: "O", ts: new Date(start).toISOString() };
     const initialized = Presence.reconcile(original, start + 1000);
@@ -906,6 +932,23 @@ test("presence expiry removes the public listing when its transaction commits V"
     assert.equal(fixture.stored.status, "V");
     assert.equal(game.status, "V");
     assert.equal(fixture.listing.value, null);
+});
+
+test("a long-idle lobby with a connected host starts with a fresh activity baseline", () => {
+    const fixture = lifecycleGame();
+    const { game, types } = fixture;
+    game.status = "O";
+    game.players[0].ready = true;
+    game.presence = { [types.GamePresence.playerId(game.players[0])]: { tab: { online: true, changedAt: start } } };
+    game.save();
+    fixture.stored.presence = structuredClone(game.presence);
+    fixture.now = start + 3 * types.GamePresence.sessionMs;
+    assert.equal(types.GamePresence.isExpired(game), false);
+    game.startGame();
+    assert.notEqual(game.status, "V");
+    assert.equal(game.lastHumanActionAt, fixture.now);
+    assert.equal(fixture.stored.lastHumanActionAt, fixture.now);
+    assert.equal(types.GamePresence.isExpired(fixture.stored), false);
 });
 
 test("expired and void games cannot start, rejoin or appear in public listings", async () => {
