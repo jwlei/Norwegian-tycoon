@@ -405,6 +405,67 @@
             roll: impact.roll + momentum.spin * slide };
     }
 
+    function overlapCoverage(a, b) {
+        const polygon = pose => silhouette({ z: 0, pitch: 0, yaw: 0, ...pose }).map(screen);
+        const area = points => Math.abs(points.reduce((sum, p, index) => {
+            const q = points[(index + 1) % points.length];
+            return sum + p.x * q.y - p.y * q.x;
+        }, 0)) / 2;
+        const clip = polygon(b);
+        let intersection = polygon(a);
+        for (let index = 0; index < clip.length && intersection.length; index++) {
+            const p = clip[index], q = clip[(index + 1) % clip.length];
+            const side = point => (q.x - p.x) * (point.y - p.y) - (q.y - p.y) * (point.x - p.x);
+            const input = intersection;
+            intersection = [];
+            for (let i = 0; i < input.length; i++) {
+                const from = input[i], to = input[(i + 1) % input.length];
+                const start = side(from), end = side(to);
+                if ((start >= 0) !== (end >= 0)) {
+                    const t = start / (start - end);
+                    intersection.push({ x: mix(from.x, to.x, t), y: mix(from.y, to.y, t) });
+                }
+                if (end >= 0) { intersection.push(to); }
+            }
+        }
+        return area(intersection) / area(clip);
+    }
+
+    // Keep the original fan unless an edge requires tighter spacing to overlap the preceding top card.
+    function fitPlay(cards, previous, bounds, minimumCoverage = .14) {
+        const top = cards[cards.length - 1];
+        const minimumStep = (top.width || WIDTH) * .18;
+        const steps = cards.slice(1).map((card, index) => Math.abs(card.x - cards[index].x));
+        const minimumSpread = steps.length ? Math.min(1, minimumStep / Math.min(...steps)) : 1;
+        for (const spread of new Set([1, .85, .7, .55, .4, minimumSpread].map(value => Math.max(minimumSpread, value)))) {
+            const arranged = cards.map(card => ({ ...card, x: top.x + (card.x - top.x) * spread }));
+            const points = arranged.flatMap(card => silhouette({ ...card, z: 0, pitch: 0, yaw: 0 }));
+            const minX = Math.min(...points.map(p => p.x)), maxX = Math.max(...points.map(p => p.x));
+            const minY = Math.min(...points.map(p => p.y)), maxY = Math.max(...points.map(p => p.y));
+            const inset = 6;
+            const fit = point => ({
+                x: clamp(point.x, bounds.left + inset - minX, bounds.left + bounds.width - inset - maxX),
+                y: clamp(point.y, bounds.top + inset - minY, bounds.top + bounds.height - inset - maxY)
+            });
+            const covers = offset => overlapCoverage({ ...top, x: top.x + offset.x, y: top.y + offset.y }, previous) >= minimumCoverage;
+            let offset = fit({ x: 0, y: 0 });
+            if (previous && !covers(offset)) {
+                const near = fit({ x: previous.x - top.x,
+                    y: previous.y - (previous.z || 0) * VIEW_SHEAR - top.y });
+                if (!covers(near)) { continue; }
+                let low = 0, high = 1;
+                for (let iteration = 0; iteration < 18; iteration++) {
+                    const t = (low + high) / 2;
+                    if (covers({ x: mix(near.x, offset.x, t), y: mix(near.y, offset.y, t) })) { low = t; }
+                    else { high = t; }
+                }
+                offset = { x: mix(near.x, offset.x, low), y: mix(near.y, offset.y, low) };
+            }
+            return arranged.map(card => ({ ...card, x: card.x + offset.x, y: card.y + offset.y }));
+        }
+        throw new Error("The table cannot fit a readable play with the required overlap.");
+    }
+
     function motion(cards, start, impact, momentum, progress, contact = null) {
         const t = clamp(progress, 0, 1);
         const contactTime = CONTACT;
@@ -433,7 +494,7 @@
 
     const api = { WIDTH, HEIGHT, EDGE, VIEW_SHEAR, LIGHT, CONTACT, slideDistance, slideDistanceToRest, rotate, world, screen, plane, heightAt,
         signedDistance, silhouette, contains, screenContains, screenCovers, samples, supportHeight, landing, minimumHeight, shadow,
-        shadowedBy, shadowVisible, exposedPoints, flight, position, motion };
+        shadowedBy, shadowVisible, exposedPoints, flight, position, overlapCoverage, fitPlay, motion };
     if (typeof module !== "undefined" && module.exports) { module.exports = api; }
     else { root.LandingGeometry = api; }
 })(globalThis);

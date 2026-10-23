@@ -35,7 +35,11 @@ function fixture() {
         replaceChildren(...children) { this.children = children; }
         remove() { this.removed = true; }
         querySelector(selector) { return selector === "img" ? this.image : null; }
-        getBoundingClientRect() { return { left: this.left || 200, top: this.top || 200, width: 112, height: 168 }; }
+        getBoundingClientRect() {
+            return { left: (this.left || 200) + (parseFloat(this.properties.get("--landing-offset-x")) || 0),
+                top: (this.top || 200) + (parseFloat(this.properties.get("--landing-offset-y")) || 0),
+                width: this.offsetWidth, height: this.offsetHeight };
+        }
         animate() { return { playState: "running", effect: { getComputedTiming: () => ({ progress: .5 }) } }; }
     }
     const context = vm.createContext({
@@ -49,9 +53,10 @@ function fixture() {
     vm.runInContext(`${source}\nglobalThis.CardDepth = CardDepth;`, context);
     const element = new Node("div");
     element.image = { src: "data:image/svg+xml,%3Csvg%2F%3E" };
-    const table = elements => {
+    const table = (elements, bounds = null) => {
         const parent = new Node("div");
         parent.querySelectorAll = () => elements;
+        parent.closest = () => bounds ? { getBoundingClientRect: () => bounds } : null;
         return parent;
     };
     const card = (left, top = 200) => {
@@ -65,6 +70,140 @@ function fixture() {
 }
 
 const numbers = d => d.match(/-?\d+\.\d+/g).map(Number);
+
+test("translation and receiver-only changes do not repaint identical card artwork or shadow filters", () => {
+    const f = fixture();
+    f.Depth.attach(f.element);
+    const state = f.Depth.states.get(f.element);
+    f.Depth.update(f.element, { pitch: 4, yaw: 6, roll: 8, z: 30 });
+    let artworkWrites = 0;
+    const shape = state.layers[0], set = shape.setAttribute.bind(shape);
+    shape.setAttribute = (...args) => { artworkWrites++; set(...args); };
+    f.Depth.update(f.element, { x: 10, y: 20 });
+    assert.equal(artworkWrites, 0, "Translation does not change local SVG geometry");
+    f.Depth.update(f.element, { roll: 9 });
+    assert.ok(artworkWrites > 0, "Visible angle changes still redraw the exact geometry");
+    const entry = state.shadowEntries.get("floor");
+    let filterWrites = 0;
+    const blurSet = entry.blur.setAttribute.bind(entry.blur);
+    entry.blur.setAttribute = (...args) => { filterWrites++; blurSet(...args); };
+    f.Depth.setBlur(state, entry, entry.effectiveBlur);
+    assert.equal(filterWrites, 0, "An identical blur does not invalidate its GPU filter");
+    f.Depth.setBlur(state, entry, entry.effectiveBlur + .1);
+    assert.equal(filterWrites, 1, "Changed softness retains full precision");
+    const receiver = f.card(210), caster = f.card(220);
+    f.Depth.prepareTable(f.table([receiver, caster]));
+    const casterState = f.Depth.states.get(caster);
+    let writes = 0;
+    casterState.layers.forEach(layer => {
+        const original = layer.setAttribute.bind(layer);
+        layer.setAttribute = (...args) => { writes++; original(...args); };
+    });
+    const oldKey = casterState.key;
+    f.Depth.update(receiver, { roll: 5 });
+    f.Depth.update(caster, {});
+    assert.notEqual(casterState.key, oldKey, "Receiver movement invalidates shadow dependencies");
+    assert.equal(writes, 0, "Receiver-only updates preserve the unchanged seven-sheet artwork");
+});
+
+test("board-backed splayed plays cover at least 10% without snapping or drifting on refresh and resize", () => {
+    for (const board of [
+        { left: 100, top: 80, width: 342, height: 320 },
+        { left: 100, top: 80, width: 300, height: 180 },
+        { left: 100, top: 80, width: 820, height: 500 }
+    ]) {
+        const f = fixture(), groups = [], cards = [];
+        const small = board.height < 200;
+        for (let play = 0; play < 10; play++) {
+            const parent = new f.Node("div");
+            const group = Array.from({ length: play % 4 + 1 }, (_, index) => {
+                const card = f.card(board.left + (play % 2 ? board.width - 180 : 30) + index * 24,
+                    board.top + 30 + play % 3 * 15 + index % 2 * 4);
+                card.parentElement = parent;
+                card.offsetWidth = small ? 64 : 100;
+                card.offsetHeight = small ? 96 : 150;
+                card.style.setProperty("--pile-rotation", String((play % 2 ? -15 : 15) + index * 2));
+                return card;
+            });
+            cards.push(...group);
+            groups.push(group);
+        }
+        const table = f.table(cards, board);
+        const check = () => {
+            f.Depth.prepareTable(table);
+            let previous = null;
+            for (const group of groups) {
+                const poses = group.map(card => f.Depth.states.get(card).rest);
+                if (previous) {
+                    assert.ok(G.overlapCoverage(poses.at(-1), previous) >= .1,
+                        `Projected coverage is ${G.overlapCoverage(poses.at(-1), previous)}`);
+                }
+                poses.forEach((pose, index) => {
+                    if (index) {
+                        const first = poses[0];
+                        assert.ok(Math.abs(pose.x - first.x - (group[index].left - group[0].left)) < 1e-7);
+                        const difference = Math.abs((pose.y - pose.z * G.VIEW_SHEAR) -
+                            (first.y - first.z * G.VIEW_SHEAR) - (group[index].top - group[0].top));
+                        assert.ok(difference < .5, `Discrete support contacts preserve subpixel fan spacing (${difference}px)`);
+                    }
+                    assert.ok(G.silhouette(pose).map(G.screen).every(p => p.x >= board.left &&
+                        p.x <= board.left + board.width && p.y >= board.top && p.y <= board.top + board.height));
+                    assert.equal(pose.roll, parseFloat(group[index].style.getPropertyValue("--pile-rotation")),
+                        "Preserve each card's natural individual rotation");
+                    const flight = f.card(200, 500);
+                    f.Depth.attach(flight, false);
+                    const motion = f.Depth.landingMotion(flight, group[index], { x: 200, y: 500, roll: 0 }, .7);
+                    const near = motion.poseAtProgress(1 - 1e-6), end = motion.poseAtProgress(1);
+                    for (const key of ["x", "y", "z", "roll", "pitch", "yaw"]) {
+                        assert.ok(Math.abs(near[key] - end[key]) < .02, `No ${key} endpoint snap`);
+                    }
+                    f.Depth.detach(flight);
+                });
+                previous = poses.at(-1);
+            }
+            return JSON.stringify(cards.map(card => f.Depth.states.get(card).rest));
+        };
+        const first = check();
+        assert.equal(check(), first, "Repeated layout does not accumulate translation");
+        cards.forEach(card => f.Depth.detach(card));
+        assert.equal(check(), first, "Reattaching native depth does not treat offsets as new input");
+        board.width += 50;
+        board.height += 30;
+        check();
+    }
+});
+
+test("landing friction adds only a little slide, without acceleration or an endpoint snap", () => {
+    const f = fixture(), target = f.card(200);
+    f.Depth.prepareTable(f.table([target]));
+    const rest = f.Depth.states.get(target).rest;
+    for (const distance of [5, 50, 200, 700]) {
+        for (const power of [0, .5, 1]) {
+            const flight = f.card(200);
+            f.Depth.attach(flight, false);
+            const start = { x: rest.x, y: rest.y + distance, roll: 0 };
+            const motion = f.Depth.landingMotion(flight, target, start, power);
+            const at = motion.positionAtProgress;
+            const slide = Math.hypot(at(1).x - at(G.CONTACT).x, at(1).y - at(G.CONTACT).y);
+            const baseline = G.slideDistanceToRest(distance, power, rest.height);
+            if (distance >= 50) {
+                assert.ok(Math.abs(slide / baseline - 1.12) < 1e-7,
+                    "Normal throws slide exactly 12% longer than before");
+            } else {
+                assert.ok(slide <= distance * .18 + 1e-7, "Tiny throws cannot overshoot their travel");
+            }
+            let lastSpeed = Infinity;
+            for (let t = .01; t < 1; t += .01) {
+                const speed = Math.hypot(at(t + 1e-5).x - at(t - 1e-5).x,
+                    at(t + 1e-5).y - at(t - 1e-5).y) / 2e-5;
+                assert.ok(speed <= lastSpeed + 1e-6, "The card never speeds up to reach its destination");
+                lastSpeed = speed;
+            }
+            assert.ok(Math.abs(at(1).x - rest.x) < 1e-7 && Math.abs(at(1).y - rest.y) < 1e-7);
+            f.Depth.detach(flight);
+        }
+    }
+});
 
 test("native SVG keeps seven silhouette sheets at exactly 3px, with no canvas or WebGL", () => {
     const f = fixture();

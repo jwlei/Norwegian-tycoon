@@ -135,6 +135,9 @@ class CardDepth {
     static renderCard(state) {
         const G = LandingGeometry, world = state.world;
         const { width, height } = world;
+        const geometryKey = [width, height, world.z, world.pitch, world.yaw, world.roll].join(":");
+        if (state.geometryKey === geometryKey) { return; }
+        state.geometryKey = geometryKey;
         const size = `${width}:${height}`;
         if (state.renderedSize !== size) {
             state.renderedSize = size;
@@ -173,15 +176,19 @@ class CardDepth {
                 (!state.isFlight || this.detailed(receiver)))) &&
                 G.shadowVisible(caster, target, this.occluders(state, receiver), receiver ? this.exposed(receiver) : null);
             if (!visible) {
-                if (entry) { entry.shape.style.display = "none"; }
+                if (entry && entry.shape.style.display !== "none") { entry.shape.style.display = "none"; }
                 continue;
             }
             entry = entry || this.createShadow(state, receiver);
             const shadow = G.shadow(caster, target);
             const origin = target || (state.scene ? state.scene.origin : caster);
-            entry.shape.setAttribute("d", this.path(shadow.points, origin));
-            entry.shape.setAttribute("opacity", shadow.opacity);
-            entry.shape.style.display = "";
+            const path = this.path(shadow.points, origin);
+            if (entry.path !== path) { entry.shape.setAttribute("d", path); entry.path = path; }
+            if (entry.opacity !== shadow.opacity) {
+                entry.shape.setAttribute("opacity", shadow.opacity);
+                entry.opacity = shadow.opacity;
+            }
+            if (entry.shape.style.display !== "") { entry.shape.style.display = ""; }
             entry.blurValue = shadow.blur;
             // Simplified cards' felt shadows share the pile's single blur filter instead of one each.
             const shared = !receiver && !detailed && state.scene;
@@ -206,7 +213,11 @@ class CardDepth {
             if (entry && entry.host === scene.pileFloor && entry.shape.style.display !== "none") { blurs.push(entry.blurValue); }
         }
         if (blurs.length) {
-            scene.pileBlur.setAttribute("stdDeviation", blurs.reduce((sum, blur) => sum + blur, 0) / blurs.length);
+            const blur = blurs.reduce((sum, blur) => sum + blur, 0) / blurs.length;
+            if (scene.pileBlurValue !== blur) {
+                scene.pileBlur.setAttribute("stdDeviation", blur);
+                scene.pileBlurValue = blur;
+            }
         }
     }
 
@@ -261,6 +272,9 @@ class CardDepth {
     }
 
     static setBlur(state, entry, blur) {
+        const effectiveBlur = blur < this.SHARP_BLUR ? 0 : blur;
+        if (entry.effectiveBlur === effectiveBlur) { return; }
+        entry.effectiveBlur = effectiveBlur;
         if (blur < this.SHARP_BLUR) {
             entry.shape.removeAttribute("filter");
             return;
@@ -337,14 +351,30 @@ class CardDepth {
         elements.forEach(element => this.attach(element, false));
         // Measure everything before writing, so the browser lays out the table once.
         const box = table.getBoundingClientRect();
-        const bounds = elements.map(element => element.getBoundingClientRect());
+        const board = typeof table.closest === "function" ? table.closest("#gameTable") : null;
+        const boardBounds = board ? board.getBoundingClientRect() : null;
+        const bounds = elements.map(element => {
+            const b = element.getBoundingClientRect(), state = this.states.get(element);
+            const offset = state && state.landingOffset || {
+                x: parseFloat(element.style.getPropertyValue("--landing-offset-x")) || 0,
+                y: parseFloat(element.style.getPropertyValue("--landing-offset-y")) || 0
+            };
+            const original = { left: b.left - offset.x, top: b.top - offset.y,
+                width: b.width, height: b.height };
+            const previous = state && state.layoutBounds;
+            return previous && Object.keys(original).every(key => Math.abs(original[key] - previous[key]) < 1e-4)
+                ? previous : original;
+        });
         const sizes = elements.map(element => this.dimensions(element));
-        const layoutKey = [box.left, box.top, box.width, box.height, ...elements.flatMap((element, index) => {
+        const layoutKey = [box.left, box.top, box.width, box.height,
+            ...(boardBounds ? [boardBounds.left, boardBounds.top, boardBounds.width, boardBounds.height] : []),
+            ...elements.flatMap((element, index) => {
             const b = bounds[index], d = sizes[index];
             return [b.left, b.top, d.width, d.height, element.style.getPropertyValue("--pile-rotation")];
         })].join(":");
         if (scene.layoutKey === layoutKey && scene.elements.length === elements.length &&
-            scene.elements.every((element, index) => element === elements[index])) {
+            scene.elements.every((element, index) => element === elements[index] &&
+                scene.states[index] === this.states.get(element))) {
             elements.forEach(element => this.setHidden(element, element.style.opacity === "0"));
             this.refreshFlights(scene, elements);
             return;
@@ -355,18 +385,59 @@ class CardDepth {
         scene.svg.setAttribute("viewBox", `0 0 ${box.width || 1} ${box.height || 1}`);
         scene.states = [];
         const supports = [];
+        const plans = elements.map((element, index) => {
+            const state = this.states.get(element), b = bounds[index];
+            return { element, state, base: { x: b.left + b.width / 2, y: b.top + b.height / 2,
+                roll: parseFloat(element.style.getPropertyValue("--pile-rotation")) || 0,
+                ...sizes[index], radius: state ? state.radius : 0 } };
+        }).filter(plan => plan.state);
+        const groups = [];
+        for (const plan of plans) {
+            const parent = plan.element.parentElement || plan.element;
+            const last = groups[groups.length - 1];
+            if (last && last.parent === parent) { last.cards.push(plan); }
+            else { groups.push({ parent, cards: [plan] }); }
+        }
+        let previous = null;
+        for (const group of groups) {
+            const supportCount = supports.length;
+            // Fit before flight planning; tilted supporting cards can reduce the flat overlap estimate.
+            for (let attempt = 0; attempt < 5; attempt++) {
+                supports.length = supportCount;
+                const fitted = boardBounds ? LandingGeometry.fitPlay(group.cards.map(plan => plan.base),
+                    previous, boardBounds, .14 + attempt * .14) : group.cards.map(plan => plan.base);
+                group.cards.forEach((plan, index) => {
+                    const target = fitted[index];
+                    let pose = LandingGeometry.landing(supports, target.x, target.y, target.roll, plan.base);
+                    if (boardBounds) {
+                        for (let iteration = 0; iteration < 10; iteration++) {
+                            const dy = target.y - (pose.y - pose.z * LandingGeometry.VIEW_SHEAR);
+                            if (Math.abs(dy) < .005) { break; }
+                            pose = LandingGeometry.landing(supports, target.x, pose.y + dy, target.roll, plan.base);
+                        }
+                    }
+                    plan.pose = pose;
+                    supports.push(pose);
+                });
+                if (!boardBounds || !previous ||
+                    LandingGeometry.overlapCoverage(group.cards[group.cards.length - 1].pose, previous) >= .1) { break; }
+                if (attempt === 4) { throw new Error("The projected play cannot meet the required 10% overlap."); }
+            }
+            previous = group.cards[group.cards.length - 1].pose;
+        }
         elements.forEach((element, index) => {
             const state = this.states.get(element);
             if (!state) { return; }
-            const { width, height } = sizes[index], b = bounds[index];
-            const pose = LandingGeometry.landing(supports, b.left + b.width / 2, b.top + b.height / 2,
-                parseFloat(element.style.getPropertyValue("--pile-rotation")) || 0, { width, height, radius: state.radius });
+            const plan = plans.find(plan => plan.element === element), pose = plan.pose;
+            state.layoutBounds = bounds[index];
+            state.landingOffset = { x: pose.x - plan.base.x, y: pose.y - plan.base.y };
+            element.style.setProperty("--landing-offset-x", `${state.landingOffset.x}px`);
+            element.style.setProperty("--landing-offset-y", `${state.landingOffset.y}px`);
             this.bind(state, scene, [...scene.states]);
             Object.assign(state, { tableIndex: scene.states.length, rest: pose, size: sizes[index],
                 hidden: element.style.opacity === "0", key: null });
             state.pose = this.resolvePose(state.pose, pose);
             state.world = state.placed = this.worldPose(state);
-            supports.push(pose);
             scene.states.push(state);
         });
         // Shadow visibility depends on every card above a receiver, so render once all poses are known.
@@ -425,7 +496,7 @@ class CardDepth {
             this.anchor(state);
         }
         const distance = Math.max(1, Math.hypot(rest.x - start.x, rest.y - start.y));
-        const slide = G.slideDistanceToRest(distance, power, rest.height);
+        const slide = Math.min(distance * .18, G.slideDistanceToRest(distance, power, rest.height) * 1.12);
         const momentum = { x: (rest.x - start.x) / distance * slide,
             y: (rest.y - start.y) / distance * slide, spin: (rest.roll - start.roll) * .08, power };
         const impact = { x: rest.x - momentum.x, y: rest.y - momentum.y, roll: rest.roll - momentum.spin };

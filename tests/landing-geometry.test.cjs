@@ -203,6 +203,43 @@ test("a thrown card decelerates smoothly into its slide instead of braking in th
     assert.equal(G.slideDistanceToRest(4000, 1, 190), 190 * .45, "Long throws cap the slide");
 });
 
+test("overlap measures the previous projected rounded face rather than bounding boxes", () => {
+    const previous = { ...flat(200, 220, 60), roll: -20, pitch: 6, yaw: -8 };
+    assert.ok(Math.abs(G.overlapCoverage(previous, previous) - 1) < 1e-10);
+    assert.equal(G.overlapCoverage({ ...previous, x: 800 }, previous), 0);
+    const current = { ...previous, x: previous.x + 75, roll: 25 };
+    const projectedArea = pose => {
+        const points = G.silhouette(pose).map(G.screen);
+        return Math.abs(points.reduce((sum, p, i) => {
+            const q = points[(i + 1) % points.length];
+            return sum + p.x * q.y - p.y * q.x;
+        }, 0)) / 2;
+    };
+    assert.ok(G.overlapCoverage(current, previous) > 0 && G.overlapCoverage(current, previous) < 1);
+    assert.ok(Math.abs(G.overlapCoverage(current, previous) * projectedArea(previous) -
+        G.overlapCoverage(previous, current) * projectedArea(current)) < 1e-7);
+});
+
+test("a wide edge-constrained fan tightens only as needed, retaining readable spacing and individual angles", () => {
+    const board = { left: 100, top: 100, width: 342, height: 320 };
+    const previous = { ...flat(160, 250), width: 100, height: 150 };
+    const cards = Array.from({ length: 4 }, (_, i) => ({
+        ...flat(250 + i * 40, 260 + i % 2 * 3), width: 100, height: 150, roll: 10 + i * 3
+    }));
+    const fitted = G.fitPlay(cards, previous, board);
+    assert.ok(G.overlapCoverage(fitted.at(-1), previous) >= .14);
+    fitted.forEach((card, i) => {
+        assert.equal(card.roll, cards[i].roll);
+        assert.ok(G.silhouette(card).every(p => p.x >= board.left && p.x <= board.left + board.width &&
+            p.y >= board.top && p.y <= board.top + board.height));
+        if (i) {
+            const spacing = card.x - fitted[i - 1].x;
+            assert.ok(spacing >= 18 - 1e-7 && spacing < 40, "Keep at least 18% card-width exposure");
+            assert.equal(card.y - fitted[0].y, cards[i].y - cards[0].y);
+        }
+    });
+});
+
 test("sandbox loads only native card assets, never the production WebGL renderer", () => {
     const html = fs.readFileSync(path.join(__dirname, "landing-sandbox.html"), "utf8");
     const js = fs.readFileSync(path.join(__dirname, "landing-sandbox.js"), "utf8");

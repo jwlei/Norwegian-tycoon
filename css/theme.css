@@ -2772,13 +2772,13 @@ select:focus-visible {
     --table-card-height: clamp(96px, 25vh, 190px);
     --table-card-width: calc(var(--table-card-height) * 2 / 3);
     --pile-edge-space: max(128px, calc(var(--table-card-height) * 0.75));
-    --landing-limit-x: 110px;
-    --landing-limit-y: 90px;
+    --landing-limit-x: 180px;
+    --landing-limit-y: 120px;
     --pile-fan-step: min(max(30px, min(48px, calc(var(--table-card-width) * 0.38))),
         max(0px, calc((var(--board-width, 100vw) - var(--table-card-width) - var(--pile-depth, 0px) - var(--pile-edge-space)) / max(1, var(--pile-fan-count, 0)))));
     --pile-fan-width: calc(var(--pile-fan-count, 0) * var(--pile-fan-step));
-    --landing-space-x: clamp(0px, calc((var(--board-width, 0px) - var(--table-card-width) - var(--pile-fan-width) - var(--pile-depth) - var(--pile-edge-space)) / 2), var(--landing-limit-x));
-    --landing-space-y: clamp(0px, calc((var(--board-height, 0px) - var(--table-card-height) - var(--pile-depth) - 120px) / 2), var(--landing-limit-y));
+    --landing-space-x: clamp(0px, calc((var(--board-width, 0px) - var(--table-card-width) - var(--pile-fan-width) - var(--pile-depth) - 64px) / 2), var(--landing-limit-x));
+    --landing-space-y: clamp(0px, calc((var(--board-height, 0px) - var(--table-card-height) - var(--pile-depth) - 64px) / 2), var(--landing-limit-y));
     position: relative;
     flex: 0 0 auto;
     width: calc(var(--table-card-width) + var(--pile-fan-width) + var(--pile-depth) + 10px);
