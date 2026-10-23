@@ -414,6 +414,18 @@ test("left and right rebounds fan the upper cards forward without pulling the bo
     }
 });
 
+test("individual landing splay reuses seeded poses without sacrificing the readable fan", () => {
+    const bounds = { left: 0, top: 0, width: 600, height: 500 };
+    const cards = [0, 1, 2, 3].map(index => ({ ...flat(200 + index * 35 + index % 2 * 3,
+        220 + index % 2 * 8), width: 100, height: 150, roll: index * 3 - 5 }));
+    const poses = G.arrangePlay(cards, null, bounds);
+    assert.deepEqual(G.arrangePlay(cards, null, bounds), poses, "Refreshes keep the same natural splay");
+    assert.ok(new Set(poses.map(pose => pose.roll)).size > 1);
+    assert.ok(new Set(poses.map(pose => pose.y - Math.sin(poses[0].roll * Math.PI / 180) * 36 *
+        poses.indexOf(pose))).size > 1, "Cards have small independent positional offsets as well as angles");
+    poses.forEach(pose => assert.ok(Math.abs(pose.roll - poses[0].roll) <= 2));
+});
+
 test("settlement admits late incoming cards continuously and preserves elevated endpoints", () => {
     const bounds = { left: 0, top: 0, width: 350, height: 320 };
     const target = { ...flat(180, 260), width: 100, height: 150, z: 100 };

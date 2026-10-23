@@ -356,8 +356,11 @@ test("multi-card throws let upper cards slide onward without wall torque or a fi
             const states = cards.map(card => f.Depth.states.get(card));
             for (const state of states) {
                 assert.equal(state.wallTrajectory, undefined, "No impact-driven spin");
-                assert.equal(state.rest.roll, states[0].rest.roll, "The fan keeps its readable orientation");
+                assert.ok(Math.abs(state.rest.roll - states[0].rest.roll) <= 2,
+                    "Individual angle variation remains small enough to read the fan");
             }
+            assert.ok(new Set(states.map(state => state.rest.roll)).size > 1,
+                "Cards retain some of the seeded individual rotation instead of sharing one exact angle");
             const motions = cards.map((card, index) => {
                 const flight = f.card(300, 400);
                 f.Depth.attach(flight, false);

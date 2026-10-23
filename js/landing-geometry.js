@@ -625,9 +625,25 @@
                 }
                 anchor = { x: mix(near.x, anchor.x, low), y: mix(near.y, anchor.y, low) };
             }
-            const poses = cards.map((card, index) => ({ ...card,
-                x: anchor.x + dx * index, y: anchor.y + dy * index,
-                roll }));
+            const poses = cards.map((card, index) => {
+                const base = { ...card, x: anchor.x + dx * index, y: anchor.y + dy * index, roll };
+                if (!index) { return base; }
+                // Reuse the play's seeded layout jitter; never reroll cards during a refresh.
+                const splay = { x: clamp((card.x - first.x - index * (cards[1].x - first.x)) * .15, -2, 2),
+                    y: clamp((card.y - first.y) * .15, -3, 3),
+                    roll: clamp((card.roll - first.roll) * .2, -2, 2) };
+                for (let amount = 1; amount >= 1 / 256; amount /= 2) {
+                    const pose = { ...base, x: base.x + splay.x * amount, y: base.y + splay.y * amount,
+                        roll: base.roll + splay.roll * amount };
+                    const inside = silhouette({ ...pose, z: 0, pitch: 0, yaw: 0 }).every(point =>
+                        point.x >= bounds.left && point.x <= bounds.left + bounds.width &&
+                        point.y >= bounds.top && point.y <= bounds.top + bounds.height);
+                    if (inside && (!previous || index < cards.length - 1 || overlapCoverage(pose, previous) >= .12)) {
+                        return pose;
+                    }
+                }
+                return base;
+            });
             const againstMomentum = dx * momentum.x + dy * momentum.y < -1e-6;
             return { poses, cost: Math.hypot(anchor.x - desired.x, anchor.y - desired.y) +
                 ((preserveFan ? direction < 0 : againstMomentum) ? Math.hypot(bounds.width, bounds.height) : 0) };
