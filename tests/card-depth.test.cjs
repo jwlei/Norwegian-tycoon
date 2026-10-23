@@ -331,7 +331,7 @@ test("wall collisions retain their resulting pose across flights, table refreshe
     }
 });
 
-test("multi-card edge throws share collision spin and reveal the lower card by sliding the top card onward", () => {
+test("multi-card throws keep their fan through wall rotation and never restart after friction stops them", () => {
     for (const direction of [-1, 1]) {
         for (const count of [2, 3, 4]) {
             const f = fixture(), bounds = { left: 150, top: 100, width: 342, height: 320 };
@@ -346,41 +346,45 @@ test("multi-card edge throws share collision spin and reveal the lower card by s
             });
             f.Depth.prepareTable(f.table(cards, bounds));
             const states = cards.map(card => f.Depth.states.get(card));
-            const path = states[0].wallTrajectory, lastHit = path.collisions.at(-1);
-            assert.ok(lastHit.outgoing.x * direction < 0, "The impact sends the stack away from the side wall");
+            const path = states[0].wallTrajectory;
+            assert.ok(path.collisions.some(hit => hit.outgoing.x * direction < 0),
+                "The impact sends the stack away from the side wall");
             for (const state of states) {
                 assert.equal(state.wallTrajectory, path, "One collision trajectory drives the thrown stack");
                 assert.equal(state.rest.roll, path.final.roll, "No fan-induced rotation target");
             }
-            if (count == 2) {
-                assert.ok((states[0].rest.x - path.final.x) * -direction >= -1e-8 &&
-                    Math.abs(states[0].rest.x - path.final.x) < 1,
-                "The lower card keeps its endpoint, apart from the subpixel inward outline inset");
-            }
-            const motions = cards.map(card => {
+            const motions = cards.map((card, index) => {
                 const flight = f.card(300, 400);
                 f.Depth.attach(flight, false);
-                return f.Depth.landingMotion(flight, card, { ...path.start }, .7);
+                const offset = states[index].throwGroup.offsetAt(index, path.start.roll);
+                return f.Depth.landingMotion(flight, card,
+                    { ...path.start, x: path.start.x + offset.x, y: path.start.y + offset.y }, .7);
             });
-            let previousSeparation = 0;
-            for (let frame = 1; frame <= 240; frame++) {
+            const depthOffset = state => state.rest.y - state.throwGroup.target.y -
+                state.throwGroup.offsetAt(state.throwGroup.index, state.rest.roll).y;
+            let stoppedFrames = 0;
+            for (let frame = 0; frame <= 240; frame++) {
                 const t = frame / 240, raw = path.positionAtProgress(t);
                 const poses = motions.map(motion => motion.positionAtProgress(t));
                 poses.forEach(pose => assert.ok(Math.abs(pose.roll - raw.roll) < 1e-8,
                     "Every frame retains physical rotation, including reversals caused only by an actual impact"));
-                if (t >= lastHit.progress) {
-                    const separation = (poses.at(-1).x - poses[0].x) * -direction;
-                    assert.ok(separation >= previousSeparation - 1e-6,
-                        "The upper card continues inward instead of fanning back toward the wall");
-                    previousSeparation = separation;
+                for (let index = 1; index < poses.length; index++) {
+                    const dx = poses[index].x - poses[0].x;
+                    const dy = poses[index].y - depthOffset(states[index]) - poses[0].y + depthOffset(states[0]);
+                    const expected = states[index].throwGroup.offsetAt(index, raw.roll);
+                    const firstOffset = states[0].throwGroup.offsetAt(0, raw.roll);
+                    assert.ok(Math.abs(dx - expected.x + firstOffset.x) < 1e-7 &&
+                        Math.abs(dy - expected.y + firstOffset.y) < 1e-7,
+                    "The fan never collapses into a stack or reforms into a line after impact");
+                }
+                if (frame && path.distanceAtProgress(t) === path.distanceAtProgress((frame - 1) / 240)) {
+                    stoppedFrames++;
+                    motions.forEach(motion => assert.deepEqual(motion.positionAtProgress(t),
+                        motion.positionAtProgress((frame - 1) / 240), "Stopped cards never accelerate toward the pile"));
                 }
             }
-            assert.ok(previousSeparation > 20, "The upper cards reveal a readable strip of the lower card");
-            const shortlyAfterImpact = Math.min(1, lastHit.progress + .05);
-            const bottom = motions[0].positionAtProgress(shortlyAfterImpact);
-            const upper = motions.at(-1).positionAtProgress(shortlyAfterImpact);
-            assert.ok((upper.x - bottom.x) * -direction > 0,
-                "Fanning continues straight out of the collision rather than restarting at touchdown");
+            assert.ok(stoppedFrames > 0, "Check the stationary tail, not just moving frames");
+            assert.equal(motions[0].durationScale, 1.6, "Reduced friction extends time instead of speeding up the throw");
         }
     }
 });
@@ -441,6 +445,12 @@ test("board-backed plays stay exposed, connected and stable through flights, ref
                     for (const key of ["x", "y", "z", "roll", "pitch", "yaw"]) {
                         assert.ok(Math.abs(end[key] - pose[key]) < 1e-6, `Flight endpoint matches resting ${key}`);
                         assert.ok(Math.abs(near[key] - end[key]) < .02, `No final ${key} snap`);
+                    }
+                    const path = f.Depth.states.get(group[index]).wallTrajectory;
+                    if (path && path.distanceAtProgress(.9) === 1 &&
+                        path.positionAtProgress(.9).roll === path.final.roll) {
+                        assert.deepEqual(motion.positionAtProgress(.9), motion.positionAtProgress(1),
+                            "Even a play steered for 10% overlap never restarts once the physical throw has stopped");
                     }
                     f.Depth.detach(flight);
                 });

@@ -450,7 +450,8 @@
         const inertia = (width * width + height * height) / 12;
         const speed = v => Math.sqrt(v.x * v.x + v.y * v.y + inertia * radians(v.spin) ** 2);
         // Keep friction constant after an impact loses energy, so a rebound stops sooner rather than coasting.
-        const friction = speed(velocity);
+        const durationScale = 1.6;
+        const friction = speed(velocity) / durationScale;
         const pose = { ...start };
         const frames = [{ x: pose.x, y: pose.y, roll: pose.roll }], collisions = [];
         const walls = [
@@ -469,8 +470,9 @@
                 frames.push({ x: pose.x, y: pose.y, roll: pose.roll });
                 continue;
             }
-            const damping = Math.max(0, 1 - friction / steps / incomingSpeed);
-            const travel = (1 + damping) / (2 * steps);
+            const dt = durationScale / steps;
+            const damping = Math.max(0, 1 - friction * dt / incomingSpeed);
+            const travel = (1 + damping) * dt / 2;
             pose.x += velocity.x * travel;
             pose.y += velocity.y * travel;
             pose.roll += velocity.spin * travel;
@@ -495,13 +497,23 @@
                 pose.y -= gap * wall.normal.y;
             }
             const outgoingSpeed = speed(velocity);
-            const drag = outgoingSpeed ? Math.max(0, 1 - friction / steps / outgoingSpeed) : 0;
+            const drag = outgoingSpeed ? Math.max(0, 1 - friction * dt / outgoingSpeed) : 0;
             velocity = { x: velocity.x * drag, y: velocity.y * drag, spin: velocity.spin * drag };
             frames.push({ x: pose.x, y: pose.y, roll: pose.roll });
         }
         if (!collisions.length) { return null; }
+        const distances = [0];
+        for (let index = 1; index < frames.length; index++) {
+            distances.push(distances[index - 1] + Math.hypot(frames[index].x - frames[index - 1].x,
+                frames[index].y - frames[index - 1].y));
+        }
         return {
-            start, collisions, final: frames[steps], frameCount: frames.length,
+            start, collisions, final: frames[steps], frameCount: frames.length, durationScale,
+            distanceAtProgress(progress) {
+                const index = clamp(progress, 0, 1) * steps;
+                return distances[steps] ? mix(distances[Math.floor(index)],
+                    distances[Math.min(steps, Math.floor(index) + 1)], index % 1) / distances[steps] : 0;
+            },
             positionAtProgress(progress) {
                 const index = clamp(progress, 0, 1) * steps;
                 const a = frames[Math.floor(index)], b = frames[Math.min(steps, Math.floor(index) + 1)];
@@ -571,8 +583,8 @@
         return area(intersection) / area(clip);
     }
 
-    // Keep the lower card near its physical endpoint; upper cards continue along the rebound.
-    function arrangePlay(cards, previous, bounds, momentum = { x: 0, y: 0 }) {
+    // Fit readable plays without changing their physical rotation.
+    function arrangePlay(cards, previous, bounds, momentum = { x: 0, y: 0 }, preserveFan = false) {
         const first = cards[0], roll = first.roll;
         const width = Math.max(...cards.map(card => card.width || WIDTH));
         const height = Math.max(...cards.map(card => card.height || HEIGHT));
@@ -618,7 +630,7 @@
                 roll }));
             const againstMomentum = dx * momentum.x + dy * momentum.y < -1e-6;
             return { poses, cost: Math.hypot(anchor.x - desired.x, anchor.y - desired.y) +
-                (againstMomentum ? Math.hypot(bounds.width, bounds.height) : 0) };
+                ((preserveFan ? direction < 0 : againstMomentum) ? Math.hypot(bounds.width, bounds.height) : 0) };
         }).filter(Boolean);
         if (!candidates.length) { throw new Error("The table cannot fit an overlapping card fan."); }
         return candidates.sort((a, b) => a.cost - b.cost)[0].poses;

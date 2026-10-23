@@ -192,6 +192,36 @@ test("depth flights render rotation internally, preserve foil activity, and rele
     assert.equal(flights[0].removed, true);
 });
 
+test("physics-backed fans start together and extend their duration for lower friction", () => {
+    const animations = [], states = new Map();
+    const element = () => ({
+        dataset: {}, style: {}, setAttribute() {}, appendChild() {}, cloneNode: () => element(),
+        animate(frames, timing) { animations.push({ frames, timing }); return {}; }
+    });
+    const target = { dataset: {}, style: { getPropertyValue: () => "0" }, animate() {},
+        querySelector: element, getBoundingClientRect: () => ({ left: 200, top: 200, width: 80, height: 120 }) };
+    const context = load({
+        LandingGeometry: { CONTACT: .64 },
+        CardDepth: { states, attach: el => states.set(el, {}), setHidden() {}, update() {}, follow() {},
+            landingMotion: () => ({ durationScale: 1.6, frameCount: 241,
+                positionAtProgress: t => ({ x: 200 * t, y: 200 * t }), poseAtProgress: () => ({}) }) },
+        target,
+        window: { innerWidth: 1000, innerHeight: 800, matchMedia: () => ({ matches: false }) },
+        document: { createElement: element, body: { appendChild() {} } }
+    });
+    vm.runInContext(`
+        var pile = new CardPile("Owner", ...[1,2,3,4].map(suit => new PresidentCard(suit, 7)));
+        GameLayout.animatePlayedCards({ querySelector: () => target }, pile);
+    `, context);
+    assert.equal(animations.length, 4);
+    animations.forEach(({ frames, timing }) => {
+        assert.equal(timing.delay, 0, "A common clock prevents the fan stretching into a trailing line");
+        assert.equal(timing.duration, 520 * 1.6, "Longer travel takes longer, not a higher playback speed");
+        assert.equal(timing.easing, "linear");
+        assert.equal(frames.length, 241);
+    });
+});
+
 test("throw metadata survives both pile deserializers and clamps finite motion values", () => {
     const context = load();
     const result = vm.runInContext(`

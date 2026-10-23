@@ -390,19 +390,38 @@ class CardDepth {
                 y: group.cards.reduce((sum, plan) => sum + plan.base.y, 0) / group.cards.length };
             const first = group.cards[0];
             const motion = first.element.dataset.throwMotion ? JSON.parse(first.element.dataset.throwMotion) : null;
-            const path = boardBounds && motion ? LandingGeometry.wallTrajectory(first.base, boardBounds, motion,
-                { x: first.base.x - center.x, y: first.base.y - center.y }) : null;
-            for (const plan of group.cards) {
-                // A thrown stack shares its collision rotation; fanning adds translation, never counter-spin.
+            let step = first.base.width * .36;
+            const span = step * (group.cards.length - 1);
+            const footprint = { ...first.base, x: center.x, y: center.y, width: first.base.width + span };
+            const path = boardBounds && motion ? LandingGeometry.wallTrajectory(footprint, boardBounds, motion) : null;
+            const finalCenter = path ? path.final : footprint;
+            const offsetAt = (index, roll) => {
+                const distance = (index - (group.cards.length - 1) / 2) * step;
+                const angle = roll * Math.PI / 180;
+                return { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
+            };
+            group.cards.forEach((plan, index) => {
+                const offset = offsetAt(index, finalCenter.roll);
                 plan.path = path;
-                plan.final = { ...plan.base, ...(boardBounds ? first.base : {}), ...(path ? path.final : {}) };
-            }
+                plan.group = { path, footprint, offsetAt, index };
+                plan.final = boardBounds ? { ...plan.base, x: finalCenter.x + offset.x,
+                    y: finalCenter.y + offset.y, roll: finalCenter.roll } : plan.base;
+            });
             if (boardBounds) {
                 const rebound = path ? path.collisions[path.collisions.length - 1].outgoing :
                     motion && motion.launch ? { x: motion.launch.vx, y: motion.launch.vy } : { x: 0, y: 0 };
-                const arranged = LandingGeometry.arrangePlay(group.cards.map(plan => plan.final), previous, boardBounds, rebound);
+                const arranged = LandingGeometry.arrangePlay(group.cards.map(plan => plan.final), previous, boardBounds, rebound, true);
                 group.cards.forEach((plan, index) => { plan.final = arranged[index]; });
+                if (arranged.length > 1) {
+                    const dx = arranged[1].x - arranged[0].x, dy = arranged[1].y - arranged[0].y;
+                    const angle = arranged[0].roll * Math.PI / 180;
+                    step = dx * Math.cos(angle) + dy * Math.sin(angle);
+                }
             }
+            const finalOffset = offsetAt(0, group.cards[0].final.roll);
+            const targetCenter = { x: group.cards[0].final.x - finalOffset.x,
+                y: group.cards[0].final.y - finalOffset.y };
+            group.cards.forEach(plan => { plan.group.target = targetCenter; });
             for (const plan of group.cards) {
                 const final = plan.final;
                 let y = final.y;
@@ -421,9 +440,10 @@ class CardDepth {
             }
             previous = group.cards[group.cards.length - 1].pose;
         }
-        plans.forEach(({ element, state, index, base, path, pose }) => {
+        plans.forEach(({ element, state, index, base, path, pose, group }) => {
             state.layoutBounds = bounds[index];
             state.wallTrajectory = path;
+            state.throwGroup = boardBounds ? group : null;
             state.wallOffset = { x: pose.x - base.x, y: pose.y - base.y };
             element.style.setProperty("--wall-offset-x", `${state.wallOffset.x}px`);
             element.style.setProperty("--wall-offset-y", `${state.wallOffset.y}px`);
@@ -497,7 +517,30 @@ class CardDepth {
         const impact = { x: rest.x - momentum.x, y: rest.y - momentum.y, roll: rest.roll - momentum.spin };
         const initial = { ...start, width: rest.width, height: rest.height, radius: rest.radius };
         const path = destination.wallTrajectory;
-        const rawPosition = path ? progress => {
+        const group = destination.throwGroup;
+        const rawPosition = path && group ? progress => {
+            const physical = path.positionAtProgress(progress);
+            const traveled = path.distanceAtProgress(progress);
+            const center = { ...physical,
+                x: physical.x + (group.target.x - path.final.x) * traveled,
+                y: physical.y + (group.target.y - path.final.y) * traveled };
+            const points = G.silhouette({ ...group.footprint, ...center, z: 0, pitch: 0, yaw: 0 });
+            const bounds = scene.bounds;
+            center.x += Math.max(0, bounds.left - Math.min(...points.map(p => p.x))) -
+                Math.max(0, Math.max(...points.map(p => p.x)) - bounds.left - bounds.width);
+            center.y += Math.max(0, bounds.top - Math.min(...points.map(p => p.y)));
+            if (G.silhouette({ ...group.footprint, ...physical, z: 0, pitch: 0, yaw: 0 })
+                .every(p => p.y <= bounds.top + bounds.height)) {
+                center.y -= Math.max(0, Math.max(...points.map(p => p.y)) - bounds.top - bounds.height);
+            }
+            const offset = group.offsetAt(group.index, center.roll);
+            const initialOffset = group.offsetAt(group.index, path.start.roll);
+            const origin = { x: path.start.x + initialOffset.x, y: path.start.y + initialOffset.y };
+            const releaseBlend = Math.max(0, 1 - progress / Math.max(1 / 240, path.collisions[0].progress * .8)) ** 2;
+            return { x: center.x + offset.x + (start.x - origin.x) * releaseBlend,
+                y: center.y + offset.y + (start.y - origin.y) * releaseBlend,
+                roll: center.roll + (start.roll - path.start.roll) * releaseBlend };
+        } : path ? progress => {
             const position = path.positionAtProgress(progress);
             const blend = Math.max(0, 1 - progress / (path.collisions[0].progress * .8)) ** 2;
             return { x: position.x + (start.x - path.start.x) * blend,
@@ -506,7 +549,12 @@ class CardDepth {
         } : progress => G.position(initial, impact, momentum, progress);
         const physicalFinal = rawPosition(1);
         const fanStart = path ? path.collisions[path.collisions.length - 1].progress : G.CONTACT;
-        const positionAtProgress = scene && scene.bounds ? progress => G.settlePosition(
+        const positionAtProgress = path && group ? progress => {
+            const position = rawPosition(progress);
+            // Depth projection is independent of planar travel; it must not rebuild the fan.
+            return { ...position, y: position.y + rest.y - group.target.y -
+                group.offsetAt(group.index, rest.roll).y };
+        } : scene && scene.bounds ? progress => G.settlePosition(
             rawPosition(progress), physicalFinal, rest, progress, scene.bounds, fanStart) : rawPosition;
         // Include supports along the rebound path, not only beside the eventual resting spot.
         const reach = Math.hypot(rest.width, rest.height) + (path
@@ -519,6 +567,7 @@ class CardDepth {
         const contact = G.landing(supports, touchdown.x, touchdown.y, touchdown.roll, initial);
         return {
             frameCount: path ? path.frameCount : 81,
+            durationScale: path ? path.durationScale : 1,
             poseAtProgress: progress => progress >= 1 ? rest :
                 G.motion(supports, initial, impact, momentum, progress, contact, positionAtProgress).pose,
             positionAtProgress

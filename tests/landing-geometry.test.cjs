@@ -285,6 +285,27 @@ test("after entry, hard rebounds stay inside every edge including the player-fac
     assert.ok(bottomHits > 5, "Exercise actual bottom-wall rebounds");
 });
 
+test("lower wall friction lengthens travel time without boosting release speed or restarting stopped motion", () => {
+    const bounds = { left: 0, top: 0, width: 600, height: 600 };
+    const motion = { x: -1, y: 0, power: .7, spin: 0,
+        launch: { x: 0, y: 0, vx: -2, vy: -.2 } };
+    const path = G.wallTrajectory({ ...flat(300, 300), width: 180, height: 150 }, bounds, motion);
+    assert.equal(path.durationScale, 1.6);
+    const start = path.positionAtProgress(0), next = path.positionAtProgress(1 / 240);
+    const speed = Math.hypot(next.x - start.x, next.y - start.y) / (1.6 / 240);
+    const releaseSpeed = Math.hypot(motion.launch.vx * bounds.width, motion.launch.vy * bounds.height);
+    assert.ok(speed <= releaseSpeed && speed >= releaseSpeed * .99,
+        "Real-time release speed stays equal to the input, apart from friction");
+    let previous = 0;
+    for (let step = 0; step <= 960; step++) {
+        const distance = path.distanceAtProgress(step / 960);
+        assert.ok(distance >= previous && distance <= 1);
+        previous = distance;
+    }
+    assert.equal(previous, 1);
+    assert.equal(path.distanceAtProgress(.99), 1, "Travel-based corrections finish when friction stops motion");
+});
+
 test("overlap checks use the visible rounded or square face, including projected pile height", () => {
     for (const radius of [0, 8.75]) {
         const card = { ...flat(100, 200), width: 100, height: 150, radius };
