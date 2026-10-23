@@ -337,26 +337,11 @@ class CardDepth {
         elements.forEach(element => this.attach(element, false));
         // Measure everything before writing, so the browser lays out the table once.
         const box = table.getBoundingClientRect();
-        const board = typeof table.closest === "function" ? table.closest("#gameTable") : null;
-        const boardBounds = board ? board.getBoundingClientRect() : null;
-        const bounds = elements.map(element => {
-            const b = element.getBoundingClientRect(), state = this.states.get(element);
-            const offset = state && state.wallOffset;
-            const original = { left: b.left - (offset ? offset.x : 0), top: b.top - (offset ? offset.y : 0),
-                width: b.width, height: b.height };
-            // Compositor translations can introduce tiny float errors without a layout change.
-            const previous = state && state.layoutBounds;
-            if (previous && Object.keys(original).every(key => Math.abs(original[key] - previous[key]) < 1e-4)) {
-                return previous;
-            }
-            return original;
-        });
+        const bounds = elements.map(element => element.getBoundingClientRect());
         const sizes = elements.map(element => this.dimensions(element));
-        const layoutKey = [box.left, box.top, box.width, box.height,
-            ...(boardBounds ? [boardBounds.left, boardBounds.top, boardBounds.width, boardBounds.height] : []),
-            ...elements.flatMap((element, index) => {
+        const layoutKey = [box.left, box.top, box.width, box.height, ...elements.flatMap((element, index) => {
             const b = bounds[index], d = sizes[index];
-            return [b.left, b.top, d.width, d.height, element.style.getPropertyValue("--pile-rotation"), element.dataset.throwMotion];
+            return [b.left, b.top, d.width, d.height, element.style.getPropertyValue("--pile-rotation")];
         })].join(":");
         if (scene.layoutKey === layoutKey && scene.elements.length === elements.length &&
             scene.elements.every((element, index) => element === elements[index])) {
@@ -367,64 +352,21 @@ class CardDepth {
         scene.layoutKey = layoutKey;
         scene.elements = elements;
         scene.origin = { x: box.left, y: box.top };
-        scene.bounds = boardBounds;
         scene.svg.setAttribute("viewBox", `0 0 ${box.width || 1} ${box.height || 1}`);
         scene.states = [];
         const supports = [];
-        const plans = elements.map((element, index) => {
-            const state = this.states.get(element), b = bounds[index], size = sizes[index];
-            return { element, state, index, base: { x: b.left + b.width / 2, y: b.top + b.height / 2,
-                roll: parseFloat(element.style.getPropertyValue("--pile-rotation")) || 0,
-                ...size, radius: state ? state.radius : 0 } };
-        }).filter(plan => plan.state);
-        const groups = [];
-        for (const plan of plans) {
-            const parent = plan.element.parentElement || plan.element;
-            const last = groups[groups.length - 1];
-            if (last && last.parent === parent) { last.cards.push(plan); }
-            else { groups.push({ parent, cards: [plan] }); }
-        }
-        let previous = null;
-        for (const group of groups) {
-            const first = group.cards[0];
-            const motion = first.element.dataset.throwMotion ? JSON.parse(first.element.dataset.throwMotion) : null;
-            for (const plan of group.cards) {
-                plan.final = plan.base;
-            }
-            if (boardBounds) {
-                const incoming = motion && motion.launch ? { x: motion.launch.vx, y: motion.launch.vy } :
-                    { x: motion ? motion.x : 0, y: -1 };
-                const arranged = LandingGeometry.arrangePlay(group.cards.map(plan => plan.final), previous, boardBounds, incoming);
-                group.cards.forEach((plan, index) => { plan.final = arranged[index]; });
-            }
-            for (const plan of group.cards) {
-                const final = plan.final;
-                let y = final.y;
-                let pose = LandingGeometry.landing(supports, final.x, y, final.roll, plan.base);
-                if (boardBounds) {
-                    // The fan is fitted in screen space; compensate for the pile's projected height.
-                    for (let iteration = 0; iteration < 8; iteration++) {
-                        const dy = final.y - (pose.y - pose.z * LandingGeometry.VIEW_SHEAR);
-                        if (Math.abs(dy) < .01) { break; }
-                        y += dy;
-                        pose = LandingGeometry.landing(supports, final.x, y, final.roll, plan.base);
-                    }
-                }
-                plan.pose = pose;
-                supports.push(pose);
-            }
-            previous = group.cards[group.cards.length - 1].pose;
-        }
-        plans.forEach(({ element, state, index, base, pose }) => {
-            state.layoutBounds = bounds[index];
-            state.wallOffset = { x: pose.x - base.x, y: pose.y - base.y };
-            element.style.setProperty("--wall-offset-x", `${state.wallOffset.x}px`);
-            element.style.setProperty("--wall-offset-y", `${state.wallOffset.y}px`);
+        elements.forEach((element, index) => {
+            const state = this.states.get(element);
+            if (!state) { return; }
+            const { width, height } = sizes[index], b = bounds[index];
+            const pose = LandingGeometry.landing(supports, b.left + b.width / 2, b.top + b.height / 2,
+                parseFloat(element.style.getPropertyValue("--pile-rotation")) || 0, { width, height, radius: state.radius });
             this.bind(state, scene, [...scene.states]);
             Object.assign(state, { tableIndex: scene.states.length, rest: pose, size: sizes[index],
                 hidden: element.style.opacity === "0", key: null });
             state.pose = this.resolvePose(state.pose, pose);
             state.world = state.placed = this.worldPose(state);
+            supports.push(pose);
             scene.states.push(state);
         });
         // Shadow visibility depends on every card above a receiver, so render once all poses are known.
@@ -467,7 +409,7 @@ class CardDepth {
         }
     }
 
-    static landingMotion(element, target, start, power = .55) {
+    static landingMotion(element, target, start, power = .55, edgeDirection = 0) {
         const state = this.states.get(element), destination = this.states.get(target);
         if (!state || !destination || !destination.rest) { return null; }
         const G = LandingGeometry, rest = destination.rest, scene = destination.scene;
@@ -483,25 +425,25 @@ class CardDepth {
             this.anchor(state);
         }
         const distance = Math.max(1, Math.hypot(rest.x - start.x, rest.y - start.y));
-        const slide = Math.min(distance * .2, G.slideDistanceToRest(distance, power, rest.height) * 1.6);
-        // The remaining angular distance under constant deceleration is proportional to time squared.
+        const slide = G.slideDistanceToRest(distance, power, rest.height);
         const momentum = { x: (rest.x - start.x) / distance * slide,
-            y: (rest.y - start.y) / distance * slide, spin: (rest.roll - start.roll) * (1 - G.CONTACT) ** 2, power };
+            y: (rest.y - start.y) / distance * slide, spin: (rest.roll - start.roll) * .08, power };
         const impact = { x: rest.x - momentum.x, y: rest.y - momentum.y, roll: rest.roll - momentum.spin };
         const initial = { ...start, width: rest.width, height: rest.height, radius: rest.radius };
-        const positionAtProgress = progress => G.position(initial, impact, momentum, progress);
+        // Only cards near the landing spot can support the card as it touches down and slides.
         const reach = Math.hypot(rest.width, rest.height) + slide * 2;
         const supports = destination.receiverStates.map(receiver => receiver.rest || receiver.world)
             .filter(pose => Math.hypot(pose.x - rest.x, pose.y - rest.y) <= reach);
         initial.z = G.minimumHeight(supports, initial) + 18;
-        const touchdown = positionAtProgress(G.CONTACT);
-        const contact = G.landing(supports, touchdown.x, touchdown.y, touchdown.roll, initial);
+        const contact = G.landing(supports, impact.x, impact.y, impact.roll, initial);
         return {
-            frameCount: 81,
-            durationScale: 1.6,
             poseAtProgress: progress => progress >= 1 ? rest :
-                G.motion(supports, initial, impact, momentum, progress, contact, positionAtProgress).pose,
-            positionAtProgress
+                G.motion(supports, initial, impact, momentum, progress, contact, edgeDirection).pose,
+            positionAtProgress: progress => {
+                const position = G.position(initial, impact, momentum, progress);
+                const rebound = G.edgeRebound(progress, edgeDirection, power);
+                return { ...position, x: position.x + rebound.x, roll: position.roll + rebound.roll };
+            }
         };
     }
 

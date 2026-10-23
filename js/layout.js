@@ -630,25 +630,13 @@ class GameLayout {
         var velocityX = drag.velocityX * decay;
         var velocityY = drag.velocityY * decay;
         var tilt = hand._cardDragPreview;
-        var releaseX = event.clientX, releaseY = event.clientY;
-        if (tilt && tilt.previews && tilt.previews.length) {
-            var previews = tilt.previews.map(preview => preview.getBoundingClientRect());
-            releaseX = previews.reduce((sum, rect) => sum + rect.left + rect.width / 2, 0) / previews.length;
-            releaseY = previews.reduce((sum, rect) => sum + rect.top + rect.height / 2, 0) / previews.length;
-        }
         return CardPile.normalizeMotion({
             x: (event.clientX + velocityX * 160 - bounds.left - bounds.width / 2) / Math.max(1, bounds.width / 2),
             y: (event.clientY + velocityY * 160 - bounds.top - bounds.height / 2) / Math.max(1, bounds.height / 2),
             power: Math.hypot(velocityX, velocityY) / 2.5,
             spin: velocityX * 5,
             pitch: tilt ? tilt.pitch : 0,
-            yaw: tilt ? tilt.yaw : 0,
-            launch: {
-                x: (releaseX - bounds.left - bounds.width / 2) / Math.max(1, bounds.width / 2),
-                y: (releaseY - bounds.top - bounds.height / 2) / Math.max(1, bounds.height / 2),
-                vx: velocityX * 160 / Math.max(1, bounds.width / 2),
-                vy: velocityY * 160 / Math.max(1, bounds.height / 2)
-            }
+            yaw: tilt ? tilt.yaw : 0
         });
     }
     static animatePlayedCards(playElement, pile, origins, onComplete = null) {
@@ -756,7 +744,8 @@ class GameLayout {
                 ? CardDepth.landingMotion(flight, target, {
                     x: flightLeft + targetBounds.width / 2, y: flightTop + targetBounds.height / 2,
                     z: 0, pitch, yaw, roll: startRotation
-                }, pile.motion ? pile.motion.power : .55) : null;
+                }, pile.motion ? pile.motion.power : .55,
+                pile.motion && Math.abs(pile.motion.x) >= 1 ? Math.sign(pile.motion.x) : 0) : null;
             target.style.opacity = "0";
             if (usesDepth && typeof CardDepth.setHidden == "function") { CardDepth.setHidden(target, true); }
             landedCards.push({ target, flight });
@@ -786,9 +775,8 @@ class GameLayout {
                 }
             ];
             if (landingPose) {
-                var frameCount = landingPose.frameCount || 81;
-                flightFrames = Array.from({ length: frameCount }, (_, index) => {
-                    var progress = index / (frameCount - 1);
+                flightFrames = Array.from({ length: 81 }, (_, index) => {
+                    var progress = index / 80;
                     var pose = landingPose.positionAtProgress(progress);
                     var amount = Math.max(0, 1 - progress / LandingGeometry.CONTACT);
                     var scale = 1 + (source.width / targetBounds.width - 1) * amount * amount;
@@ -803,8 +791,7 @@ class GameLayout {
                 });
             }
             var animation = flight.animate(flightFrames, {
-                duration: animationDuration(typeof currentGame != "undefined" ? currentGame : null) *
-                    (landingPose ? landingPose.durationScale || 1 : 1),
+                duration: animationDuration(typeof currentGame != "undefined" ? currentGame : null),
                 delay: animationDuration(typeof currentGame != "undefined" ? currentGame : null, cardIndex * 55),
                 easing: landingPose ? "linear" : "cubic-bezier(.22,.8,.25,1)",
                 fill: "both"
@@ -1074,7 +1061,6 @@ class GameLayout {
                 cardElement.dataset.foil = foil;
                 var cardKey = `${card.suit}:${card.rank}`;
                 cardElement.dataset.cardKey = cardKey;
-                if (pile.motion) { cardElement.dataset.throwMotion = JSON.stringify(pile.motion); }
                 cardElement.setAttribute("aria-hidden", "true");
                 image.alt = "";
                 image.setAttribute("aria-hidden", "true");

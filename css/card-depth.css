@@ -44,7 +44,7 @@
     transform: var(--depth-face-transform);
 }
 .table-deck .table-play__card.has-card-depth {
-    transform: translate(var(--wall-offset-x, 0px), var(--wall-offset-y, 0px));
+    transform: none;
     overflow: visible;
     box-shadow: none;
 }

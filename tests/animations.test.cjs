@@ -192,36 +192,6 @@ test("depth flights render rotation internally, preserve foil activity, and rele
     assert.equal(flights[0].removed, true);
 });
 
-test("smooth landing flights retain the baseline stagger and extend their duration for lower friction", () => {
-    const animations = [], states = new Map();
-    const element = () => ({
-        dataset: {}, style: {}, setAttribute() {}, appendChild() {}, cloneNode: () => element(),
-        animate(frames, timing) { animations.push({ frames, timing }); return {}; }
-    });
-    const target = { dataset: {}, style: { getPropertyValue: () => "0" }, animate() {},
-        querySelector: element, getBoundingClientRect: () => ({ left: 200, top: 200, width: 80, height: 120 }) };
-    const context = load({
-        LandingGeometry: { CONTACT: .64 },
-        CardDepth: { states, attach: el => states.set(el, {}), setHidden() {}, update() {}, follow() {},
-            landingMotion: () => ({ durationScale: 1.6, frameCount: 241,
-                positionAtProgress: t => ({ x: 200 * t, y: 200 * t }), poseAtProgress: () => ({}) }) },
-        target,
-        window: { innerWidth: 1000, innerHeight: 800, matchMedia: () => ({ matches: false }) },
-        document: { createElement: element, body: { appendChild() {} } }
-    });
-    vm.runInContext(`
-        var pile = new CardPile("Owner", ...[1,2,3,4].map(suit => new PresidentCard(suit, 7)));
-        GameLayout.animatePlayedCards({ querySelector: () => target }, pile);
-    `, context);
-    assert.equal(animations.length, 4);
-    animations.forEach(({ frames, timing }, index) => {
-        assert.equal(timing.delay, index * 55, "Restore the baseline's independent per-card starts");
-        assert.equal(timing.duration, 520 * 1.6, "Longer travel takes longer, not a higher playback speed");
-        assert.equal(timing.easing, "linear");
-        assert.equal(frames.length, 241);
-    });
-});
-
 test("throw metadata survives both pile deserializers and clamps finite motion values", () => {
     const context = load();
     const result = vm.runInContext(`
@@ -244,30 +214,6 @@ test("throw metadata survives both pile deserializers and clamps finite motion v
             "CardPile.normalizeMotion({x:bad,y:0,power:0,spin:0,pitch:0,yaw:0})", context), /Ugyldig bevegelse/);
     }
     assert.equal(vm.runInContext('new CardPile("").fromRecord({nick:"Legacy",verdiBoms:7}).motion', context), undefined);
-});
-
-test("release velocity survives serialization and invalid launch values are rejected", () => {
-    const context = load();
-    const result = vm.runInContext(`
-        var pile = new CardPile("Owner", new PresidentCard(1, 7));
-        pile.motion = {x:1,y:-1,power:.7,spin:5,pitch:12,yaw:-8,
-            launch:{x:.5,y:.4,vx:.8,vy:-1.6}};
-        var record = JSON.parse(JSON.stringify(pile));
-        ({record, restored:PresidentCard.deserializePiles([record])[0].motion,
-            lastPlay:new CardPile("").fromRecord(record).motion});
-    `, context);
-    assert.deepEqual(JSON.parse(JSON.stringify(result.restored)), JSON.parse(JSON.stringify(result.record.motion)));
-    assert.deepEqual(JSON.parse(JSON.stringify(result.lastPlay)), JSON.parse(JSON.stringify(result.record.motion)));
-    for (const key of ["x", "y", "vx", "vy"]) {
-        for (const value of [NaN, Infinity, "1", undefined]) {
-            context.key = key;
-            context.bad = value;
-            assert.throws(() => vm.runInContext(`CardPile.normalizeMotion({
-                x:1,y:0,power:.7,spin:0,pitch:0,yaw:0,
-                launch:{x:0,y:0,vx:0,vy:0,[key]:bad}
-            })`, context), /Ugyldig bevegelse/);
-        }
-    }
 });
 
 test("hard throws spread cards further and clients in the same board-size class share landing jitter", () => {
