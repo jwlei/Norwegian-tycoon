@@ -159,23 +159,6 @@ test("flight joins first contact continuously, then slides, bounces, rocks and s
     assert.ok(Math.abs(nearestGap(cards, settled.pose) - .06) < 1e-8);
 });
 
-test("horizontal edge throws rebound and rotate inward symmetrically before settling", () => {
-    const cards = [];
-    const start = { ...flat(300, 700, 40), pitch: 8, yaw: -6, roll: 4 };
-    const impact = { x: 300, y: 300, roll: 2 };
-    const momentum = { x: 0, y: -12, spin: .5, power: .7 };
-    const at = (direction, progress) => G.motion(cards, start, impact, momentum, progress, null, direction).pose;
-    for (const direction of [-1, 1]) {
-        const contact = at(direction, G.CONTACT);
-        const rebound = at(direction, G.CONTACT + .12);
-        const settled = at(direction, 1);
-        assert.ok((rebound.x - contact.x) * direction < 0, "The rebound moves away from its edge");
-        assert.ok((rebound.roll - contact.roll) * direction < 0, "The card rotates inward");
-        assert.equal(settled.x, impact.x + momentum.x);
-        assert.equal(settled.roll, impact.roll + momentum.spin);
-    }
-});
-
 test("cards do not cast a shadow upward onto a higher receiver", () => {
     assert.equal(G.shadow(flat(), flat(0, 0, 25)).points.length, 0);
 });

@@ -744,8 +744,7 @@ class GameLayout {
                 ? CardDepth.landingMotion(flight, target, {
                     x: flightLeft + targetBounds.width / 2, y: flightTop + targetBounds.height / 2,
                     z: 0, pitch, yaw, roll: startRotation
-                }, pile.motion ? pile.motion.power : .55,
-                pile.motion && Math.abs(pile.motion.x) >= 1 ? Math.sign(pile.motion.x) : 0) : null;
+                }, pile.motion ? pile.motion.power : .55) : null;
             target.style.opacity = "0";
             if (usesDepth && typeof CardDepth.setHidden == "function") { CardDepth.setHidden(target, true); }
             landedCards.push({ target, flight });
