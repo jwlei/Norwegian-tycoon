@@ -805,7 +805,7 @@ class GameLayout {
             var animation = flight.animate(flightFrames, {
                 duration: animationDuration(typeof currentGame != "undefined" ? currentGame : null) *
                     (landingPose ? landingPose.durationScale || 1 : 1),
-                delay: landingPose ? 0 : animationDuration(typeof currentGame != "undefined" ? currentGame : null, cardIndex * 55),
+                delay: animationDuration(typeof currentGame != "undefined" ? currentGame : null, cardIndex * 55),
                 easing: landingPose ? "linear" : "cubic-bezier(.22,.8,.25,1)",
                 fill: "both"
             });

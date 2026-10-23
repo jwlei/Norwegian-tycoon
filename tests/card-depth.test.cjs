@@ -289,7 +289,7 @@ test("unobstructed landings keep flight and rendered rotation on one continuousl
     }
 });
 
-test("wall collisions retain their resulting pose across flights, table refreshes and fresh renderers", () => {
+test("edge throws settle without wall impulses and retain their pose across refreshes and fresh renderers", () => {
     const bounds = { left: 100, top: 100, width: 600, height: 400 };
     for (const [x, y, launch] of [[-1, 0], [1, 0], [0, -1], [1, -1],
         [1, 0, { x: 0, y: .5, vx: 1.2, vy: -.2 }]]) {
@@ -303,18 +303,26 @@ test("wall collisions retain their resulting pose across flights, table refreshe
             return { ...f, card, table };
         };
         const f = setup(), destination = f.Depth.states.get(f.card), final = { ...destination.rest };
-        assert.ok(destination.wallTrajectory.collisions.length > 0);
+        assert.equal(destination.wallTrajectory, undefined, "Wall physics is not used in production");
         const flight = new f.Node("span");
         flight.image = f.element.image;
         f.Depth.attach(flight);
         const start = { x: 400, y: 620, z: 0, pitch: 12, yaw: -10, roll: 0 };
         const motion = f.Depth.landingMotion(flight, f.card, start, .7);
-        assert.equal(motion.frameCount, destination.wallTrajectory.frameCount,
-            "CSS movement samples every physics frame, including the wall impulse");
+        assert.equal(motion.frameCount, 81);
+        assert.equal(motion.durationScale, 1.6, "The lower-friction slide takes longer");
+        let previousSpeed = Infinity;
         for (let step = 0; step <= 100; step++) {
             const pose = motion.poseAtProgress(step / 100), position = motion.positionAtProgress(step / 100);
             for (const key of ["x", "y", "roll"]) {
-                assert.ok(Math.abs(position[key] - pose[key]) < 1e-8, "Flight and shadows share the collision path");
+                assert.ok(Math.abs(position[key] - pose[key]) < 1e-8, "Flight and shadows share the smooth path");
+            }
+            if (step > 0 && step < 100) {
+                const before = motion.positionAtProgress(step / 100 - .00001);
+                const after = motion.positionAtProgress(step / 100 + .00001);
+                const speed = Math.hypot(after.x - before.x, after.y - before.y);
+                assert.ok(speed <= previousSpeed + 1e-7, "No wall rebound or settlement speed-up");
+                previousSpeed = speed;
             }
         }
         assert.deepEqual({ ...motion.poseAtProgress(1) }, final);
@@ -327,11 +335,11 @@ test("wall collisions retain their resulting pose across flights, table refreshe
         f.Depth.prepareTable(f.table);
         assert.deepEqual({ ...f.Depth.states.get(f.card).rest }, final, "Replanning retains the same endpoint");
         const fresh = setup();
-        assert.deepEqual({ ...fresh.Depth.states.get(fresh.card).rest }, final, "Fresh clients reconstruct the collision result");
+        assert.deepEqual({ ...fresh.Depth.states.get(fresh.card).rest }, final, "Fresh clients reconstruct the settlement");
     }
 });
 
-test("multi-card throws keep a loose fan through wall rotation and never restart after friction stops them", () => {
+test("multi-card throws let upper cards slide onward without wall torque or a final reshuffle", () => {
     for (const direction of [-1, 1]) {
         for (const count of [2, 3, 4]) {
             const f = fixture(), bounds = { left: 150, top: 100, width: 342, height: 320 };
@@ -346,57 +354,36 @@ test("multi-card throws keep a loose fan through wall rotation and never restart
             });
             f.Depth.prepareTable(f.table(cards, bounds));
             const states = cards.map(card => f.Depth.states.get(card));
-            const path = states[0].wallTrajectory;
-            assert.ok(path.collisions.some(hit => hit.outgoing.x * direction < 0),
-                "The impact sends the stack away from the side wall");
             for (const state of states) {
-                assert.equal(state.wallTrajectory, path, "One collision trajectory drives the thrown stack");
-                assert.equal(state.rest.roll, path.final.roll, "No fan-induced rotation target");
+                assert.equal(state.wallTrajectory, undefined, "No impact-driven spin");
+                assert.equal(state.rest.roll, states[0].rest.roll, "The fan keeps its readable orientation");
             }
             const motions = cards.map((card, index) => {
                 const flight = f.card(300, 400);
                 f.Depth.attach(flight, false);
-                const offset = states[index].throwGroup.offsetAt(index, path.start.roll);
                 return f.Depth.landingMotion(flight, card,
-                    { ...path.start, x: path.start.x + offset.x, y: path.start.y + offset.y }, .7);
+                    { x: 320 + index * 20, y: 500, roll: index * 2 }, .7);
             });
-            const depthOffset = state => state.rest.y - state.throwGroup.target.y -
-                state.throwGroup.offsetAt(state.throwGroup.index, state.rest.roll).y;
-            let stoppedFrames = 0, relativeMovement = 0, relativeRotation = 0;
-            for (let frame = 0; frame <= 240; frame++) {
-                const t = frame / 240, raw = path.positionAtProgress(t);
-                const poses = motions.map(motion => motion.positionAtProgress(t));
-                poses.forEach((pose, index) => {
-                    const slip = states[index].throwGroup.slip;
-                    const physical = path.positionAtProgress(t + slip * t * (1 - t));
-                    assert.ok(Math.abs(pose.roll - physical.roll) < 1e-8,
-                        "Each card follows collision rotation with its own slight resistance variation");
-                });
-                for (let index = 1; index < poses.length; index++) {
-                    const dx = poses[index].x - poses[0].x;
-                    const dy = poses[index].y - depthOffset(states[index]) - poses[0].y + depthOffset(states[0]);
-                    const expected = states[index].throwGroup.offsetAt(index, raw.roll);
-                    const firstOffset = states[0].throwGroup.offsetAt(0, raw.roll);
-                    const deviation = Math.hypot(dx - expected.x + firstOffset.x, dy - expected.y + firstOffset.y);
-                    relativeMovement = Math.max(relativeMovement, deviation);
-                    relativeRotation = Math.max(relativeRotation, Math.abs(poses[index].roll - poses[0].roll));
-                    assert.ok(deviation < 16, "Independent slip stays small enough to retain the fan");
+            motions.forEach((motion, index) => {
+                let previousDistance = Infinity;
+                for (let frame = 0; frame <= 240; frame++) {
+                    const pose = motion.positionAtProgress(frame / 240), rest = states[index].rest;
+                    const distance = Math.hypot(pose.x - rest.x, pose.y - rest.y);
+                    assert.ok(distance <= previousDistance + 1e-7, "Each card approaches rest without a rebound");
+                    previousDistance = distance;
                 }
-                const previousT = (frame - 1) / 240;
-                if (frame && states.every(state => {
-                    const slip = state.throwGroup.slip;
-                    return path.distanceAtProgress(t + slip * t * (1 - t)) ===
-                        path.distanceAtProgress(previousT + slip * previousT * (1 - previousT));
-                })) {
-                    stoppedFrames++;
-                    motions.forEach(motion => assert.deepEqual(motion.positionAtProgress(t),
-                        motion.positionAtProgress((frame - 1) / 240), "Stopped cards never accelerate toward the pile"));
+                const near = motion.poseAtProgress(1 - 1e-6), end = motion.poseAtProgress(1);
+                for (const key of ["x", "y", "z", "roll", "pitch", "yaw"]) {
+                    assert.ok(Math.abs(near[key] - end[key]) < .02, `No ${key} endpoint snap`);
                 }
-            }
-            assert.ok(stoppedFrames > 0, "Check the stationary tail, not just moving frames");
-            assert.ok(relativeMovement > .1, "Cards slide slightly differently rather than forming a rigid sheet");
-            assert.ok(relativeRotation > .01 && relativeRotation < 12,
-                "Wall torque reaches individual cards at slightly different times without breaking up the fan");
+            });
+            const bottom = states[0].rest, top = states.at(-1).rest;
+            const dx = top.x - bottom.x, dy = top.y - bottom.y;
+            const contactBottom = motions[0].positionAtProgress(G.CONTACT);
+            const contactTop = motions.at(-1).positionAtProgress(G.CONTACT);
+            assert.ok(dx * (top.x - contactTop.x - bottom.x + contactBottom.x) +
+                dy * (top.y - contactTop.y - bottom.y + contactBottom.y) > 0,
+            "Upper cards slide onward to expose lower cards rather than pulling lower cards backward");
             assert.equal(motions[0].durationScale, 1.6, "Reduced friction extends time instead of speeding up the throw");
         }
     }

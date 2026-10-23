@@ -192,7 +192,7 @@ test("depth flights render rotation internally, preserve foil activity, and rele
     assert.equal(flights[0].removed, true);
 });
 
-test("physics-backed fans start together and extend their duration for lower friction", () => {
+test("smooth landing flights retain the baseline stagger and extend their duration for lower friction", () => {
     const animations = [], states = new Map();
     const element = () => ({
         dataset: {}, style: {}, setAttribute() {}, appendChild() {}, cloneNode: () => element(),
@@ -214,8 +214,8 @@ test("physics-backed fans start together and extend their duration for lower fri
         GameLayout.animatePlayedCards({ querySelector: () => target }, pile);
     `, context);
     assert.equal(animations.length, 4);
-    animations.forEach(({ frames, timing }) => {
-        assert.equal(timing.delay, 0, "A common clock prevents the fan stretching into a trailing line");
+    animations.forEach(({ frames, timing }, index) => {
+        assert.equal(timing.delay, index * 55, "Restore the baseline's independent per-card starts");
         assert.equal(timing.duration, 520 * 1.6, "Longer travel takes longer, not a higher playback speed");
         assert.equal(timing.easing, "linear");
         assert.equal(frames.length, 241);
