@@ -409,7 +409,7 @@ class CardDepth {
         }
     }
 
-    static landingMotion(element, target, start, power = .55) {
+    static landingMotion(element, target, start, power = .55, edgeDirection = 0) {
         const state = this.states.get(element), destination = this.states.get(target);
         if (!state || !destination || !destination.rest) { return null; }
         const G = LandingGeometry, rest = destination.rest, scene = destination.scene;
@@ -437,8 +437,13 @@ class CardDepth {
         initial.z = G.minimumHeight(supports, initial) + 18;
         const contact = G.landing(supports, impact.x, impact.y, impact.roll, initial);
         return {
-            poseAtProgress: progress => progress >= 1 ? rest : G.motion(supports, initial, impact, momentum, progress, contact).pose,
-            positionAtProgress: progress => G.position(initial, impact, momentum, progress)
+            poseAtProgress: progress => progress >= 1 ? rest :
+                G.motion(supports, initial, impact, momentum, progress, contact, edgeDirection).pose,
+            positionAtProgress: progress => {
+                const position = G.position(initial, impact, momentum, progress);
+                const rebound = G.edgeRebound(progress, edgeDirection, power);
+                return { ...position, x: position.x + rebound.x, roll: position.roll + rebound.roll };
+            }
         };
     }
 
