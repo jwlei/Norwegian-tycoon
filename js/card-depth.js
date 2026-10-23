@@ -367,34 +367,66 @@ class CardDepth {
         scene.layoutKey = layoutKey;
         scene.elements = elements;
         scene.origin = { x: box.left, y: box.top };
+        scene.bounds = boardBounds;
         scene.svg.setAttribute("viewBox", `0 0 ${box.width || 1} ${box.height || 1}`);
         scene.states = [];
         const supports = [];
-        elements.forEach((element, index) => {
-            const state = this.states.get(element);
-            if (!state) { return; }
-            const { width, height } = sizes[index], b = bounds[index];
-            state.layoutBounds = b;
-            const base = { x: b.left + b.width / 2, y: b.top + b.height / 2,
+        const plans = elements.map((element, index) => {
+            const state = this.states.get(element), b = bounds[index], size = sizes[index];
+            return { element, state, index, base: { x: b.left + b.width / 2, y: b.top + b.height / 2,
                 roll: parseFloat(element.style.getPropertyValue("--pile-rotation")) || 0,
-                width, height, radius: state.radius };
-            const group = element.parentElement
-                ? bounds.filter((_, i) => elements[i].parentElement === element.parentElement) : [b];
-            const offset = { x: base.x - group.reduce((sum, rect) => sum + rect.left + rect.width / 2, 0) / group.length,
-                y: base.y - group.reduce((sum, rect) => sum + rect.top + rect.height / 2, 0) / group.length };
-            state.wallTrajectory = boardBounds && element.dataset.throwMotion
-                ? LandingGeometry.wallTrajectory(base, boardBounds, JSON.parse(element.dataset.throwMotion), offset) : null;
-            const final = state.wallTrajectory ? state.wallTrajectory.final : base;
-            state.wallOffset = { x: final.x - base.x, y: final.y - base.y };
+                ...size, radius: state ? state.radius : 0 } };
+        }).filter(plan => plan.state);
+        const groups = [];
+        for (const plan of plans) {
+            const parent = plan.element.parentElement || plan.element;
+            const last = groups[groups.length - 1];
+            if (last && last.parent === parent) { last.cards.push(plan); }
+            else { groups.push({ parent, cards: [plan] }); }
+        }
+        let previous = null;
+        for (const group of groups) {
+            const center = { x: group.cards.reduce((sum, plan) => sum + plan.base.x, 0) / group.cards.length,
+                y: group.cards.reduce((sum, plan) => sum + plan.base.y, 0) / group.cards.length };
+            for (const plan of group.cards) {
+                plan.path = boardBounds && plan.element.dataset.throwMotion
+                    ? LandingGeometry.wallTrajectory(plan.base, boardBounds, JSON.parse(plan.element.dataset.throwMotion),
+                        { x: plan.base.x - center.x, y: plan.base.y - center.y }) : null;
+                plan.final = { ...plan.base, ...(plan.path ? plan.path.final : {}) };
+            }
+            if (boardBounds) {
+                const arranged = LandingGeometry.arrangePlay(group.cards.map(plan => plan.final), previous, boardBounds);
+                group.cards.forEach((plan, index) => { plan.final = arranged[index]; });
+            }
+            for (const plan of group.cards) {
+                const final = plan.final;
+                let y = final.y;
+                let pose = LandingGeometry.landing(supports, final.x, y, final.roll, plan.base);
+                if (boardBounds) {
+                    // The fan is fitted in screen space; compensate for the pile's projected height.
+                    for (let iteration = 0; iteration < 8; iteration++) {
+                        const dy = final.y - (pose.y - pose.z * LandingGeometry.VIEW_SHEAR);
+                        if (Math.abs(dy) < .01) { break; }
+                        y += dy;
+                        pose = LandingGeometry.landing(supports, final.x, y, final.roll, plan.base);
+                    }
+                }
+                plan.pose = pose;
+                supports.push(pose);
+            }
+            previous = group.cards[group.cards.length - 1].pose;
+        }
+        plans.forEach(({ element, state, index, base, path, pose }) => {
+            state.layoutBounds = bounds[index];
+            state.wallTrajectory = path;
+            state.wallOffset = { x: pose.x - base.x, y: pose.y - base.y };
             element.style.setProperty("--wall-offset-x", `${state.wallOffset.x}px`);
             element.style.setProperty("--wall-offset-y", `${state.wallOffset.y}px`);
-            const pose = LandingGeometry.landing(supports, final.x, final.y, final.roll, base);
             this.bind(state, scene, [...scene.states]);
             Object.assign(state, { tableIndex: scene.states.length, rest: pose, size: sizes[index],
                 hidden: element.style.opacity === "0", key: null });
             state.pose = this.resolvePose(state.pose, pose);
             state.world = state.placed = this.worldPose(state);
-            supports.push(pose);
             scene.states.push(state);
         });
         // Shadow visibility depends on every card above a receiver, so render once all poses are known.
@@ -460,13 +492,16 @@ class CardDepth {
         const impact = { x: rest.x - momentum.x, y: rest.y - momentum.y, roll: rest.roll - momentum.spin };
         const initial = { ...start, width: rest.width, height: rest.height, radius: rest.radius };
         const path = destination.wallTrajectory;
-        const positionAtProgress = path ? progress => {
+        const rawPosition = path ? progress => {
             const position = path.positionAtProgress(progress);
             const blend = Math.max(0, 1 - progress / (path.collisions[0].progress * .8)) ** 2;
             return { x: position.x + (start.x - path.start.x) * blend,
                 y: position.y + (start.y - path.start.y) * blend,
                 roll: position.roll + (start.roll - path.start.roll) * blend };
         } : progress => G.position(initial, impact, momentum, progress);
+        const physicalFinal = rawPosition(1);
+        const positionAtProgress = scene && scene.bounds ? progress => G.settlePosition(
+            rawPosition(progress), physicalFinal, rest, progress, scene.bounds) : rawPosition;
         // Include supports along the rebound path, not only beside the eventual resting spot.
         const reach = Math.hypot(rest.width, rest.height) + (path
             ? Math.max(...[path.start, ...path.collisions.map(hit => hit.pose)]

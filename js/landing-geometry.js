@@ -418,7 +418,7 @@
             spin: degrees(angular + lever * impulse / inertia) };
     }
 
-    // A deterministic planar throw, with an open player-facing (bottom) edge.
+    // The player-facing edge admits a throw, then contains it after the whole card enters.
     function wallTrajectory(rest, bounds, throwMotion, offset = { x: 0, y: 0 }) {
         if (!throwMotion.launch && Math.abs(throwMotion.x) < 1 && throwMotion.y > -1) { return null; }
         const width = rest.width || WIDTH, height = rest.height || HEIGHT;
@@ -434,7 +434,8 @@
             const radius = Math.hypot(width, height) / 2;
             if (Math.min(start.x, endX) > bounds.left + radius &&
                 Math.max(start.x, endX) < bounds.left + bounds.width - radius &&
-                Math.min(start.y, endY) > bounds.top + radius) { return null; }
+                Math.min(start.y, endY) > bounds.top + radius &&
+                Math.max(start.y, endY) < bounds.top + bounds.height - radius) { return null; }
         }
         const distance = Math.hypot(rest.x - start.x, rest.y - start.y);
         const overshoot = slideDistanceToRest(distance, throwMotion.power, height);
@@ -457,6 +458,10 @@
             { normal: { x: -1, y: 0 }, distance: point => bounds.left + bounds.width - point.x },
             { normal: { x: 0, y: 1 }, distance: point => point.y - bounds.top }
         ];
+        const bottom = { normal: { x: 0, y: -1 },
+            distance: point => bounds.top + bounds.height - point.y };
+        let entered = silhouette(pose).every(point => bottom.distance(point) >= 0);
+        let enteredStep = entered ? 0 : Infinity;
         const steps = 240;
         for (let step = 1; step <= steps; step++) {
             const incomingSpeed = speed(velocity);
@@ -469,7 +474,11 @@
             pose.x += velocity.x * travel;
             pose.y += velocity.y * travel;
             pose.roll += velocity.spin * travel;
-            for (const wall of walls) {
+            if (!entered && silhouette(pose).every(point => bottom.distance(point) >= 0)) {
+                entered = true;
+                enteredStep = step;
+            }
+            for (const wall of entered ? [...walls, bottom] : walls) {
                 const points = silhouette(pose);
                 const gap = Math.min(...points.map(wall.distance));
                 if (gap >= 0) { continue; }
@@ -496,10 +505,124 @@
             positionAtProgress(progress) {
                 const index = clamp(progress, 0, 1) * steps;
                 const a = frames[Math.floor(index)], b = frames[Math.min(steps, Math.floor(index) + 1)];
-                return { x: mix(a.x, b.x, index % 1), y: mix(a.y, b.y, index % 1),
+                const position = { x: mix(a.x, b.x, index % 1), y: mix(a.y, b.y, index % 1),
                     roll: mix(a.roll, b.roll, index % 1) };
+                if (index % 1) {
+                    // Interpolated rotation can put a corner slightly beyond two contained samples.
+                    const points = silhouette({ ...start, ...position });
+                    if (index >= 1) {
+                        position.x += Math.max(0, bounds.left - Math.min(...points.map(point => point.x))) -
+                            Math.max(0, Math.max(...points.map(point => point.x)) - bounds.left - bounds.width);
+                        position.y += Math.max(0, bounds.top - Math.min(...points.map(point => point.y)));
+                    }
+                    if (index >= enteredStep) {
+                        position.y -= Math.max(0, Math.max(...points.map(point => point.y)) - bounds.top - bounds.height);
+                    }
+                }
+                return position;
             }
         };
+    }
+
+    function overlaps(a, b, margin = 0) {
+        const polygons = [a, b].map(pose => silhouette({ z: 0, pitch: 0, yaw: 0, ...pose })
+            .filter((_, index) => index % 17 == 0 || index % 17 == 8 || index % 17 == 16).map(screen));
+        for (const polygon of polygons) {
+            for (let index = 0; index < polygon.length; index++) {
+                const p = polygon[index], q = polygon[(index + 1) % polygon.length];
+                const length = Math.hypot(q.x - p.x, q.y - p.y);
+                if (length < 1e-8) { continue; }
+                const axis = { x: (q.y - p.y) / length, y: (p.x - q.x) / length };
+                const ranges = polygons.map(points => {
+                    const projections = points.map(point => point.x * axis.x + point.y * axis.y);
+                    return { min: Math.min(...projections), max: Math.max(...projections) };
+                });
+                if (Math.min(ranges[0].max, ranges[1].max) - Math.max(ranges[0].min, ranges[1].min) <= margin) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    // A shared local-axis fan keeps each card's index exposed, regardless of its wall impulses.
+    function arrangePlay(cards, previous, bounds) {
+        const last = cards[cards.length - 1];
+        const turns = Math.round(last.roll / 360) * 360;
+        let roll = turns + clamp(last.roll - turns, -25, 25);
+        const width = Math.max(...cards.map(card => card.width || WIDTH));
+        const height = Math.max(...cards.map(card => card.height || HEIGHT));
+        const inset = Math.min(8, Math.max(0, (bounds.width - width) / 2), Math.max(0, (bounds.height - height) / 2));
+        const availableWidth = bounds.width - inset * 2, availableHeight = bounds.height - inset * 2;
+        let step = width * .36;
+        const extents = () => {
+            const c = Math.abs(Math.cos(radians(roll - turns))), s = Math.abs(Math.sin(radians(roll - turns)));
+            return { x: c * width / 2 + s * height / 2, y: s * width / 2 + c * height / 2, c, s };
+        };
+        let extent = extents();
+        if (extent.x * 2 > availableWidth || extent.y * 2 > availableHeight) {
+            roll = turns;
+            extent = extents();
+        }
+        if (cards.length > 1) {
+            step = Math.min(step, extent.c > 1e-8 ? Math.max(0, (availableWidth - extent.x * 2) /
+                ((cards.length - 1) * extent.c)) : Infinity,
+            extent.s > 1e-8 ? Math.max(0, (availableHeight - extent.y * 2) /
+                ((cards.length - 1) * extent.s)) : Infinity);
+        }
+        const desired = { x: cards.reduce((sum, card) => sum + card.x, 0) / cards.length,
+            y: cards.reduce((sum, card) => sum + card.y, 0) / cards.length };
+        const candidates = [-1, 1].map(direction => {
+            const dx = Math.cos(radians(roll - turns)) * step * direction;
+            const dy = Math.sin(radians(roll - turns)) * step * direction;
+            const spanX = dx * (cards.length - 1), spanY = dy * (cards.length - 1);
+            const minX = bounds.left + inset + extent.x - Math.min(0, spanX);
+            const maxX = bounds.left + bounds.width - inset - extent.x - Math.max(0, spanX);
+            const minY = bounds.top + inset + extent.y - Math.min(0, spanY);
+            const maxY = bounds.top + bounds.height - inset - extent.y - Math.max(0, spanY);
+            const fit = point => ({ x: clamp(point.x, minX, maxX), y: clamp(point.y, minY, maxY) });
+            let anchor = fit({ x: desired.x - spanX / 2, y: desired.y - spanY / 2 });
+            const top = point => ({ ...last, x: point.x + spanX, y: point.y + spanY, roll });
+            if (previous && !overlaps(top(anchor), previous, 8)) {
+                const near = fit({ x: previous.x - spanX, y: previous.y - (previous.z || 0) * VIEW_SHEAR - spanY });
+                if (!overlaps(top(near), previous, 8)) { return null; }
+                let low = 0, high = 1;
+                for (let iteration = 0; iteration < 16; iteration++) {
+                    const t = (low + high) / 2;
+                    const point = { x: mix(near.x, anchor.x, t), y: mix(near.y, anchor.y, t) };
+                    if (overlaps(top(point), previous, 8)) { low = t; } else { high = t; }
+                }
+                anchor = { x: mix(near.x, anchor.x, low), y: mix(near.y, anchor.y, low) };
+            }
+            const poses = cards.map((card, index) => ({ ...card,
+                x: anchor.x + dx * index, y: anchor.y + dy * index,
+                roll: roll + Math.round((card.roll - roll) / 360) * 360 }));
+            return { poses, cost: Math.hypot(anchor.x + spanX / 2 - desired.x, anchor.y + spanY / 2 - desired.y) };
+        }).filter(Boolean);
+        if (!candidates.length) { throw new Error("The table cannot fit an overlapping card fan."); }
+        return candidates.sort((a, b) => a.cost - b.cost)[0].poses;
+    }
+
+    function settlePosition(position, final, target, progress, bounds) {
+        const t = clamp((progress - CONTACT) / (1 - CONTACT), 0, 1);
+        const blend = t * t * (3 - 2 * t);
+        const pose = { ...target, x: position.x + (target.x - final.x) * blend,
+            y: position.y + (target.y - final.y) * blend,
+            roll: position.roll + (target.roll - final.roll) * blend,
+            z: (target.z || 0) * blend, pitch: (target.pitch || 0) * blend, yaw: (target.yaw || 0) * blend };
+        if (bounds) {
+            const points = silhouette(pose).map(screen);
+            const minX = Math.min(...points.map(point => point.x)), maxX = Math.max(...points.map(point => point.x));
+            const minY = Math.min(...points.map(point => point.y)), maxY = Math.max(...points.map(point => point.y));
+            pose.x += Math.max(0, bounds.left - minX) - Math.max(0, maxX - bounds.left - bounds.width);
+            pose.y += Math.max(0, bounds.top - minY);
+            const entered = silhouette({ ...pose, ...position, z: 0, pitch: 0, yaw: 0 })
+                .every(point => point.y <= bounds.top + bounds.height);
+            if (entered) {
+                pose.y -= Math.max(0, maxY - bounds.top - bounds.height);
+            }
+        }
+        return { x: pose.x, y: pose.y, roll: pose.roll };
     }
 
     function motion(cards, start, impact, momentum, progress, contact = null, trajectory = null) {
@@ -530,7 +653,8 @@
 
     const api = { WIDTH, HEIGHT, EDGE, VIEW_SHEAR, LIGHT, CONTACT, slideDistance, slideDistanceToRest, rotate, world, screen, plane, heightAt,
         signedDistance, silhouette, contains, screenContains, screenCovers, samples, supportHeight, landing, minimumHeight, shadow,
-        shadowedBy, shadowVisible, exposedPoints, flight, position, wallImpulse, wallTrajectory, motion };
+        shadowedBy, shadowVisible, exposedPoints, flight, position, wallImpulse, wallTrajectory,
+        overlaps, arrangePlay, settlePosition, motion };
     if (typeof module !== "undefined" && module.exports) { module.exports = api; }
     else { root.LandingGeometry = api; }
 })(globalThis);

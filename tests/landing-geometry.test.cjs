@@ -194,13 +194,13 @@ test("wall impulses transfer off-center momentum into spin without adding energy
     assert.deepEqual(G.wallImpulse(pose, departing, normal, { x: 40, y: 0 }), departing);
 });
 
-test("three-wall trajectories couple collision spin to momentum and leave the bottom edge open", () => {
+test("wall trajectories couple collision spin to momentum and admit incoming cards through the bottom", () => {
     const bounds = { left: 0, top: 0, width: 600, height: 400 };
     const plan = (x, y, roll = 15) => G.wallTrajectory(
         { ...flat(300 + x * 110, 200 + y * 90), roll, width: 80, height: 120, radius: 8.75 },
         bounds, { x, y, power: .7, spin: roll });
     const right = plan(1, 0), left = plan(-1, 0, -15), top = plan(0, -1);
-    assert.equal(plan(0, 1), null, "No player-facing wall");
+    assert.equal(plan(0, 1), null, "An incoming legacy throw is not blocked by the player-facing edge");
     assert.equal(plan(0, 0), null, "Interior throws retain the existing trajectory");
     assert.equal(right.collisions[0].normal.x, -1);
     assert.equal(left.collisions[0].normal.x, 1);
@@ -242,11 +242,109 @@ test("shared release momentum determines whether and how a wall is struck", () =
         { ...motion, x: 0, y: -1, spin: 0, launch: { x: 0, y: .5, vx: 0, vy: -2 } });
     assert.ok(top.collisions.length > 0);
     assert.equal(top.final.roll, 0, "A centered top-edge collision does not invent torque");
-    assert.equal(G.wallTrajectory(rest, bounds,
-        { ...motion, x: 0, y: 1, launch: { x: 0, y: .5, vx: 0, vy: 2 } }), null,
-    "Outgoing momentum passes through the open bottom edge");
+    const bottom = G.wallTrajectory(rest, bounds,
+        { ...motion, x: 0, y: 1, launch: { x: 0, y: .5, vx: 0, vy: 2 } });
+    assert.ok(bottom.collisions.some(hit => hit.normal.y == -1),
+        "A card already inside bounces inward from the bottom");
     const nonsaturated = G.wallTrajectory(rest, bounds, { ...motion, x: .9 });
     assert.ok(nonsaturated.collisions.length > 0, "A real outline collision is not gated on clamped metadata");
+});
+
+test("after entry, hard rebounds stay inside every edge including the player-facing bottom", () => {
+    const bounds = { left: 0, top: 0, width: 350, height: 320 };
+    let enteredPaths = 0, bottomHits = 0;
+    for (let index = 0; index < 48; index++) {
+        const dimensions = { width: 100, height: 150, radius: index % 2 ? 0 : 8.75 };
+        const path = G.wallTrajectory({ ...flat(200, 200), ...dimensions, roll: 15 }, bounds, {
+            x: index % 2 ? -1 : 1, y: -1, power: 1, spin: index % 2 ? -20 : 20,
+            launch: { x: (index % 5 - 2) / 3, y: index % 3 ? .5 : 1.8,
+                vx: (index % 9 - 4) * 1.5, vy: -2 - index % 6 }
+        });
+        if (!path) { continue; }
+        let entered = false;
+        for (let step = 0; step <= 960; step++) {
+            const pose = { ...flat(), ...dimensions, ...path.positionAtProgress(step / 960) };
+            const points = G.silhouette(pose);
+            if (points.every(point => point.y <= bounds.height + 1e-7)) { entered = true; }
+            if (entered) {
+                assert.ok(points.every(point => point.x >= -1e-7 && point.x <= bounds.width + 1e-7 &&
+                    point.y >= -1e-7 && point.y <= bounds.height + 1e-7),
+                `Throw ${index} stays contained after entry at frame ${step}`);
+            }
+        }
+        if (entered) { enteredPaths++; }
+        bottomHits += path.collisions.filter(hit => hit.normal.y == -1).length;
+        for (const hit of path.collisions.filter(hit => hit.normal.y == -1)) {
+            const incoming = { ...hit.incoming, spin: 0 };
+            const outgoing = G.wallImpulse(hit.pose, incoming, hit.normal,
+                { x: hit.pose.x, y: bounds.height });
+            assert.ok(outgoing.y < 0, "A central bottom impact moves back toward the middle");
+        }
+    }
+    assert.ok(enteredPaths > 40, "Exercise both off-table entries and releases already inside");
+    assert.ok(bottomHits > 5, "Exercise actual bottom-wall rebounds");
+});
+
+test("overlap checks use the visible rounded or square face, including projected pile height", () => {
+    for (const radius of [0, 8.75]) {
+        const card = { ...flat(100, 200), width: 100, height: 150, radius };
+        assert.equal(G.overlaps(card, { ...card, x: 210 }), false);
+        assert.equal(G.overlaps(card, { ...card, x: 190 }, 5), true);
+        assert.equal(G.overlaps(card, { ...card, x: 190 }, 12), false);
+        assert.equal(G.overlaps(card, { ...card, y: 370 }), false);
+        assert.equal(G.overlaps(card, { ...card, y: 370, z: 100 }, 5), true,
+            "An elevated face overlaps where the player actually sees it");
+    }
+});
+
+test("landing fans expose each card and the top card overlaps the preceding play on every board size", () => {
+    for (const bounds of [
+        { left: 0, top: 0, width: 342, height: 320 },
+        { left: 20, top: 30, width: 300, height: 180 },
+        { left: 50, top: 80, width: 800, height: 600 }
+    ]) {
+        let previous = null;
+        const dimensions = bounds.height < 200 ? { width: 64, height: 96 } : { width: 100, height: 150 };
+        for (let play = 0; play < 16; play++) {
+            const cards = Array.from({ length: play % 4 + 1 }, (_, index) => ({
+                ...flat(bounds.left + (play * 137 + index * 71) % bounds.width,
+                    bounds.top + (play * 157 + index * 47) % bounds.height),
+                ...dimensions, radius: play % 2 ? 0 : 8.75, roll: (play * 47 + index * 97) % 700 - 350
+            }));
+            const arranged = G.arrangePlay(cards, previous, bounds);
+            assert.deepEqual(G.arrangePlay(cards, previous, bounds), arranged, "Layout is repeatable");
+            if (previous) { assert.ok(G.overlaps(arranged.at(-1), previous, 7.99), "The top card bridges plays"); }
+            arranged.forEach((pose, index) => {
+                assert.ok(G.silhouette(pose).every(point => point.x >= bounds.left && point.y >= bounds.top &&
+                    point.x <= bounds.left + bounds.width && point.y <= bounds.top + bounds.height),
+                "Every card, not just its center, fits on the felt");
+                if (index > 0) { assert.ok(G.overlaps(pose, arranged[index - 1], 8), "The fan remains a connected play"); }
+                let exposed = 0;
+                for (let x = 0; x < 10; x++) {
+                    for (let y = 0; y < 16; y++) {
+                        const point = G.world((x / 10 - .45) * pose.width, (y / 16 - .46875) * pose.height, 0, pose);
+                        if (!arranged.slice(index + 1).some(above => G.contains(above, point.x, point.y))) { exposed++; }
+                    }
+                }
+                assert.ok(exposed >= 32, `At least 20% of card ${index + 1} remains individually visible (${exposed}/160)`);
+            });
+            previous = arranged.at(-1);
+        }
+    }
+});
+
+test("settlement admits late incoming cards continuously and preserves elevated endpoints", () => {
+    const bounds = { left: 0, top: 0, width: 350, height: 320 };
+    const target = { ...flat(180, 260), width: 100, height: 150, z: 100 };
+    const outside = { x: 180, y: 520, roll: 0 };
+    const before = G.settlePosition(outside, outside, target, G.CONTACT - 1e-6, bounds);
+    const after = G.settlePosition(outside, outside, target, G.CONTACT + 1e-6, bounds);
+    assert.ok(Math.abs(after.y - before.y) < .001, "Closing the bottom does not teleport a late incoming card");
+    assert.deepEqual(G.settlePosition(outside, outside, target, 1, bounds),
+        { x: target.x, y: target.y, roll: target.roll }, "The projected resting card fits without clamping its elevated world center");
+    const inside = { x: 180, y: 200, roll: 0 };
+    const contained = G.settlePosition(inside, inside, target, .9, bounds);
+    assert.ok(G.silhouette({ ...target, ...contained }).map(G.screen).every(point => point.y <= bounds.height));
 });
 
 test("cards do not cast a shadow upward onto a higher receiver", () => {

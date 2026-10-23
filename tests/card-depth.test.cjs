@@ -330,6 +330,85 @@ test("wall collisions retain their resulting pose across flights, table refreshe
     }
 });
 
+test("board-backed plays stay exposed, connected and stable through flights, refreshes and resizing", () => {
+    for (const initial of [
+        { left: 150, top: 100, width: 342, height: 320 },
+        { left: 150, top: 100, width: 300, height: 180 },
+        { left: 150, top: 100, width: 800, height: 600 }
+    ]) {
+        const f = fixture(), bounds = { ...initial }, elements = [], groups = [];
+        for (let play = 0; play < 8; play++) {
+            const parent = new f.Node("div");
+            const group = Array.from({ length: play % 4 + 1 }, (_, index) => {
+                const card = f.card(bounds.left + (play * 137 + index * 30) % bounds.width,
+                    bounds.top + (play * 157 + index * 25) % bounds.height);
+                card.parentElement = parent;
+                card.style.setProperty("--pile-rotation", String(play * 47 + index * 97 - 180));
+                if (play % 2) {
+                    card.dataset.throwMotion = JSON.stringify({ x: -1, y: -1, power: 1, spin: -20,
+                        launch: { x: 0, y: .5, vx: -3, vy: -3 } });
+                }
+                return card;
+            });
+            groups.push(group);
+            elements.push(...group);
+        }
+        const table = f.table(elements, bounds);
+        const check = () => {
+            f.Depth.prepareTable(table);
+            let previous = null;
+            for (const group of groups) {
+                const poses = group.map(card => f.Depth.states.get(card).rest);
+                if (previous) { assert.ok(G.overlaps(poses.at(-1), previous, 4), "Rendered top card bridges plays"); }
+                poses.forEach((pose, index) => {
+                    assert.ok(G.silhouette(pose).map(G.screen).every(point =>
+                        point.x >= bounds.left && point.x <= bounds.left + bounds.width &&
+                        point.y >= bounds.top && point.y <= bounds.top + bounds.height),
+                    "Depth and tilt do not clip the landed face outside the board");
+                    let exposed = 0;
+                    for (let x = 0; x < 10; x++) {
+                        for (let y = 0; y < 16; y++) {
+                            const point = G.screen(G.world((x / 10 - .45) * pose.width,
+                                (y / 16 - .46875) * pose.height, 0, pose));
+                            if (!poses.slice(index + 1).some(above => G.screenCovers(above, point.x, point.y))) { exposed++; }
+                        }
+                    }
+                    assert.ok(exposed >= 32, `Rendered fan keeps at least 20% of card ${index + 1} exposed (${exposed}/160)`);
+                    const flight = f.card(bounds.left, bounds.top + bounds.height);
+                    f.Depth.attach(flight, false);
+                    const motion = f.Depth.landingMotion(flight, group[index],
+                        { x: bounds.left, y: bounds.top + bounds.height, roll: 0 }, 1);
+                    const end = motion.poseAtProgress(1), near = motion.poseAtProgress(1 - 1e-6);
+                    for (const key of ["x", "y", "z", "roll", "pitch", "yaw"]) {
+                        assert.ok(Math.abs(end[key] - pose[key]) < 1e-6, `Flight endpoint matches resting ${key}`);
+                        assert.ok(Math.abs(near[key] - end[key]) < .02, `No final ${key} snap`);
+                    }
+                    f.Depth.detach(flight);
+                });
+                previous = poses.at(-1);
+            }
+            return JSON.stringify(elements.map(card => f.Depth.states.get(card).rest));
+        };
+        const first = check();
+        assert.equal(check(), first, "An unchanged refresh keeps the exact visible arrangement");
+        const fresh = fixture(), parents = new Map();
+        const recreated = elements.map(card => {
+            const clone = fresh.card(card.left, card.top);
+            if (!parents.has(card.parentElement)) { parents.set(card.parentElement, new fresh.Node("div")); }
+            clone.parentElement = parents.get(card.parentElement);
+            clone.style.setProperty("--pile-rotation", card.style.getPropertyValue("--pile-rotation"));
+            Object.assign(clone.dataset, card.dataset);
+            return clone;
+        });
+        fresh.Depth.prepareTable(fresh.table(recreated, bounds));
+        assert.equal(JSON.stringify(recreated.map(card => fresh.Depth.states.get(card).rest)), first,
+            "Reconstructing the renderer preserves the same connected fans");
+        bounds.width += 70;
+        bounds.height += 60;
+        check();
+    }
+});
+
 test("splayed group landings slide with throw inertia and settle at their individual rotations", () => {
     const f = fixture();
     const cards = [f.card(200, 200), f.card(220, 205), f.card(240, 202), f.card(260, 208)];
