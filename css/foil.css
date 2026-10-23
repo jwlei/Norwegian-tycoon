@@ -14,6 +14,26 @@
     inherits: true;
     initial-value: 0;
 }
+@property --foil-color-opacity {
+    syntax: "<number>";
+    inherits: true;
+    initial-value: .48;
+}
+@property --foil-pattern-x {
+    syntax: "<percentage>";
+    inherits: true;
+    initial-value: 50%;
+}
+@property --foil-pattern-y {
+    syntax: "<percentage>";
+    inherits: true;
+    initial-value: 50%;
+}
+@property --foil-glare-opacity {
+    syntax: "<number>";
+    inherits: true;
+    initial-value: .3;
+}
 :is(#playerHand .game-card, .card-preview)[data-foil] {
     isolation: isolate;
     /* Match the SVG card outline: its 1.5-unit stroke at x/y 1.5 leaves 0.75 of 80×120 units transparent,
@@ -93,7 +113,13 @@
 }
 
 :is(#playerHand .game-card, .card-preview).card-flight[data-foil]:not([data-foil="none"])::before {
-    opacity: calc((.48 + var(--foil-activity) * .24) * var(--foil-strength));
+    background-position: center, 0% var(--foil-pattern-y),
+        var(--foil-pattern-x) var(--foil-pattern-y), center;
+    opacity: calc(var(--foil-color-opacity) * var(--foil-strength));
+    transition: none;
+}
+:is(#playerHand .game-card, .card-preview).card-flight[data-foil]:not([data-foil="none"])::after {
+    opacity: calc(var(--foil-glare-opacity) * var(--foil-strength));
     transition: none;
 }
 

@@ -702,6 +702,57 @@ test("drag previews escape hand clipping, follow both axes without a distance ca
     assert.equal(f.nodes.get("gameTable").classList.contains("is-card-drop-target"), false);
 });
 
+test("four-card pickup and return batch layout reads and avoid repeated scale writes", () => {
+    const f = fixture();
+    const hand = new Element();
+    const events = [];
+    let renders = 0;
+    f.context.CardDepth = {
+        attach(element, render) { assert.equal(render, false); },
+        update() { renders++; }, returnToHand() {}
+    };
+    for (let suit = 1; suit <= 4; suit++) {
+        const card = new Element();
+        card.className = "game-card";
+        card.dataset = { cardKey: `${suit}:5`, cardStyle: "normal", foil: "rainbow" };
+        card.getBoundingClientRect = () => { events.push("read"); return bounds; };
+        const clone = card.cloneNode.bind(card);
+        card.cloneNode = deep => { events.push("clone"); return clone(deep); };
+        hand.appendChild(card);
+    }
+    vm.runInContext('[1,2,3,4].forEach(suit => selectedCardKeys.add(`${suit}:5`))', f.context);
+    f.context.startCardDragPreview(hand, { clientX: 100, clientY: 100 });
+    assert.deepEqual(events, [...Array(4).fill("read"), ...Array(4).fill("clone")]);
+    assert.equal(renders, 4, "Only one initial native render per card");
+    const drag = hand._cardDragPreview;
+    let scaleWrites = 0;
+    drag.previews.forEach(preview => {
+        const set = preview.style.setProperty;
+        preview.style.setProperty = (name, value) => {
+            if (name === "--drag-scale") { scaleWrites++; }
+            set(name, value);
+        };
+    });
+    for (let index = 0; index < 20; index++) {
+        f.context.moveCardDragPreview(hand, { clientX: 100 + index, clientY: 80 }, 100, 100);
+    }
+    assert.equal(scaleWrites, 4, "A constant scale is not rewritten on every pointer event");
+    assert.equal(f.pendingFrames, 1, "Four cards still share a single tilt frame");
+    events.length = 0;
+    drag.previews.forEach(preview => {
+        preview.getBoundingClientRect = () => { events.push("read"); return bounds; };
+        const add = preview.classList.add;
+        preview.classList.add = name => { events.push("write"); add(name); };
+    });
+    f.context.returnCardDragPreview(hand);
+    assert.deepEqual(events, [...Array(4).fill("read"), ...Array(4).fill("write")]);
+    assert.equal(f.pendingFrames, 0);
+    const css = fs.readFileSync(path.join(__dirname, "..", "css", "card-depth.css"), "utf8");
+    const dragRule = css.match(/\.card-drag-layer > \.game-card\.has-card-depth\s*\{([^}]+)\}/)[1];
+    assert.match(dragRule, /box-shadow:\s*none/);
+    assert.match(dragRule, /will-change:\s*transform/);
+});
+
 test("velocity tilt lifts the leading edges, clamps and settles all selected cards together", () => {
     const f = fixture();
     const hand = new Element();
@@ -1848,7 +1899,7 @@ test("a flick from a non-primary touch still plays, but a second finger cannot h
 test("a card sliding back keeps gliding while an uncaught gesture or hand rebuild starts", () => {
     const f = pointerFixture({ catchable: false });
     f.hand.onpointerdown(f.event(100, 500));
-    f.advance(2000);
+    f.advance(2500);
     f.hand.onpointermove(f.event(100, 400));
     f.hand.onpointerup(f.event(100, 400));
     assert.equal(f.hand._cardDragPreview, null, "The returning preview is detached from the hand");
@@ -1859,7 +1910,7 @@ test("a card sliding back keeps gliding while an uncaught gesture or hand rebuil
     f.hand.onpointerdown(f.event(100, 500));
     f.context.clearCardDragPreview(f.hand);
     assert.equal(f.body.children.includes(returning), true, "Neither a new press nor a rebuild clears it");
-    f.advance(2010);
+    f.advance(2510);
     f.hand.onpointermove(f.event(100, 460));
     const preview = f.hand._cardDragPreview;
     assert.equal(preview.returning, false);
@@ -1912,7 +1963,7 @@ test("snapshot refreshes during a hand gesture are deferred instead of cancellin
 function missedReturn(options = {}) {
     const f = pointerFixture(options);
     f.hand.onpointerdown(f.event(100, 500));
-    f.advance(2000);
+    f.advance(2500);
     f.hand.onpointermove(f.event(100, 400));
     f.hand.onpointerup(f.event(100, 400));
     const layer = f.body.children[0];
@@ -1945,10 +1996,10 @@ test("grabbing a card while it glides back catches the same preview without a se
 test("a caught card follows the finger from where it was caught and can still be flicked", () => {
     const f = missedReturn();
     f.layer.onpointerdown(f.press(100, 460));
-    f.advance(2010);
+    f.advance(2510);
     f.hand.onpointermove(f.press(100, 450));
     assert.equal(f.preview.properties.get("--drag-offset-y"), "-50px", "No jump back to the hand");
-    f.advance(2030);
+    f.advance(2530);
     f.hand.onpointermove(f.press(100, 425));
     f.hand.onpointerup(f.press(100, 425));
     assert.equal(f.state.plays, 1);
@@ -1967,7 +2018,7 @@ test("pressing the empty hand slot catches the gliding card too", () => {
 test("a re-released caught card glides back again and only its newest timer removes it", () => {
     const f = missedReturn();
     f.layer.onpointerdown(f.press(100, 460));
-    f.advance(3000);
+    f.advance(3500);
     f.hand.onpointermove(f.press(100, 400));
     f.hand.onpointerup(f.press(100, 400));
     assert.equal(f.preview.classList.contains("is-returning"), true);

@@ -73,6 +73,32 @@ function fixture(borderColor = null) {
 
 const numbers = d => d.match(/-?\d+\.\d+/g).map(Number);
 
+test("recreated cards keep the document's six-second foil phase without changing other animations", () => {
+    const f = fixture();
+    f.context.document.timeline = { currentTime: 8123 };
+    const color = { animationName: "foil-idle-color", currentTime: 0 };
+    const glare = { animationName: "foil-idle-reflection", currentTime: 0 };
+    const other = { animationName: "required-card-pulse", currentTime: 77 };
+    f.element.getAnimations = options => {
+        assert.equal(options.subtree, true, "Include pseudo-element animations");
+        return [color, glare, other];
+    };
+    f.Depth.attach(f.element);
+    assert.equal(color.currentTime, 2123);
+    assert.equal(glare.currentTime, 2123);
+    assert.equal(other.currentTime, 77);
+    color.currentTime = 2300;
+    f.Depth.attach(f.element);
+    assert.equal(color.currentTime, 2300, "Reattaching existing cards does not seek their animation");
+    const replacement = f.card(200);
+    const replacementColor = { animationName: "foil-idle-color", currentTime: 0 };
+    replacement.getAnimations = () => [replacementColor];
+    f.context.document.timeline.currentTime = 8300;
+    f.Depth.attach(replacement);
+    assert.equal(replacementColor.currentTime, 2300);
+    assert.equal(f.warnings.length, 0);
+});
+
 test("seven depth sheets follow the artwork border color instead of a universal beige edge", () => {
     for (const color of ["#9d9bdf", "#8a5f0f", "#89a6cf", "#b8a15b", "#cbbd9f"]) {
         const f = fixture(color);

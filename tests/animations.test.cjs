@@ -26,6 +26,28 @@ test("card flights use the unrotated card size centred on a rotated card's bound
     assert.deepEqual({ ...bounds }, { left: 110, top: 108, width: 80, height: 120 });
 });
 
+test("foil sampling predicts the idle reveal phase without changing running or paused clocks", () => {
+    const running = { animationName: "foil-idle-color", currentTime: 1234, playState: "running" };
+    const paused = { animationName: "foil-idle-reflection", currentTime: 2500, playState: "paused" };
+    const context = load({
+        getComputedStyle: (element, pseudo) => ({
+            opacity: pseudo === "::before" ? .7 * (.46 + running.currentTime / 100000) : .7 * .29,
+            backgroundPosition: "50% 50%, 0% 45%, 42% 45%, 50% 50%",
+            getPropertyValue: name => name === "--foil-strength" ? ".7" :
+                name === "--pointer-x" ? `${running.currentTime / 100}%` : "48%"
+        })
+    });
+    context.element = { getAnimations: () => [running, paused] };
+    const sampled = vm.runInContext("GameLayout.foilState(element, 700)", context);
+    assert.equal(sampled.pointerX, "19.34%");
+    assert.ok(Math.abs(sampled.foilColor - .47934) < 1e-10);
+    assert.ok(Math.abs(sampled.foilGlare - .29) < 1e-10);
+    assert.equal(sampled.patternX, 42);
+    assert.equal(sampled.patternY, 45);
+    assert.equal(running.currentTime, 1234);
+    assert.equal(paused.currentTime, 2500);
+});
+
 test("bot flicks vary landing, strength and tilt without consuming strategy randomness", () => {
     const context = load();
     const result = vm.runInContext(`
@@ -139,9 +161,16 @@ test("normal play animation restores the original movement, easing and card stag
 test("depth flights render rotation internally, preserve foil activity, and release renderer state", () => {
     const flights = [], animations = [], followers = [];
     const states = new Map();
+    const poseAtProgress = progress => ({
+        pitch: progress === 1 ? 0 : 12 * (1 - progress) + Math.sin(progress * Math.PI) * 2,
+        yaw: progress === 1 ? 0 : -10 * (1 - progress), roll: 15 * progress
+    });
     const depth = {
         states,
         attach(element) { states.set(element, {}); },
+        landingMotion() {
+            return { positionAtProgress: progress => ({ x: 200 * progress, y: 200 * progress }), poseAtProgress };
+        },
         update(element, pose) { states.get(element).pose = pose; },
         follow(element, animation, poseAtProgress) { followers.push(poseAtProgress); },
         detach(element) { states.delete(element); }
@@ -161,16 +190,21 @@ test("depth flights render rotation internally, preserve foil activity, and rele
         getBoundingClientRect: () => ({ left: 200, top: 200, width: 80, height: 120 })
     };
     const context = load({
-        CardDepth: depth, target,
+        CardDepth: depth, LandingGeometry: { CONTACT: .64 }, target,
         window: { innerWidth: 1000, innerHeight: 800, matchMedia: () => ({ matches: false }) },
         document: { createElement: element, body: { appendChild: flight => flights.push(flight) } }
     });
     vm.runInContext(`
+        GameLayout.foilState = (element, advance) => {
+            if (advance !== 520) { throw new Error("Predict the foil at the reveal time"); }
+            return { pointerX:"54%", pointerY:"52%", patternX:53.2,patternY:51.6,foilColor:.49,foilGlare:.32 };
+        };
         var pile = new CardPile("Owner", new PresidentCard(1,7));
         pile.motion = {x:0,y:0,power:1,spin:10,pitch:12,yaw:-10};
         GameLayout.animatePlayedCards({querySelector:()=>target}, pile, {
             playerOrigins:new Map(), cardOrigins:new Map([["1:7",{
-                left:0,top:500,width:120,height:180,rotation:0,pitch:12,yaw:-10
+                left:0,top:500,width:120,height:180,rotation:0,pitch:12,yaw:-10,
+                pointerX:"0%",pointerY:"0%",patternX:44,patternY:45,foilColor:.57,foilGlare:.28
             }]])
         });
     `, context);
@@ -181,6 +215,24 @@ test("depth flights render rotation internally, preserve foil activity, and rele
         assert.match(frame.transform, /scale/);
     }
     assert.equal(animations[0].frames[0]["--foil-activity"], 1);
+    assert.equal(animations[0].frames[0]["--pointer-x"], "0%");
+    assert.equal(animations[0].frames[0]["--pointer-y"], "0%");
+    assert.equal(animations[0].frames[0]["--foil-color-opacity"], .57);
+    assert.equal(animations[0].frames[0]["--foil-glare-opacity"], .28);
+    assert.equal(animations[0].frames[0]["--foil-pattern-x"], "44%");
+    assert.equal(animations[0].frames[0]["--foil-pattern-y"], "45%");
+    assert.equal(animations[0].frames.at(-1)["--pointer-x"], "54%");
+    assert.equal(animations[0].frames.at(-1)["--pointer-y"], "52%");
+    assert.equal(animations[0].frames.at(-1)["--foil-color-opacity"], .49);
+    assert.equal(animations[0].frames.at(-1)["--foil-glare-opacity"], .32);
+    assert.equal(animations[0].frames.at(-1)["--foil-pattern-x"], "53.2%");
+    assert.equal(animations[0].frames.at(-1)["--foil-pattern-y"], "51.6%");
+    for (const frame of animations[0].frames) {
+        const progress = frame.offset, blend = progress * progress * (3 - 2 * progress);
+        const expectedY = (poseAtProgress(progress).pitch - 12) * 2.5 + (52 + 12 * 2.5) * blend;
+        assert.ok(Math.abs(parseFloat(frame["--pointer-y"]) - expectedY) < 1e-10,
+            "Foil light follows the same tilt and settling pose as the card face");
+    }
     assert.equal(animations[0].timing.duration, 520);
     assert.equal(followers[0](0).pitch, 12);
     assert.equal(followers[0](0).yaw, -10);
@@ -326,7 +378,7 @@ test("played flights retain source tilt, scale and foil position and settle leve
         GameLayout.animatePlayedCards({querySelector:()=>target},pile,{
             playerOrigins:new Map(),cardOrigins:new Map([["1:7",{
                 left:0,top:500,width:120,height:180,rotation:0,pitch:12,yaw:-10,
-                pointerX:"25%",pointerY:"20%"
+                pointerX:"25%",pointerY:"20%",foilColor:.51,foilGlare:.28
             }]])
         },()=>completed++);
     `, context);
@@ -334,12 +386,16 @@ test("played flights retain source tilt, scale and foil position and settle leve
     assert.match(frames[0].transform, /rotateX\(12deg\) rotateY\(-10deg\) rotate\(0deg\) scale\(1.5\)/);
     assert.equal(frames[0]["--pointer-x"], "25%");
     assert.equal(frames[0]["--pointer-y"], "20%");
+    assert.equal(frames[0]["--foil-color-opacity"], .51);
+    assert.equal(frames[0]["--foil-glare-opacity"], .28);
     assert.match(frames[1].transform, /rotateX\(8\.2deg\) rotateY\(-5\.5deg\)/);
     assert.equal(frames[1]["--pointer-x"], "36.25%");
     assert.match(frames[2].transform, /rotateX\(0deg\) rotateY\(0deg\) rotate\(15deg\) scale\(1\)/);
     assert.equal(frames[2]["--pointer-x"], "50%");
     assert.equal(frames[2]["--pointer-y"], "50%");
     assert.equal(frames[2]["--foil-activity"], 0);
+    assert.equal(frames[2]["--foil-color-opacity"], .48);
+    assert.equal(frames[2]["--foil-glare-opacity"], .3);
     assert.equal(target.style.opacity, "0");
     animation.onfinish();
     animation.oncancel();

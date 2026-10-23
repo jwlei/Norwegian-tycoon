@@ -364,9 +364,11 @@ function startCardDragPreview(hand, event) {
     layer.setAttribute("aria-hidden", "true");
     var cards = [];
     var previews = [];
-    hand.querySelectorAll(".game-card").forEach(card => {
-        if (!selectedCardKeys.has(card.dataset.cardKey)) { return; }
-        var bounds = card.getBoundingClientRect();
+    var measurements = Array.from(hand.querySelectorAll(".game-card"))
+        .filter(card => selectedCardKeys.has(card.dataset.cardKey))
+        .map(card => ({ card, bounds: card.getBoundingClientRect() }));
+    var lift = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 18;
+    measurements.forEach(({ card, bounds }) => {
         var preview = card.cloneNode(true);
         preview.removeAttribute("id");
         preview.removeAttribute("aria-pressed");
@@ -385,8 +387,8 @@ function startCardDragPreview(hand, event) {
         preview.style.setProperty("--drag-scale", "1");
         layer.appendChild(preview);
         if (typeof CardDepth != "undefined") {
-            CardDepth.attach(preview);
-            CardDepth.update(preview, { lift: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 18 });
+            CardDepth.attach(preview, false);
+            CardDepth.update(preview, { lift });
         }
         card.classList.add("is-drag-source");
         card._dragPreview = preview;
@@ -457,7 +459,10 @@ function moveCardDragPreview(hand, event, startX, startY) {
     drag.previews.forEach(preview => {
         preview.style.setProperty("--drag-offset-x", `${event.clientX - startX}px`);
         preview.style.setProperty("--drag-offset-y", `${event.clientY - startY}px`);
-        preview.style.setProperty("--drag-scale", reducedMotion ? "1" : "1.12");
+        var scale = reducedMotion ? "1" : "1.12";
+        if (preview.style.getPropertyValue("--drag-scale") !== scale) {
+            preview.style.setProperty("--drag-scale", scale);
+        }
     });
     document.getElementById("gameTable").classList.toggle("is-card-drop-target", isCardDropOnTable(event));
 }
@@ -476,8 +481,8 @@ function isUpwardFlick(x, y, coneDegrees = CARD_TOUCH_PICKUP_CONE) {
 }
 
 const CARD_TOUCH_PICKUP_CONE = 135;
-const CARD_FLICK_MIN_DISTANCE = 6;
-const CARD_FLICK_MIN_VELOCITY = 0.20;
+const CARD_FLICK_MIN_DISTANCE = 4;
+const CARD_FLICK_MIN_VELOCITY = 0.10;
 const CARD_FLICK_RELEASE_GRACE_MS = 120;
 const CARD_FLICK_RECOIL_TOLERANCE = 3;
 
@@ -557,8 +562,8 @@ function returnCardDragPreview(hand) {
     }));
     drag.releasePitch = drag.pitch;
     drag.releaseYaw = drag.yaw;
+    drag.previews.forEach(preview => preview.getBoundingClientRect());
     drag.previews.forEach(preview => {
-        preview.getBoundingClientRect();
         preview.classList.add("is-returning");
         preview.style.setProperty("--drag-offset-x", "0px");
         preview.style.setProperty("--drag-offset-y", "0px");

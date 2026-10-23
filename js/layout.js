@@ -597,6 +597,34 @@ class GameLayout {
             if (child !== selfElement && child !== opponentList) { child.remove(); }
         });
     }
+    static foilState(element, advance = 0) {
+        if (typeof getComputedStyle !== "function" || !element || element.dataset?.foil === "none") { return null; }
+        var animations = advance && typeof element.getAnimations === "function" ? element.getAnimations({ subtree: true }) : [];
+        var idle = animations.filter(animation => animation.animationName === "foil-idle-color" ||
+            animation.animationName === "foil-idle-reflection");
+        var times = idle.map(animation => animation.currentTime);
+        try {
+            idle.forEach((animation, index) => {
+                if (typeof times[index] === "number" && animation.playState === "running") {
+                    animation.currentTime = times[index] + advance;
+                }
+            });
+            var color = getComputedStyle(element, "::before");
+            var glare = getComputedStyle(element, "::after");
+            var strength = parseFloat(color.getPropertyValue("--foil-strength")) || 1;
+            var pattern = color.backgroundPosition?.split(",")[2]?.trim().split(/\s+/);
+            return {
+                pointerX: color.getPropertyValue("--pointer-x").trim() || "50%",
+                pointerY: color.getPropertyValue("--pointer-y").trim() || "50%",
+                patternX: pattern ? parseFloat(pattern[0]) : undefined,
+                patternY: pattern ? parseFloat(pattern[1]) : undefined,
+                foilColor: Number(color.opacity) / strength,
+                foilGlare: Number(glare.opacity) / strength
+            };
+        } finally {
+            idle.forEach((animation, index) => { animation.currentTime = times[index]; });
+        }
+    }
     static capturePlayOrigins() {
         var cardOrigins = new Map();
         document.querySelectorAll("#playerHand .game-card[data-card-key] img").forEach(image => {
@@ -615,7 +643,8 @@ class GameLayout {
                 pitch: preview ? parseFloat(preview.style.getPropertyValue("--tilt-x")) || 0 : 0,
                 yaw: preview ? parseFloat(preview.style.getPropertyValue("--tilt-y")) || 0 : 0,
                 pointerX: preview ? preview.style.getPropertyValue("--pointer-x") || "50%" : "50%",
-                pointerY: preview ? preview.style.getPropertyValue("--pointer-y") || "50%" : "50%"
+                pointerY: preview ? preview.style.getPropertyValue("--pointer-y") || "50%" : "50%",
+                ...GameLayout.foilState(preview || cardElement)
             });
         });
         var playerOrigins = new Map();
@@ -652,6 +681,9 @@ class GameLayout {
             return;
         }
         var playerOrigin = origins ? origins.playerOrigins.get(pile.name) : null;
+        var duration = animationDuration(typeof currentGame != "undefined" ? currentGame : null);
+        var lastDelay = animationDuration(typeof currentGame != "undefined" ? currentGame : null,
+            Math.max(0, pile.length - 1) * 55);
         var pendingAnimations = 0;
         var finishedAnimations = 0;
         var landedCards = [];
@@ -684,6 +716,7 @@ class GameLayout {
             var target = destination.target;
             var targetImage = destination.image;
             var targetBounds = destination.bounds;
+            var restingFoil = GameLayout.foilState(target, duration + lastDelay);
             if (targetBounds.width == 0 || targetBounds.height == 0) { return; }
             if (!source || source.width == 0 || source.height == 0) {
                 source = {
@@ -752,23 +785,17 @@ class GameLayout {
             var flightFrames = [
                 {
                     transform: flightTransform(0, 0, startRotation, 1),
-                    "--pointer-x": source.pointerX || `${50 + yaw / 18 * 45}%`,
-                    "--pointer-y": source.pointerY || `${50 - pitch / 18 * 45}%`,
                     "--foil-activity": hasTilt ? 1 : 0,
                     opacity: 1
                 },
                 {
                     transform: flightTransform(flightX * 0.65, flightY * 0.65, middleRotation, 0.35, middlePitch, middleYaw),
-                    "--pointer-x": `${50 + middleYaw / 18 * 45}%`,
-                    "--pointer-y": `${50 - middlePitch / 18 * 45}%`,
                     "--foil-activity": hasTilt ? 0.35 : 0,
                     opacity: 1,
                     offset: 0.68
                 },
                 {
                     transform: flightTransform(flightX, flightY, targetRotation, 0),
-                    "--pointer-x": "50%",
-                    "--pointer-y": "50%",
                     "--foil-activity": 0,
                     opacity: 1
                 }
@@ -782,15 +809,44 @@ class GameLayout {
                     return {
                         offset: progress,
                         transform: `translate(${pose.x - flightLeft - targetBounds.width / 2}px, ${pose.y - flightTop - targetBounds.height / 2}px) scale(${scale})`,
-                        "--pointer-x": `${50 + yaw * amount / 18 * 45}%`,
-                        "--pointer-y": `${50 - pitch * amount / 18 * 45}%`,
                         "--foil-activity": amount,
                         opacity: 1
                     };
                 });
             }
+            if (flight.dataset.foil !== "none") {
+                // Match the visible light and eased pattern, then join the table's idle phase at reveal.
+                var sourceX = source.pointerX != null ? parseFloat(source.pointerX) : 50 + yaw / 18 * 45;
+                var sourceY = source.pointerY != null ? parseFloat(source.pointerY) : 50 + pitch / 18 * 45;
+                var endX = restingFoil ? parseFloat(restingFoil.pointerX) : 50;
+                var endY = restingFoil ? parseFloat(restingFoil.pointerY) : 50;
+                var sourceColor = source.foilColor ?? (hasTilt ? .72 : .48);
+                var sourceGlare = source.foilGlare ?? .3;
+                var endColor = restingFoil ? restingFoil.foilColor : .48;
+                var endGlare = restingFoil ? restingFoil.foilGlare : .3;
+                var sourcePatternX = source.patternX ?? 50 + (sourceX - 50) * .8;
+                var sourcePatternY = source.patternY ?? 50 + (sourceY - 50) * .8;
+                var endPatternX = restingFoil?.patternX ?? 50 + (endX - 50) * .8;
+                var endPatternY = restingFoil?.patternY ?? 50 + (endY - 50) * .8;
+                var restPose = landingPose ? landingPose.poseAtProgress(1) : { pitch: 0, yaw: 0 };
+                flightFrames.forEach((frame, index) => {
+                    var progress = frame.offset ?? (index === 0 ? 0 : index === flightFrames.length - 1 ? 1 : .68);
+                    var blend = progress * progress * (3 - 2 * progress);
+                    var pose = landingPose ? landingPose.poseAtProgress(progress) :
+                        { pitch: index === 0 ? pitch : index === 1 ? middlePitch : 0,
+                            yaw: index === 0 ? yaw : index === 1 ? middleYaw : 0 };
+                    var tiltX = (pose.yaw - yaw - (restPose.yaw - yaw) * blend) / 18 * 45;
+                    var tiltY = (pose.pitch - pitch - (restPose.pitch - pitch) * blend) / 18 * 45;
+                    frame["--pointer-x"] = `${sourceX + (endX - sourceX) * blend + tiltX}%`;
+                    frame["--pointer-y"] = `${sourceY + (endY - sourceY) * blend + tiltY}%`;
+                    frame["--foil-pattern-x"] = `${sourcePatternX + (endPatternX - sourcePatternX) * blend + tiltX * .8}%`;
+                    frame["--foil-pattern-y"] = `${sourcePatternY + (endPatternY - sourcePatternY) * blend + tiltY * .8}%`;
+                    frame["--foil-color-opacity"] = sourceColor + (endColor - sourceColor) * blend;
+                    frame["--foil-glare-opacity"] = sourceGlare + (endGlare - sourceGlare) * blend;
+                });
+            }
             var animation = flight.animate(flightFrames, {
-                duration: animationDuration(typeof currentGame != "undefined" ? currentGame : null),
+                duration: duration,
                 delay: animationDuration(typeof currentGame != "undefined" ? currentGame : null, cardIndex * 55),
                 easing: landingPose ? "linear" : "cubic-bezier(.22,.8,.25,1)",
                 fill: "both"

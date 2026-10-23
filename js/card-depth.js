@@ -81,6 +81,13 @@ class CardDepth {
             this.states.set(element, state);
             element.appendChild(svg);
             element.classList.add("has-card-depth");
+            // Recreated table cards resume the same idle phase instead of restarting their foil.
+            if (typeof element.getAnimations === "function" && document.timeline) {
+                element.getAnimations({ subtree: true }).filter(animation => animation.animationName === "foil-idle-color" ||
+                    animation.animationName === "foil-idle-reflection").forEach(animation => {
+                    animation.currentTime = (document.timeline.currentTime || 0) % 6000;
+                });
+            }
             if (render) { this.update(element, state.pose); }
         } catch (error) {
             this.warn(error);
