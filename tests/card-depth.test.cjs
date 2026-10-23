@@ -331,7 +331,7 @@ test("wall collisions retain their resulting pose across flights, table refreshe
     }
 });
 
-test("multi-card throws keep their fan through wall rotation and never restart after friction stops them", () => {
+test("multi-card throws keep a loose fan through wall rotation and never restart after friction stops them", () => {
     for (const direction of [-1, 1]) {
         for (const count of [2, 3, 4]) {
             const f = fixture(), bounds = { left: 150, top: 100, width: 342, height: 320 };
@@ -362,28 +362,41 @@ test("multi-card throws keep their fan through wall rotation and never restart a
             });
             const depthOffset = state => state.rest.y - state.throwGroup.target.y -
                 state.throwGroup.offsetAt(state.throwGroup.index, state.rest.roll).y;
-            let stoppedFrames = 0;
+            let stoppedFrames = 0, relativeMovement = 0, relativeRotation = 0;
             for (let frame = 0; frame <= 240; frame++) {
                 const t = frame / 240, raw = path.positionAtProgress(t);
                 const poses = motions.map(motion => motion.positionAtProgress(t));
-                poses.forEach(pose => assert.ok(Math.abs(pose.roll - raw.roll) < 1e-8,
-                    "Every frame retains physical rotation, including reversals caused only by an actual impact"));
+                poses.forEach((pose, index) => {
+                    const slip = states[index].throwGroup.slip;
+                    const physical = path.positionAtProgress(t + slip * t * (1 - t));
+                    assert.ok(Math.abs(pose.roll - physical.roll) < 1e-8,
+                        "Each card follows collision rotation with its own slight resistance variation");
+                });
                 for (let index = 1; index < poses.length; index++) {
                     const dx = poses[index].x - poses[0].x;
                     const dy = poses[index].y - depthOffset(states[index]) - poses[0].y + depthOffset(states[0]);
                     const expected = states[index].throwGroup.offsetAt(index, raw.roll);
                     const firstOffset = states[0].throwGroup.offsetAt(0, raw.roll);
-                    assert.ok(Math.abs(dx - expected.x + firstOffset.x) < 1e-7 &&
-                        Math.abs(dy - expected.y + firstOffset.y) < 1e-7,
-                    "The fan never collapses into a stack or reforms into a line after impact");
+                    const deviation = Math.hypot(dx - expected.x + firstOffset.x, dy - expected.y + firstOffset.y);
+                    relativeMovement = Math.max(relativeMovement, deviation);
+                    relativeRotation = Math.max(relativeRotation, Math.abs(poses[index].roll - poses[0].roll));
+                    assert.ok(deviation < 16, "Independent slip stays small enough to retain the fan");
                 }
-                if (frame && path.distanceAtProgress(t) === path.distanceAtProgress((frame - 1) / 240)) {
+                const previousT = (frame - 1) / 240;
+                if (frame && states.every(state => {
+                    const slip = state.throwGroup.slip;
+                    return path.distanceAtProgress(t + slip * t * (1 - t)) ===
+                        path.distanceAtProgress(previousT + slip * previousT * (1 - previousT));
+                })) {
                     stoppedFrames++;
                     motions.forEach(motion => assert.deepEqual(motion.positionAtProgress(t),
                         motion.positionAtProgress((frame - 1) / 240), "Stopped cards never accelerate toward the pile"));
                 }
             }
             assert.ok(stoppedFrames > 0, "Check the stationary tail, not just moving frames");
+            assert.ok(relativeMovement > .1, "Cards slide slightly differently rather than forming a rigid sheet");
+            assert.ok(relativeRotation > .01 && relativeRotation < 12,
+                "Wall torque reaches individual cards at slightly different times without breaking up the fan");
             assert.equal(motions[0].durationScale, 1.6, "Reduced friction extends time instead of speeding up the throw");
         }
     }

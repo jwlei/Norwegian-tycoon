@@ -403,7 +403,8 @@ class CardDepth {
             group.cards.forEach((plan, index) => {
                 const offset = offsetAt(index, finalCenter.roll);
                 plan.path = path;
-                plan.group = { path, footprint, offsetAt, index };
+                plan.group = { path, footprint, offsetAt, index,
+                    slip: group.cards.length > 1 ? .04 * (2 * index / (group.cards.length - 1) - 1) : 0 };
                 plan.final = boardBounds ? { ...plan.base, x: finalCenter.x + offset.x,
                     y: finalCenter.y + offset.y, roll: finalCenter.roll } : plan.base;
             });
@@ -519,8 +520,10 @@ class CardDepth {
         const path = destination.wallTrajectory;
         const group = destination.throwGroup;
         const rawPosition = path && group ? progress => {
-            const physical = path.positionAtProgress(progress);
-            const traveled = path.distanceAtProgress(progress);
+            // Small differences in sliding resistance loosen the fan without a separate settling shove.
+            const travelProgress = progress + group.slip * progress * (1 - progress);
+            const physical = path.positionAtProgress(travelProgress);
+            const traveled = path.distanceAtProgress(travelProgress);
             const center = { ...physical,
                 x: physical.x + (group.target.x - path.final.x) * traveled,
                 y: physical.y + (group.target.y - path.final.y) * traveled };
