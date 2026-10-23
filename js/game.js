@@ -1,3 +1,20 @@
+// Lobby settings.
+const PUBLIC_LOBBY_PATH = "boms_public";
+const PUBLIC_LOBBY_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+
+// Presentation timing (milliseconds).
+const TURN_ACTION_PAUSE_MS = 2000;
+const SHUFFLE_DURATION_MS = 3000;
+const PLAY_ANIMATION_MS = 520;
+const DISCARD_ANIMATION_MS = 720;
+
+// Input tuning: degrees, pixels, pixels per millisecond, then milliseconds.
+const CARD_TOUCH_PICKUP_CONE = 135;
+const CARD_FLICK_MIN_DISTANCE = 4;
+const CARD_FLICK_MIN_VELOCITY = 0.10;
+const CARD_FLICK_RELEASE_GRACE_MS = 120;
+const CARD_FLICK_RECOIL_TOLERANCE = 3;
+
 var selectedCardKeys = new Set();
 var selectedCardStrength = null;
 var selectedCardOwner = null;
@@ -9,8 +26,6 @@ var autoPassEnabled = getCookie("AutoPass") == "true";
 var autoScrollEmptyTurnKey = null;
 var recentlyReceivedCards = { owner: null, keys: new Set(), timer: null };
 var suppressNextCardClick = false;
-const PUBLIC_LOBBY_PATH = "boms_public";
-const PUBLIC_LOBBY_MAX_AGE_MS = 2 * 60 * 60 * 1000;
 function markReceivedCards(owner, cards) {
     if (recentlyReceivedCards.timer != null) { clearTimeout(recentlyReceivedCards.timer); }
     recentlyReceivedCards.owner = owner;
@@ -189,8 +204,6 @@ const BOT_NAMES = [
     "Fetter Anton", "DeepSeek", "GPT6", "Jompa", "Sjefen_Over_Alle_Sjefer",
     "Mysil Bergsprekken", "RNGesus", "Tante_Pose", "BobRoss", "IlIllIlIIl", "ギフテッド"
 ];
-const TURN_ACTION_PAUSE_MS = 2000;
-const SHUFFLE_DURATION_MS = 3000;
 
 function gameTurnSeconds(value) {
     return [1, 2, 3].includes(Number(value)) ? Number(value) : TURN_ACTION_PAUSE_MS / 1000;
@@ -287,9 +300,6 @@ function clearCardSelection() {
     autoSuggestedCardKeys.clear();
     selectedCardStrength = null;
 }
-
-const PLAY_ANIMATION_MS = 520;
-const DISCARD_ANIMATION_MS = 720;
 
 function animationDuration(game, normal = PLAY_ANIMATION_MS) {
     if (game && game.fastForward === true) { return normal * 0.5; }
@@ -479,12 +489,6 @@ function isUpwardFlick(x, y, coneDegrees = CARD_TOUCH_PICKUP_CONE) {
     return y > 0 && y + 1e-6 >= Math.abs(x) *
         Math.tan((180 - coneDegrees) * Math.PI / 360);
 }
-
-const CARD_TOUCH_PICKUP_CONE = 135;
-const CARD_FLICK_MIN_DISTANCE = 4;
-const CARD_FLICK_MIN_VELOCITY = 0.10;
-const CARD_FLICK_RELEASE_GRACE_MS = 120;
-const CARD_FLICK_RECOIL_TOLERANCE = 3;
 
 // Input timestamps reflect when the finger actually moved, unlike handler time,
 // which jank (e.g. building the drag preview) can delay and distort.

@@ -2165,7 +2165,8 @@ test("fast forward temporarily shows the fastest message speed without overwriti
         localStorage: { getItem: () => "slow" },
         document: { querySelectorAll: () => buttons }
     });
-    vm.runInContext(source.slice(source.indexOf("        var GAME_SPEED_MS"),
+    vm.runInContext(source.match(/        var GAME_SPEED_MS = [^\n]+/)[0] +
+        source.slice(source.indexOf("        function currentGameSpeed()"),
         source.indexOf("        function updateTurnSpeedButtons")), context);
     for (const enabled of [false, true, false]) {
         context.currentGame.fastForward = enabled;
@@ -2183,7 +2184,8 @@ test("new players use normal message duration while saved speeds remain unchange
         const context = vm.createContext({
             currentGame: null, localStorage: { getItem: () => saved }
         });
-        vm.runInContext(source.slice(source.indexOf("        var GAME_SPEED_MS"),
+        vm.runInContext(source.match(/        var GAME_SPEED_MS = [^\n]+/)[0] +
+            source.slice(source.indexOf("        function currentGameSpeed()"),
             source.indexOf("        function updateSpeedButtons")), context);
         assert.equal(context.currentGameSpeed(),
             ["fast", "normal", "slow"].includes(saved) ? saved : "normal");
@@ -3692,7 +3694,7 @@ test("invites generate gameid links and accept both new and legacy links", () =>
             }
         });
         const inviteListenerStart = source.indexOf("        document.getElementById('inviteButton').addEventListener", end);
-        const inviteListenerEnd = source.indexOf("        var GAME_SPEED_MS", inviteListenerStart);
+        const inviteListenerEnd = source.indexOf("        function currentGameSpeed()", inviteListenerStart);
         vm.runInContext(source.slice(start, end) + source.slice(inviteListenerStart, inviteListenerEnd), context);
         assert.equal(joined, expected);
         context.currentGame = { id: "789" };
@@ -4727,7 +4729,7 @@ test("auto pass preference defaults off and toggles persist with accessible stat
         vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8"), context);
         const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
         const start = source.indexOf("        function toggleAutoPass()");
-        vm.runInContext(source.slice(start, source.indexOf("        var STARTER_FLASH_DURATION_MS", start)), context);
+        vm.runInContext(source.slice(start, source.indexOf("        var lastShuffleStartedAt", start)), context);
         context.updateAutoPassButton();
         assert.equal(attributes["aria-pressed"], String(saved == "true"));
         context.toggleAutoPass();

@@ -24,6 +24,29 @@ class CardDeck extends Array {
 }
 
 class Card {
+    static foilConfigNames = {
+        holo: "stripes", galaxy: "stardust", v: "prism", vmax: "waves", vstar: "facets",
+        "full-art": "rings", "trainer-full-art": "weave", rainbow: "rainbow",
+        "rainbow-alt": "contrast", gold: "gold-sheen", radiant: "grid",
+        "gallery-holo": "iridescent", "gallery-v": "pearlescent", "gallery-vmax": "rays"
+    };
+    static foilTreatments = {
+        stripes: { opacityReduction: 30, saturation: 75, blend: "soft-light", printedFoil: true, fullReflection: false },
+        stardust: { opacityReduction: 30, saturation: 50, blend: "original", printedFoil: true, fullReflection: false },
+        prism: { opacityReduction: 20, saturation: 75, blend: "original", printedFoil: false, fullReflection: false },
+        waves: { opacityReduction: 0, saturation: 100, blend: "original", printedFoil: false, fullReflection: false },
+        facets: { opacityReduction: 30, saturation: 75, blend: "original", printedFoil: true, fullReflection: false },
+        rings: { opacityReduction: 20, saturation: 75, blend: "original", printedFoil: true, fullReflection: false },
+        weave: { opacityReduction: 20, saturation: 75, blend: "original", printedFoil: true, fullReflection: false },
+        rainbow: { opacityReduction: 10, saturation: 100, blend: "original", printedFoil: true, fullReflection: false },
+        contrast: { opacityReduction: 30, saturation: 100, blend: "original", printedFoil: false, fullReflection: false },
+        "gold-sheen": { opacityReduction: 30, saturation: 100, blend: "original", printedFoil: true, fullReflection: false },
+        grid: { opacityReduction: 20, saturation: 100, blend: "original", printedFoil: false, fullReflection: false },
+        iridescent: { opacityReduction: 30, saturation: 100, blend: "original", printedFoil: true, fullReflection: false },
+        pearlescent: { opacityReduction: 30, saturation: 75, blend: "original", printedFoil: true, fullReflection: false },
+        rays: { opacityReduction: 30, saturation: 75, blend: "original", printedFoil: false, fullReflection: false }
+    };
+
     static suitInfo(suitNumber) {
         return [
             {},
@@ -180,28 +203,6 @@ class Card {
         const options = Card.foilOptions();
         return order.map(id => options.find(option => option.id == id));
     }
-    static foilConfigNames = {
-        holo: "stripes", galaxy: "stardust", v: "prism", vmax: "waves", vstar: "facets",
-        "full-art": "rings", "trainer-full-art": "weave", rainbow: "rainbow",
-        "rainbow-alt": "contrast", gold: "gold-sheen", radiant: "grid",
-        "gallery-holo": "iridescent", "gallery-v": "pearlescent", "gallery-vmax": "rays"
-    };
-    static foilTreatments = {
-        stripes: { opacityReduction: 30, saturation: 75, blend: "soft-light", printedFoil: true, fullReflection: false },
-        stardust: { opacityReduction: 30, saturation: 50, blend: "original", printedFoil: true, fullReflection: false },
-        prism: { opacityReduction: 20, saturation: 75, blend: "original", printedFoil: false, fullReflection: false },
-        waves: { opacityReduction: 0, saturation: 100, blend: "original", printedFoil: false, fullReflection: false },
-        facets: { opacityReduction: 30, saturation: 75, blend: "original", printedFoil: true, fullReflection: false },
-        rings: { opacityReduction: 20, saturation: 75, blend: "original", printedFoil: true, fullReflection: false },
-        weave: { opacityReduction: 20, saturation: 75, blend: "original", printedFoil: true, fullReflection: false },
-        rainbow: { opacityReduction: 10, saturation: 100, blend: "original", printedFoil: true, fullReflection: false },
-        contrast: { opacityReduction: 30, saturation: 100, blend: "original", printedFoil: false, fullReflection: false },
-        "gold-sheen": { opacityReduction: 30, saturation: 100, blend: "original", printedFoil: true, fullReflection: false },
-        grid: { opacityReduction: 20, saturation: 100, blend: "original", printedFoil: false, fullReflection: false },
-        iridescent: { opacityReduction: 30, saturation: 100, blend: "original", printedFoil: true, fullReflection: false },
-        pearlescent: { opacityReduction: 30, saturation: 75, blend: "original", printedFoil: true, fullReflection: false },
-        rays: { opacityReduction: 30, saturation: 75, blend: "original", printedFoil: false, fullReflection: false }
-    };
     static foilTreatment(foil) {
         return Card.foilTreatments[Card.foilConfigNames[foil]];
     }

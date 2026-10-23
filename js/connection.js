@@ -1,5 +1,9 @@
 (
     function () {
+        // Presentation timing (milliseconds).
+        var STARTER_FLASH_DURATION_MS = 1900;
+        var GAME_SPEED_MS = { fast: 3000, normal: 5000, slow: 8000 };
+
         var currentGame = null;
         var currentPlayerName = null;
         var playerPresidentWins = 0;
@@ -416,8 +420,6 @@
             }
         }
 
-        var STARTER_FLASH_DURATION_MS = 2500;
-        var STARTER_FLASH_DURATION_MS = 1900;
         var lastShuffleStartedAt = null;
         var shuffleEndsAt = 0;
         var shuffleTicker = null;
@@ -2095,7 +2097,6 @@
             showInviteLink(currentGame.id, inviteUrl.href);
         });
 
-        var GAME_SPEED_MS = { fast: 3000, normal: 5000, slow: 8000 };
         function currentGameSpeed() {
             if (currentGame && currentGame.fastForward === true) { return "fast"; }
             var stored = null;

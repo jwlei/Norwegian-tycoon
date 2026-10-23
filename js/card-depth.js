@@ -2,6 +2,13 @@
 
 // Native SVG card depth: a 3px laminated edge, support-aware resting poses, and top-left light shadows.
 class CardDepth {
+    // Shadow tuning.
+    // Below this blur radius a filter is indistinguishable from the anti-aliased edge.
+    static SHARP_BLUR = 1.25;
+    // Tables with more cards than this keep full shadows only on their top DETAILED_CARDS cards.
+    static SIMPLIFY_FROM = 12;
+    static DETAILED_CARDS = 8;
+
     static states = new WeakMap();
     static scenes = new WeakMap();
     static flightByTarget = new WeakMap();
@@ -13,11 +20,6 @@ class CardDepth {
     static warned = false;
     static listeningForScroll = false;
     static FLOOR = "floor";
-    // Below this blur radius a filter is indistinguishable from the anti-aliased edge.
-    static SHARP_BLUR = 1.25;
-    // Tables with more cards than this keep full shadows only on their top DETAILED_CARDS cards.
-    static SIMPLIFY_FROM = 12;
-    static DETAILED_CARDS = 8;
     static paper = ["#dedbc7", "#bdbea9", "#e7e2cf", "#c5c5b1", "#dedbc7", "#b5bba4", "#e7e2cf"];
 
     static paperColors(rect) {

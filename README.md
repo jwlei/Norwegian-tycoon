@@ -75,6 +75,18 @@ Native rendering caches unchanged card geometry separately from shadow dependenc
 
 Multi-card pickup and return measure all selected cards before making visual changes, avoiding interleaved layout reads/writes. Each drag card renders its initial depth pose once and skips redundant scale writes during pointer movement. Native drag cards suppress the generic button's duplicate rectangular shadow and request compositor layers only while their temporary previews exist. The tilt sandbox includes a four-card selection for checking this path; these optimizations do not reduce artwork, foil or shadow quality.
 
+### Tuning settings
+
+Existing tuning settings live at the top of their owning file, closure or class, without changing their scope or values:
+- `js/game.js`: lobby settings, presentation durations and flick thresholds (distances in pixels, velocity in pixels per millisecond).
+- `js/connection.js`: starter flash duration and message speeds, in milliseconds.
+- `js/cards.js`: English foil configuration names and approved treatments at the top of `Card`.
+- `js/card-depth.js`: existing shadow thresholds at the top of `CardDepth`.
+- `js/landing-geometry.js`: card dimensions, projection, light and landing constants at the top of its closure.
+- `js/presence.js`, `js/player.js` and `js/bot.js` already keep their settings at the top of their owning scope.
+
+Local calculations, lookup tables and runtime state stay near their use. This organization is for easier configuration, not a performance change; it does not alter shadow quality.
+
 Resting pitch/yaw comes from sampled heights of the cards beneath each footprint, with the approved gentler lean on crossed piles. A fixed top-left light projects shorter, tighter shadows onto the felt and supporting card planes. Flight, first contact, sliding/spinning momentum, diminishing rebounds, and settlement share the same geometry and shadow model; the final flight pose matches the persistent table card. Thrown cards decelerate at one constant rate from release, through touchdown at 64% of the animation, to rest: they carry about a third of their launch speed into a slide of roughly 13% of the throw distance (capped at 45% of a card height) instead of braking in the air. This is an approximate support model, not a full rigid-body simulation.
 
 Pairs, triples and quads keep their readable fan but add a stable, random-looking per-card splay: up to 3px sideways, 5px along the table and 2 degrees of extra rotation. Each card still slides along its incoming throw direction into its own final pose, rather than skidding sideways. The splay is derived from the deal, play and card identity so refreshes and other clients keep the same layout; single cards are unchanged.
