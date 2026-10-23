@@ -53,6 +53,8 @@ node --test
 
 ### Card depth and landing
 
+Open [the foil transparency preview](tests/foil-opacity-preview.html) to compare current foils with 10-50% less opacity. It scales both the printed SVG foil and reflective CSS layers, offers card-design and active-intensity controls, and does not alter production foil settings.
+
 Dragged cards, return glides, plays, exchanges, discards, and resting table cards use a 3px laminated edge following the actual SVG outline. Seven native SVG paper slices and the original artwork replace the supersampled WebGL renderer: there are no canvas copies, GPU contexts, texture caches, or render-target multipliers. Existing card designs, pixel outlines, foil overlays, and table guidance are retained.
 
 Card movement retains the timing and individual card splay from `1797a9b1dc07f8ae3a2737aff5b726937134af59`, without table-edge rebounds or shared fan trajectories. Slightly lower landing friction extends normal post-contact slides by 12%; short throws are capped to avoid acceleration. The central landing area is wider, and each new play's top card covers at least 10% of the previous top card's projected face. Whole-play translations preserve individual fan offsets and rotations; only edge-constrained fans tighten their horizontal spacing, retaining at least 18% of a card width between adjacent centers. Support-aware endpoints are fitted before flights start, without an endpoint snap. Landing offsets remain stable across refreshes and resizing.

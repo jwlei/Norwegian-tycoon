@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Foil transparency preview</title>
+    <link rel="stylesheet" href="../css/foil.css">
+    <style>
+        body { margin: 0; padding: 24px; background: #122b30; color: #edf8f5; font: 16px system-ui, sans-serif; }
+        main { max-width: 1200px; margin: auto; }
+        h1 { font-size: 1.5rem; }
+        p { line-height: 1.5; }
+        .controls { display: flex; flex-wrap: wrap; gap: 20px; margin: 24px 0; }
+        label { display: flex; align-items: center; gap: 8px; }
+        select { font: inherit; padding: 8px; }
+        .comparisons { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 20px; }
+        figure { margin: 0; text-align: center; }
+        figcaption { margin-top: 12px; font-weight: 600; }
+        .card-preview { position: relative; display: block; width: 100%; isolation: isolate; }
+        .card-preview > img { display: block; width: 100%; height: auto; }
+        #comparisons.comparisons .card-preview[data-foil]:not([data-foil="none"])::before {
+            opacity: calc(var(--preview-strength) * var(--preview-opacity, .48));
+        }
+        #comparisons.comparisons .card-preview[data-foil]:not([data-foil="none"])::after {
+            opacity: calc(var(--preview-strength) * .3);
+        }
+        .comparisons.is-active { --preview-opacity: .72; }
+        small { display: block; margin-top: 8px; color: #b4cec8; font-weight: normal; }
+        @media (max-width: 800px) { .comparisons { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+        @media (max-width: 420px) { body { padding: 16px; } .comparisons { gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Foil transparency preview</h1>
+    <p>Compare the current foil with 10%, 20%, 30%, 40%, and 50% less opacity.
+        Both the printed foil and reflective layers are reduced; the card artwork stays opaque.
+        Move over any card to compare the same light position across all six cards.</p>
+    <div class="controls">
+        <label>Foil <select id="foil"></select></label>
+        <label>Card design <select id="design"></select></label>
+        <label><input type="checkbox" id="active"> Active / dragging foil intensity</label>
+    </div>
+    <div class="comparisons" id="comparisons" aria-label="Foil opacity comparisons"></div>
+    <p>This preview does not change the game's foil settings.</p>
+</main>
+<script src="../js/cards.js"></script>
+<script>
+    const foil = document.getElementById("foil");
+    const design = document.getElementById("design");
+    const comparisons = document.getElementById("comparisons");
+    for (const option of Card.foilOptions().filter(option => option.id !== "none")) {
+        foil.add(new Option(option.name, option.id));
+    }
+    for (const style of ["normal", "gold", "pixel", "holo", "neon", "monochrome", "minimalist",
+        "cyberpunk", "glitched", "cosmic", "origami", "gothic", "silver", "crystal", "parallax"]) {
+        design.add(new Option(style, style));
+    }
+    foil.value = "rainbow";
+
+    function render() {
+        comparisons.replaceChildren();
+        for (const reduction of [0, 10, 20, 30, 40, 50]) {
+            const strength = 1 - reduction / 100;
+            const figure = document.createElement("figure");
+            const preview = document.createElement("div");
+            preview.className = `card-preview card-preview--${design.value}`;
+            preview.dataset.foil = foil.value;
+            preview.dataset.cardStyle = design.value;
+            preview.style.setProperty("--preview-strength", strength);
+            const image = document.createElement("img");
+            const uri = new Card(2, 12).toImageDataUri(design.value, foil.value);
+            const svg = new DOMParser().parseFromString(decodeURIComponent(uri.slice(uri.indexOf(",") + 1)), "image/svg+xml");
+            const printedFoil = svg.querySelector("g[data-foil]");
+            if (!printedFoil) { throw new Error("Expected a printed foil layer in the card artwork."); }
+            printedFoil.setAttribute("opacity", Number(printedFoil.getAttribute("opacity")) * strength);
+            image.src = `data:image/svg+xml,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`;
+            image.alt = `Queen of hearts, ${reduction}% less foil opacity`;
+            preview.appendChild(image);
+            const caption = document.createElement("figcaption");
+            caption.textContent = reduction ? `${reduction}% more transparent` : "Current";
+            const detail = document.createElement("small");
+            detail.textContent = `${100 - reduction}% of current foil opacity`;
+            caption.appendChild(detail);
+            figure.append(preview, caption);
+            comparisons.appendChild(figure);
+        }
+    }
+
+    comparisons.addEventListener("pointermove", event => {
+        const card = event.target.closest(".card-preview");
+        if (!card) { return; }
+        const bounds = card.getBoundingClientRect();
+        comparisons.style.setProperty("--pointer-x", `${Math.max(0, Math.min(100, (event.clientX - bounds.left) / bounds.width * 100))}%`);
+        comparisons.style.setProperty("--pointer-y", `${Math.max(0, Math.min(100, (event.clientY - bounds.top) / bounds.height * 100))}%`);
+    });
+    comparisons.addEventListener("pointerleave", () => {
+        comparisons.style.setProperty("--pointer-x", "50%");
+        comparisons.style.setProperty("--pointer-y", "50%");
+    });
+    document.getElementById("active").addEventListener("change", event => {
+        comparisons.classList.toggle("is-active", event.target.checked);
+    });
+    foil.addEventListener("change", render);
+    design.addEventListener("change", render);
+    render();
+</script>
+</body>
+</html>
