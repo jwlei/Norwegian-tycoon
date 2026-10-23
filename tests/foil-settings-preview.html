@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Per-foil settings preview</title>
+    <link rel="stylesheet" href="../css/foil.css">
+    <style>
+        body { margin: 0; padding: 24px; background: #122b30; color: #edf8f5; font: 16px system-ui, sans-serif; }
+        main { max-width: 1200px; margin: auto; }
+        h1 { font-size: 1.6rem; }
+        p { line-height: 1.5; }
+        button, select, textarea { font: inherit; padding: 8px; }
+        button { cursor: pointer; }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin: 24px 0; }
+        label { display: flex; align-items: center; gap: 8px; }
+        .foil-row { margin: 24px 0; padding: 20px; border: 1px solid #70958f; border-radius: 12px; }
+        .foil-row h2 { margin-top: 0; font-size: 1.2rem; }
+        .row-content { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr); gap: 24px; }
+        .settings { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+        .settings label { flex-wrap: wrap; }
+        .cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-self: start; }
+        figure { margin: 0; text-align: center; }
+        figcaption { margin-top: 8px; font-size: .85rem; }
+        .card-preview { position: relative; display: block; width: 100%; isolation: isolate; }
+        .card-preview > img { display: block; width: 100%; height: auto; }
+        #foils .card-preview[data-foil]:not([data-foil="none"])::before {
+            opacity: calc(var(--preview-strength) * var(--preview-intensity, .48));
+            filter: var(--foil-filter) saturate(var(--preview-saturation));
+            mix-blend-mode: var(--preview-blend, var(--foil-mix));
+        }
+        #foils .card-preview[data-foil]:not([data-foil="none"])::after {
+            opacity: calc(var(--preview-glare) * .3);
+        }
+        #foils.is-active { --preview-intensity: .72; }
+        #status { display: block; min-height: 1.5em; }
+        #status.is-error { color: #ffb4b4; }
+        textarea { box-sizing: border-box; width: 100%; min-height: 220px; background: #0d2024; color: #edf8f5; }
+        [hidden] { display: none !important; }
+        small { color: #b4cec8; }
+        @media (max-width: 850px) { .row-content { grid-template-columns: minmax(0, 1fr); } }
+        @media (max-width: 480px) {
+            body { padding: 12px; } .foil-row { padding: 12px; }
+            .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Choose settings for each foil</h1>
+    <p>Every foil is shown on <strong>Normal (light)</strong> and <strong>Cosmic (dark)</strong>,
+        each beside its unfoiled design. One shared setting applies to both styles.
+        Move over a card to synchronize the light across that row.</p>
+    <p>Changes save automatically in this browser. Export your choices when ready so they can be applied to the game.
+        Nothing here changes production foil settings. Local-file storage may not be shared between browsers or computers.</p>
+    <div class="toolbar">
+        <label><input id="active" type="checkbox"> Active / dragging intensity</label>
+        <button id="export" type="button">Export settings</button>
+        <button id="reset" type="button">Reset all to current game settings</button>
+    </div>
+    <output id="status" role="status" aria-live="polite"></output>
+    <section id="export-panel" hidden aria-label="Exported foil settings">
+        <label for="export-text">Copy these settings or download the JSON file</label>
+        <textarea id="export-text" readonly spellcheck="false"></textarea>
+        <button id="download" type="button">Download JSON</button>
+    </section>
+    <div id="foils"></div>
+</main>
+<script src="../js/cards.js"></script>
+<script>
+    const STORAGE_KEY = "norwegian-tycoon-foil-preview-v1";
+    const options = Card.foilOptions().filter(option => option.id !== "none");
+    const foils = document.getElementById("foils");
+    const status = document.getElementById("status");
+    const defaults = () => ({ opacityReduction: 0, saturation: 100, blend: "original",
+        printedFoil: true, fullReflection: false });
+    let settings = Object.fromEntries(options.map(option => [option.id, defaults()]));
+
+    function notify(message, error = false) {
+        status.textContent = message;
+        status.classList.toggle("is-error", error);
+        if (error) { console.error(message); }
+    }
+
+    function valid(value) {
+        return value && Number.isInteger(value.opacityReduction) && value.opacityReduction >= 0 &&
+            value.opacityReduction <= 90 && value.opacityReduction % 10 === 0 &&
+            Number.isInteger(value.saturation) && value.saturation >= 0 && value.saturation <= 100 &&
+            ["original", "soft-light", "luminosity"].includes(value.blend) &&
+            typeof value.printedFoil === "boolean" && typeof value.fullReflection === "boolean";
+    }
+
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            const saved = JSON.parse(stored);
+            if (saved.version !== 1 || !saved.foils || !options.every(option => valid(saved.foils[option.id]))) {
+                throw new Error("Saved foil settings have an unsupported or invalid format.");
+            }
+            settings = Object.fromEntries(options.map(option => [option.id, saved.foils[option.id]]));
+            notify("Restored your saved foil settings.");
+        } else { notify("Starting from the current game settings."); }
+    } catch (error) {
+        notify(`Could not load saved settings: ${error.message} Using current game settings; export your choices to keep them.`, true);
+    }
+
+    function exported() {
+        return JSON.stringify({ version: 1, styles: { light: "normal", dark: "cosmic" }, foils: settings }, null, 2);
+    }
+
+    function save() {
+        if (!document.getElementById("export-panel").hidden) {
+            document.getElementById("export-text").value = exported();
+        }
+        try {
+            localStorage.setItem(STORAGE_KEY, exported());
+            notify("All foil settings saved in this browser.");
+        } catch (error) {
+            notify(`Could not save locally: ${error.message} Your choices remain on this page; export them before leaving.`, true);
+        }
+    }
+
+    function renderCards(row, id) {
+        const value = settings[id], strength = 1 - value.opacityReduction / 100;
+        const cards = row.querySelector(".cards");
+        cards.replaceChildren();
+        for (const style of ["normal", "cosmic"]) {
+            for (const reference of [true, false]) {
+                const figure = document.createElement("figure");
+                const preview = document.createElement("div");
+                preview.className = `card-preview card-preview--${style}`;
+                preview.dataset.cardStyle = style;
+                preview.dataset.foil = reference ? "none" : id;
+                preview.style.setProperty("--preview-strength", strength);
+                preview.style.setProperty("--preview-saturation", value.saturation / 100);
+                preview.style.setProperty("--preview-glare", value.fullReflection ? 1 : strength);
+                if (value.blend !== "original") { preview.style.setProperty("--preview-blend", value.blend); }
+                const image = document.createElement("img");
+                const uri = new Card(2, 12).toImageDataUri(style, preview.dataset.foil);
+                if (reference) { image.src = uri; }
+                else {
+                    const svg = new DOMParser().parseFromString(decodeURIComponent(uri.slice(uri.indexOf(",") + 1)), "image/svg+xml");
+                    const layer = svg.querySelector("g[data-foil]");
+                    if (!layer) { throw new Error(`Missing printed foil layer for ${id}.`); }
+                    layer.setAttribute("opacity", Number(layer.getAttribute("opacity")) * (value.printedFoil ? strength : 0));
+                    layer.style.filter = `saturate(${value.saturation / 100})`;
+                    if (value.blend !== "original") { layer.style.mixBlendMode = value.blend; }
+                    image.src = Card.imageSource(new XMLSerializer().serializeToString(svg));
+                }
+                image.alt = `${style} queen of hearts, ${reference ? "without foil" : id + " foil"}`;
+                preview.appendChild(image);
+                const caption = document.createElement("figcaption");
+                caption.textContent = `${style === "normal" ? "Light" : "Dark"} / ${reference ? "original" : "foil"}`;
+                figure.append(preview, caption);
+                cards.appendChild(figure);
+            }
+        }
+    }
+
+    function render() {
+        foils.replaceChildren();
+        for (const option of options) {
+            const row = document.createElement("section");
+            row.className = "foil-row";
+            row.dataset.foilId = option.id;
+            const heading = document.createElement("h2");
+            heading.textContent = `${option.name} (${option.id})`;
+            row.appendChild(heading);
+            const content = document.createElement("div");
+            content.className = "row-content";
+            const controls = document.createElement("div");
+            controls.className = "settings";
+            const select = (key, title, choices) => {
+                const label = document.createElement("label");
+                label.textContent = title;
+                const input = document.createElement("select");
+                input.dataset.setting = key;
+                choices.forEach(([value, name]) => input.add(new Option(name, value)));
+                input.value = settings[option.id][key];
+                label.appendChild(input);
+                controls.appendChild(label);
+                input.addEventListener("change", () => {
+                    settings[option.id][key] = key === "blend" ? input.value : Number(input.value);
+                    renderCards(row, option.id);
+                    save();
+                });
+            };
+            select("opacityReduction", "Foil opacity", Array.from({ length: 10 }, (_, i) =>
+                [i * 10, i ? `${i * 10}% less (${100 - i * 10}% strength)` : "Current (100% strength)"]));
+            select("saturation", "Foil saturation", [100, 75, 50, 35, 25, 10, 0].map(value =>
+                [value, value ? `${value}%` : "0% (neutral metallic)"]));
+            select("blend", "Blend", [["original", "Original"], ["soft-light", "Soft light"], ["luminosity", "Luminosity"]]);
+            for (const [key, title] of [["printedFoil", "Include static printed foil"], ["fullReflection", "Keep full neutral reflection"]]) {
+                const label = document.createElement("label");
+                const input = document.createElement("input");
+                input.type = "checkbox";
+                input.dataset.setting = key;
+                input.checked = settings[option.id][key];
+                label.append(input, document.createTextNode(title));
+                controls.appendChild(label);
+                input.addEventListener("change", () => {
+                    settings[option.id][key] = input.checked;
+                    renderCards(row, option.id);
+                    save();
+                });
+            }
+            const cards = document.createElement("div");
+            cards.className = "cards";
+            content.append(controls, cards);
+            row.appendChild(content);
+            foils.appendChild(row);
+            renderCards(row, option.id);
+            row.addEventListener("pointermove", event => {
+                const card = event.target.closest(".card-preview");
+                if (!card) { return; }
+                const bounds = card.getBoundingClientRect();
+                row.style.setProperty("--pointer-x", `${Math.max(0, Math.min(100, (event.clientX - bounds.left) / bounds.width * 100))}%`);
+                row.style.setProperty("--pointer-y", `${Math.max(0, Math.min(100, (event.clientY - bounds.top) / bounds.height * 100))}%`);
+            });
+            row.addEventListener("pointerleave", () => {
+                row.style.setProperty("--pointer-x", "50%");
+                row.style.setProperty("--pointer-y", "50%");
+            });
+        }
+    }
+
+    document.getElementById("active").addEventListener("change", event => {
+        foils.classList.toggle("is-active", event.target.checked);
+    });
+    document.getElementById("export").addEventListener("click", () => {
+        document.getElementById("export-panel").hidden = false;
+        const text = document.getElementById("export-text");
+        text.value = exported();
+        text.focus();
+        text.select();
+    });
+    document.getElementById("download").addEventListener("click", () => {
+        const url = URL.createObjectURL(new Blob([exported()], { type: "application/json" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "foil-settings.json";
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+    document.getElementById("reset").addEventListener("click", () => {
+        if (!confirm("Replace all your foil choices with the current game settings?")) { return; }
+        settings = Object.fromEntries(options.map(option => [option.id, defaults()]));
+        render();
+        save();
+    });
+    render();
+</script>
+</body>
+</html>

@@ -53,6 +53,8 @@ node --test
 
 ### Card depth and landing
 
+Use [per-foil settings](tests/foil-settings-preview.html) to choose one shared treatment per foil while comparing Normal (light) and Cosmic (dark) cards against unfoiled references. Choices auto-save in browser-local storage and can be exported as JSON for later production integration; production rendering is unchanged.
+
 Open [the foil transparency preview](tests/foil-opacity-preview.html) to compare unfoiled designs and current foils with 10-90% less opacity. It scales both the printed SVG foil and reflective CSS layers, offers saturation, blend-mode, static-foil, neutral-reflection, card-design and active-intensity controls, and does not alter production foil settings. Reduced-opacity examples use the selected treatment; unfoiled/current references remain unchanged.
 
 Dragged cards, return glides, plays, exchanges, discards, and resting table cards use a 3px laminated edge following the actual SVG outline. Seven native SVG paper slices and the original artwork replace the supersampled WebGL renderer: there are no canvas copies, GPU contexts, texture caches, or render-target multipliers. Existing card designs, pixel outlines, foil overlays, and table guidance are retained.
