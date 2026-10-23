@@ -139,6 +139,60 @@ test("foil lists every supplied variant except reverse holo non-rares and defaul
     assert.equal(types.GameLayout.cardStyle(), "normal");
 });
 
+test("approved English-named foil treatments match the selected printed appearance", () => {
+    const { Card } = fixture().types;
+    const css = fs.readFileSync(path.join(__dirname, "..", "css", "foil.css"), "utf8");
+    const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+    const expected = [
+        ["holo", "stripes", 30, 75, true, "soft-light"],
+        ["galaxy", "stardust", 30, 50, true, "original"],
+        ["v", "prism", 20, 75, false, "original"],
+        ["vmax", "waves", 0, 100, false, "original"],
+        ["vstar", "facets", 30, 75, true, "original"],
+        ["full-art", "rings", 20, 75, true, "original"],
+        ["trainer-full-art", "weave", 20, 75, true, "original"],
+        ["rainbow", "rainbow", 10, 100, true, "original"],
+        ["rainbow-alt", "contrast", 30, 100, false, "original"],
+        ["gold", "gold-sheen", 30, 100, true, "original"],
+        ["radiant", "grid", 20, 100, false, "original"],
+        ["gallery-holo", "iridescent", 30, 100, true, "original"],
+        ["gallery-v", "pearlescent", 30, 75, true, "original"],
+        ["gallery-vmax", "rays", 30, 75, false, "original"]
+    ];
+    for (const [id, name, reduction, saturation, printed, blend] of expected) {
+        assert.equal(Card.foilConfigNames[id], name);
+        const treatment = Card.foilTreatment(id);
+        assert.equal(treatment.opacityReduction, reduction);
+        assert.equal(treatment.saturation, saturation);
+        assert.equal(treatment.printedFoil, printed);
+        assert.equal(treatment.blend, blend);
+        assert.equal(treatment.fullReflection, false);
+        const properties = { "--foil-strength": "1", "--foil-saturation": "1" };
+        for (const [, selectors, declarations] of rules) {
+            if (!selectors.includes(`[data-foil="${id}"]`)) { continue; }
+            for (const [, name, value] of declarations.matchAll(/(--foil-[\w-]+):\s*([^;]+);/g)) {
+                properties[name] = value.trim();
+            }
+        }
+        assert.ok(Math.abs(Number(properties["--foil-strength"]) - (1 - reduction / 100)) < 1e-10,
+            `${name} CSS intensity agrees with the printed configuration`);
+        assert.equal(Number(properties["--foil-saturation"]), saturation / 100);
+        if (blend !== "original") { assert.equal(properties["--foil-mix"], blend); }
+        for (const style of ["normal", "cosmic"]) {
+            const card = new Card(2, 12);
+            const production = decodeURIComponent(card.toImageDataUri(style, id).split(",")[1]);
+            const preview = decodeURIComponent(card.toImageDataUri(style, id, false).split(",")[1]);
+            const opacity = Number(production.match(/<g data-foil="[^"]+" opacity="([^"]+)"/)[1]);
+            assert.ok(Math.abs(opacity - .23 * (1 - reduction / 100) * Number(printed)) < 1e-10);
+            assert.ok(production.includes(`filter:saturate(${saturation / 100})`));
+            assert.equal(production.includes("mix-blend-mode:soft-light"), blend === "soft-light");
+            assert.match(preview, /<g data-foil="[^"]+" opacity="0.23"/);
+            assert.equal(card.toImageDataUri(style, id), Card.imageSource(production),
+                "Preview cache entries do not replace production artwork");
+        }
+    }
+});
+
 test("all foil variants combine with all card styles for every card without invalid SVG", () => {
     const { Card, PresidentCard } = fixture().types;
     for (const style of ["normal", "holo", "gold", "pixel", "parallax", "neon", "botanical",
@@ -533,7 +587,7 @@ test("foil overlays cover the full card surface and settings share one card prev
     assert.doesNotMatch(foilCss, /inset:\s*2px;\s*border-radius:\s*6px;/);
     const svg = decodeURIComponent(new types.PresidentCard(1, 5).toImageDataUri("normal", "holo").split(",")[1]);
     assert.match(svg, /clipPath id="card-foil-clip"[\s\S]*?<rect x="1\.5" y="1\.5" width="77" height="117" rx="8"\/>/);
-    assert.match(svg, /<g data-foil="holo" opacity="\.23" clip-path="url\(#card-foil-clip\)">[\s\S]*?<rect x="1\.5" y="1\.5" width="77" height="117"/);
+    assert.match(svg, /<g data-foil="holo" opacity="[^"]+" style="[^"]+" clip-path="url\(#card-foil-clip\)">[\s\S]*?<rect x="1\.5" y="1\.5" width="77" height="117"/);
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
     const settings = html.slice(html.indexOf('class="setting-card-appearance"'),
         html.indexOf('<h3 class="settings-category">Spill og styring</h3>'));
@@ -557,7 +611,7 @@ test("foil reduces light and pattern movement by twenty percent with 400ms easin
     assert.match(css, /background-position:\s*center, 0% var\(--foil-y\),\s*var\(--foil-x\) var\(--foil-y\), center;/);
     assert.match(css, /transition: opacity 400ms ease, background-position 400ms ease-out;/);
     assert.match(css, /transition: opacity 400ms ease;/);
-    assert.match(css, /\.is-tilting::before,[\s\S]*?opacity: \.72;/);
+    assert.match(css, /\.is-tilting::before,[\s\S]*?opacity: calc\(\.72 \* var\(--foil-strength\)\);/);
 });
 
 test("touch-dragging a foil preview tracks its pointer without selecting its option", () => {

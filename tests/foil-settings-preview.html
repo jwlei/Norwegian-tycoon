@@ -72,9 +72,8 @@
     const options = Card.foilOptions().filter(option => option.id !== "none");
     const foils = document.getElementById("foils");
     const status = document.getElementById("status");
-    const defaults = () => ({ opacityReduction: 0, saturation: 100, blend: "original",
-        printedFoil: true, fullReflection: false });
-    let settings = Object.fromEntries(options.map(option => [option.id, defaults()]));
+    const defaults = id => ({ ...Card.foilTreatment(id) });
+    let settings = Object.fromEntries(options.map(option => [option.id, defaults(option.id)]));
 
     function notify(message, error = false) {
         status.textContent = message;
@@ -104,8 +103,11 @@
         notify(`Could not load saved settings: ${error.message} Using current game settings; export your choices to keep them.`, true);
     }
 
-    function exported() {
-        return JSON.stringify({ version: 1, styles: { light: "normal", dark: "cosmic" }, foils: settings }, null, 2);
+    function exported(englishNames = true) {
+        const foils = englishNames ? Object.fromEntries(options.map(option =>
+            [Card.foilConfigNames[option.id], settings[option.id]])) : settings;
+        return JSON.stringify({ version: englishNames ? 2 : 1,
+            styles: { light: "normal", dark: "cosmic" }, foils }, null, 2);
     }
 
     function save() {
@@ -113,7 +115,7 @@
             document.getElementById("export-text").value = exported();
         }
         try {
-            localStorage.setItem(STORAGE_KEY, exported());
+            localStorage.setItem(STORAGE_KEY, exported(false));
             notify("All foil settings saved in this browser.");
         } catch (error) {
             notify(`Could not save locally: ${error.message} Your choices remain on this page; export them before leaving.`, true);
@@ -136,7 +138,7 @@
                 preview.style.setProperty("--preview-glare", value.fullReflection ? 1 : strength);
                 if (value.blend !== "original") { preview.style.setProperty("--preview-blend", value.blend); }
                 const image = document.createElement("img");
-                const uri = new Card(2, 12).toImageDataUri(style, preview.dataset.foil);
+                const uri = new Card(2, 12).toImageDataUri(style, preview.dataset.foil, false);
                 if (reference) { image.src = uri; }
                 else {
                     const svg = new DOMParser().parseFromString(decodeURIComponent(uri.slice(uri.indexOf(",") + 1)), "image/svg+xml");
@@ -164,7 +166,7 @@
             row.className = "foil-row";
             row.dataset.foilId = option.id;
             const heading = document.createElement("h2");
-            heading.textContent = `${option.name} (${option.id})`;
+            heading.textContent = `${option.name} (${Card.foilConfigNames[option.id]})`;
             row.appendChild(heading);
             const content = document.createElement("div");
             content.className = "row-content";
@@ -244,7 +246,7 @@
     });
     document.getElementById("reset").addEventListener("click", () => {
         if (!confirm("Replace all your foil choices with the current game settings?")) { return; }
-        settings = Object.fromEntries(options.map(option => [option.id, defaults()]));
+        settings = Object.fromEntries(options.map(option => [option.id, defaults(option.id)]));
         render();
         save();
     });

@@ -180,9 +180,38 @@ class Card {
         const options = Card.foilOptions();
         return order.map(id => options.find(option => option.id == id));
     }
-    static foilOverlay(foil) {
+    static foilConfigNames = {
+        holo: "stripes", galaxy: "stardust", v: "prism", vmax: "waves", vstar: "facets",
+        "full-art": "rings", "trainer-full-art": "weave", rainbow: "rainbow",
+        "rainbow-alt": "contrast", gold: "gold-sheen", radiant: "grid",
+        "gallery-holo": "iridescent", "gallery-v": "pearlescent", "gallery-vmax": "rays"
+    };
+    static foilTreatments = {
+        stripes: { opacityReduction: 30, saturation: 75, blend: "soft-light", printedFoil: true, fullReflection: false },
+        stardust: { opacityReduction: 30, saturation: 50, blend: "original", printedFoil: true, fullReflection: false },
+        prism: { opacityReduction: 20, saturation: 75, blend: "original", printedFoil: false, fullReflection: false },
+        waves: { opacityReduction: 0, saturation: 100, blend: "original", printedFoil: false, fullReflection: false },
+        facets: { opacityReduction: 30, saturation: 75, blend: "original", printedFoil: true, fullReflection: false },
+        rings: { opacityReduction: 20, saturation: 75, blend: "original", printedFoil: true, fullReflection: false },
+        weave: { opacityReduction: 20, saturation: 75, blend: "original", printedFoil: true, fullReflection: false },
+        rainbow: { opacityReduction: 10, saturation: 100, blend: "original", printedFoil: true, fullReflection: false },
+        contrast: { opacityReduction: 30, saturation: 100, blend: "original", printedFoil: false, fullReflection: false },
+        "gold-sheen": { opacityReduction: 30, saturation: 100, blend: "original", printedFoil: true, fullReflection: false },
+        grid: { opacityReduction: 20, saturation: 100, blend: "original", printedFoil: false, fullReflection: false },
+        iridescent: { opacityReduction: 30, saturation: 100, blend: "original", printedFoil: true, fullReflection: false },
+        pearlescent: { opacityReduction: 30, saturation: 75, blend: "original", printedFoil: true, fullReflection: false },
+        rays: { opacityReduction: 30, saturation: 75, blend: "original", printedFoil: false, fullReflection: false }
+    };
+    static foilTreatment(foil) {
+        return Card.foilTreatments[Card.foilConfigNames[foil]];
+    }
+    static foilOverlay(foil, applyTreatment = true) {
         foil = Card.normalizeFoil(foil);
         if (foil == "none") { return ""; }
+        const treatment = applyTreatment ? Card.foilTreatment(foil) : null;
+        const opacity = treatment ? .23 * (1 - treatment.opacityReduction / 100) * Number(treatment.printedFoil) : .23;
+        const appearance = treatment ? ` style="filter:saturate(${treatment.saturation / 100});${
+            treatment.blend === "original" ? "" : `mix-blend-mode:${treatment.blend};`}"` : "";
         const index = Card.foilOptions().findIndex(option => option.id == foil);
         const angle = { holo: 90, galaxy: 82, v: 133, vmax: -33, vstar: 133,
             "full-art": 133, "trainer-full-art": 133, rainbow: -20, "rainbow-alt": -20,
@@ -201,14 +230,14 @@ class Card {
         const texture = `<pattern id="card-foil-texture" width="${foil == "galaxy" ? 80 : 9 + index}" height="${foil == "galaxy" ? 120 : 9 + index}" patternUnits="userSpaceOnUse" patternTransform="rotate(${angle})">${pattern}</pattern>`;
         return `<defs>${spectrum}${texture}<clipPath id="card-foil-clip">
             <rect x="1.5" y="1.5" width="77" height="117" rx="8"/>
-        </clipPath></defs><g data-foil="${foil}" opacity=".23" clip-path="url(#card-foil-clip)">
+        </clipPath></defs><g data-foil="${foil}" opacity="${opacity}"${appearance} clip-path="url(#card-foil-clip)">
             <rect x="1.5" y="1.5" width="77" height="117" fill="url(#card-foil-spectrum)"/>
             <rect x="1.5" y="1.5" width="77" height="117" fill="url(#card-foil-texture)" opacity=".7"/>
         </g>`;
     }
     static imageCache = new Map();
-    toImageDataUri(style = "normal", cardFoil = "none") {
-        const cacheKey = JSON.stringify([this.suit, this.rank, style, cardFoil]);
+    toImageDataUri(style = "normal", cardFoil = "none", applyFoilTreatment = true) {
+        const cacheKey = JSON.stringify([this.suit, this.rank, style, cardFoil, applyFoilTreatment]);
         if (Card.imageCache.has(cacheKey)) { return Card.imageCache.get(cacheKey); }
         const code = Card.suitInfo(this.suit).code;
         const rank = this.rank === 1 ? "A" : this.rank > 10 ? { 11: "J", 12: "Q", 13: "K" }[this.rank] : String(this.rank);
@@ -372,7 +401,7 @@ class Card {
             ${illustration}
             </g>
             ${style === "silver" ? "" : foil}
-            ${Card.foilOverlay(cardFoil)}
+            ${Card.foilOverlay(cardFoil, applyFoilTreatment)}
         </svg>`;
         const source = Card.imageSource(svg);
         // Bound retained SVGs when players browse many style/foil combinations.

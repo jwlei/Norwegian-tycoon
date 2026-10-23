@@ -53,9 +53,11 @@ node --test
 
 ### Card depth and landing
 
-Use [per-foil settings](tests/foil-settings-preview.html) to choose one shared treatment per foil while comparing Normal (light) and Cosmic (dark) cards against unfoiled references. Choices auto-save in browser-local storage and can be exported as JSON for later production integration; production rendering is unchanged.
+Use [per-foil settings](tests/foil-settings-preview.html) to choose one shared treatment per foil while comparing Normal (light) and Cosmic (dark) cards against unfoiled references. Choices auto-save in browser-local storage and can be exported as JSON for later production integration; changing preview controls does not change production rendering.
 
-Open [the foil transparency preview](tests/foil-opacity-preview.html) to compare unfoiled designs and current foils with 10-90% less opacity. It scales both the printed SVG foil and reflective CSS layers, offers saturation, blend-mode, static-foil, neutral-reflection, card-design and active-intensity controls, and does not alter production foil settings. Reduced-opacity examples use the selected treatment; unfoiled/current references remain unchanged.
+Production foil treatments now use the approved per-foil opacity, saturation, blend and printed-layer choices in `Card.foilTreatments`, keyed by English foil names (stripes, stardust, prism, waves, facets, rings, weave, rainbow, contrast, gold-sheen, grid, iridescent, pearlescent, rays). Existing saved IDs remain compatible. CSS reflections apply the same reductions at rest, during dragging and in flight; printed SVG foil is disabled for prism, waves, contrast, grid and rays. The settings preview starts from these production choices when no local choices exist and exports English-named version-2 configuration. Preview images request untreated artwork so adjustments are not applied twice.
+
+Open [the foil transparency preview](tests/foil-opacity-preview.html) to compare unfoiled designs and original untuned foils with 10-90% less opacity. It scales both the printed SVG foil and reflective CSS layers, offers saturation, blend-mode, static-foil, neutral-reflection, card-design and active-intensity controls, and does not alter production foil settings. Reduced-opacity examples use the selected treatment; unfoiled/untuned references remain unchanged.
 
 Dragged cards, return glides, plays, exchanges, discards, and resting table cards use a 3px laminated edge following the actual SVG outline. Seven native SVG paper slices and the original artwork replace the supersampled WebGL renderer: there are no canvas copies, GPU contexts, texture caches, or render-target multipliers. Existing card designs, pixel outlines, foil overlays, and table guidance are retained.
 

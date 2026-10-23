@@ -35,7 +35,7 @@
 <body>
 <main>
     <h1>Foil transparency preview</h1>
-    <p>Compare the unfoiled design and current foil with 10-90% less foil opacity, in 10% steps.
+    <p>Compare the unfoiled design and original untuned foil with 10-90% less foil opacity, in 10% steps.
         For example, 90% less opacity leaves only 10% of the original foil strength.
         The card artwork stays opaque. Move over any card to synchronize the light position.</p>
     <div class="controls">
@@ -112,7 +112,7 @@
                 if (glare.checked) { preview.style.setProperty("--preview-glare", 1); }
             }
             const image = document.createElement("img");
-            const uri = new Card(2, 12).toImageDataUri(design.value, preview.dataset.foil);
+            const uri = new Card(2, 12).toImageDataUri(design.value, preview.dataset.foil, false);
             const svg = new DOMParser().parseFromString(decodeURIComponent(uri.slice(uri.indexOf(",") + 1)), "image/svg+xml");
             const printedFoil = svg.querySelector("g[data-foil]");
             if (!unfoiled) {
@@ -129,7 +129,7 @@
                 `Queen of hearts, ${reduction}% less foil opacity`;
             preview.appendChild(image);
             const caption = document.createElement("figcaption");
-            caption.textContent = unfoiled ? "Original design (no foil)" : reduction ? `${reduction}% less opacity` : "Current foil";
+            caption.textContent = unfoiled ? "Original design (no foil)" : reduction ? `${reduction}% less opacity` : "Original untuned foil";
             const detail = document.createElement("small");
             detail.textContent = unfoiled ? "Unchanged card artwork" : `${100 - reduction}% of current foil opacity`;
             caption.appendChild(detail);
