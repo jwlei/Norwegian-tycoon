@@ -405,18 +405,34 @@
             roll: impact.roll + momentum.spin * slide };
     }
 
-    function motion(cards, start, impact, momentum, progress, contact = null) {
+    function edgeRebound(progress, direction, power = 0) {
+        const settle = clamp((progress - CONTACT) / (1 - CONTACT), 0, 1);
+        const wave = direction == 0 || settle == 0 || settle == 1
+            ? 0 : Math.sin(settle * Math.PI * 2) * Math.exp(-3 * settle);
+        const inward = -Math.sign(direction) * wave;
+        return {
+            x: inward * (12 + clamp(power, 0, 1) * 8),
+            roll: inward * (8 + clamp(power, 0, 1) * 6),
+            yaw: inward * 4
+        };
+    }
+
+    function motion(cards, start, impact, momentum, progress, contact = null, edgeDirection = 0) {
         const t = clamp(progress, 0, 1);
         const contactTime = CONTACT;
         const dimensions = Object.fromEntries(["width", "height", "radius"]
             .filter(key => start[key] !== undefined).map(key => [key, start[key]]));
         const target = contact || landing(cards, impact.x, impact.y, impact.roll, dimensions);
         const planar = position(start, impact, momentum, t);
+        const rebound = edgeRebound(t, edgeDirection, momentum.power);
+        planar.x += rebound.x;
+        planar.roll += rebound.roll;
         if (t < contactTime) {
             const travel = t / contactTime;
             const pose = flight(start, target, travel, 26 + momentum.power * 20);
             Object.assign(pose, dimensions);
             Object.assign(pose, planar);
+            pose.yaw += rebound.yaw;
             pose.z = Math.max(pose.z, minimumHeight(cards, pose));
             return { pose, phase: "flight", bounce: 0 };
         }
@@ -424,7 +440,7 @@
         const rest = landing(cards, planar.x, planar.y, planar.roll, dimensions);
         const rock = Math.sin(settle * Math.PI * 4) * Math.pow(1 - settle, 2) * momentum.power;
         rest.pitch += rock * 1.6;
-        rest.yaw -= rock * 1.1;
+        rest.yaw += rebound.yaw - rock * 1.1;
         const bounce = Math.abs(Math.sin(settle * Math.PI * 2)) * Math.pow(1 - settle, 2) *
             (2 + momentum.power * 7);
         rest.z = minimumHeight(cards, rest) + bounce;
@@ -433,6 +449,7 @@
 
     const api = { WIDTH, HEIGHT, EDGE, VIEW_SHEAR, LIGHT, CONTACT, slideDistance, slideDistanceToRest, rotate, world, screen, plane, heightAt,
         signedDistance, silhouette, contains, screenContains, screenCovers, samples, supportHeight, landing, minimumHeight, shadow,
+        edgeRebound,
         shadowedBy, shadowVisible, exposedPoints, flight, position, motion };
     if (typeof module !== "undefined" && module.exports) { module.exports = api; }
     else { root.LandingGeometry = api; }
