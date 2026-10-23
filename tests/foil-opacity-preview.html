@@ -18,6 +18,7 @@
         figcaption { margin-top: 12px; font-weight: 600; }
         .card-preview { position: relative; display: block; width: 100%; isolation: isolate; }
         .card-preview > img { display: block; width: 100%; height: auto; }
+        #comparisons .card-preview::before, #comparisons .card-preview::after { animation: none !important; }
         #comparisons.comparisons .card-preview[data-foil]:not([data-foil="none"])::before {
             opacity: calc(var(--preview-strength) * var(--preview-opacity, .48));
             filter: var(--foil-filter) saturate(var(--preview-saturation, 1));

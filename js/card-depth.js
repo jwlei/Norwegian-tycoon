@@ -20,6 +20,14 @@ class CardDepth {
     static DETAILED_CARDS = 8;
     static paper = ["#dedbc7", "#bdbea9", "#e7e2cf", "#c5c5b1", "#dedbc7", "#b5bba4", "#e7e2cf"];
 
+    static paperColors(rect) {
+        const color = rect.getAttribute("stroke");
+        if (!/^#[0-9a-f]{6}$/i.test(color || "")) { return this.paper; }
+        const channels = color.slice(1).match(/../g).map(channel => parseInt(channel, 16));
+        return [.92, .78, 1, .85, .92, .75, 1].map(shade => "#" + channels.map(channel =>
+            Math.round(channel * shade).toString(16).padStart(2, "0")).join(""));
+    }
+
     static warn(error) {
         if (!this.warned) {
             console.warn("3D card rendering unavailable; using the original card image.", error);
@@ -57,7 +65,7 @@ class CardDepth {
             const defs = this.node("defs", {}, svg);
             const freeShadow = this.node("g", {}, svg);
             const faceGroup = this.node("g", { class: "card-depth-face" }, svg);
-            const layers = this.paper.map(fill => this.node("path", { fill }, faceGroup));
+            const layers = this.paperColors(rect).map(fill => this.node("path", { fill }, faceGroup));
             const face = this.node("image", { href: image.src }, faceGroup);
             const gradient = this.node("linearGradient", { id: `${id}-light`, x1: 0, y1: 0, x2: 1, y2: 1 }, defs);
             this.node("stop", { offset: 0, "stop-color": "#fff" }, gradient);

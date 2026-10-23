@@ -207,6 +207,38 @@
     --foil-filter: brightness(.9) contrast(2.5) saturate(1);
 }
 
+@keyframes foil-idle-color {
+    0%, 100% { --pointer-x: 46%; --pointer-y: 48%; opacity: calc(.46 * var(--foil-strength)); }
+    50% { --pointer-x: 54%; --pointer-y: 52%; opacity: calc(.50 * var(--foil-strength)); }
+}
+@keyframes foil-idle-reflection {
+    0%, 100% { --pointer-x: 46%; --pointer-y: 48%; opacity: calc(.27 * var(--foil-strength)); }
+    50% { --pointer-x: 54%; --pointer-y: 52%; opacity: calc(.33 * var(--foil-strength)); }
+}
+
+/* Animate only the foil layers, leaving card transforms and guidance animations untouched. */
+@media (prefers-reduced-motion: no-preference) {
+    :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]):not(.is-tilting,
+        .card-flight, .card-discard-flight, .is-drag-source, .card-drag-layer *,
+        .card-foil-option:is(:hover, :focus-visible) *)::before {
+        --foil-x: calc(50% + (var(--pointer-x) - 50%) * .8);
+        --foil-y: calc(50% + (var(--pointer-y) - 50%) * .8);
+        --foil-light: radial-gradient(farthest-corner circle at var(--foil-x) var(--foil-y),
+            #fff9 5%, #9995 40%, #000 100%);
+        animation: foil-idle-color 6s ease-in-out infinite;
+        transition: none;
+    }
+    :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]):not(.is-tilting,
+        .card-flight, .card-discard-flight, .is-drag-source, .card-drag-layer *,
+        .card-foil-option:is(:hover, :focus-visible) *)::after {
+        background: radial-gradient(farthest-corner circle at
+            calc(50% + (var(--pointer-x) - 50%) * .8) calc(50% + (var(--pointer-y) - 50%) * .8),
+            #fff8 0%, #fff2 25%, transparent 65%);
+        animation: foil-idle-reflection 6s ease-in-out infinite;
+        transition: none;
+    }
+}
+
 /* English configuration names map to persisted foil IDs without changing player preferences. */
 :is(#playerHand .game-card, .card-preview)[data-foil="holo"] { /* stripes */
     --foil-strength: .7; --foil-saturation: .75; --foil-mix: soft-light;

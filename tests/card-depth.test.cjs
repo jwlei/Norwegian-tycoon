@@ -6,7 +6,7 @@ const vm = require("node:vm");
 const G = require("../js/landing-geometry.js");
 const source = fs.readFileSync(path.join(__dirname, "..", "js", "card-depth.js"), "utf8");
 
-function fixture() {
+function fixture(borderColor = null) {
     const frames = new Map(), warnings = [], created = [];
     let nextFrame = 0;
     class Node {
@@ -44,7 +44,9 @@ function fixture() {
     }
     const context = vm.createContext({
         LandingGeometry: G, console: { warn: (...args) => warnings.push(args) }, queueMicrotask,
-        DOMParser: class { parseFromString() { return { querySelector: () => ({ getAttribute: () => "8" }) }; } },
+        DOMParser: class { parseFromString() {
+            return { querySelector: () => ({ getAttribute: name => name === "stroke" ? borderColor : "8" }) };
+        } },
         document: { hidden: false, querySelectorAll: () => [],
             createElementNS: (ns, tag) => { created.push(tag); return new Node(tag); } },
         requestAnimationFrame: callback => { frames.set(++nextFrame, callback); return nextFrame; },
@@ -70,6 +72,20 @@ function fixture() {
 }
 
 const numbers = d => d.match(/-?\d+\.\d+/g).map(Number);
+
+test("seven depth sheets follow the artwork border color instead of a universal beige edge", () => {
+    for (const color of ["#9d9bdf", "#8a5f0f", "#89a6cf", "#b8a15b", "#cbbd9f"]) {
+        const f = fixture(color);
+        f.Depth.attach(f.element);
+        const state = f.Depth.states.get(f.element);
+        assert.equal(state.layers.length, 7);
+        assert.equal(state.layers[6].getAttribute("fill"), color);
+        assert.equal(state.layers[2].getAttribute("fill"), color);
+        assert.ok(new Set(state.layers.map(layer => layer.getAttribute("fill"))).size > 1,
+            "Subtle lamination shading retains the depth effect");
+        assert.equal(f.warnings.length, 0);
+    }
+});
 
 test("translation and receiver-only changes do not repaint identical card artwork or shadow filters", () => {
     const f = fixture();

@@ -53,6 +53,10 @@ node --test
 
 ### Card depth and landing
 
+Idle foils use the approved six-second light drift and gentle intensity pulse, without moving the card or changing its tuned colors. Only the foil pseudo-elements animate; dragging, flights, hidden drag sources and reduced-motion preferences disable the idle effect. This uses CSS animation rather than a JavaScript frame loop, but animated gradients still have a repaint cost.
+
+The seven laminated depth sheets derive their color from the card artwork's border, retaining subtle darker layers instead of using the same beige edge for every style.
+
 Open [the idle foil timing preview](tests/foil-idle-preview.html) to compare subtle 4, 6, 8, 12 and 16-second light-drift/pulse cycles on light and dark cards using the approved foil treatments. Pause/restart controls, offscreen/hidden-page pausing and reduced-motion handling are included. This is a preview only, not a production idle-animation or GPU performance change.
 
 Use [per-foil settings](tests/foil-settings-preview.html) to choose one shared treatment per foil while comparing Normal (light) and Cosmic (dark) cards against unfoiled references. Choices auto-save in browser-local storage and can be exported as JSON for later production integration; changing preview controls does not change production rendering.

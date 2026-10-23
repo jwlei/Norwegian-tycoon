@@ -23,19 +23,21 @@
             animation: idle-light var(--idle-duration) ease-in-out infinite; }
         .card-preview > img { display: block; width: 100%; height: auto; }
         #timings .card-preview[data-foil]:not([data-foil="none"])::before {
-            animation: idle-color var(--idle-duration) ease-in-out infinite;
+            animation: idle-color var(--idle-duration) ease-in-out infinite !important;
+            --foil-x: calc(50% + (var(--pointer-x) - 50%) * .8);
+            --foil-y: calc(50% + (var(--pointer-y) - 50%) * .8);
             transition: none;
         }
         #timings .card-preview[data-foil]:not([data-foil="none"])::after {
-            animation: idle-reflection var(--idle-duration) ease-in-out infinite;
+            animation: idle-reflection var(--idle-duration) ease-in-out infinite !important;
             transition: none;
         }
-        #timings.is-paused .card-preview,
-        #timings.is-paused .card-preview::before,
-        #timings.is-paused .card-preview::after,
-        #timings .is-offscreen .card-preview,
-        #timings .is-offscreen .card-preview::before,
-        #timings .is-offscreen .card-preview::after { animation-play-state: paused !important; }
+        #timings.timings.is-paused .card-preview[data-foil],
+        #timings.timings.is-paused .card-preview[data-foil]::before,
+        #timings.timings.is-paused .card-preview[data-foil]::after,
+        #timings.timings .is-offscreen .card-preview[data-foil],
+        #timings.timings .is-offscreen .card-preview[data-foil]::before,
+        #timings.timings .is-offscreen .card-preview[data-foil]::after { animation-play-state: paused !important; }
         @keyframes idle-light {
             0%, 100% { --pointer-x: 46%; --pointer-y: 48%; }
             50% { --pointer-x: 54%; --pointer-y: 52%; }
@@ -54,7 +56,9 @@
             body { padding: 16px; } .timings { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
         }
         @media (prefers-reduced-motion: reduce) {
-            #timings .card-preview, #timings .card-preview::before, #timings .card-preview::after { animation: none !important; }
+            #timings.timings .card-preview[data-foil],
+            #timings.timings .card-preview[data-foil]::before,
+            #timings.timings .card-preview[data-foil]::after { animation: none !important; }
         }
     </style>
 </head>
