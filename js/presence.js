@@ -84,10 +84,24 @@ class GamePresence {
         return JSON.stringify([record.shuffleStartedAt || null, record.runde ?? record.round]);
     }
 
-    static exchangeWaitingPlayers(record, now = this.now()) {
-        var gate = record.exchangeReady;
+    static exchangeGates(record) {
+        return record.exchangeReady ? [record.exchangeReady, ...(record.exchangeReady.pending || [])] : [];
+    }
+
+    static exchangeGateForPlayer(record, player) {
+        return this.exchangeGates(record).find(gate => !gate.participants || gate.participants.includes(player.name || player.nick));
+    }
+
+    static exchangeBlocksActions(record) {
+        return record.exchangeReady != null && !(record.status == "G" &&
+            (record.piles || record.spillBunke || []).some(exchange =>
+                exchange.kind != "playerTrade" && ["Velg", "Best", "Gitt"].includes(exchange.mode || exchange.modus)));
+    }
+
+    static exchangeWaitingPlayers(record, now = this.now(), gate = record.exchangeReady) {
         if (!["S", "G"].includes(record.status) || !gate || now >= gate.until) { return []; }
         return (record.players || record.spillere || []).filter(player =>
+            (!gate.participants || gate.participants.includes(player.name || player.nick)) &&
             (player.placement ?? player.plassering) == 0 &&
             player.gaveUp !== true &&
             (player.playerKey || player.spillerKey) != "PC" &&
@@ -97,17 +111,22 @@ class GamePresence {
     }
 
     static acknowledgeExchange(record, gateId, playerKey, playerName, now = this.now()) {
-        if (!record || !["S", "G"].includes(record.status) || record.exchangeReady?.id != gateId) { return; }
+        if (!record || !["S", "G"].includes(record.status)) { return; }
+        var gates = this.exchangeGates(record);
+        var gate = gates.find(candidate => candidate.id == gateId);
+        if (!gate) { return; }
         var player = (record.spillere || []).find(candidate =>
             candidate.spillerKey == playerKey && candidate.nick == playerName &&
             candidate.plassering == 0 && candidate.gaveUp !== true);
-        if (!player || player.spillerKey == "PC" || this.isBot(record, player)) { return; }
+        if (!player || player.spillerKey == "PC" || this.isBot(record, player) ||
+            (gate.participants && !gate.participants.includes(player.nick))) { return; }
         var id = this.playerId(player);
-        if (record.exchangeReady.ready?.[id]) { return; }
+        if (gate.ready?.[id]) { return; }
+        gates = gates.map(candidate => candidate.id == gateId ? Object.assign({}, candidate, {
+            ready: Object.assign({}, candidate.ready, { [id]: true })
+        }) : candidate);
         var next = Object.assign({}, record, {
-            exchangeReady: Object.assign({}, record.exchangeReady, {
-                ready: Object.assign({}, record.exchangeReady.ready, { [id]: true })
-            })
+            exchangeReady: Object.assign({}, gates[0], { pending: gates.slice(1) })
         });
         return this.reconcile(next, now) || next;
     }
@@ -131,7 +150,7 @@ class GamePresence {
     }
 
     static isActionPaused(record, now = this.now()) {
-        if (["S", "G"].includes(record.status) && record.exchangeReady != null) { return true; }
+        if (["S", "G"].includes(record.status) && this.exchangeBlocksActions(record)) { return true; }
         if ((record.status == "S" || record.status == "G") && record.shuffleStartedAt != null &&
             now < Number(record.shuffleStartedAt) + SHUFFLE_DURATION_MS) {
             return true;
@@ -173,10 +192,15 @@ class GamePresence {
         if (this.isExpired(record, now)) {
             return Object.assign({}, record, { status: "V" });
         }
-        if (["S", "G"].includes(record.status) && record.exchangeReady != null &&
-            this.exchangeWaitingPlayers(record, now).length == 0) {
-            record = Object.assign({}, record, { exchangeReady: null });
-            changed = true;
+        if (["S", "G"].includes(record.status) && record.exchangeReady != null) {
+            var gates = this.exchangeGates(record);
+            var waiting = gates.filter(gate => this.exchangeWaitingPlayers(record, now, gate).length > 0);
+            if (waiting.length != gates.length) {
+                record = Object.assign({}, record, {
+                    exchangeReady: waiting.length ? Object.assign({}, waiting[0], { pending: waiting.slice(1) }) : null
+                });
+                changed = true;
+            }
         }
         var players = (record.spillere || []).slice();
         var controllers = Object.assign({}, record.controllers);

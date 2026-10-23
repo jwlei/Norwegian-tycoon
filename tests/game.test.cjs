@@ -330,9 +330,9 @@ function exchangeSummaryFixture(speed = "fast") {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const start = source.indexOf("        var receivedCardTimer");
     const end = source.indexOf("        function refreshAfterTurnPause", start);
-    const { PresidentCard, GamePresence, exchangeSummaryDuration } = loadGame();
+    const { PresidentCard, GamePresence, GameLayout, exchangeSummaryDuration } = loadGame();
         const element = () => ({
-            hidden: true, children: [], style: { setProperty() {} },
+            hidden: true, children: [], dataset: {}, style: { setProperty() {} },
             append(...children) { this.children.push(...children); },
             appendChild(child) { this.children.push(child); },
             replaceChildren() { this.children = []; },
@@ -378,7 +378,11 @@ function exchangeSummaryFixture(speed = "fast") {
             exchangeSummaryDuration,
             currentGameSpeed: () => speed,
             localizedMessage: message => message,
-            GameLayout: { updateTable() {}, cardStyle: () => "neon", styleForPlayer: () => "neon", createCardImage: card => {
+            GameLayout: { updateTable() {}, cardStyle: () => "neon", styleForPlayer: () => "neon",
+                foilForPlayer: () => "rainbow", createOwnedCardPreview: GameLayout.createOwnedCardPreview,
+                createCardImage: (card, width, style, foil) => {
+                assert.equal(style, "neon");
+                assert.equal(foil, "rainbow");
                 assert.ok(card.toImageDataUri("neon").startsWith("data:image/svg+xml"));
                 return element();
             } },
@@ -397,6 +401,7 @@ function exchangeSummaryFixture(speed = "fast") {
             console: { error: (...args) => errors.push(args) },
             showGameToast: text => errors.push(text)
         });
+        vm.runInContext("GameLayout.createOwnedCardPreview = function " + GameLayout.createOwnedCardPreview.toString(), context);
         vm.runInContext(source.slice(start, end), context);
         return { game, player, overlay, content, timers, errors, context,
             fire: () => listener({ detail: { game } }),
@@ -418,6 +423,11 @@ test("received-card summaries combine receipts after exchanges and use 3/5/7-sec
         fixture.begin();
         assert.equal(overlay.hidden, false);
         assert.equal(content.children[0].children.length, 2);
+        for (const preview of content.children[0].children) {
+            assert.match(preview.className, /card-preview--neon/);
+            assert.equal(preview.dataset.foil, "rainbow");
+            assert.equal(preview.children.length, 1);
+        }
         assert.equal(content.children[1].textContent, "Du fikk 5 og Konge fra Sender.");
         assert.equal(content.children[2].children.length, 1);
         assert.equal(content.children[3].textContent, "Du fikk Kløver 3 fra Sender.");
@@ -473,6 +483,29 @@ test("Continue and background dismissal mark readiness early without dismissing 
         assert.equal(overlay.hidden, true);
         assert.equal(fixture.transactions(), 1);
     }
+});
+
+test("a completed pair only shows its own received-card summary while other exchanges continue", () => {
+    const fixture = exchangeSummaryFixture();
+    const { game, context, overlay, content } = fixture;
+    game.exchangeReady = {
+        id: "other-pair", startedAt: 100000, until: 107000, ready: {}, participants: ["Other"],
+        receiptIds: ["other"]
+    };
+    context.syncExchangeSummary(game);
+    assert.equal(overlay.hidden, true, "An unrelated pair does not open or acknowledge a summary");
+    assert.equal(fixture.transactions(), 0);
+    game.exchangeReady.pending = [{
+        id: "own-pair", startedAt: 100000, until: 107000, ready: {},
+        participants: ["Recipient", "Sender"], receiptIds: ["second"]
+    }];
+    context.syncExchangeSummary(game);
+    assert.equal(overlay.hidden, false);
+    assert.equal(content.children.length, 3);
+    assert.equal(content.children[1].textContent, "Du fikk Kløver 3 fra Sender.");
+    content.children.at(-1).onclick();
+    assert.equal(game.exchangeSummaryCompletedId, "own-pair");
+    assert.equal(overlay.hidden, true);
 });
 
 test("late summaries use the shared clock and disappear when the synchronized gate ends", () => {
@@ -609,6 +642,94 @@ function loadGame(cardStyle = null, globals = {}) {
     }
     return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, BotAI, GameLayout, GamePresence, exchangeSummaryDuration, activeTradeOffer, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage, isCardAllowedForExchange, chooseSuggestedPlayStrength, isSneakyTradeAvailable, hasSneakyConsent, tryAutoPass })", context);
 }
+
+function independentExchangeFixture() {
+    const events = [];
+    const now = Date.now();
+    const types = loadGame(null, {
+        document: { dispatchEvent: event => events.push(event) }, clearTimeout() {},
+        CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
+        Date: class extends Date { static now() { return now; } }
+    });
+    const { PresidentGame, PresidentPlayer, PresidentCard } = types;
+    const players = ["President", "Vice", "Vice bum", "Bum"].map((name, index) => {
+        const player = new PresidentPlayer(name, `key-${index}`);
+        player.cards.push(new PresidentCard(index + 1, 7), new PresidentCard(index + 1, 10));
+        return player;
+    });
+    const piles = [[0, 3], [1, 2], [2, 1], [3, 0]].map(([from, to], index) => ({
+        id: `exchange-${index}`, tradeId: from == 0 || from == 3 ? "president-pair" : "vice-pair",
+        from, to, mode: index >= 2 ? "Gitt" : "Velg", count: 1, cards: [players[from].cards[0]]
+    }));
+    for (const index of [2, 3]) { players[index].cards.splice(0, 1); }
+    const initial = Object.assign(Object.create(PresidentGame.prototype), {
+        id: "independent", status: "G", round: 2, shuffleStartedAt: now - 10000,
+        players, piles, roundStarterName: "Bum", exchangeReceipts: [], exchangeReady: null,
+        lastHumanActionAt: now, turn: -1, rules: {}
+    });
+    let stored = {
+        status: "G", runde: 2, shuffleStartedAt: initial.shuffleStartedAt, roundStarterName: "Bum",
+        spillere: PresidentPlayer.serializePlayers(players), spillBunke: initial.serializePiles(),
+        sinTur: -1, lastHumanActionAt: now
+    };
+    const client = () => Object.assign(Object.create(PresidentGame.prototype), {
+        ...initial, players: PresidentPlayer.deserializePlayers(structuredClone(stored.spillere)),
+        piles: PresidentGame.deserializeExchanges(structuredClone(stored.spillBunke)),
+        exchangeReady: structuredClone(stored.exchangeReady || null),
+        exchangeReceipts: structuredClone(stored.exchangeReceipts || []),
+        updatePublicListing() {},
+        databaseRef: { transaction(update, complete) {
+            const first = update(structuredClone(stored));
+            const next = update(structuredClone(stored));
+            assert.equal(JSON.stringify(first), JSON.stringify(next), "Transaction retries have no extra effects");
+            if (next) { stored = structuredClone(next); }
+            complete(null, !!next, { val: () => stored });
+            return Promise.resolve({ committed: !!next, snapshot: { val: () => stored } });
+        } }
+    });
+    return { types, events, client, get stored() { return stored; } };
+}
+
+test("mandatory exchange pairs deliver independently and stale simultaneous confirmations preserve both trades", () => {
+    const f = independentExchangeFixture();
+    const president = f.client(), vice = f.client();
+    president.giveExchangeCards(president.piles[0]);
+    assert.equal(f.stored.status, "G");
+    assert.equal(f.stored.exchangeReceipts.length, 2);
+    assert.equal(f.stored.spillBunke.length, 2, "Only the President/Bum pair is removed");
+    assert.deepEqual(f.stored.exchangeReady.participants.sort(), ["Bum", "President"]);
+    assert.equal(f.types.GamePresence.exchangeBlocksActions(f.stored), false);
+    vice.giveExchangeCards(vice.piles[1]);
+    assert.equal(f.stored.status, "S");
+    assert.equal(f.stored.exchangeReceipts.length, 4);
+    assert.equal(f.stored.spillBunke.length, 0);
+    assert.equal(f.types.GamePresence.exchangeGates(f.stored).length, 2);
+    assert.equal(f.types.GamePresence.exchangeBlocksActions(f.stored), true);
+    const hands = Array.from(f.types.PresidentPlayer.deserializePlayers(f.stored.spillere), player =>
+        Array.from(player.cards, card => `${card.suit}:${card.rank}`).sort());
+    assert.deepEqual(hands, [["1:10", "4:7"], ["2:10", "3:7"], ["2:7", "3:10"], ["1:7", "4:10"]]);
+    assert.equal(f.events.filter(event => event.type == "exchange-cards-received").length, 4,
+        "Transaction retries do not dispatch duplicate receipt events");
+});
+
+test("a stale card-selection save cannot undo the other pair's completed exchange or readiness", () => {
+    const f = independentExchangeFixture();
+    const president = f.client(), vice = f.client();
+    president.giveExchangeCards(president.piles[0]);
+    const exchange = vice.piles[1];
+    exchange.cards = [];
+    f.types.GameLayout.saveExchangeSelection(vice, exchange);
+    assert.equal(f.stored.exchangeReceipts.length, 2);
+    assert.equal(f.stored.spillBunke.length, 2);
+    assert.equal(f.stored.spillBunke.find(candidate => candidate.id == exchange.id).kort.length, 0);
+    assert.ok(f.stored.exchangeReady);
+    exchange.cards = [vice.players[1].cards[0]];
+    f.types.GameLayout.saveExchangeSelection(vice, exchange);
+    assert.equal(f.stored.exchangeReceipts.length, 2);
+    vice.giveExchangeCards(exchange);
+    assert.equal(f.stored.exchangeReceipts.length, 4);
+    assert.equal(f.stored.status, "S");
+});
 
 test("clearing card flights cancels and removes overlays from the page", () => {
     let cancelled = 0;
@@ -882,7 +1003,7 @@ test("consent stays private and forcing waits for the receiver's explicit choice
     }
     const bestExchange = {
         id: "best", mode: "Best", from: 2, to: 0, count: 2,
-        cards: [new PresidentCard(1, 14), new PresidentCard(2, 14)]
+        cards: [new PresidentCard(1, 13), new PresidentCard(2, 13)]
     };
     game.piles = [bestExchange];
     const nodes = render(players[2]);
@@ -983,7 +1104,7 @@ test("exchange status replaces the generic label for 0/2, 1/2 and 2/2 in either 
 });
 
 test("recipient selection and fresh snapshots update the same exchange status", () => {
-    const { GameLayout, game, players, nodes, status } = exchangeStatusFixture();
+    const { GameLayout, PresidentCard, game, players, nodes, status } = exchangeStatusFixture();
     game.piles.push({ id: "other", from: 0, to: 2, mode: "Velg", count: 1, cards: [] });
     GameLayout.updatePlayerButtons(game, players[0]);
     assert.equal(status(), "Velg hvilket bytte du vil gjøre");
@@ -994,11 +1115,54 @@ test("recipient selection and fresh snapshots update the same exchange status", 
     assert.equal(status(), "Kort til Other (0/1)");
     nodes().find(node => node.textContent == "Velg bytte til Recipient").onclick();
     assert.equal(status(), "Kort til Recipient (0/2)");
-    game.piles = game.piles.map(exchange => ({ ...exchange, cards: [{}] }));
+    game.piles = game.piles.map(exchange => ({ ...exchange, cards: [new PresidentCard(1, 7)] }));
     GameLayout.updatePlayerButtons(game, players[0]);
     assert.equal(status(), "Kort til Recipient (1/2)");
     GameLayout.updateTable(game, players[0]);
     assert.equal(status(), "Kort til Recipient (1/2)");
+});
+
+test("outgoing selections and incoming previews retain the sender's design and foil without revealing private choices", () => {
+    const { GameLayout, PresidentCard, game, players, nodes } = exchangeStatusFixture();
+    GameLayout.styleForPlayer = (current, name) => {
+        assert.equal(current, game);
+        assert.equal(name, "Sender");
+        return "pixel";
+    };
+    GameLayout.foilForPlayer = (current, name) => {
+        assert.equal(current, game);
+        assert.equal(name, "Sender");
+        return "galaxy";
+    };
+    const exchange = game.piles[0];
+    exchange.cards = [new PresidentCard(1, 7), new PresidentCard(2, 9)];
+    for (const mode of ["Velg", "Best", "Gitt", "Kan se"]) {
+        exchange.mode = mode;
+        GameLayout.updateTable(game, players[0]);
+        const previews = nodes().filter(node => node.className?.includes("exchange-selection__card"));
+        assert.equal(previews.length, 2, mode);
+        for (const preview of previews) {
+            assert.match(preview.className, /card-preview--pixel/);
+            assert.equal(preview.dataset.foil, "galaxy");
+            assert.equal(preview.children.length, 1);
+            assert.match(preview.children[0].src, /^data:image\/svg\+xml/);
+        }
+        GameLayout.updateTable(game, players[1]);
+        assert.equal(nodes().filter(node => node.className?.includes("exchange-selection__card")).length,
+            mode == "Kan se" ? 2 : 0, "Only delivered cards are shown to the recipient");
+    }
+});
+
+test("a received-card gate for one pair does not hide or disable the other pair's Give action", () => {
+    const { GameLayout, PresidentCard, game, players, document, nodes, status } = exchangeStatusFixture();
+    game.exchangeReady = { id: "completed-pair", participants: ["Other"], ready: {}, until: Date.now() + 7000 };
+    game.piles[0].cards = [new PresidentCard(1, 7), new PresidentCard(2, 9)];
+    GameLayout.updateTable(game, players[0]);
+    assert.equal(status(), "Kort til Recipient (2/2)");
+    const button = document.getElementById("exchangeActions").children[0];
+    assert.equal(button.textContent, "Gi kort");
+    assert.equal(button.disabled, false);
+    assert.equal(nodes().some(node => node.className == "exchange-ready-hint"), false);
 });
 
 test("exchange status covers mandatory, optional, received, spectator and waiting states", () => {
@@ -2402,6 +2566,7 @@ test("bot scheduling follows animation speed and restores it after fast-forward"
     let speed = "slow";
     const context = vm.createContext({
         currentGame: game, GamePresence: {
+            exchangeBlocksActions: record => GamePresence.exchangeBlocksActions(record),
             onlyBotsRemain: record => GamePresence.onlyBotsRemain(record), canDrive: () => true,
             now: () => 10000,
             isBot: (game, player) => GamePresence.isBot(game, player) },
@@ -2426,6 +2591,7 @@ test("bot scheduling follows animation speed and restores it after fast-forward"
                 Math: Object.assign(Object.create(Math), { random: () => roll }),
                 currentGame: game, connection: null, shuffleEndsAt: 0, Date: { now: () => now },
                 GamePresence: {
+                    exchangeBlocksActions: record => GamePresence.exchangeBlocksActions(record),
                     canDrive: () => true, onlyBotsRemain: () => true, isBot: () => true,
                     now: () => now, roundToken: record => GamePresence.roundToken(record)
                 },

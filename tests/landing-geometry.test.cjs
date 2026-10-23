@@ -159,21 +159,94 @@ test("flight joins first contact continuously, then slides, bounces, rocks and s
     assert.ok(Math.abs(nearestGap(cards, settled.pose) - .06) < 1e-8);
 });
 
-test("horizontal edge throws rebound and rotate inward symmetrically before settling", () => {
+test("rotation carries constant deceleration through touchdown without reversing or wobbling", () => {
     const cards = [];
-    const start = { ...flat(300, 700, 40), pitch: 8, yaw: -6, roll: 4 };
-    const impact = { x: 300, y: 300, roll: 2 };
-    const momentum = { x: 0, y: -12, spin: .5, power: .7 };
-    const at = (direction, progress) => G.motion(cards, start, impact, momentum, progress, null, direction).pose;
-    for (const direction of [-1, 1]) {
-        const contact = at(direction, G.CONTACT);
-        const rebound = at(direction, G.CONTACT + .12);
-        const settled = at(direction, 1);
-        assert.ok((rebound.x - contact.x) * direction < 0, "The rebound moves away from its edge");
-        assert.ok((rebound.roll - contact.roll) * direction < 0, "The card rotates inward");
-        assert.equal(settled.x, impact.x + momentum.x);
-        assert.equal(settled.roll, impact.roll + momentum.spin);
+    for (const rotation of [-40, 0, 40]) {
+        const start = { ...flat(300, 700, 40), pitch: 8, yaw: -6, roll: 4 };
+        const momentum = { x: 0, y: -12, spin: rotation * (1 - G.CONTACT) ** 2, power: .7 };
+        const impact = { x: 300, y: 300, roll: start.roll + rotation - momentum.spin };
+        for (let step = 0; step <= 100; step++) {
+            const t = step / 100;
+            const pose = G.motion(cards, start, impact, momentum, t).pose;
+            assert.ok(Math.abs(pose.roll - (start.roll + rotation * (2 * t - t * t))) < 1e-9);
+            assert.equal(pose.x, 300, "Landing adds no sideways oscillation");
+        }
     }
+});
+
+test("wall impulses transfer off-center momentum into spin without adding energy", () => {
+    const pose = { ...flat(), width: 80, height: 120 };
+    const normal = { x: -1, y: 0 };
+    const velocity = { x: 200, y: -60, spin: 0 };
+    const centered = G.wallImpulse(pose, velocity, normal, { x: 40, y: 0 });
+    assert.equal(centered.x, -70);
+    assert.equal(centered.y, velocity.y);
+    assert.equal(centered.spin, 0, "A central impact has no torque");
+    const energy = v => v.x ** 2 + v.y ** 2 + (80 ** 2 + 120 ** 2) / 12 * (v.spin * Math.PI / 180) ** 2;
+    for (const y of [-50, 50]) {
+        const result = G.wallImpulse(pose, velocity, normal, { x: 40, y });
+        assert.ok(result.spin * y > 0, "Torque follows the contact lever arm");
+        assert.ok(energy(result) < energy(velocity));
+        const faster = G.wallImpulse(pose, { ...velocity, x: 400 }, normal, { x: 40, y });
+        assert.ok(Math.abs(faster.spin) > Math.abs(result.spin), "More incoming momentum creates more spin");
+    }
+    const departing = { x: -100, y: 0, spin: 0 };
+    assert.deepEqual(G.wallImpulse(pose, departing, normal, { x: 40, y: 0 }), departing);
+});
+
+test("three-wall trajectories couple collision spin to momentum and leave the bottom edge open", () => {
+    const bounds = { left: 0, top: 0, width: 600, height: 400 };
+    const plan = (x, y, roll = 15) => G.wallTrajectory(
+        { ...flat(300 + x * 110, 200 + y * 90), roll, width: 80, height: 120, radius: 8.75 },
+        bounds, { x, y, power: .7, spin: roll });
+    const right = plan(1, 0), left = plan(-1, 0, -15), top = plan(0, -1);
+    assert.equal(plan(0, 1), null, "No player-facing wall");
+    assert.equal(plan(0, 0), null, "Interior throws retain the existing trajectory");
+    assert.equal(right.collisions[0].normal.x, -1);
+    assert.equal(left.collisions[0].normal.x, 1);
+    assert.equal(top.collisions[0].normal.y, 1);
+    assert.ok(Math.abs(right.final.x + left.final.x - bounds.width) < 1e-8);
+    assert.ok(Math.abs(right.final.roll + left.final.roll) < 1e-8, "Mirrored contact creates mirrored spin");
+    assert.ok(Math.abs(top.final.roll - 15) > 10, "Top-wall torque persists in the resting rotation");
+    for (const path of [left, right, top, plan(1, -1)]) {
+        for (let step = 0; step <= 240; step++) {
+            const position = path.positionAtProgress(step / 240);
+            const pose = { ...flat(), ...position, width: 80, height: 120, radius: 8.75 };
+            assert.ok(G.silhouette(pose).every(point =>
+                point.x >= -1e-7 && point.x <= bounds.width + 1e-7 && point.y >= -1e-7),
+            "The full rounded card outline stays inside each closed wall");
+        }
+        const final = path.positionAtProgress(1), before = path.positionAtProgress(1 - 1e-5);
+        assert.deepEqual(final, path.final);
+        assert.ok(Math.hypot(final.x - before.x, final.y - before.y) < .001, "Translation comes to rest");
+        assert.ok(Math.abs(final.roll - before.roll) < .001, "Rotation comes to rest without snapping back");
+    }
+    assert.deepEqual(plan(1, 0).final, right.final, "Planning is deterministic");
+});
+
+test("shared release momentum determines whether and how a wall is struck", () => {
+    const bounds = { left: 0, top: 0, width: 600, height: 400 };
+    const rest = { ...flat(400, 200), roll: 15, width: 80, height: 120 };
+    const motion = { x: 1, y: 0, power: .7, spin: 10,
+        launch: { x: 0, y: .5, vx: 1.2, vy: -.2 } };
+    const path = G.wallTrajectory(rest, bounds, motion);
+    assert.ok(path.collisions.length > 0);
+    assert.equal(path.start.x, 300);
+    assert.equal(path.start.y, 300);
+    assert.equal(path.start.roll, 0);
+    assert.equal(path.collisions[0].normal.x, -1);
+    assert.equal(G.wallTrajectory(rest, bounds,
+        { ...motion, launch: { ...motion.launch, vx: -.2 } }), null,
+    "Choosing the right edge does not invent a collision when the release travels away from it");
+    const top = G.wallTrajectory(rest, bounds,
+        { ...motion, x: 0, y: -1, spin: 0, launch: { x: 0, y: .5, vx: 0, vy: -2 } });
+    assert.ok(top.collisions.length > 0);
+    assert.equal(top.final.roll, 0, "A centered top-edge collision does not invent torque");
+    assert.equal(G.wallTrajectory(rest, bounds,
+        { ...motion, x: 0, y: 1, launch: { x: 0, y: .5, vx: 0, vy: 2 } }), null,
+    "Outgoing momentum passes through the open bottom edge");
+    const nonsaturated = G.wallTrajectory(rest, bounds, { ...motion, x: .9 });
+    assert.ok(nonsaturated.collisions.length > 0, "A real outline collision is not gated on clamped metadata");
 });
 
 test("cards do not cast a shadow upward onto a higher receiver", () => {

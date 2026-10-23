@@ -102,6 +102,34 @@ test("bots, disconnected players and bot-controlled seats never block exchange r
     }
 });
 
+test("independent exchange pairs keep their clocks and acknowledgments separate", () => {
+    const record = exchangeRoom();
+    record.status = "G";
+    record.spillere.push(human("Vice", "vice"), human("Vice bum", "vice-bum"));
+    record.spillBunke = [{ id: "vice", modus: "Velg", fra: 2, til: 3 }];
+    record.exchangeReady.participants = ["Owner", "Guest"];
+    assert.equal(Presence.isActionPaused(record, start), false);
+    assert.ok(Presence.actionToken(record, record.spillere[2], 2, start));
+    assert.equal(Presence.exchangeGateForPlayer(record, record.spillere[2]), undefined);
+    assert.equal(Presence.exchangeWaitingPlayers(record, start).length, 2);
+    record.exchangeReady.pending = [{
+        id: "vice-pair", startedAt: start, until: start + 7000, ready: {}, participants: ["Vice", "Vice bum"]
+    }];
+    record.spillBunke = [];
+    record.status = "S";
+    assert.equal(Presence.isActionPaused(record, start), true);
+    assert.equal(Presence.exchangeGateForPlayer(record, record.spillere[2]).id, "vice-pair");
+    assert.equal(Presence.acknowledgeExchange(record, "vice-pair", "owner", "Owner", start), undefined);
+    let next = Presence.acknowledgeExchange(record, "vice-pair", "vice", "Vice", start + 100);
+    next = Presence.acknowledgeExchange(next, "vice-pair", "vice-bum", "Vice bum", start + 200);
+    assert.equal(Presence.exchangeGates(next).length, 1, "The first pair is still waiting");
+    next = Presence.acknowledgeExchange(next, "round-2", "owner", "Owner", start + 300);
+    next = Presence.acknowledgeExchange(next, "round-2", "guest", "Guest", start + 400);
+    assert.equal(next.exchangeReady, null);
+    assert.equal(Presence.isActionPaused(next, start + 400), false);
+    assert.equal(record.exchangeReady.pending.length, 1, "Old snapshots remain immutable");
+});
+
 test("stale, duplicate and non-player exchange readiness acknowledgments are ignored", () => {
     const record = exchangeRoom();
     for (const args of [
@@ -831,6 +859,7 @@ test("giving and receiving exchange cards count only when the actor is human", (
         game.status = "G";
         const exchange = { from: 0, to: 1, count: 1, mode: "Velg", cards: [actor.cards[0]] };
         game.piles = [exchange, { from: 1, to: 0, count: 1, mode: "Velg", cards: [] }];
+        game.save();
         fixture.now += 1000;
         game.giveExchangeCards(exchange);
         assert.equal(fixture.stored.lastHumanActionAt, key == "owner" ? start + 1000 : start);

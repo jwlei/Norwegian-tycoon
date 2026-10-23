@@ -216,6 +216,30 @@ test("throw metadata survives both pile deserializers and clamps finite motion v
     assert.equal(vm.runInContext('new CardPile("").fromRecord({nick:"Legacy",verdiBoms:7}).motion', context), undefined);
 });
 
+test("release velocity survives serialization and invalid launch values are rejected", () => {
+    const context = load();
+    const result = vm.runInContext(`
+        var pile = new CardPile("Owner", new PresidentCard(1, 7));
+        pile.motion = {x:1,y:-1,power:.7,spin:5,pitch:12,yaw:-8,
+            launch:{x:.5,y:.4,vx:.8,vy:-1.6}};
+        var record = JSON.parse(JSON.stringify(pile));
+        ({record, restored:PresidentCard.deserializePiles([record])[0].motion,
+            lastPlay:new CardPile("").fromRecord(record).motion});
+    `, context);
+    assert.deepEqual(JSON.parse(JSON.stringify(result.restored)), JSON.parse(JSON.stringify(result.record.motion)));
+    assert.deepEqual(JSON.parse(JSON.stringify(result.lastPlay)), JSON.parse(JSON.stringify(result.record.motion)));
+    for (const key of ["x", "y", "vx", "vy"]) {
+        for (const value of [NaN, Infinity, "1", undefined]) {
+            context.key = key;
+            context.bad = value;
+            assert.throws(() => vm.runInContext(`CardPile.normalizeMotion({
+                x:1,y:0,power:.7,spin:0,pitch:0,yaw:0,
+                launch:{x:0,y:0,vx:0,vy:0,[key]:bad}
+            })`, context), /Ugyldig bevegelse/);
+        }
+    }
+});
+
 test("hard throws spread cards further and clients in the same board-size class share landing jitter", () => {
     const context = load();
     const result = vm.runInContext(`

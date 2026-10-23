@@ -405,34 +405,115 @@
             roll: impact.roll + momentum.spin * slide };
     }
 
-    function edgeRebound(progress, direction, power = 0) {
-        const settle = clamp((progress - CONTACT) / (1 - CONTACT), 0, 1);
-        const wave = direction == 0 || settle == 0 || settle == 1
-            ? 0 : Math.sin(settle * Math.PI * 2) * Math.exp(-3 * settle);
-        const inward = -Math.sign(direction) * wave;
+    // Unit mass, rectangular inertia, and a normal impulse at the actual outline contact.
+    function wallImpulse(pose, velocity, normal, contact, restitution = .35) {
+        const arm = { x: contact.x - pose.x, y: contact.y - pose.y };
+        const lever = arm.x * normal.y - arm.y * normal.x;
+        const inertia = ((pose.width || WIDTH) ** 2 + (pose.height || HEIGHT) ** 2) / 12;
+        const angular = radians(velocity.spin);
+        const approach = velocity.x * normal.x + velocity.y * normal.y + angular * lever;
+        if (approach >= 0) { return { ...velocity }; }
+        const impulse = -(1 + restitution) * approach / (1 + lever * lever / inertia);
+        return { x: velocity.x + normal.x * impulse, y: velocity.y + normal.y * impulse,
+            spin: degrees(angular + lever * impulse / inertia) };
+    }
+
+    // A deterministic planar throw, with an open player-facing (bottom) edge.
+    function wallTrajectory(rest, bounds, throwMotion, offset = { x: 0, y: 0 }) {
+        if (!throwMotion.launch && Math.abs(throwMotion.x) < 1 && throwMotion.y > -1) { return null; }
+        const width = rest.width || WIDTH, height = rest.height || HEIGHT;
+        const start = { ...rest, x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height + height,
+            z: 0, pitch: 0, yaw: 0, roll: rest.roll - throwMotion.spin };
+        const launch = throwMotion.launch;
+        if (launch) {
+            start.x = bounds.left + (launch.x + 1) * bounds.width / 2 + offset.x;
+            start.y = bounds.top + (launch.y + 1) * bounds.height / 2 + offset.y;
+            start.roll = 0;
+            const endX = start.x + launch.vx * bounds.width / 2;
+            const endY = start.y + launch.vy * bounds.height / 2;
+            const radius = Math.hypot(width, height) / 2;
+            if (Math.min(start.x, endX) > bounds.left + radius &&
+                Math.max(start.x, endX) < bounds.left + bounds.width - radius &&
+                Math.min(start.y, endY) > bounds.top + radius) { return null; }
+        }
+        const distance = Math.hypot(rest.x - start.x, rest.y - start.y);
+        const overshoot = slideDistanceToRest(distance, throwMotion.power, height);
+        const end = { x: throwMotion.x <= -1 ? bounds.left - overshoot :
+            throwMotion.x >= 1 ? bounds.left + bounds.width + overshoot : rest.x,
+            y: throwMotion.y <= -1 ? bounds.top - overshoot : rest.y };
+        let velocity = { x: 2 * (end.x - start.x), y: 2 * (end.y - start.y), spin: 2 * throwMotion.spin };
+        if (launch) {
+            velocity.x = launch.vx * bounds.width;
+            velocity.y = launch.vy * bounds.height;
+        }
+        const inertia = (width * width + height * height) / 12;
+        const speed = v => Math.sqrt(v.x * v.x + v.y * v.y + inertia * radians(v.spin) ** 2);
+        // Keep friction constant after an impact loses energy, so a rebound stops sooner rather than coasting.
+        const friction = speed(velocity);
+        const pose = { ...start };
+        const frames = [{ x: pose.x, y: pose.y, roll: pose.roll }], collisions = [];
+        const walls = [
+            { normal: { x: 1, y: 0 }, distance: point => point.x - bounds.left },
+            { normal: { x: -1, y: 0 }, distance: point => bounds.left + bounds.width - point.x },
+            { normal: { x: 0, y: 1 }, distance: point => point.y - bounds.top }
+        ];
+        const steps = 240;
+        for (let step = 1; step <= steps; step++) {
+            const incomingSpeed = speed(velocity);
+            if (!incomingSpeed) {
+                frames.push({ x: pose.x, y: pose.y, roll: pose.roll });
+                continue;
+            }
+            const damping = Math.max(0, 1 - friction / steps / incomingSpeed);
+            const travel = (1 + damping) / (2 * steps);
+            pose.x += velocity.x * travel;
+            pose.y += velocity.y * travel;
+            pose.roll += velocity.spin * travel;
+            for (const wall of walls) {
+                const points = silhouette(pose);
+                const gap = Math.min(...points.map(wall.distance));
+                if (gap >= 0) { continue; }
+                const contacts = points.filter(point => wall.distance(point) <= gap + 1e-6);
+                const contact = contacts.reduce((sum, point) =>
+                    ({ x: sum.x + point.x / contacts.length, y: sum.y + point.y / contacts.length }), { x: 0, y: 0 });
+                const next = wallImpulse(pose, velocity, wall.normal, contact, .2 + .2 * throwMotion.power);
+                if (next.x !== velocity.x || next.y !== velocity.y || next.spin !== velocity.spin) {
+                    collisions.push({ progress: step / steps, normal: wall.normal,
+                        incoming: velocity, outgoing: next, contact, pose: { ...pose } });
+                    velocity = next;
+                }
+                pose.x -= gap * wall.normal.x;
+                pose.y -= gap * wall.normal.y;
+            }
+            const outgoingSpeed = speed(velocity);
+            const drag = outgoingSpeed ? Math.max(0, 1 - friction / steps / outgoingSpeed) : 0;
+            velocity = { x: velocity.x * drag, y: velocity.y * drag, spin: velocity.spin * drag };
+            frames.push({ x: pose.x, y: pose.y, roll: pose.roll });
+        }
+        if (!collisions.length) { return null; }
         return {
-            x: inward * (12 + clamp(power, 0, 1) * 8),
-            roll: inward * (8 + clamp(power, 0, 1) * 6),
-            yaw: inward * 4
+            start, collisions, final: frames[steps], frameCount: frames.length,
+            positionAtProgress(progress) {
+                const index = clamp(progress, 0, 1) * steps;
+                const a = frames[Math.floor(index)], b = frames[Math.min(steps, Math.floor(index) + 1)];
+                return { x: mix(a.x, b.x, index % 1), y: mix(a.y, b.y, index % 1),
+                    roll: mix(a.roll, b.roll, index % 1) };
+            }
         };
     }
 
-    function motion(cards, start, impact, momentum, progress, contact = null, edgeDirection = 0) {
+    function motion(cards, start, impact, momentum, progress, contact = null, trajectory = null) {
         const t = clamp(progress, 0, 1);
         const contactTime = CONTACT;
         const dimensions = Object.fromEntries(["width", "height", "radius"]
             .filter(key => start[key] !== undefined).map(key => [key, start[key]]));
         const target = contact || landing(cards, impact.x, impact.y, impact.roll, dimensions);
-        const planar = position(start, impact, momentum, t);
-        const rebound = edgeRebound(t, edgeDirection, momentum.power);
-        planar.x += rebound.x;
-        planar.roll += rebound.roll;
+        const planar = trajectory ? trajectory(t) : position(start, impact, momentum, t);
         if (t < contactTime) {
             const travel = t / contactTime;
             const pose = flight(start, target, travel, 26 + momentum.power * 20);
             Object.assign(pose, dimensions);
             Object.assign(pose, planar);
-            pose.yaw += rebound.yaw;
             pose.z = Math.max(pose.z, minimumHeight(cards, pose));
             return { pose, phase: "flight", bounce: 0 };
         }
@@ -440,7 +521,7 @@
         const rest = landing(cards, planar.x, planar.y, planar.roll, dimensions);
         const rock = Math.sin(settle * Math.PI * 4) * Math.pow(1 - settle, 2) * momentum.power;
         rest.pitch += rock * 1.6;
-        rest.yaw += rebound.yaw - rock * 1.1;
+        rest.yaw -= rock * 1.1;
         const bounce = Math.abs(Math.sin(settle * Math.PI * 2)) * Math.pow(1 - settle, 2) *
             (2 + momentum.power * 7);
         rest.z = minimumHeight(cards, rest) + bounce;
@@ -449,8 +530,7 @@
 
     const api = { WIDTH, HEIGHT, EDGE, VIEW_SHEAR, LIGHT, CONTACT, slideDistance, slideDistanceToRest, rotate, world, screen, plane, heightAt,
         signedDistance, silhouette, contains, screenContains, screenCovers, samples, supportHeight, landing, minimumHeight, shadow,
-        edgeRebound,
-        shadowedBy, shadowVisible, exposedPoints, flight, position, motion };
+        shadowedBy, shadowVisible, exposedPoints, flight, position, wallImpulse, wallTrajectory, motion };
     if (typeof module !== "undefined" && module.exports) { module.exports = api; }
     else { root.LandingGeometry = api; }
 })(globalThis);

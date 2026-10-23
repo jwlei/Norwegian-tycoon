@@ -262,7 +262,7 @@ function updateAutoPassButton() {
 function tryAutoPass(game, player) {
     if (!autoPassEnabled || game == null || player == null ||
         game.connectionOnline === false || game.localWritePending ||
-        game.exchangeReady != null || GamePresence.isBot(game, player) ||
+        GamePresence.exchangeBlocksActions(game) || GamePresence.isBot(game, player) ||
         GamePresence.isExpired(game) || !game.canPass(player)) {
         return;
     }

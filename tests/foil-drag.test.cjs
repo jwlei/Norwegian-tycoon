@@ -1096,9 +1096,15 @@ test("release position and decaying momentum determine normalized shared throw m
     assert.equal(motion.pitch, 12);
     assert.equal(motion.yaw, -8);
     assert.ok(motion.power > 0.8);
+    assert.equal(motion.launch.x, 0);
+    assert.equal(motion.launch.y, 2 / 3);
+    assert.equal(motion.launch.vx, .8);
+    assert.equal(motion.launch.vy, -320 / 150);
     f.now = 1500;
     const held = f.types.GameLayout.cardThrowMotion(drag, { clientX: 200, clientY: 250 }, hand);
     assert.ok(held.power < 0.01);
+    assert.ok(Math.abs(held.launch.vx) < .01);
+    assert.ok(Math.abs(held.launch.vy) < .01);
     const left = f.types.GameLayout.cardThrowMotion(
         { velocityX: 0, velocityY: 0, lastMotionTime: 1500 }, { clientX: 0, clientY: 150 }, hand);
     assert.equal(left.x, -1);

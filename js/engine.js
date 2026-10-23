@@ -76,6 +76,13 @@ class CardPile extends Array {
             if (!Number.isFinite(motion[key])) { throw new Error("Ugyldig bevegelse for spilte kort."); }
             result[key] = Math.max(key == "power" ? 0 : -limit, Math.min(limit, motion[key]));
         }
+        if (motion.launch != null) {
+            result.launch = {};
+            for (const [key, limit] of Object.entries({ x: 4, y: 4, vx: 8, vy: 8 })) {
+                if (!Number.isFinite(motion.launch[key])) { throw new Error("Ugyldig bevegelse for spilte kort."); }
+                result.launch[key] = Math.max(-limit, Math.min(limit, motion.launch[key]));
+            }
+        }
         return result;
     }
     constructor(name, ...cards) {
@@ -375,6 +382,9 @@ class PresidentGame extends Game {
             notifyLocalAction("started");
         }
         var failureReported = false;
+        var exchangeAction = this.pendingExchangeAction;
+        delete this.pendingExchangeAction;
+        var snapshotUpdate = update;
         var failed = error => {
             if (failureReported) { return; }
             failureReported = true;
@@ -385,6 +395,7 @@ class PresidentGame extends Game {
         var write;
         if (typeof this.databaseRef.transaction == "function") {
             write = this.databaseRef.transaction(current => {
+                var update = snapshotUpdate;
                 if (current == null) {
                     if (!allowCreate) { return; }
                     return Object.assign({}, update, {
@@ -396,6 +407,37 @@ class PresidentGame extends Game {
                     return current.status == "V" ? undefined : Object.assign({}, current, { status: "V" });
                 }
                 if (expiredLocally) { return; }
+                if (exchangeAction) {
+                    if (current.status != "G" || current.shuffleStartedAt != update.shuffleStartedAt ||
+                        current.runde != update.runde) { return; }
+                    const replay = Object.assign(Object.create(PresidentGame.prototype), this, {
+                        status: "G", players: PresidentPlayer.deserializePlayers(current.spillere || []),
+                        piles: PresidentGame.deserializeExchanges(current.spillBunke || []),
+                        exchangeReceipts: current.exchangeReceipts || [], exchangeReady: current.exchangeReady || null,
+                        roundStarterName: current.roundStarterName || null,
+                        controllers: current.controllers || {},
+                        replayingExchange: true, assertSessionActive() {}, recordHumanAction() {}, save() {}
+                    });
+                    const exchange = replay.piles.find(candidate => getExchangeId(candidate) == exchangeAction.id);
+                    if (!exchange || !["Velg", "Best"].includes(exchange.mode)) { return; }
+                    exchange.cards = PresidentCard.deserializeDeck(exchangeAction.cards);
+                    if (exchangeAction.select) {
+                        const available = getAvailableExchangeCards(replay, exchange.from, exchange);
+                        if (exchange.mode != "Velg" || exchange.cards.length > exchange.count ||
+                            new Set(exchange.cards.map(exchangeCardKey)).size != exchange.cards.length ||
+                            exchange.cards.some(card => !available.some(candidate => exchangeCardKey(candidate) == exchangeCardKey(card)))) {
+                            return;
+                        }
+                    } else {
+                        replay.giveExchangeCards(exchange);
+                    }
+                    update = Object.assign({}, update, {
+                        status: replay.status, spillere: PresidentPlayer.serializePlayers(replay.players),
+                        spillBunke: replay.serializePiles(), sinTur: replay.turn,
+                        roundStarterName: replay.roundStarterName, exchangeReceipts: replay.exchangeReceipts,
+                        exchangeReady: replay.exchangeReady || null
+                    });
+                }
                 var baseline = GamePresence.lastActivityAt(current);
                 var lastHumanActionAt = baseline != null
                     ? (hasLastAction ? Math.max(Number(baseline), update.lastHumanActionAt) : Number(baseline))
@@ -1490,6 +1532,9 @@ class PresidentGame extends Game {
                 }
             }
             this.piles.forEach(exchange => {
+                if (exchange.kind != "playerTrade") {
+                    exchange.tradeId = `mandatory:${this.round}:${Math.min(exchange.from, exchange.to)}:${Math.max(exchange.from, exchange.to)}`;
+                }
                 if (!exchange.id) {
                     exchange.id = `exchange:${exchange.from}:${exchange.to}`;
                 }
@@ -1765,7 +1810,8 @@ class PresidentGame extends Game {
         } else {
             var exchangeGroups = new Map();
             this.piles.filter(exchange => exchange.mode != "Tilbud").forEach(exchange => {
-                var groupId = exchange.tradeId != null ? `trade:${exchange.tradeId}` : "mandatory";
+                var groupId = exchange.tradeId != null ? `trade:${exchange.tradeId}` :
+                    `mandatory:${Math.min(exchange.from, exchange.to)}:${Math.max(exchange.from, exchange.to)}`;
                 if (!exchangeGroups.has(groupId)) { exchangeGroups.set(groupId, []); }
                 exchangeGroups.get(groupId).push(exchange);
             });
@@ -1781,11 +1827,20 @@ class PresidentGame extends Game {
                 var now = GamePresence.now();
                 var gateId = JSON.stringify([GamePresence.roundToken(this), receipts.map(receipt => receipt.id)]);
                 receipts.forEach(receipt => { receipt.summaryGateId = gateId; });
-                this.exchangeReady = this.players.some(player =>
-                    player.placement == 0 && player.gaveUp !== true && !GamePresence.isBot(this, player)) ? {
+                var participants = completedExchanges.every(exchange => exchange.kind != "playerTrade")
+                    ? [...new Set(receipts.map(receipt => receipt.recipient))]
+                    : this.players.map(player => player.name);
+                var gate = this.players.some(player =>
+                    participants.includes(player.name) && player.placement == 0 &&
+                    player.gaveUp !== true && !GamePresence.isBot(this, player)) ? {
                     id: gateId, startedAt: now, until: now + 7000, ready: {},
-                    receiptIds: receipts.map(receipt => receipt.id)
+                    receiptIds: receipts.map(receipt => receipt.id), participants
                 } : null;
+                if (gate) {
+                    var gates = GamePresence.exchangeGates(this);
+                    this.exchangeReady = gates.length
+                        ? Object.assign({}, gates[0], { pending: [...gates.slice(1), gate] }) : gate;
+                }
                 if (this.piles.length == 0) { this.advanceExchangeStage(); }
             }
             var offer = activeTradeOffer(this);
@@ -1800,7 +1855,7 @@ class PresidentGame extends Game {
             this.players[exchange.to].cards.push(new PresidentCard(k.suit, k.rank));
         });
         this.players[exchange.to].cards.sortCards();
-        markReceivedCards(`${this.id}:${this.players[exchange.to].name}`, exchange.cards);
+        if (!this.replayingExchange) { markReceivedCards(`${this.id}:${this.players[exchange.to].name}`, exchange.cards); }
         var receipt = {
             id: `${this.shuffleStartedAt}:${this.round}:${getExchangeId(exchange)}`,
             recipient: this.players[exchange.to].name,
@@ -1808,15 +1863,17 @@ class PresidentGame extends Game {
             cards: exchange.cards.map(card => ({ suit: card.suit, rank: card.rank }))
         };
         this.exchangeReceipts = [...(this.exchangeReceipts || []), receipt];
-        document.dispatchEvent(new CustomEvent("exchange-cards-received", {
-            detail: Object.assign({}, receipt, {
-                game: this, cards: exchange.cards.map(card => new PresidentCard(card.suit, card.rank))
-            })
-        }));
+        if (!this.replayingExchange) {
+            document.dispatchEvent(new CustomEvent("exchange-cards-received", {
+                detail: Object.assign({}, receipt, {
+                    game: this, cards: exchange.cards.map(card => new PresidentCard(card.suit, card.rank))
+                })
+            }));
+        }
     }
     giveExchangeCards(exchange) {
         this.assertSessionActive();
-        if (this.exchangeReady) { throw ("Vent til mottatte kort er bekreftet."); }
+        if (GamePresence.exchangeBlocksActions(this)) { throw ("Vent til mottatte kort er bekreftet."); }
         if (this.status != "G") { throw ("Spillet er ikke i bytte-modus."); };
         if (exchange.mode != 'Velg' && exchange.mode != 'Best') { throw (`Kan ikke gi kort når modus er ${exchange.mode} (må være Velg eller Best).`); };
         if (exchange.cards.length != exchange.count) { throw ("Feil antall kort som byttes."); };
@@ -1831,6 +1888,9 @@ class PresidentGame extends Game {
             }
             usedCards.add(key);
         });
+        if (exchange.kind != "playerTrade" && !this.replayingExchange) {
+            this.pendingExchangeAction = { id: getExchangeId(exchange), cards: PresidentCard.serializeDeck(exchange.cards) };
+        }
         if (exchange.kind == "playerTrade") {
             var relatedExchanges = this.piles.filter(candidate =>
                 candidate.tradeId == exchange.tradeId
@@ -1868,7 +1928,7 @@ class PresidentGame extends Game {
     isTurnPaused() {
         if ((this.status == "S" || this.status == "G") && this.shuffleStartedAt != null &&
             GamePresence.now() < Number(this.shuffleStartedAt) + SHUFFLE_DURATION_MS) { return true; }
-        if ((this.status == "S" || this.status == "G") && this.exchangeReady != null) { return true; }
+        if ((this.status == "S" || this.status == "G") && GamePresence.exchangeBlocksActions(this)) { return true; }
         if (this.turnPause?.presentationVersion == 1) {
             var next = this.players[this.turn];
             if ((next && GamePresence.isBot(this, next)) || this.turnPause.pendingGameEnd) {

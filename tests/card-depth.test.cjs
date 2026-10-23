@@ -35,7 +35,10 @@ function fixture() {
         replaceChildren(...children) { this.children = children; }
         remove() { this.removed = true; }
         querySelector(selector) { return selector === "img" ? this.image : null; }
-        getBoundingClientRect() { return { left: this.left || 200, top: this.top || 200, width: 112, height: 168 }; }
+        getBoundingClientRect() {
+            return { left: (this.left || 200) + (parseFloat(this.properties.get("--wall-offset-x")) || 0),
+                top: (this.top || 200) + (parseFloat(this.properties.get("--wall-offset-y")) || 0), width: 112, height: 168 };
+        }
         animate() { return { playState: "running", effect: { getComputedTiming: () => ({ progress: .5 }) } }; }
     }
     const context = vm.createContext({
@@ -49,9 +52,10 @@ function fixture() {
     vm.runInContext(`${source}\nglobalThis.CardDepth = CardDepth;`, context);
     const element = new Node("div");
     element.image = { src: "data:image/svg+xml,%3Csvg%2F%3E" };
-    const table = elements => {
+    const table = (elements, bounds = null) => {
         const parent = new Node("div");
         parent.querySelectorAll = () => elements;
+        parent.closest = () => bounds ? { getBoundingClientRect: () => bounds } : null;
         return parent;
     };
     const card = (left, top = 200) => {
@@ -253,6 +257,77 @@ test("hidden destinations do not leave duplicate external shadows, and detach re
     assert.equal(entry.shape.style.display, "");
     f.Depth.detach(f.element);
     assert.equal(entry.shape.removed, true);
+});
+
+test("unobstructed landings keep flight and rendered rotation on one continuously slowing trajectory", () => {
+    for (const direction of [-1, 1]) {
+        for (const rotation of [-35, 0, 35]) {
+            const f = fixture();
+            const card = f.card(400 + direction * 200, 200);
+            card.style.setProperty("--pile-rotation", `${rotation}deg`);
+            f.Depth.prepareTable(f.table([card]));
+            const flight = f.card(400, 600);
+            f.Depth.attach(flight);
+            const start = { x: 456, y: 684, z: 0, pitch: 8, yaw: -6, roll: 0 };
+            const motion = f.Depth.landingMotion(flight, card, start, .7);
+            const final = f.Depth.states.get(card).rest;
+            for (let step = 0; step <= 100; step++) {
+                const t = step / 100;
+                const pose = motion.poseAtProgress(t), position = motion.positionAtProgress(t);
+                assert.ok(Math.abs(pose.roll - rotation * (2 * t - t * t)) < 1e-9,
+                    "Angular speed decreases at the same rate before and after contact");
+                for (const key of ["x", "y", "roll"]) {
+                    assert.ok(Math.abs(position[key] - pose[key]) < 1e-8, `${key} matches the rendered pose`);
+                }
+                const dx = pose.x - start.x, dy = pose.y - start.y;
+                assert.ok(Math.abs(dx * (final.y - start.y) - dy * (final.x - start.x)) < 1e-7,
+                    "No arbitrary sideways rebound is added");
+            }
+            assert.deepEqual({ ...motion.poseAtProgress(1) }, { ...final });
+        }
+    }
+});
+
+test("wall collisions retain their resulting pose across flights, table refreshes and fresh renderers", () => {
+    const bounds = { left: 100, top: 100, width: 600, height: 400 };
+    for (const [x, y, launch] of [[-1, 0], [1, 0], [0, -1], [1, -1],
+        [1, 0, { x: 0, y: .5, vx: 1.2, vy: -.2 }]]) {
+        const setup = () => {
+            const f = fixture();
+            const card = f.card(350, 250);
+            card.dataset.throwMotion = JSON.stringify({ x, y, power: .7, spin: 15, ...(launch ? { launch } : {}) });
+            card.style.setProperty("--pile-rotation", "15deg");
+            const table = f.table([card], bounds);
+            f.Depth.prepareTable(table);
+            return { ...f, card, table };
+        };
+        const f = setup(), destination = f.Depth.states.get(f.card), final = { ...destination.rest };
+        assert.ok(destination.wallTrajectory.collisions.length > 0);
+        const flight = new f.Node("span");
+        flight.image = f.element.image;
+        f.Depth.attach(flight);
+        const start = { x: 400, y: 620, z: 0, pitch: 12, yaw: -10, roll: 0 };
+        const motion = f.Depth.landingMotion(flight, f.card, start, .7);
+        assert.equal(motion.frameCount, destination.wallTrajectory.frameCount,
+            "CSS movement samples every physics frame, including the wall impulse");
+        for (let step = 0; step <= 100; step++) {
+            const pose = motion.poseAtProgress(step / 100), position = motion.positionAtProgress(step / 100);
+            for (const key of ["x", "y", "roll"]) {
+                assert.ok(Math.abs(position[key] - pose[key]) < 1e-8, "Flight and shadows share the collision path");
+            }
+        }
+        assert.deepEqual({ ...motion.poseAtProgress(1) }, final);
+        for (const key of ["x", "y", "roll"]) {
+            assert.ok(Math.abs(motion.poseAtProgress(1 - 1e-5)[key] - final[key]) < .01, "No final pose snap");
+        }
+        f.Depth.prepareTable(f.table);
+        assert.deepEqual({ ...f.Depth.states.get(f.card).rest }, final, "Refresh does not accumulate offsets");
+        f.table.left = 201;
+        f.Depth.prepareTable(f.table);
+        assert.deepEqual({ ...f.Depth.states.get(f.card).rest }, final, "Replanning retains the same endpoint");
+        const fresh = setup();
+        assert.deepEqual({ ...fresh.Depth.states.get(fresh.card).rest }, final, "Fresh clients reconstruct the collision result");
+    }
 });
 
 test("splayed group landings slide with throw inertia and settle at their individual rotations", () => {

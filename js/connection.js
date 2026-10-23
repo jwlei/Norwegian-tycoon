@@ -1046,7 +1046,7 @@
             document.getElementById("receivedCardsOverlay").hidden = true;
         }
         function completeExchangeSummary(game, gateId) {
-            if (currentGame != game || game.exchangeReady?.id != gateId) { return; }
+            if (currentGame != game || !GamePresence.exchangeGates(game).some(gate => gate.id == gateId)) { return; }
             clearExchangeSummary();
             game.exchangeSummaryCompletedId = gateId;
             syncExchangeSummary(game);
@@ -1065,8 +1065,8 @@
         }
         function syncExchangeSummary(game) {
             if (currentGame != game) { return; }
-            var gate = game.exchangeReady;
             var player = game.getPlayer(currentPlayerName);
+            var gate = player ? GamePresence.exchangeGateForPlayer(game, player) : null;
             var overlay = document.getElementById("receivedCardsOverlay");
             if (!["S", "G"].includes(game.status) || gate == null || player == null ||
                 player.placement != 0 || player.gaveUp === true ||
@@ -1103,10 +1103,10 @@
                 var pile = document.createElement("div");
                 pile.className = "received-cards__pile";
                 cards.forEach((card, index) => {
-                    var image = GameLayout.createCardImage(card, null, GameLayout.styleForPlayer(game, receipt.sender));
-                    image.style.setProperty("--received-angle", `${(index - (cards.length - 1) / 2) * 10}deg`);
-                    image.style.setProperty("--received-index", String(index));
-                    pile.appendChild(image);
+                    var preview = GameLayout.createOwnedCardPreview(card, game, receipt.sender, "received-cards__card");
+                    preview.style.setProperty("--received-angle", `${(index - (cards.length - 1) / 2) * 10}deg`);
+                    preview.style.setProperty("--received-index", String(index));
+                    pile.appendChild(preview);
                 });
                 var message = document.createElement("p");
                 var names = cards.map(card => localizedMessage(card.getName(card.isClubThree())));
@@ -1132,7 +1132,9 @@
         document.getElementById("receivedCardsOverlay").addEventListener("click", function (event) {
             if (event.target != event.currentTarget) { return; }
             if (currentGame?.exchangeReady) {
-                completeExchangeSummary(currentGame, currentGame.exchangeReady.id);
+                var player = currentGame.getPlayer(currentPlayerName);
+                var gate = player ? GamePresence.exchangeGateForPlayer(currentGame, player) : null;
+                if (gate) { completeExchangeSummary(currentGame, gate.id); }
             }
         });
 
@@ -2710,7 +2712,7 @@
                 botLoopFastForward = fastForward;
             }
             if (currentGame == null ||
-                currentGame.exchangeReady != null ||
+                GamePresence.exchangeBlocksActions(currentGame) ||
                 currentGame.localWritePending ||
                 !GamePresence.canDrive(currentGame, connection ? connection.now() : Date.now()) ||
                 (currentGame.status != "S" && currentGame.status != "G")) { return; }
@@ -2744,7 +2746,7 @@
         function runBotLoop() {
             botLoopTimer = null;
             if (currentGame == null ||
-                currentGame.exchangeReady != null ||
+                GamePresence.exchangeBlocksActions(currentGame) ||
                 currentGame.localWritePending ||
                 !GamePresence.canDrive(currentGame, connection ? connection.now() : Date.now())) { return; }
             if (Date.now() < shuffleEndsAt) {

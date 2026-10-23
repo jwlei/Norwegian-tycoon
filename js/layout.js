@@ -177,6 +177,15 @@ class GameLayout {
         e.alt = card.getName();
         return e;
     }
+    static createOwnedCardPreview(card, game, owner, className) {
+        var style = this.styleForPlayer(game, owner);
+        var foil = this.foilForPlayer(game, owner);
+        var preview = document.createElement("span");
+        preview.className = `${className} card-preview card-preview--${style}`;
+        preview.dataset.foil = foil;
+        preview.appendChild(this.createCardImage(card, null, style, foil));
+        return preview;
+    }
     static updateSharedView(game, player) {
         if (game == null || game.status == "O") { this.clearCardFlights(); }
         document.getElementById("homeButton").hidden = game == null;
@@ -621,13 +630,25 @@ class GameLayout {
         var velocityX = drag.velocityX * decay;
         var velocityY = drag.velocityY * decay;
         var tilt = hand._cardDragPreview;
+        var releaseX = event.clientX, releaseY = event.clientY;
+        if (tilt && tilt.previews && tilt.previews.length) {
+            var previews = tilt.previews.map(preview => preview.getBoundingClientRect());
+            releaseX = previews.reduce((sum, rect) => sum + rect.left + rect.width / 2, 0) / previews.length;
+            releaseY = previews.reduce((sum, rect) => sum + rect.top + rect.height / 2, 0) / previews.length;
+        }
         return CardPile.normalizeMotion({
             x: (event.clientX + velocityX * 160 - bounds.left - bounds.width / 2) / Math.max(1, bounds.width / 2),
             y: (event.clientY + velocityY * 160 - bounds.top - bounds.height / 2) / Math.max(1, bounds.height / 2),
             power: Math.hypot(velocityX, velocityY) / 2.5,
             spin: velocityX * 5,
             pitch: tilt ? tilt.pitch : 0,
-            yaw: tilt ? tilt.yaw : 0
+            yaw: tilt ? tilt.yaw : 0,
+            launch: {
+                x: (releaseX - bounds.left - bounds.width / 2) / Math.max(1, bounds.width / 2),
+                y: (releaseY - bounds.top - bounds.height / 2) / Math.max(1, bounds.height / 2),
+                vx: velocityX * 160 / Math.max(1, bounds.width / 2),
+                vy: velocityY * 160 / Math.max(1, bounds.height / 2)
+            }
         });
     }
     static animatePlayedCards(playElement, pile, origins, onComplete = null) {
@@ -735,8 +756,7 @@ class GameLayout {
                 ? CardDepth.landingMotion(flight, target, {
                     x: flightLeft + targetBounds.width / 2, y: flightTop + targetBounds.height / 2,
                     z: 0, pitch, yaw, roll: startRotation
-                }, pile.motion ? pile.motion.power : .55,
-                pile.motion && Math.abs(pile.motion.x) >= 1 ? Math.sign(pile.motion.x) : 0) : null;
+                }, pile.motion ? pile.motion.power : .55) : null;
             target.style.opacity = "0";
             if (usesDepth && typeof CardDepth.setHidden == "function") { CardDepth.setHidden(target, true); }
             landedCards.push({ target, flight });
@@ -766,8 +786,9 @@ class GameLayout {
                 }
             ];
             if (landingPose) {
-                flightFrames = Array.from({ length: 81 }, (_, index) => {
-                    var progress = index / 80;
+                var frameCount = landingPose.frameCount || 81;
+                flightFrames = Array.from({ length: frameCount }, (_, index) => {
+                    var progress = index / (frameCount - 1);
                     var pose = landingPose.positionAtProgress(progress);
                     var amount = Math.max(0, 1 - progress / LandingGeometry.CONTACT);
                     var scale = 1 + (source.width / targetBounds.width - 1) * amount * amount;
@@ -1052,6 +1073,7 @@ class GameLayout {
                 cardElement.dataset.foil = foil;
                 var cardKey = `${card.suit}:${card.rank}`;
                 cardElement.dataset.cardKey = cardKey;
+                if (pile.motion) { cardElement.dataset.throwMotion = JSON.stringify(pile.motion); }
                 cardElement.setAttribute("aria-hidden", "true");
                 image.alt = "";
                 image.setAttribute("aria-hidden", "true");
@@ -1110,7 +1132,8 @@ class GameLayout {
             (selectableOutgoing.length == 1 ? selectableOutgoing[0] :
                 outgoing.find(exchange => exchange.mode == "Best" || exchange.mode == "Gitt"));
         var prompt = "";
-        if (game.exchangeReady != null) {
+        if (GamePresence.exchangeBlocksActions(game) ||
+            (player && GamePresence.exchangeGateForPlayer(game, player))) {
             prompt = "Venter på at spillerne bekrefter mottatte kort …";
         } else if (selectedExchange != null && player != null) {
             var recipient = game.players[selectedExchange.to];
@@ -1136,6 +1159,14 @@ class GameLayout {
             prompt = "Venter på at byttene fullføres";
         }
         return { selectedExchange, prompt };
+    }
+    static saveExchangeSelection(game, exchange) {
+        if (exchange.kind != "playerTrade") {
+            game.pendingExchangeAction = {
+                id: getExchangeId(exchange), cards: PresidentCard.serializeDeck(exchange.cards), select: true
+            };
+        }
+        return game.save();
     }
     static updatePlayerStatus(game, player) {
         var status = this.el("playerStatus");
@@ -1271,7 +1302,7 @@ class GameLayout {
             case "G": {
                 table.className = "exchange-panel";
                 this.clearTableContent(table);
-                if (game.exchangeReady != null) {
+                if (GamePresence.exchangeBlocksActions(game)) {
                     var receiptWaiting = document.createElement("p");
                     receiptWaiting.className = "exchange-ready-hint";
                     receiptWaiting.setAttribute("role", "status");
@@ -1512,17 +1543,14 @@ class GameLayout {
                             buttonSpan.appendChild(receiveButton);
                         }
                     }
-                    if (exchange.mode == "Kan se" && (isSender || isRecipient) && exchange.cards) {
+                    if (((exchange.mode == "Kan se" && (isSender || isRecipient)) ||
+                        (["Velg", "Best", "Gitt"].includes(exchange.mode) && isSender)) && exchange.cards) {
                         var previewCards = document.createElement("span");
                         previewCards.className = "exchange-preview";
                         exchange.cards.forEach(card => {
                             var previewModel = new Card(card.suit, card.rank);
-                            var previewImage = GameLayout.createCardImage(previewModel, null,
-                                GameLayout.styleForPlayer(game, fromPlayer.name),
-                                GameLayout.foilForPlayer(game, fromPlayer.name));
-                            previewImage.className = "exchange-selection__card";
-                            previewImage.alt = previewModel.getName();
-                            previewCards.appendChild(previewImage);
+                            previewCards.appendChild(GameLayout.createOwnedCardPreview(
+                                previewModel, game, fromPlayer.name, "exchange-selection__card"));
                         });
                         cardContainer.appendChild(previewCards);
                     }
@@ -1560,7 +1588,7 @@ class GameLayout {
                                 cancelExchange.textContent = "Avbryt";
                                 cancelExchange.onclick = function () {
                                     selectedExchange.cards = [];
-                                    game.save();
+                                    GameLayout.saveExchangeSelection(game, selectedExchange);
                                     GameLayout.updateTable(game, player);
                                     GameLayout.updateHand(game, player);
                                 };
@@ -1578,9 +1606,10 @@ class GameLayout {
                     var exchangeWaiting = document.createElement("p");
                     exchangeWaiting.className = "exchange-ready-hint";
                     exchangeWaiting.setAttribute("role", "status");
-                    var waitingCount = GamePresence.exchangeWaitingPlayers(game).filter(candidate =>
-                        candidate != player || game.exchangeSummaryCompletedId != game.exchangeReady.id
-                    ).length;
+                    var waitingCount = new Set(GamePresence.exchangeGates(game).flatMap(gate =>
+                        GamePresence.exchangeWaitingPlayers(game, GamePresence.now(), gate).filter(candidate =>
+                            candidate != player || game.exchangeSummaryCompletedId != gate.id
+                        ).map(candidate => GamePresence.playerId(candidate)))).size;
                     exchangeWaiting.textContent = waitingCount == 0 ? "Starter runden …" : waitingCount == 1
                         ? "Venter på 1 spiller …"
                         : `Venter på ${waitingCount} spillere …`;
@@ -2476,7 +2505,7 @@ class GameLayout {
                 if (game.localWritePending) { return; }
                 if (activeExchange.cards.length == activeExchange.count) {
                     activeExchange.cards = [];
-                    game.save();
+                    GameLayout.saveExchangeSelection(game, activeExchange);
                     GameLayout.updateTable(game, player);
                     GameLayout.updateHand(game, player);
                     return;
@@ -2501,7 +2530,7 @@ class GameLayout {
                     }
                     activeExchange.cards.push(card);
                 }
-                game.save();
+                GameLayout.saveExchangeSelection(game, activeExchange);
                 GameLayout.updateTable(game, player);
                 GameLayout.updateHand(game, player);
             };
