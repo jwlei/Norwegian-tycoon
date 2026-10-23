@@ -13,16 +13,18 @@
         .controls { display: flex; flex-wrap: wrap; gap: 20px; margin: 24px 0; }
         label { display: flex; align-items: center; gap: 8px; }
         select { font: inherit; padding: 8px; }
-        .comparisons { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 20px; }
+        .comparisons { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 20px; }
         figure { margin: 0; text-align: center; }
         figcaption { margin-top: 12px; font-weight: 600; }
         .card-preview { position: relative; display: block; width: 100%; isolation: isolate; }
         .card-preview > img { display: block; width: 100%; height: auto; }
         #comparisons.comparisons .card-preview[data-foil]:not([data-foil="none"])::before {
             opacity: calc(var(--preview-strength) * var(--preview-opacity, .48));
+            filter: var(--foil-filter) saturate(var(--preview-saturation, 1));
+            mix-blend-mode: var(--preview-blend, var(--foil-mix));
         }
         #comparisons.comparisons .card-preview[data-foil]:not([data-foil="none"])::after {
-            opacity: calc(var(--preview-strength) * .3);
+            opacity: calc(var(--preview-glare, var(--preview-strength)) * .3);
         }
         .comparisons.is-active { --preview-opacity: .72; }
         small { display: block; margin-top: 8px; color: #b4cec8; font-weight: normal; }
@@ -33,15 +35,45 @@
 <body>
 <main>
     <h1>Foil transparency preview</h1>
-    <p>Compare the current foil with 10%, 20%, 30%, 40%, and 50% less opacity.
-        Both the printed foil and reflective layers are reduced; the card artwork stays opaque.
-        Move over any card to compare the same light position across all six cards.</p>
+    <p>Compare the unfoiled design and current foil with 10-90% less foil opacity, in 10% steps.
+        For example, 90% less opacity leaves only 10% of the original foil strength.
+        The card artwork stays opaque. Move over any card to synchronize the light position.</p>
     <div class="controls">
         <label>Foil <select id="foil"></select></label>
         <label>Card design <select id="design"></select></label>
         <label><input type="checkbox" id="active"> Active / dragging foil intensity</label>
+        <label>Foil color
+            <select id="saturation">
+                <option value="1">Original saturation</option>
+                <option value=".35">35% saturation</option>
+                <option value="0">Neutral metallic (no color)</option>
+            </select>
+        </label>
+        <label>Foil blend
+            <select id="blend">
+                <option value="original">Original</option>
+                <option value="soft-light">Soft light (gentler contrast)</option>
+                <option value="luminosity">Luminosity (preserve underlying hue)</option>
+            </select>
+        </label>
+        <label><input type="checkbox" id="printed" checked> Include static printed foil</label>
+        <label><input type="checkbox" id="glare"> Keep full neutral reflection</label>
     </div>
+    <p>Color, blend, printed-foil, and reflection controls affect only the reduced-opacity examples.
+        The first two cards remain unchanged references. Active intensity applies to all foiled cards.</p>
     <div class="comparisons" id="comparisons" aria-label="Foil opacity comparisons"></div>
+    <h2>Ways to preserve the design</h2>
+    <ul>
+        <li><strong>Suggested starting point:</strong> 50-70% less opacity, 35% saturation, soft-light blending,
+            static printed foil off, and full neutral reflection on. This separates colored coverage from shine.</li>
+        <li><strong>Neutral metallic:</strong> zero saturation with luminosity blending keeps the foil texture
+            and light movement while largely preserving the card's hue. It can still change brightness and contrast.</li>
+        <li><strong>Less persistent tint:</strong> disable static printed foil. It is a separate SVG layer beneath
+            the CSS reflection, so reducing only the reflective layer would leave that tint behind.</li>
+        <li><strong>Further production options:</strong> mask colored foil to borders or ornaments, protect ranks
+            and illustrations, or show stronger color only during motion with a subtler resting effect.
+            These are suggestions, not simulated by this preview.</li>
+    </ul>
     <p>This preview does not change the game's foil settings.</p>
 </main>
 <script src="../js/cards.js"></script>
@@ -49,6 +81,10 @@
     const foil = document.getElementById("foil");
     const design = document.getElementById("design");
     const comparisons = document.getElementById("comparisons");
+    const saturation = document.getElementById("saturation");
+    const blend = document.getElementById("blend");
+    const printed = document.getElementById("printed");
+    const glare = document.getElementById("glare");
     for (const option of Card.foilOptions().filter(option => option.id !== "none")) {
         foil.add(new Option(option.name, option.id));
     }
@@ -60,27 +96,42 @@
 
     function render() {
         comparisons.replaceChildren();
-        for (const reduction of [0, 10, 20, 30, 40, 50]) {
-            const strength = 1 - reduction / 100;
+        for (const reduction of [-1, 0, 10, 20, 30, 40, 50, 60, 70, 80, 90]) {
+            const unfoiled = reduction === -1;
+            const adjusted = reduction > 0;
+            const strength = unfoiled ? 0 : 1 - reduction / 100;
             const figure = document.createElement("figure");
             const preview = document.createElement("div");
             preview.className = `card-preview card-preview--${design.value}`;
-            preview.dataset.foil = foil.value;
+            preview.dataset.foil = unfoiled ? "none" : foil.value;
             preview.dataset.cardStyle = design.value;
             preview.style.setProperty("--preview-strength", strength);
+            if (adjusted) {
+                preview.style.setProperty("--preview-saturation", saturation.value);
+                if (blend.value !== "original") { preview.style.setProperty("--preview-blend", blend.value); }
+                if (glare.checked) { preview.style.setProperty("--preview-glare", 1); }
+            }
             const image = document.createElement("img");
-            const uri = new Card(2, 12).toImageDataUri(design.value, foil.value);
+            const uri = new Card(2, 12).toImageDataUri(design.value, preview.dataset.foil);
             const svg = new DOMParser().parseFromString(decodeURIComponent(uri.slice(uri.indexOf(",") + 1)), "image/svg+xml");
             const printedFoil = svg.querySelector("g[data-foil]");
-            if (!printedFoil) { throw new Error("Expected a printed foil layer in the card artwork."); }
-            printedFoil.setAttribute("opacity", Number(printedFoil.getAttribute("opacity")) * strength);
+            if (!unfoiled) {
+                if (!printedFoil) { throw new Error("Expected a printed foil layer in the card artwork."); }
+                printedFoil.setAttribute("opacity", Number(printedFoil.getAttribute("opacity")) *
+                    (adjusted && !printed.checked ? 0 : strength));
+                if (adjusted) {
+                    printedFoil.style.filter = `saturate(${saturation.value})`;
+                    if (blend.value !== "original") { printedFoil.style.mixBlendMode = blend.value; }
+                }
+            }
             image.src = `data:image/svg+xml,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`;
-            image.alt = `Queen of hearts, ${reduction}% less foil opacity`;
+            image.alt = unfoiled ? "Queen of hearts, original design without foil" :
+                `Queen of hearts, ${reduction}% less foil opacity`;
             preview.appendChild(image);
             const caption = document.createElement("figcaption");
-            caption.textContent = reduction ? `${reduction}% more transparent` : "Current";
+            caption.textContent = unfoiled ? "Original design (no foil)" : reduction ? `${reduction}% less opacity` : "Current foil";
             const detail = document.createElement("small");
-            detail.textContent = `${100 - reduction}% of current foil opacity`;
+            detail.textContent = unfoiled ? "Unchanged card artwork" : `${100 - reduction}% of current foil opacity`;
             caption.appendChild(detail);
             figure.append(preview, caption);
             comparisons.appendChild(figure);
@@ -103,6 +154,7 @@
     });
     foil.addEventListener("change", render);
     design.addEventListener("change", render);
+    for (const control of [saturation, blend, printed, glare]) { control.addEventListener("change", render); }
     render();
 </script>
 </body>
