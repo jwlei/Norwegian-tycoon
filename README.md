@@ -53,6 +53,8 @@ node --test
 
 ### Card depth and landing
 
+Explore [the ultra premium foil laboratory](tests/premium-foil-preview.html) for ten experimental finishes on light/dark cards, with pointer lighting, idle shimmer, effect-strength and unfoiled comparison controls. These concepts are isolated from production foil settings and unlocks.
+
 Idle foils use the approved six-second light drift and gentle intensity pulse, without moving the card or changing its tuned colors. Only the foil pseudo-elements animate; dragging, flights, hidden drag sources and reduced-motion preferences disable the idle effect. This uses CSS animation rather than a JavaScript frame loop, but animated gradients still have a repaint cost.
 
 The seven laminated depth sheets derive their color from the card artwork's border, retaining subtle darker layers instead of using the same beige edge for every style.
