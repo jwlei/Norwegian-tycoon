@@ -313,7 +313,10 @@ test("landing fans expose each card and the top card overlaps the preceding play
             }));
             const arranged = G.arrangePlay(cards, previous, bounds);
             assert.deepEqual(G.arrangePlay(cards, previous, bounds), arranged, "Layout is repeatable");
-            if (previous) { assert.ok(G.overlaps(arranged.at(-1), previous, 7.99), "The top card bridges plays"); }
+            if (previous) {
+                assert.ok(G.overlapCoverage(arranged.at(-1), previous) >= .12 - 1e-8,
+                    "The top card covers at least 12% before support tilt, rather than merely touching");
+            }
             arranged.forEach((pose, index) => {
                 assert.ok(G.silhouette(pose).every(point => point.x >= bounds.left && point.y >= bounds.top &&
                     point.x <= bounds.left + bounds.width && point.y <= bounds.top + bounds.height),
@@ -329,6 +332,63 @@ test("landing fans expose each card and the top card overlaps the preceding play
                 assert.ok(exposed >= 32, `At least 20% of card ${index + 1} remains individually visible (${exposed}/160)`);
             });
             previous = arranged.at(-1);
+        }
+    }
+});
+
+test("coverage measures face area rather than edge distance or bounding boxes", () => {
+    for (const radius of [0, 8.75]) {
+        const card = { ...flat(100, 200), width: 100, height: 150, radius };
+        assert.ok(Math.abs(G.overlapCoverage(card, card) - 1) < 1e-9);
+        assert.equal(G.overlapCoverage({ ...card, x: 210 }, card), 0);
+        assert.ok(Math.abs(G.overlapCoverage({ ...card, x: 100 + (100 - 1.5 * 100 / 80) / 2 }, card) - .5) <
+            (radius ? .02 : 1e-9));
+        const corner = { ...card, x: 183, y: 333 };
+        assert.ok(G.overlaps(corner, card, 8), "Both axes overlap by more than the old 8px threshold");
+        assert.ok(G.overlapCoverage(corner, card) < .02, "A tiny corner overlap is not 10% cover");
+        const rotated = { ...card, x: 170, y: 260, roll: 38, z: 40, pitch: 3, yaw: -4 };
+        let covered = 0, total = 0;
+        for (let x = 0; x < 100; x++) {
+            for (let y = 0; y < 150; y++) {
+                const point = { x: card.x - 50 + x + .5, y: card.y - 75 + y + .5 };
+                if (!G.screenContains(card, point.x, point.y)) { continue; }
+                total++;
+                if (G.screenContains(rotated, point.x, point.y)) { covered++; }
+            }
+        }
+        assert.ok(Math.abs(G.overlapCoverage(rotated, card) - covered / total) < .003,
+            "Projected polygon intersection agrees with independent face sampling");
+    }
+});
+
+test("left and right rebounds fan the upper cards forward without pulling the bottom card back or counter-rotating", () => {
+    const bounds = { left: 0, top: 0, width: 600, height: 600 };
+    for (const direction of [-1, 1]) {
+        for (const roll of [-47, -12, 12, 47, 190, 350]) {
+            for (const count of [2, 3, 4]) {
+                const base = { ...flat(direction < 0 ? 200 : 400, 300), width: 100, height: 150, roll };
+                const cards = Array.from({ length: count }, () => ({ ...base }));
+                const rebound = { x: -direction * 150, y: -20 };
+                const fan = G.arrangePlay(cards, null, bounds, rebound);
+                const first = fan[0], top = fan.at(-1);
+                assert.equal(first.roll, roll, "No clamping or unwinding the physical endpoint");
+                assert.ok(Math.abs(first.x - base.x) < 1e-8 && Math.abs(first.y - base.y) < 1e-8,
+                    "The lower card keeps its collision endpoint when the forward fan fits");
+                assert.ok((top.x - first.x) * rebound.x + (top.y - first.y) * rebound.y > 0,
+                    "Upper cards spread in the rebound direction");
+                let lastOffset = -1;
+                for (let step = 0; step <= 240; step++) {
+                    const t = step / 240;
+                    const raw = { x: base.x, y: base.y, roll: roll - 10 * (1 - t) ** 2 };
+                    const bottom = G.settlePosition(raw, base, first, t, bounds, .2);
+                    const upper = G.settlePosition(raw, base, top, t, bounds, .2);
+                    assert.equal(bottom.roll, raw.roll);
+                    assert.equal(upper.roll, raw.roll, "Fanning never reverses or adds angular momentum");
+                    const offset = (upper.x - bottom.x) * rebound.x + (upper.y - bottom.y) * rebound.y;
+                    assert.ok(offset >= lastOffset - 1e-7, "The top card keeps sliding forward into the fan");
+                    lastOffset = offset;
+                }
+            }
         }
     }
 });

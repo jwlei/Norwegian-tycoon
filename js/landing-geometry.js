@@ -545,70 +545,92 @@
         return true;
     }
 
-    // A shared local-axis fan keeps each card's index exposed, regardless of its wall impulses.
-    function arrangePlay(cards, previous, bounds) {
-        const last = cards[cards.length - 1];
-        const turns = Math.round(last.roll / 360) * 360;
-        let roll = turns + clamp(last.roll - turns, -25, 25);
+    function overlapCoverage(a, b) {
+        const polygon = pose => silhouette({ z: 0, pitch: 0, yaw: 0, ...pose }).map(screen);
+        const area = points => Math.abs(points.reduce((sum, p, index) => {
+            const q = points[(index + 1) % points.length];
+            return sum + p.x * q.y - p.y * q.x;
+        }, 0)) / 2;
+        const clip = polygon(b);
+        let intersection = polygon(a);
+        for (let index = 0; index < clip.length && intersection.length; index++) {
+            const p = clip[index], q = clip[(index + 1) % clip.length];
+            const side = point => (q.x - p.x) * (point.y - p.y) - (q.y - p.y) * (point.x - p.x);
+            const input = intersection;
+            intersection = [];
+            for (let i = 0; i < input.length; i++) {
+                const start = input[i], end = input[(i + 1) % input.length];
+                const from = side(start), to = side(end);
+                if ((from >= 0) !== (to >= 0)) {
+                    const t = from / (from - to);
+                    intersection.push({ x: mix(start.x, end.x, t), y: mix(start.y, end.y, t) });
+                }
+                if (to >= 0) { intersection.push(end); }
+            }
+        }
+        return area(intersection) / area(clip);
+    }
+
+    // Keep the lower card near its physical endpoint; upper cards continue along the rebound.
+    function arrangePlay(cards, previous, bounds, momentum = { x: 0, y: 0 }) {
+        const first = cards[0], roll = first.roll;
         const width = Math.max(...cards.map(card => card.width || WIDTH));
         const height = Math.max(...cards.map(card => card.height || HEIGHT));
-        const inset = Math.min(8, Math.max(0, (bounds.width - width) / 2), Math.max(0, (bounds.height - height) / 2));
+        const c = Math.abs(Math.cos(radians(roll))), s = Math.abs(Math.sin(radians(roll)));
+        const extent = { x: c * width / 2 + s * height / 2, y: s * width / 2 + c * height / 2, c, s };
+        const inset = Math.min(8, Math.max(0, bounds.width / 2 - extent.x),
+            Math.max(0, bounds.height / 2 - extent.y));
         const availableWidth = bounds.width - inset * 2, availableHeight = bounds.height - inset * 2;
         let step = width * .36;
-        const extents = () => {
-            const c = Math.abs(Math.cos(radians(roll - turns))), s = Math.abs(Math.sin(radians(roll - turns)));
-            return { x: c * width / 2 + s * height / 2, y: s * width / 2 + c * height / 2, c, s };
-        };
-        let extent = extents();
-        if (extent.x * 2 > availableWidth || extent.y * 2 > availableHeight) {
-            roll = turns;
-            extent = extents();
-        }
         if (cards.length > 1) {
             step = Math.min(step, extent.c > 1e-8 ? Math.max(0, (availableWidth - extent.x * 2) /
                 ((cards.length - 1) * extent.c)) : Infinity,
             extent.s > 1e-8 ? Math.max(0, (availableHeight - extent.y * 2) /
                 ((cards.length - 1) * extent.s)) : Infinity);
         }
-        const desired = { x: cards.reduce((sum, card) => sum + card.x, 0) / cards.length,
-            y: cards.reduce((sum, card) => sum + card.y, 0) / cards.length };
+        const desired = first;
         const candidates = [-1, 1].map(direction => {
-            const dx = Math.cos(radians(roll - turns)) * step * direction;
-            const dy = Math.sin(radians(roll - turns)) * step * direction;
+            const dx = Math.cos(radians(roll)) * step * direction;
+            const dy = Math.sin(radians(roll)) * step * direction;
             const spanX = dx * (cards.length - 1), spanY = dy * (cards.length - 1);
             const minX = bounds.left + inset + extent.x - Math.min(0, spanX);
             const maxX = bounds.left + bounds.width - inset - extent.x - Math.max(0, spanX);
             const minY = bounds.top + inset + extent.y - Math.min(0, spanY);
             const maxY = bounds.top + bounds.height - inset - extent.y - Math.max(0, spanY);
             const fit = point => ({ x: clamp(point.x, minX, maxX), y: clamp(point.y, minY, maxY) });
-            let anchor = fit({ x: desired.x - spanX / 2, y: desired.y - spanY / 2 });
-            const top = point => ({ ...last, x: point.x + spanX, y: point.y + spanY, roll });
-            if (previous && !overlaps(top(anchor), previous, 8)) {
+            let anchor = fit(desired);
+            const top = point => ({ ...first, x: point.x + spanX, y: point.y + spanY, roll });
+            // Leave room for the small support-aware tilt applied by the renderer.
+            const covers = point => overlapCoverage(top(point), previous) >= .12;
+            if (previous && !covers(anchor)) {
                 const near = fit({ x: previous.x - spanX, y: previous.y - (previous.z || 0) * VIEW_SHEAR - spanY });
-                if (!overlaps(top(near), previous, 8)) { return null; }
+                if (!covers(near)) { return null; }
                 let low = 0, high = 1;
                 for (let iteration = 0; iteration < 16; iteration++) {
                     const t = (low + high) / 2;
                     const point = { x: mix(near.x, anchor.x, t), y: mix(near.y, anchor.y, t) };
-                    if (overlaps(top(point), previous, 8)) { low = t; } else { high = t; }
+                    if (covers(point)) { low = t; } else { high = t; }
                 }
                 anchor = { x: mix(near.x, anchor.x, low), y: mix(near.y, anchor.y, low) };
             }
             const poses = cards.map((card, index) => ({ ...card,
                 x: anchor.x + dx * index, y: anchor.y + dy * index,
-                roll: roll + Math.round((card.roll - roll) / 360) * 360 }));
-            return { poses, cost: Math.hypot(anchor.x + spanX / 2 - desired.x, anchor.y + spanY / 2 - desired.y) };
+                roll }));
+            const againstMomentum = dx * momentum.x + dy * momentum.y < -1e-6;
+            return { poses, cost: Math.hypot(anchor.x - desired.x, anchor.y - desired.y) +
+                (againstMomentum ? Math.hypot(bounds.width, bounds.height) : 0) };
         }).filter(Boolean);
         if (!candidates.length) { throw new Error("The table cannot fit an overlapping card fan."); }
         return candidates.sort((a, b) => a.cost - b.cost)[0].poses;
     }
 
-    function settlePosition(position, final, target, progress, bounds) {
-        const t = clamp((progress - CONTACT) / (1 - CONTACT), 0, 1);
-        const blend = t * t * (3 - 2 * t);
+    function settlePosition(position, final, target, progress, bounds, fanStart = CONTACT) {
+        const t = progress >= 1 ? 1 : clamp((progress - fanStart) / (1 - fanStart), 0, 1);
+        // A wall impulse starts the upper cards' extra slide immediately, then friction slows it.
+        const blend = fanStart < CONTACT ? 1 - (1 - t) ** 2 : t * t * (3 - 2 * t);
         const pose = { ...target, x: position.x + (target.x - final.x) * blend,
             y: position.y + (target.y - final.y) * blend,
-            roll: position.roll + (target.roll - final.roll) * blend,
+            roll: position.roll,
             z: (target.z || 0) * blend, pitch: (target.pitch || 0) * blend, yaw: (target.yaw || 0) * blend };
         if (bounds) {
             const points = silhouette(pose).map(screen);
@@ -654,7 +676,7 @@
     const api = { WIDTH, HEIGHT, EDGE, VIEW_SHEAR, LIGHT, CONTACT, slideDistance, slideDistanceToRest, rotate, world, screen, plane, heightAt,
         signedDistance, silhouette, contains, screenContains, screenCovers, samples, supportHeight, landing, minimumHeight, shadow,
         shadowedBy, shadowVisible, exposedPoints, flight, position, wallImpulse, wallTrajectory,
-        overlaps, arrangePlay, settlePosition, motion };
+        overlaps, overlapCoverage, arrangePlay, settlePosition, motion };
     if (typeof module !== "undefined" && module.exports) { module.exports = api; }
     else { root.LandingGeometry = api; }
 })(globalThis);

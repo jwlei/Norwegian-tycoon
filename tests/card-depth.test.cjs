@@ -37,7 +37,8 @@ function fixture() {
         querySelector(selector) { return selector === "img" ? this.image : null; }
         getBoundingClientRect() {
             return { left: (this.left || 200) + (parseFloat(this.properties.get("--wall-offset-x")) || 0),
-                top: (this.top || 200) + (parseFloat(this.properties.get("--wall-offset-y")) || 0), width: 112, height: 168 };
+                top: (this.top || 200) + (parseFloat(this.properties.get("--wall-offset-y")) || 0),
+                width: this.offsetWidth, height: this.offsetHeight };
         }
         animate() { return { playState: "running", effect: { getComputedTiming: () => ({ progress: .5 }) } }; }
     }
@@ -330,6 +331,60 @@ test("wall collisions retain their resulting pose across flights, table refreshe
     }
 });
 
+test("multi-card edge throws share collision spin and reveal the lower card by sliding the top card onward", () => {
+    for (const direction of [-1, 1]) {
+        for (const count of [2, 3, 4]) {
+            const f = fixture(), bounds = { left: 150, top: 100, width: 342, height: 320 };
+            const parent = new f.Node("div");
+            const cards = Array.from({ length: count }, (_, index) => {
+                const card = f.card(240 + index * 30, 200);
+                card.parentElement = parent;
+                card.style.setProperty("--pile-rotation", String(index * 2 - 9));
+                card.dataset.throwMotion = JSON.stringify({ x: direction, y: 0, power: .7, spin: 12,
+                    launch: { x: 0, y: .4, vx: direction * 2, vy: -.6 } });
+                return card;
+            });
+            f.Depth.prepareTable(f.table(cards, bounds));
+            const states = cards.map(card => f.Depth.states.get(card));
+            const path = states[0].wallTrajectory, lastHit = path.collisions.at(-1);
+            assert.ok(lastHit.outgoing.x * direction < 0, "The impact sends the stack away from the side wall");
+            for (const state of states) {
+                assert.equal(state.wallTrajectory, path, "One collision trajectory drives the thrown stack");
+                assert.equal(state.rest.roll, path.final.roll, "No fan-induced rotation target");
+            }
+            if (count == 2) {
+                assert.ok((states[0].rest.x - path.final.x) * -direction >= -1e-8 &&
+                    Math.abs(states[0].rest.x - path.final.x) < 1,
+                "The lower card keeps its endpoint, apart from the subpixel inward outline inset");
+            }
+            const motions = cards.map(card => {
+                const flight = f.card(300, 400);
+                f.Depth.attach(flight, false);
+                return f.Depth.landingMotion(flight, card, { ...path.start }, .7);
+            });
+            let previousSeparation = 0;
+            for (let frame = 1; frame <= 240; frame++) {
+                const t = frame / 240, raw = path.positionAtProgress(t);
+                const poses = motions.map(motion => motion.positionAtProgress(t));
+                poses.forEach(pose => assert.ok(Math.abs(pose.roll - raw.roll) < 1e-8,
+                    "Every frame retains physical rotation, including reversals caused only by an actual impact"));
+                if (t >= lastHit.progress) {
+                    const separation = (poses.at(-1).x - poses[0].x) * -direction;
+                    assert.ok(separation >= previousSeparation - 1e-6,
+                        "The upper card continues inward instead of fanning back toward the wall");
+                    previousSeparation = separation;
+                }
+            }
+            assert.ok(previousSeparation > 20, "The upper cards reveal a readable strip of the lower card");
+            const shortlyAfterImpact = Math.min(1, lastHit.progress + .05);
+            const bottom = motions[0].positionAtProgress(shortlyAfterImpact);
+            const upper = motions.at(-1).positionAtProgress(shortlyAfterImpact);
+            assert.ok((upper.x - bottom.x) * -direction > 0,
+                "Fanning continues straight out of the collision rather than restarting at touchdown");
+        }
+    }
+});
+
 test("board-backed plays stay exposed, connected and stable through flights, refreshes and resizing", () => {
     for (const initial of [
         { left: 150, top: 100, width: 342, height: 320 },
@@ -343,6 +398,7 @@ test("board-backed plays stay exposed, connected and stable through flights, ref
                 const card = f.card(bounds.left + (play * 137 + index * 30) % bounds.width,
                     bounds.top + (play * 157 + index * 25) % bounds.height);
                 card.parentElement = parent;
+                if (bounds.height < 200) { card.offsetWidth = 64; card.offsetHeight = 96; }
                 card.style.setProperty("--pile-rotation", String(play * 47 + index * 97 - 180));
                 if (play % 2) {
                     card.dataset.throwMotion = JSON.stringify({ x: -1, y: -1, power: 1, spin: -20,
@@ -359,7 +415,10 @@ test("board-backed plays stay exposed, connected and stable through flights, ref
             let previous = null;
             for (const group of groups) {
                 const poses = group.map(card => f.Depth.states.get(card).rest);
-                if (previous) { assert.ok(G.overlaps(poses.at(-1), previous, 4), "Rendered top card bridges plays"); }
+                if (previous) {
+                    assert.ok(G.overlapCoverage(poses.at(-1), previous) >= .1,
+                        `Rendered top card covers at least 10% of the previous play (${G.overlapCoverage(poses.at(-1), previous)})`);
+                }
                 poses.forEach((pose, index) => {
                     assert.ok(G.silhouette(pose).map(G.screen).every(point =>
                         point.x >= bounds.left && point.x <= bounds.left + bounds.width &&
@@ -396,6 +455,8 @@ test("board-backed plays stay exposed, connected and stable through flights, ref
             const clone = fresh.card(card.left, card.top);
             if (!parents.has(card.parentElement)) { parents.set(card.parentElement, new fresh.Node("div")); }
             clone.parentElement = parents.get(card.parentElement);
+            clone.offsetWidth = card.offsetWidth;
+            clone.offsetHeight = card.offsetHeight;
             clone.style.setProperty("--pile-rotation", card.style.getPropertyValue("--pile-rotation"));
             Object.assign(clone.dataset, card.dataset);
             return clone;

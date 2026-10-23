@@ -388,14 +388,19 @@ class CardDepth {
         for (const group of groups) {
             const center = { x: group.cards.reduce((sum, plan) => sum + plan.base.x, 0) / group.cards.length,
                 y: group.cards.reduce((sum, plan) => sum + plan.base.y, 0) / group.cards.length };
+            const first = group.cards[0];
+            const motion = first.element.dataset.throwMotion ? JSON.parse(first.element.dataset.throwMotion) : null;
+            const path = boardBounds && motion ? LandingGeometry.wallTrajectory(first.base, boardBounds, motion,
+                { x: first.base.x - center.x, y: first.base.y - center.y }) : null;
             for (const plan of group.cards) {
-                plan.path = boardBounds && plan.element.dataset.throwMotion
-                    ? LandingGeometry.wallTrajectory(plan.base, boardBounds, JSON.parse(plan.element.dataset.throwMotion),
-                        { x: plan.base.x - center.x, y: plan.base.y - center.y }) : null;
-                plan.final = { ...plan.base, ...(plan.path ? plan.path.final : {}) };
+                // A thrown stack shares its collision rotation; fanning adds translation, never counter-spin.
+                plan.path = path;
+                plan.final = { ...plan.base, ...(boardBounds ? first.base : {}), ...(path ? path.final : {}) };
             }
             if (boardBounds) {
-                const arranged = LandingGeometry.arrangePlay(group.cards.map(plan => plan.final), previous, boardBounds);
+                const rebound = path ? path.collisions[path.collisions.length - 1].outgoing :
+                    motion && motion.launch ? { x: motion.launch.vx, y: motion.launch.vy } : { x: 0, y: 0 };
+                const arranged = LandingGeometry.arrangePlay(group.cards.map(plan => plan.final), previous, boardBounds, rebound);
                 group.cards.forEach((plan, index) => { plan.final = arranged[index]; });
             }
             for (const plan of group.cards) {
@@ -500,8 +505,9 @@ class CardDepth {
                 roll: position.roll + (start.roll - path.start.roll) * blend };
         } : progress => G.position(initial, impact, momentum, progress);
         const physicalFinal = rawPosition(1);
+        const fanStart = path ? path.collisions[path.collisions.length - 1].progress : G.CONTACT;
         const positionAtProgress = scene && scene.bounds ? progress => G.settlePosition(
-            rawPosition(progress), physicalFinal, rest, progress, scene.bounds) : rawPosition;
+            rawPosition(progress), physicalFinal, rest, progress, scene.bounds, fanStart) : rawPosition;
         // Include supports along the rebound path, not only beside the eventual resting spot.
         const reach = Math.hypot(rest.width, rest.height) + (path
             ? Math.max(...[path.start, ...path.collisions.map(hit => hit.pose)]
