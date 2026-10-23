@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Subtle idle foil timing preview</title>
+    <link rel="stylesheet" href="../css/foil.css">
+    <style>
+        body { margin: 0; padding: 24px; background: #122b30; color: #edf8f5; font: 16px system-ui, sans-serif; }
+        main { max-width: 1200px; margin: auto; }
+        h1 { font-size: 1.6rem; }
+        p { line-height: 1.5; }
+        .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; margin: 24px 0; }
+        label { display: flex; align-items: center; gap: 8px; }
+        select, button { font: inherit; padding: 8px; }
+        button { cursor: pointer; }
+        .timings { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 20px; }
+        .timing { min-width: 0; text-align: center; }
+        h2 { font-size: 1.1rem; margin: 0 0 8px; }
+        figure { margin: 16px 0; }
+        figcaption { margin-top: 8px; font-size: .85rem; }
+        .card-preview { position: relative; display: block; width: 100%; isolation: isolate;
+            animation: idle-light var(--idle-duration) ease-in-out infinite; }
+        .card-preview > img { display: block; width: 100%; height: auto; }
+        #timings .card-preview[data-foil]:not([data-foil="none"])::before {
+            animation: idle-color var(--idle-duration) ease-in-out infinite;
+            transition: none;
+        }
+        #timings .card-preview[data-foil]:not([data-foil="none"])::after {
+            animation: idle-reflection var(--idle-duration) ease-in-out infinite;
+            transition: none;
+        }
+        #timings.is-paused .card-preview,
+        #timings.is-paused .card-preview::before,
+        #timings.is-paused .card-preview::after,
+        #timings .is-offscreen .card-preview,
+        #timings .is-offscreen .card-preview::before,
+        #timings .is-offscreen .card-preview::after { animation-play-state: paused !important; }
+        @keyframes idle-light {
+            0%, 100% { --pointer-x: 46%; --pointer-y: 48%; }
+            50% { --pointer-x: 54%; --pointer-y: 52%; }
+        }
+        @keyframes idle-color {
+            0%, 100% { opacity: calc(.46 * var(--foil-strength)); }
+            50% { opacity: calc(.50 * var(--foil-strength)); }
+        }
+        @keyframes idle-reflection {
+            0%, 100% { opacity: calc(.27 * var(--foil-strength)); }
+            50% { opacity: calc(.33 * var(--foil-strength)); }
+        }
+        small { color: #b4cec8; }
+        @media (max-width: 800px) { .timings { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+        @media (max-width: 480px) {
+            body { padding: 16px; } .timings { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #timings .card-preview, #timings .card-preview::before, #timings .card-preview::after { animation: none !important; }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Subtle idle foil timing</h1>
+    <p>Five timings for the same discreet effect: a small light drift and a gentle pulse, without moving the card.
+        Each duration is one complete brighten-and-return cycle. Your approved foil colors and transparency are preserved.</p>
+    <div class="controls">
+        <label>Foil <select id="foil"></select></label>
+        <button id="pause" type="button" aria-pressed="false">Pause</button>
+        <button id="restart" type="button">Restart together</button>
+    </div>
+    <p><strong>Suggested starting point: 8 or 12 seconds.</strong> Four seconds makes the shimmer easier to notice;
+        sixteen seconds is the most unobtrusive. Compare Normal (light) and Cosmic (dark) below.</p>
+    <output id="motion-status" role="status"></output>
+    <div id="timings" class="timings" aria-label="Five idle foil durations"></div>
+    <p><small>Preview only: production idle animation is unchanged. Reduced-motion preferences disable movement.
+        Animations pause when the page is hidden or a timing column is offscreen. Moving foil gradients still
+        require repainting; this preview is not a GPU performance benchmark.</small></p>
+</main>
+<script src="../js/cards.js"></script>
+<script>
+    const foil = document.getElementById("foil");
+    const timings = document.getElementById("timings");
+    const pause = document.getElementById("pause");
+    const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+    let paused = false;
+    const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => entry.target.classList.toggle("is-offscreen", !entry.isIntersecting));
+    });
+
+    for (const option of Card.foilOptions().filter(option => option.id !== "none")) {
+        foil.add(new Option(Card.foilConfigNames[option.id].replaceAll("-", " "), option.id));
+    }
+    foil.value = "rainbow";
+
+    function synchronize() {
+        document.getAnimations().filter(animation => animation.effect &&
+            timings.contains(animation.effect.target)).forEach(animation => { animation.currentTime = 0; });
+    }
+
+    function render() {
+        observer.disconnect();
+        timings.replaceChildren();
+        for (const seconds of [4, 6, 8, 12, 16]) {
+            const column = document.createElement("section");
+            column.className = "timing";
+            column.style.setProperty("--idle-duration", `${seconds}s`);
+            const heading = document.createElement("h2");
+            heading.textContent = `${seconds} seconds`;
+            column.appendChild(heading);
+            for (const style of ["normal", "cosmic"]) {
+                const figure = document.createElement("figure");
+                const preview = document.createElement("div");
+                preview.className = `card-preview card-preview--${style}`;
+                preview.dataset.foil = foil.value;
+                preview.dataset.cardStyle = style;
+                const image = document.createElement("img");
+                image.src = new Card(2, 12).toImageDataUri(style, foil.value);
+                image.alt = `${style} queen of hearts with ${Card.foilConfigNames[foil.value]} foil, ${seconds}-second idle cycle`;
+                preview.appendChild(image);
+                const caption = document.createElement("figcaption");
+                caption.textContent = style === "normal" ? "Normal / light" : "Cosmic / dark";
+                figure.append(preview, caption);
+                column.appendChild(figure);
+            }
+            timings.appendChild(column);
+            observer.observe(column);
+        }
+        synchronize();
+    }
+
+    function updatePlayback() {
+        timings.classList.toggle("is-paused", paused || document.hidden);
+        pause.textContent = paused ? "Resume" : "Pause";
+        pause.setAttribute("aria-pressed", String(paused));
+        document.getElementById("motion-status").textContent = reducedMotion.matches
+            ? "Reduced motion enabled: all examples are stationary."
+            : paused ? "Animation paused." : "Animation running.";
+    }
+
+    foil.addEventListener("change", render);
+    pause.addEventListener("click", () => { paused = !paused; updatePlayback(); });
+    document.getElementById("restart").addEventListener("click", synchronize);
+    document.addEventListener("visibilitychange", updatePlayback);
+    reducedMotion.addEventListener("change", updatePlayback);
+    render();
+    updatePlayback();
+</script>
+</body>
+</html>

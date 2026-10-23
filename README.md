@@ -53,6 +53,8 @@ node --test
 
 ### Card depth and landing
 
+Open [the idle foil timing preview](tests/foil-idle-preview.html) to compare subtle 4, 6, 8, 12 and 16-second light-drift/pulse cycles on light and dark cards using the approved foil treatments. Pause/restart controls, offscreen/hidden-page pausing and reduced-motion handling are included. This is a preview only, not a production idle-animation or GPU performance change.
+
 Use [per-foil settings](tests/foil-settings-preview.html) to choose one shared treatment per foil while comparing Normal (light) and Cosmic (dark) cards against unfoiled references. Choices auto-save in browser-local storage and can be exported as JSON for later production integration; changing preview controls does not change production rendering.
 
 Production foil treatments now use the approved per-foil opacity, saturation, blend and printed-layer choices in `Card.foilTreatments`, keyed by English foil names (stripes, stardust, prism, waves, facets, rings, weave, rainbow, contrast, gold-sheen, grid, iridescent, pearlescent, rays). Existing saved IDs remain compatible. CSS reflections apply the same reductions at rest, during dragging and in flight; printed SVG foil is disabled for prism, waves, contrast, grid and rays. The settings preview starts from these production choices when no local choices exist and exports English-named version-2 configuration. Preview images request untreated artwork so adjustments are not applied twice.
