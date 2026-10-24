@@ -2077,6 +2077,24 @@ function roundStartHandFixture({ serverOffset = 0, mode = "button" } = {}) {
         set now(value) { f.now = value; } };
 }
 
+test("hand foil visibility tracking starts after cards exist, survives skipped updates and releases old hands", () => {
+    const f = roundStartHandFixture();
+    const events = [];
+    f.context.CardDepth = {
+        stopObservingFoils(element) { assert.equal(element, f.hand); events.push(["stop", f.cards().length]); },
+        observeFoils(element) { assert.equal(element, f.hand); events.push(["observe", f.cards().length]); }
+    };
+    f.render();
+    assert.deepEqual(events, [["stop", 0], ["observe", 3]]);
+    f.types.GameLayout.updateHand(f.game, f.player, null, true);
+    assert.equal(events.length, 2, "A rebind leaves the existing observer and DOM alone");
+    f.player.cards.pop();
+    f.render();
+    assert.deepEqual(events.slice(2), [["stop", 3], ["observe", 2]]);
+    f.types.GameLayout.updateHand(null, null);
+    assert.deepEqual(events.at(-1), ["stop", 2], "Leaving the game releases the old hand observer");
+});
+
 test("the first move unlocks as soon as the shuffle presentation ends, whatever the local clock skew", () => {
     for (const serverOffset of [-1500, -400, 0, 400, 1500]) {
         const f = roundStartHandFixture({ serverOffset });

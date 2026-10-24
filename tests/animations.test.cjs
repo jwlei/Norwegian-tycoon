@@ -48,6 +48,41 @@ test("foil sampling predicts the idle reveal phase without changing running or p
     assert.equal(paused.currentTime, 2500);
 });
 
+test("group foil sampling advances all clocks before any style reads and restores them even on errors", () => {
+    const events = [], clocks = [];
+    const elements = [0, 1, 2, 3].map(index => {
+        let time = 1000 + index * 100;
+        const animation = { animationName: "foil-idle-color", playState: "running" };
+        Object.defineProperty(animation, "currentTime", {
+            get: () => time,
+            set(value) { events.push("seek"); time = value; }
+        });
+        clocks.push(animation);
+        return { dataset: { foil: "rainbow" }, getAnimations() { events.push("animations"); return [animation]; } };
+    });
+    let fail = false;
+    const context = load({
+        elements,
+        getComputedStyle(element) {
+            events.push("style");
+            assert.deepEqual(clocks.map(animation => animation.currentTime), [1700, 1800, 1900, 2000]);
+            if (fail) { throw new Error("Cannot sample foil"); }
+            return { opacity: ".3", backgroundPosition: "",
+                getPropertyValue: name => name === "--foil-strength" ? "1" : "50%" };
+        }
+    });
+    const samples = vm.runInContext("GameLayout.foilStates([...elements, null, {dataset:{foil:'none'}}], 700)", context);
+    assert.deepEqual(events, [...Array(4).fill("animations"), ...Array(4).fill("seek"),
+        ...Array(8).fill("style"), ...Array(4).fill("seek")]);
+    assert.equal(samples.length, 6);
+    assert.equal(samples[4], null);
+    assert.equal(samples[5], null);
+    assert.deepEqual(clocks.map(animation => animation.currentTime), [1000, 1100, 1200, 1300]);
+    fail = true;
+    assert.throws(() => vm.runInContext("GameLayout.foilStates(elements, 700)", context), /Cannot sample foil/);
+    assert.deepEqual(clocks.map(animation => animation.currentTime), [1000, 1100, 1200, 1300]);
+});
+
 test("bot flicks vary landing, strength and tilt without consuming strategy randomness", () => {
     const context = load();
     const result = vm.runInContext(`
@@ -160,6 +195,7 @@ test("normal play animation restores the original movement, easing and card stag
 
 test("depth flights render rotation internally, preserve foil activity, and release renderer state", () => {
     const flights = [], animations = [], followers = [];
+    let fullPoseCalls = 0, orientationCalls = 0;
     const states = new Map();
     const poseAtProgress = progress => ({
         pitch: progress === 1 ? 0 : 12 * (1 - progress) + Math.sin(progress * Math.PI) * 2,
@@ -169,7 +205,11 @@ test("depth flights render rotation internally, preserve foil activity, and rele
         states,
         attach(element) { states.set(element, {}); },
         landingMotion() {
-            return { positionAtProgress: progress => ({ x: 200 * progress, y: 200 * progress }), poseAtProgress };
+            return {
+                positionAtProgress: progress => ({ x: 200 * progress, y: 200 * progress }),
+                poseAtProgress(progress) { fullPoseCalls++; return poseAtProgress(progress); },
+                orientationAtProgress(progress) { orientationCalls++; return poseAtProgress(progress); }
+            };
         },
         update(element, pose) { states.get(element).pose = pose; },
         follow(element, animation, poseAtProgress) { followers.push(poseAtProgress); },
@@ -195,9 +235,9 @@ test("depth flights render rotation internally, preserve foil activity, and rele
         document: { createElement: element, body: { appendChild: flight => flights.push(flight) } }
     });
     vm.runInContext(`
-        GameLayout.foilState = (element, advance) => {
+        GameLayout.foilStates = (elements, advance) => {
             if (advance !== 520) { throw new Error("Predict the foil at the reveal time"); }
-            return { pointerX:"54%", pointerY:"52%", patternX:53.2,patternY:51.6,foilColor:.49,foilGlare:.32 };
+            return elements.map(() => ({ pointerX:"54%", pointerY:"52%", patternX:53.2,patternY:51.6,foilColor:.49,foilGlare:.32 }));
         };
         var pile = new CardPile("Owner", new PresidentCard(1,7));
         pile.motion = {x:0,y:0,power:1,spin:10,pitch:12,yaw:-10};
@@ -209,6 +249,8 @@ test("depth flights render rotation internally, preserve foil activity, and rele
         });
     `, context);
     assert.equal(states.size, 1);
+    assert.equal(fullPoseCalls, 0, "Preparing foil keyframes must not run the full height solver");
+    assert.equal(orientationCalls, 82, "Keep all 81 foil samples and the exact reveal orientation");
     assert.equal(flights[0].dataset.foil, "rainbow");
     for (const frame of animations[0].frames) {
         assert.doesNotMatch(frame.transform, /rotate|perspective/);

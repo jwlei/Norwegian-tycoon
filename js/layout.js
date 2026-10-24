@@ -598,31 +598,44 @@ class GameLayout {
         });
     }
     static foilState(element, advance = 0) {
-        if (typeof getComputedStyle !== "function" || !element || element.dataset?.foil === "none") { return null; }
-        var animations = advance && typeof element.getAnimations === "function" ? element.getAnimations({ subtree: true }) : [];
-        var idle = animations.filter(animation => animation.animationName === "foil-idle-color" ||
-            animation.animationName === "foil-idle-reflection");
-        var times = idle.map(animation => animation.currentTime);
+        return this.foilStates([element], advance)[0];
+    }
+    static foilStates(elements, advance = 0) {
+        var samples = elements.map(element => {
+            if (typeof getComputedStyle !== "function" || !element || element.dataset?.foil === "none") { return null; }
+            var animations = advance && typeof element.getAnimations === "function" ? element.getAnimations({ subtree: true }) : [];
+            var idle = animations.filter(animation => animation.animationName === "foil-idle-color" ||
+                animation.animationName === "foil-idle-reflection");
+            return { element: element, idle: idle, times: idle.map(animation => animation.currentTime) };
+        });
         try {
-            idle.forEach((animation, index) => {
-                if (typeof times[index] === "number" && animation.playState === "running") {
-                    animation.currentTime = times[index] + advance;
-                }
+            samples.forEach(sample => {
+                if (!sample) { return; }
+                sample.idle.forEach((animation, index) => {
+                    if (typeof sample.times[index] === "number" && animation.playState === "running") {
+                        animation.currentTime = sample.times[index] + advance;
+                    }
+                });
             });
-            var color = getComputedStyle(element, "::before");
-            var glare = getComputedStyle(element, "::after");
-            var strength = parseFloat(color.getPropertyValue("--foil-strength")) || 1;
-            var pattern = color.backgroundPosition?.split(",")[2]?.trim().split(/\s+/);
-            return {
-                pointerX: color.getPropertyValue("--pointer-x").trim() || "50%",
-                pointerY: color.getPropertyValue("--pointer-y").trim() || "50%",
-                patternX: pattern ? parseFloat(pattern[0]) : undefined,
-                patternY: pattern ? parseFloat(pattern[1]) : undefined,
-                foilColor: Number(color.opacity) / strength,
-                foilGlare: Number(glare.opacity) / strength
-            };
+            return samples.map(sample => {
+                if (!sample) { return null; }
+                var color = getComputedStyle(sample.element, "::before");
+                var glare = getComputedStyle(sample.element, "::after");
+                var strength = parseFloat(color.getPropertyValue("--foil-strength")) || 1;
+                var pattern = color.backgroundPosition?.split(",")[2]?.trim().split(/\s+/);
+                return {
+                    pointerX: color.getPropertyValue("--pointer-x").trim() || "50%",
+                    pointerY: color.getPropertyValue("--pointer-y").trim() || "50%",
+                    patternX: pattern ? parseFloat(pattern[0]) : undefined,
+                    patternY: pattern ? parseFloat(pattern[1]) : undefined,
+                    foilColor: Number(color.opacity) / strength,
+                    foilGlare: Number(glare.opacity) / strength
+                };
+            });
         } finally {
-            idle.forEach((animation, index) => { animation.currentTime = times[index]; });
+            samples.forEach(sample => {
+                if (sample) { sample.idle.forEach((animation, index) => { animation.currentTime = sample.times[index]; }); }
+            });
         }
     }
     static capturePlayOrigins() {
@@ -708,6 +721,7 @@ class GameLayout {
             if (image == null) { return null; }
             return { target: target, image: image, bounds: GameLayout.unrotatedCardBounds(target) };
         });
+        var restingFoils = GameLayout.foilStates(destinations.map(destination => destination && destination.target), duration + lastDelay);
         pile.forEach((card, cardIndex) => {
             var cardKey = `${card.suit}:${card.rank}`;
             var source = (origins && origins.cardOrigins.get(cardKey)) || playerOrigin;
@@ -716,7 +730,7 @@ class GameLayout {
             var target = destination.target;
             var targetImage = destination.image;
             var targetBounds = destination.bounds;
-            var restingFoil = GameLayout.foilState(target, duration + lastDelay);
+            var restingFoil = restingFoils[cardIndex];
             if (targetBounds.width == 0 || targetBounds.height == 0) { return; }
             if (!source || source.width == 0 || source.height == 0) {
                 source = {
@@ -828,11 +842,11 @@ class GameLayout {
                 var sourcePatternY = source.patternY ?? 50 + (sourceY - 50) * .8;
                 var endPatternX = restingFoil?.patternX ?? 50 + (endX - 50) * .8;
                 var endPatternY = restingFoil?.patternY ?? 50 + (endY - 50) * .8;
-                var restPose = landingPose ? landingPose.poseAtProgress(1) : { pitch: 0, yaw: 0 };
+                var restPose = landingPose ? landingPose.orientationAtProgress(1) : { pitch: 0, yaw: 0 };
                 flightFrames.forEach((frame, index) => {
                     var progress = frame.offset ?? (index === 0 ? 0 : index === flightFrames.length - 1 ? 1 : .68);
                     var blend = progress * progress * (3 - 2 * progress);
-                    var pose = landingPose ? landingPose.poseAtProgress(progress) :
+                    var pose = landingPose ? landingPose.orientationAtProgress(progress) :
                         { pitch: index === 0 ? pitch : index === 1 ? middlePitch : 0,
                             yaw: index === 0 ? yaw : index === 1 ? middleYaw : 0 };
                     var tiltX = (pose.yaw - yaw - (restPose.yaw - yaw) * blend) / 18 * 45;
@@ -1069,10 +1083,34 @@ class GameLayout {
                 (splay ? unit(16, cardSeed) * 10 : 0))
         };
     }
+    static updateTableCardVisibility(element, hiddenCardKeys) {
+        element.querySelectorAll(".table-play__card").forEach(card => {
+            var opacity = hiddenCardKeys.has(card.dataset.cardKey) ? "0" : "";
+            if (card.style.opacity !== opacity) {
+                card.style.opacity = opacity;
+                if (typeof CardDepth != "undefined") { CardDepth.setHidden(card, opacity === "0"); }
+            }
+        });
+    }
     static createTablePile(game, piles, existingPileSignatures, hiddenCardKeys = new Set()) {
-        var tablePile = document.createElement("div");
+        var board = document.getElementById("gameTable");
+        var boardBounds = board.getBoundingClientRect();
+        var compactStack = window.matchMedia("(orientation: landscape) and (max-height: 500px)").matches;
+        var contextKey = JSON.stringify([game.id, game.round, game.shuffleStartedAt, compactStack, boardBounds.width <= 600,
+            game.players.map(player => player.name)]);
+        var playKeys = piles.map(pile => JSON.stringify([pile.name, Array.from(pile, card => [card.suit, card.rank]), pile.motion,
+            GameLayout.styleForPlayer(game, pile.name), GameLayout.foilForPlayer(game, pile.name)]));
+        var renderKey = JSON.stringify([contextKey, playKeys]);
+        var cached = board._tablePileView;
+        if (cached && cached.key === renderKey && cached.element.parentElement === board) {
+            this.updateTableCardVisibility(cached.element, hiddenCardKeys);
+            return { element: cached.element, newlyPlayed: cached.plays.flatMap((play, index) =>
+                existingPileSignatures.has(play.element.dataset.playSignature) ? [] : [{ element: play.element, pile: piles[index] }]) };
+        }
+        var append = cached && cached.contextKey === contextKey && cached.element.parentElement === board &&
+            cached.playKeys.length < playKeys.length && cached.playKeys.every((key, index) => key === playKeys[index]);
+        var tablePile = append ? cached.element : document.createElement("div");
         tablePile.className = "table-card-pile";
-        var boardBounds = document.getElementById("gameTable").getBoundingClientRect();
         tablePile.style.setProperty("--board-width", `${boardBounds.width}px`);
         tablePile.style.setProperty("--board-height", `${boardBounds.height}px`);
         if (GameLayout.tableSizeObserver == null && typeof ResizeObserver != "undefined") {
@@ -1089,13 +1127,22 @@ class GameLayout {
         }
         var cardsOnTable = 0;
         var newlyPlayed = [];
+        var plays = [];
         var totalCardCount = piles.reduce((total, pile) => total + pile.length, 0);
         var maxCardsPerPlay = piles.reduce((max, pile) => Math.max(max, pile.length), 0);
-        var compactStack = window.matchMedia("(orientation: landscape) and (max-height: 500px)").matches;
         tablePile.style.setProperty("--pile-fan-count", String(Math.max(0, maxCardsPerPlay - 1)));
         tablePile.style.setProperty("--pile-depth", `${Math.min(totalCardCount * 2.5, compactStack ? 18 : 44)}px`);
         piles.forEach((pile, playIndex) => {
             var signature = `${game.shuffleStartedAt || ""}:${pile.name}:${pile.map(card => `${card.suit}:${card.rank}`).join(",")}`;
+            if (append && playIndex < cached.plays.length) {
+                var retainedPlay = cached.plays[playIndex].element;
+                retainedPlay.dataset.topPlay = "false";
+                retainedPlay.querySelectorAll(".table-play__beat-outline").forEach(outline => outline.remove());
+                plays.push({ element: retainedPlay, pile: pile });
+                cardsOnTable += pile.length;
+                if (!existingPileSignatures.has(signature)) { newlyPlayed.push({ element: retainedPlay, pile: pile }); }
+                return;
+            }
             var playElement = document.createElement("div");
             playElement.className = "table-play";
             playElement.dataset.topPlay = String(playIndex == piles.length - 1);
@@ -1138,7 +1185,12 @@ class GameLayout {
                 playElement.appendChild(cardElement);
                 cardsOnTable++;
             });
+            if (append) {
+                tablePile.querySelectorAll(".table-card-pile__count").forEach(badge => badge.remove());
+                this.updateTableCardVisibility(tablePile, hiddenCardKeys);
+            }
             tablePile.appendChild(playElement);
+            plays.push({ element: playElement, pile: pile });
             if (!existingPileSignatures.has(signature)) {
                 newlyPlayed.push({ element: playElement, pile: pile });
             }
@@ -1161,6 +1213,7 @@ class GameLayout {
                 tablePile.setAttribute("aria-label", `På bordet ligger ${latestPile.describe()}.`);
             }
         }
+        board._tablePileView = { key: renderKey, contextKey: contextKey, playKeys: playKeys, element: tablePile, plays: plays };
         return { element: tablePile, newlyPlayed: newlyPlayed };
     }
     static exchangeStatus(game, player) {
@@ -1643,7 +1696,7 @@ class GameLayout {
             }
             case "S":
                 table.className = "table-deck";
-                this.clearTableContent(table);
+                this.clearTableContent(table, pileView && pileView.element);
                 if (game.exchangeReady != null) {
                     var exchangeWaiting = document.createElement("p");
                     exchangeWaiting.className = "exchange-ready-hint";
@@ -1658,7 +1711,7 @@ class GameLayout {
                     table.appendChild(exchangeWaiting);
                 }
                 if (pileView != null) {
-                    table.appendChild(pileView.element);
+                    if (pileView.element.parentElement !== table) { table.appendChild(pileView.element); }
                     if (typeof CardDepth != "undefined") { CardDepth.prepareTable(pileView.element); }
                     if (shouldAnimatePlayedPause) {
                         var transitionPlay = displayPiles[displayPiles.length - 1];
@@ -1912,15 +1965,22 @@ class GameLayout {
         }
         this.keepTurnTimer(table);
     }
-    static clearTableContent(table) {
+    static clearTableContent(table, retainedPile = null) {
         if (table._pileSummary) { table._pileSummary.hidden = true; }
         if (!table.children) {
             if (typeof table.replaceChildren == "function") { table.replaceChildren(); }
             else { table.innerHTML = ""; }
             return;
         }
-        var persistent = new Set([this.toastRegion, this.turnTimerElement, this.tableTurnHint, table._pileSummary]);
+        var persistent = new Set([this.toastRegion, this.turnTimerElement, this.tableTurnHint, table._pileSummary, retainedPile]);
         var dynamic = Array.from(table.children).filter(element => !persistent.has(element));
+        if (typeof CardDepth != "undefined") {
+            dynamic.forEach(element => {
+                CardDepth.stopObservingFoils(element);
+                element.querySelectorAll(".has-card-depth").forEach(card => CardDepth.detach(card));
+            });
+        }
+        if (table._tablePileView && table._tablePileView.element !== retainedPile) { delete table._tablePileView; }
         if (dynamic.every(element => typeof element.remove == "function")) {
             dynamic.forEach(element => element.remove());
         } else if (typeof table.replaceChildren == "function") {
@@ -2116,6 +2176,7 @@ class GameLayout {
         playButton.onclick = null;
         var previousHandOwner = selectedCardOwner;
         var previousCardBounds = this.captureHandCardBounds(element);
+        if (typeof CardDepth != "undefined") { CardDepth.stopObservingFoils(element); }
         element.innerHTML = "";
         if (player == null || game == null) {
             stopCardHandInertia();
@@ -3025,6 +3086,7 @@ class GameLayout {
             element.classList.add("hand-finished");
         }
         element.scrollLeft = previousScrollLeft;
+        if (typeof CardDepth != "undefined") { CardDepth.observeFoils(element); }
         if (isPlayingTurn) { scheduleCardDragPreparation(element); }
         if (previousHandOwner === ownerKey) {
             this.animateHandReflow(element, previousCardBounds);

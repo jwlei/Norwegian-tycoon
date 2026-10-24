@@ -8,6 +8,41 @@ const flat = (x = 0, y = 0, z = 3.06) => ({ x, y, z, pitch: 0, yaw: 0, roll: 0 }
 const nearestGap = (cards, pose) => Math.min(...G.samples(pose, -G.EDGE)
     .map(point => point.z - G.supportHeight(cards, point.x, point.y)));
 
+test("foil-only orientations match the full physics pose exactly through flight, contact and bounce", () => {
+    for (const radius of [0, 8.75]) {
+        const cards = [];
+        for (let index = 0; index < 12; index++) {
+            cards.push(G.landing(cards, 200 + index * 4, 220 + index * 2, index % 5 * 4,
+                { width: 91, height: 137, radius }));
+        }
+        for (const power of [0, .55, 1]) {
+            const start = { ...flat(230, 480, 40), pitch: 12, yaw: -18, roll: -9, width: 91, height: 137, radius };
+            const impact = { x: 252, y: 240, roll: 17 };
+            const momentum = { x: 8, y: -15, spin: 3, power };
+            const contact = G.landing(cards, impact.x, impact.y, impact.roll, start);
+            for (const progress of [...Array.from({ length: 81 }, (_, i) => i / 80), .63999, .64, .64001, -.1, 1.1]) {
+                const pose = G.motion(cards, start, impact, momentum, progress, contact).pose;
+                assert.deepEqual(G.motionOrientation(cards, start, impact, momentum, progress, contact),
+                    { pitch: pose.pitch, yaw: pose.yaw });
+                const uncached = G.motion(cards, start, impact, momentum, progress).pose;
+                assert.deepEqual(G.motionOrientation(cards, start, impact, momentum, progress),
+                    { pitch: uncached.pitch, yaw: uncached.yaw });
+            }
+        }
+    }
+});
+
+test("shadow broad-phase rejection agrees with exact visibility including tilted blur halos", () => {
+    for (let index = 0; index < 100; index++) {
+        const caster = { ...flat(200, 220, 3 + index), pitch: index % 31 - 15, yaw: index % 27 - 13,
+            roll: index % 47 - 23 };
+        const receiver = { ...flat(100 + index * 4, 120 + index * 3), roll: -index % 19 };
+        if (!G.shadowMayReach(caster, receiver)) {
+            assert.equal(G.shadowVisible(caster, receiver, []), false);
+        }
+    }
+});
+
 test("cached outlines preserve every original contour point at full precision for all poses and sizes", () => {
     function originalSilhouette(pose, z = 0) {
         const width = pose.width || G.WIDTH, height = pose.height || G.HEIGHT;

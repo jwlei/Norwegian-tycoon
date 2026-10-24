@@ -58,7 +58,8 @@
             previous.width === width && previous.height === height) { return previous.surface; }
         const normal = rotate(0, 0, 1, pose);
         const a = rotate(width / 2, 0, 0, pose), b = rotate(0, height / 2, 0, pose);
-        const surface = { normal, point: { x: pose.x, y: pose.y, z: pose.z },
+        const surface = { normal, axisX: rotate(1, 0, 0, pose), axisY: rotate(0, 1, 0, pose),
+            point: { x: pose.x, y: pose.y, z: pose.z },
             extentX: Math.abs(a.x) + Math.abs(b.x), extentY: Math.abs(a.y) + Math.abs(b.y),
             ceiling: pose.z + Math.abs(a.z) + Math.abs(b.z) };
         planes.set(pose, { ...pose, width, height, surface });
@@ -124,7 +125,8 @@
     }
 
     function contains(pose, x, y) {
-        return insideAffine(pose, rotate(1, 0, 0, pose), rotate(0, 1, 0, pose), pose, x, y);
+        const surface = plane(pose);
+        return insideAffine(pose, surface.axisX, surface.axisY, pose, x, y);
     }
 
     // Per-pose memo, rebuilt if the same pose object is later changed.
@@ -173,7 +175,9 @@
             const card = cards[index], surface = plane(card);
             if (surface.ceiling <= height || Math.abs(x - card.x) > surface.extentX ||
                 Math.abs(y - card.y) > surface.extentY) { continue; }
-            if (contains(card, x, y)) { height = Math.max(height, heightAt(surface, x, y)); }
+            if (insideAffine(card, surface.axisX, surface.axisY, card, x, y)) {
+                height = Math.max(height, heightAt(surface, x, y));
+            }
         }
         return height;
     }
@@ -188,7 +192,7 @@
         return points;
     }
 
-    function landing(cards, x, y, roll, dimensions = {}) {
+    function landingOrientation(cards, x, y, roll, dimensions = {}) {
         const flat = { ...dimensions, x, y, z: 0, pitch: 0, yaw: 0, roll };
         const contacts = samples(flat);
         const heights = contacts.map(point => supportHeight(cards, point.x, point.y));
@@ -204,7 +208,11 @@
         const slopeY = clamp((yh * xx - xh * xy) / determinant, -.12, .12) * .8;
         const pitch = Math.abs(slopeY) < 1e-10 ? 0 : degrees(Math.atan(slopeY));
         const yaw = Math.abs(slopeX) < 1e-10 ? 0 : degrees(Math.atan(-slopeX * Math.cos(radians(pitch))));
-        const pose = { ...flat, pitch, yaw };
+        return { ...flat, pitch, yaw };
+    }
+
+    function landing(cards, x, y, roll, dimensions = {}) {
+        const pose = landingOrientation(cards, x, y, roll, dimensions);
         pose.z = minimumHeight(cards, pose);
         return pose;
     }
@@ -301,7 +309,7 @@
         if (t <= 0) { return false; }
         // Follow the light ray to the underside, then step to the top face for the outline test.
         const x = point.x + LIGHT.x * t + n.x * EDGE, y = point.y + LIGHT.y * t + n.y * EDGE;
-        return insideAffine(caster, rotate(1, 0, 0, caster), rotate(0, 1, 0, caster), caster, x, y, margin);
+        return insideAffine(caster, surface.axisX, surface.axisY, caster, x, y, margin);
     }
 
     function coveredBy(occluders, point) {
@@ -345,6 +353,11 @@
         return { points, contour, halo };
     }
 
+    function shadowMayReach(caster, receiver) {
+        const bounds = shadowBounds(caster), f = footprint(receiver);
+        return !(f.maxX < bounds.minX || f.minX > bounds.maxX || f.maxY < bounds.minY || f.minY > bounds.maxY);
+    }
+
     // True when some of the caster's shadow on `receiver` (null for the felt) is not hidden beneath `occluders`.
     // `exposed` optionally supplies the receiver's points already known to be uncovered by part of the occluders.
     function shadowVisible(caster, receiver, occluders, exposed = null) {
@@ -355,8 +368,7 @@
             if (halo.some(point => !covered(point)) || contour.some(point => !covered(point))) { return true; }
             return projectedSamples(caster, null).points.some(point => !covered(point));
         }
-        const bounds = shadowBounds(caster), f = footprint(receiver);
-        if (f.maxX < bounds.minX || f.minX > bounds.maxX || f.maxY < bounds.minY || f.minY > bounds.maxY) { return false; }
+        if (!shadowMayReach(caster, receiver)) { return false; }
         const open = exposed || exposedPoints(receiver, occluders);
         // A fully covered receiver can never show a shadow, whatever casts it.
         if (!open.length) { return false; }
@@ -475,35 +487,45 @@
         throw new Error("The table cannot fit a readable play with the required overlap.");
     }
 
-    function motion(cards, start, impact, momentum, progress, contact = null) {
+    function motionSample(cards, start, impact, momentum, progress, contact, orientationOnly) {
         const t = clamp(progress, 0, 1);
         const contactTime = CONTACT;
         const dimensions = Object.fromEntries(["width", "height", "radius"]
             .filter(key => start[key] !== undefined).map(key => [key, start[key]]));
-        const target = contact || landing(cards, impact.x, impact.y, impact.roll, dimensions);
+        const target = contact || (orientationOnly ? landingOrientation : landing)(cards, impact.x, impact.y, impact.roll, dimensions);
         const planar = position(start, impact, momentum, t);
         if (t < contactTime) {
             const travel = t / contactTime;
             const pose = flight(start, target, travel, 26 + momentum.power * 20);
             Object.assign(pose, dimensions);
             Object.assign(pose, planar);
-            pose.z = Math.max(pose.z, minimumHeight(cards, pose));
+            if (!orientationOnly) { pose.z = Math.max(pose.z, minimumHeight(cards, pose)); }
             return { pose, phase: "flight", bounce: 0 };
         }
         const settle = (t - contactTime) / (1 - contactTime);
-        const rest = landing(cards, planar.x, planar.y, planar.roll, dimensions);
+        const rest = (orientationOnly ? landingOrientation : landing)(cards, planar.x, planar.y, planar.roll, dimensions);
         const rock = Math.sin(settle * Math.PI * 4) * Math.pow(1 - settle, 2) * momentum.power;
         rest.pitch += rock * 1.6;
         rest.yaw -= rock * 1.1;
         const bounce = Math.abs(Math.sin(settle * Math.PI * 2)) * Math.pow(1 - settle, 2) *
             (2 + momentum.power * 7);
-        rest.z = minimumHeight(cards, rest) + bounce;
+        if (!orientationOnly) { rest.z = minimumHeight(cards, rest) + bounce; }
         return { pose: rest, phase: t === 1 ? "settled" : "contact", bounce };
+    }
+
+    function motion(cards, start, impact, momentum, progress, contact = null) {
+        return motionSample(cards, start, impact, momentum, progress, contact, false);
+    }
+
+    // Foil keyframes need the exact orientation, not the support-clearance height.
+    function motionOrientation(cards, start, impact, momentum, progress, contact = null) {
+        const { pitch, yaw } = motionSample(cards, start, impact, momentum, progress, contact, true).pose;
+        return { pitch, yaw };
     }
 
     const api = { WIDTH, HEIGHT, EDGE, VIEW_SHEAR, LIGHT, CONTACT, slideDistance, slideDistanceToRest, rotate, world, screen, plane, heightAt,
         signedDistance, silhouette, contains, screenContains, screenCovers, samples, supportHeight, landing, minimumHeight, shadow,
-        shadowedBy, shadowVisible, exposedPoints, flight, position, overlapCoverage, fitPlay, motion };
+        shadowedBy, shadowVisible, shadowMayReach, exposedPoints, flight, position, overlapCoverage, fitPlay, motion, motionOrientation };
     if (typeof module !== "undefined" && module.exports) { module.exports = api; }
     else { root.LandingGeometry = api; }
 })(globalThis);

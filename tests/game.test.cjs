@@ -4337,6 +4337,95 @@ test("playing the final card persists the president placement and completed roun
     assert.equal(stored.turnPause.pendingGameEnd, true);
 });
 
+test("unchanged piles reuse their DOM and current card objects while visual inputs invalidate reuse", () => {
+    class Element {
+        constructor() { this.children = []; this.dataset = {}; this.style = { setProperty(key, value) { this[key] = value; } }; }
+        setAttribute() {}
+        appendChild(child) {
+            if (child.parentElement) { child.parentElement.children = child.parentElement.children.filter(value => value !== child); }
+            child.parentElement = this;
+            this.children.push(child);
+        }
+        querySelectorAll(selector) {
+            return this.children.flatMap(child => [
+                ...(selector === ".table-play__card" && (child.className || "").includes("table-play__card") ? [child] : []),
+                ...child.querySelectorAll(selector)
+            ]);
+        }
+    }
+    const board = new Element();
+    let width = 700, compact = false, style = "normal", foil = "rainbow", images = 0;
+    board.getBoundingClientRect = () => ({ width, height: 400 });
+    const { GameLayout, PresidentCard, CardPile } = loadGame(null, {
+        document: { createElement: () => new Element(), getElementById: () => board },
+        window: { matchMedia: () => ({ matches: compact }) }
+    });
+    GameLayout.createCardImage = () => { images++; return new Element(); };
+    GameLayout.styleForPlayer = () => style;
+    GameLayout.foilForPlayer = () => foil;
+    const game = { id: "test", round: 1, shuffleStartedAt: 123, players: [{ name: "Owner" }, { name: "Other" }] };
+    let piles = [new CardPile("Owner", new PresidentCard(1, 7), new PresidentCard(2, 7))];
+    const render = (signatures = new Set(), hidden = new Set()) => {
+        const view = GameLayout.createTablePile(game, piles, signatures, hidden);
+        if (view.element.parentElement !== board) { board.appendChild(view.element); }
+        return view;
+    };
+    let view = render();
+    assert.equal(images, 2);
+    const signature = view.newlyPlayed[0].element.dataset.playSignature;
+    const signatures = new Set([signature]);
+    piles = [new CardPile("Owner", new PresidentCard(1, 7), new PresidentCard(2, 7))];
+    let next = render(signatures, new Set(["1:7"]));
+    assert.equal(next.element, view.element);
+    assert.equal(next.newlyPlayed.length, 0);
+    assert.equal(next.element.querySelectorAll(".table-play__card")[0].style.opacity, "0");
+    next = render();
+    assert.equal(next.newlyPlayed[0].pile, piles[0], "Animations must use the latest game objects");
+    assert.equal(next.element.querySelectorAll(".table-play__card")[0].style.opacity, "");
+    assert.equal(images, 2);
+    for (const change of [
+        () => { style = "pixel"; }, () => { foil = "none"; },
+        () => { piles[0].motion = { x: .2, y: .1, power: .5, spin: 3, pitch: 2, yaw: 1 }; },
+        () => { game.players.reverse(); }, () => { game.shuffleStartedAt++; },
+        () => { game.round++; }, () => { game.id = "another-game"; },
+        () => { width = 500; }, () => { compact = true; }
+    ]) {
+        view = next;
+        change();
+        next = render(signatures);
+        assert.notEqual(next.element, view.element);
+        const unchanged = render(signatures);
+        assert.equal(unchanged.element, next.element);
+    }
+    const firstPlay = next.element.children[0], oldImages = images;
+    piles.push(new CardPile("Other", new PresidentCard(1, 8)));
+    const appended = render(signatures);
+    assert.equal(appended.element, next.element);
+    assert.equal(appended.element.children[0], firstPlay, "Appending keeps existing cards and depth states connected");
+    assert.equal(appended.element.children[0].dataset.topPlay, "false");
+    assert.equal(images, oldImages + 1, "Only the new play creates card artwork");
+    const removed = next.element;
+    removed.parentElement = null;
+    assert.notEqual(render().element, removed, "Detached or cleared piles cannot be resurrected");
+});
+
+test("table cleanup preserves a reused pile and releases removed depth and foil observers", () => {
+    const removed = [], detached = [], disconnected = [];
+    const card = {};
+    const oldPile = { querySelectorAll: () => [card], remove() { removed.push(this); } };
+    const retained = { remove() { assert.fail("The reused pile must remain connected"); } };
+    const table = { children: [oldPile, retained], _tablePileView: { element: retained } };
+    const { GameLayout } = loadGame(null, { CardDepth: {
+        detach(element) { detached.push(element); },
+        stopObservingFoils(element) { disconnected.push(element); }
+    } });
+    GameLayout.clearTableContent(table, retained);
+    assert.deepEqual(removed, [oldPile]);
+    assert.deepEqual(detached, [card]);
+    assert.deepEqual(disconnected, [oldPile]);
+    assert.equal(table._tablePileView.element, retained);
+});
+
 test("passing and clearing a pile preserve every displayed card's position and render identity", () => {
     const element = () => ({
         children: [], dataset: {}, style: { setProperty(name, value) { this[name] = value; } },

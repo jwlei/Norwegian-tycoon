@@ -97,6 +97,25 @@ offset silhouette per card, skipping shadow projection, occlusion tests and rece
 It applies immediately to table cards, drags and flights, including prepared drag previews when
 next used. Card artwork, seven-layer edges, foil treatments, landing physics and motion are unchanged.
 
+Fancy-mode optimizations keep all 81 flight foil keyframes but calculate their exact pitch/yaw
+without solving unused clearance heights. Full physics still drives every displayed flight pose.
+Support and shadow tests reuse each plane's exact local axes; shadow bounds reject unreachable
+receivers before calculating exposed samples, without changing the remaining visibility tests.
+
+Unchanged table updates keep their connected card DOM, depth state and foil clocks. Appending a play
+retains the existing cards while recalculating support-aware placement for the complete pile.
+Changes to the game/round, seating, artwork, foil, motion or layout-size class invalidate reuse.
+Resizing still remeasures the pile; translated base bounds avoid accumulating subpixel offset errors.
+New table cards collect animation references in one read batch before synchronizing their idle phase.
+Flight reveal sampling likewise advances all destination foil clocks, reads their styles together,
+then restores all clocks before constructing any flights.
+
+Where IntersectionObserver is available, hand and table foil animations pause only outside the
+visible/clipped area, with a 128px viewport margin. On return their clocks advance by the time spent
+offscreen, preserving the shimmer phase rather than restarting it. Observers disconnect when a hand
+or pile is replaced. Visible foil gradients, blend modes, filters and six-second timing are unchanged;
+there is no lower-resolution artwork, reduced shadow blur or lower animation sampling rate.
+
 Multi-card pickup prepares the unchanged SVG drag previews during idle time, selected cards first.
 Preparation stops during active gestures; an unprepared pickup still builds synchronously without
 waiting for an idle callback. Preview dimensions and positions are remeasured at pickup, and artwork,

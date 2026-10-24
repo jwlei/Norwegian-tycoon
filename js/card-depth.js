@@ -76,7 +76,7 @@ class CardDepth {
         return metadata;
     }
 
-    static attach(element, render = true) {
+    static attach(element, render = true, synchronizeFoil = true) {
         if (this.states.has(element)) { return; }
         const image = element.querySelector("img");
         if (!image) { return; }
@@ -105,18 +105,79 @@ class CardDepth {
             this.states.set(element, state);
             element.appendChild(svg);
             element.classList.add("has-card-depth");
-            // Recreated table cards resume the same idle phase instead of restarting their foil.
-            if (typeof element.getAnimations === "function" && document.timeline) {
-                element.getAnimations({ subtree: true }).filter(animation => animation.animationName === "foil-idle-color" ||
-                    animation.animationName === "foil-idle-reflection").forEach(animation => {
-                    animation.currentTime = (document.timeline.currentTime || 0) % 6000;
-                });
-            }
+            if (synchronizeFoil) { this.syncFoilPhase([element]); }
             if (render) { this.update(element, state.pose); }
         } catch (error) {
             this.warn(error);
             this.detach(element);
         }
+    }
+
+    static syncFoilPhase(elements) {
+        if (!document.timeline) { return; }
+        // Collect every animation before changing clocks, avoiding a style flush per card.
+        const animations = elements.flatMap(element => typeof element.getAnimations === "function"
+            ? element.getAnimations({ subtree: true }).filter(animation => animation.animationName === "foil-idle-color" ||
+                animation.animationName === "foil-idle-reflection") : []);
+        const phase = (document.timeline.currentTime || 0) % 6000;
+        animations.forEach(animation => { animation.currentTime = phase; });
+    }
+
+    static observeFoils(root) {
+        if (typeof IntersectionObserver === "undefined") { return; }
+        const elements = root.querySelectorAll('[data-foil]:not([data-foil="none"])');
+        if (!elements.length) { return; }
+        if (!root._foilObserver) { this.createFoilObserver(root); }
+        elements.forEach(element => {
+            if (!root._observedFoils.has(element)) {
+                root._observedFoils.add(element);
+                root._foilObserver.observe(element);
+            }
+        });
+    }
+
+    static createFoilObserver(root) {
+        const paused = new WeakMap();
+        const observer = new IntersectionObserver(entries => {
+            const updates = [];
+            const now = document.timeline && typeof document.timeline.currentTime === "number"
+                ? document.timeline.currentTime : performance.now();
+            for (const entry of entries) {
+                const element = entry.target;
+                if (entry.isIntersecting) {
+                    const saved = paused.get(element);
+                    if (saved) { updates.push({ element, saved, visible: true }); }
+                } else if (!paused.has(element)) {
+                    const animations = typeof element.getAnimations === "function"
+                        ? element.getAnimations({ subtree: true }).filter(animation =>
+                            animation.animationName === "foil-idle-color" || animation.animationName === "foil-idle-reflection") : [];
+                    updates.push({ element, visible: false, saved: { time: now,
+                        animations: animations.map(animation => ({ animation, time: animation.currentTime,
+                            running: animation.playState === "running" })) } });
+                }
+            }
+            for (const { element, saved, visible } of updates) {
+                element.classList.toggle("is-foil-offscreen", !visible);
+                if (visible) {
+                    const elapsed = now - saved.time;
+                    saved.animations.forEach(({ animation, time, running }) => {
+                        if (running && typeof time === "number") { animation.currentTime = time + elapsed; }
+                    });
+                    paused.delete(element);
+                } else {
+                    paused.set(element, saved);
+                }
+            }
+        }, { rootMargin: "128px" });
+        root._foilObserver = observer;
+        root._observedFoils = new WeakSet();
+    }
+
+    static stopObservingFoils(root) {
+        if (!root._foilObserver) { return; }
+        root._foilObserver.disconnect();
+        delete root._foilObserver;
+        delete root._observedFoils;
     }
 
     static dimensions(element) {
@@ -130,8 +191,9 @@ class CardDepth {
         state.pose = this.resolvePose(state.pose, pose);
         const world = this.worldPose(state);
         if (!world) { return; }
-        state.world = world;
-        state.placed = this.placedPose(state, world);
+        const previous = state.world;
+        state.world = previous && Object.keys(world).every(key => world[key] === previous[key]) ? previous : world;
+        state.placed = this.placedPose(state, state.world);
         const key = this.renderKey(state);
         if (state.key === key) { return; }
         state.key = key;
@@ -221,7 +283,7 @@ class CardDepth {
             // Simplified cards cast only a felt shadow; card-to-card shadows are kept for the top of the pile.
             // Moving cards skip simplified receivers too, so their per-frame work stays bounded on large tables.
             const visible = !state.hidden && !(state.shadowless && !receiver) && (!receiver || (detailed && target && !receiver.hidden &&
-                (!state.isFlight || this.detailed(receiver)))) &&
+                (!state.isFlight || this.detailed(receiver)))) && (!target || G.shadowMayReach(caster, target)) &&
                 G.shadowVisible(caster, target, this.occluders(state, receiver), receiver ? this.exposed(receiver) : null);
             if (!visible) {
                 if (entry && entry.shape.style.display !== "none") { entry.shape.style.display = "none"; }
@@ -421,7 +483,8 @@ class CardDepth {
             scene = { table, svg, defs, floor, pileFloor, pileBlur, states: [], flights: [], version: 0 };
             this.scenes.set(table, scene);
         }
-        elements.forEach(element => this.attach(element, false));
+        const attached = elements.filter(element => !this.states.has(element));
+        attached.forEach(element => this.attach(element, false, false));
         // Measure everything before writing, so the browser lays out the table once.
         const box = table.getBoundingClientRect();
         const board = typeof table.closest === "function" ? table.closest("#gameTable") : null;
@@ -434,7 +497,9 @@ class CardDepth {
             };
             const original = { left: b.left - offset.x, top: b.top - offset.y,
                 width: b.width, height: b.height };
-            const previous = state && state.layoutBounds;
+            const stored = state && state.layoutBounds;
+            const previous = stored && scene.origin ? { ...stored,
+                left: stored.left + box.left - scene.origin.x, top: stored.top + box.top - scene.origin.y } : stored;
             return previous && Object.keys(original).every(key => Math.abs(original[key] - previous[key]) < 1e-4)
                 ? previous : original;
         });
@@ -520,6 +585,8 @@ class CardDepth {
         scene.states.forEach(state => state.element.classList.toggle("is-depth-detailed", this.detailed(state)));
         this.updatePileBlur(scene);
         this.refreshFlights(scene, elements);
+        this.syncFoilPhase(attached);
+        this.observeFoils(table);
     }
 
     // Cards of the same play cast onto each other's flights, which stand in for their hidden table cards.
@@ -582,6 +649,8 @@ class CardDepth {
         const contact = G.landing(supports, impact.x, impact.y, impact.roll, initial);
         return {
             poseAtProgress: progress => progress >= 1 ? rest : G.motion(supports, initial, impact, momentum, progress, contact).pose,
+            orientationAtProgress: progress => progress >= 1 ? { pitch: rest.pitch, yaw: rest.yaw }
+                : G.motionOrientation(supports, initial, impact, momentum, progress, contact),
             positionAtProgress: progress => G.position(initial, impact, momentum, progress)
         };
     }

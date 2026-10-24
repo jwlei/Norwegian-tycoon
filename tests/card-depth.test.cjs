@@ -227,6 +227,117 @@ test("recreated cards keep the document's six-second foil phase without changing
     assert.equal(f.warnings.length, 0);
 });
 
+test("table foil phase synchronization batches every animation read before seeking clocks", () => {
+    const f = fixture(), events = [];
+    f.context.document.timeline = { currentTime: 8123 };
+    const cards = [f.card(200), f.card(230), f.card(260)];
+    const clocks = cards.map(() => ({ value: 0 }));
+    cards.forEach((card, index) => {
+        const animation = { animationName: "foil-idle-color" };
+        Object.defineProperty(animation, "currentTime", {
+            get: () => clocks[index].value,
+            set(value) { events.push("seek"); clocks[index].value = value; }
+        });
+        card.getAnimations = () => { events.push("read"); return [animation]; };
+    });
+    f.Depth.prepareTable(f.table(cards));
+    assert.deepEqual(events, ["read", "read", "read", "seek", "seek", "seek"]);
+    assert.deepEqual(clocks.map(clock => clock.value), [2123, 2123, 2123]);
+    assert.equal(f.warnings.length, 0);
+});
+
+test("offscreen foils alone pause and resume at the phase they would have reached while visible", () => {
+    const f = fixture(), observers = [];
+    let now = 100;
+    f.context.performance = { now: () => now };
+    f.context.IntersectionObserver = class {
+        constructor(callback, options) { this.callback = callback; this.options = options; this.observed = []; observers.push(this); }
+        observe(element) { this.observed.push(element); }
+        disconnect() { this.disconnected = true; }
+    };
+    const color = { animationName: "foil-idle-color", currentTime: 1234, playState: "running" };
+    const glare = { animationName: "foil-idle-reflection", currentTime: 2500, playState: "running" };
+    const paused = { animationName: "foil-idle-color", currentTime: 77, playState: "paused" };
+    const unrelated = { animationName: "required-card-pulse", currentTime: 99, playState: "running" };
+    const card = f.card(200);
+    const cards = [card];
+    card.getAnimations = () => [color, glare, paused, unrelated];
+    const root = { querySelectorAll(selector) {
+        assert.equal(selector, '[data-foil]:not([data-foil="none"])');
+        return cards;
+    } };
+    f.Depth.observeFoils(root);
+    f.Depth.observeFoils(root);
+    assert.equal(observers.length, 1);
+    assert.deepEqual(observers[0].observed, [card]);
+    assert.equal(observers[0].options.rootMargin, "128px", "Wake effects before they enter the viewport");
+    const callback = observers[0].callback;
+    callback([{ target: card, isIntersecting: true }]);
+    assert.equal(color.currentTime, 1234, "Visible cards never have their phase or clocks changed");
+    callback([{ target: card, isIntersecting: false }]);
+    assert.equal(card.classes.has("is-foil-offscreen"), true);
+    now = 3100;
+    callback([{ target: card, isIntersecting: false }]);
+    callback([{ target: card, isIntersecting: true }]);
+    assert.equal(card.classes.has("is-foil-offscreen"), false);
+    assert.equal(color.currentTime, 4234);
+    assert.equal(glare.currentTime, 5500);
+    assert.equal(paused.currentTime, 77);
+    assert.equal(unrelated.currentTime, 99);
+    const appended = f.card(230);
+    cards.push(appended);
+    f.Depth.observeFoils(root);
+    assert.deepEqual(observers[0].observed, [card, appended], "Appended plays join the existing observer exactly once");
+    f.Depth.stopObservingFoils(root);
+    assert.equal(observers[0].disconnected, true);
+    assert.equal(root._foilObserver, undefined);
+    f.Depth.observeFoils(root);
+    assert.equal(observers.length, 2, "A replaced hand gets its own visibility observer");
+});
+
+test("unchanged table poses preserve exposure cache identities and distant shadows skip exposure sampling", () => {
+    const f = fixture();
+    const cards = [f.card(200), f.card(230), f.card(260)];
+    f.Depth.prepareTable(f.table(cards));
+    const state = f.Depth.states.get(cards[0]), world = state.world;
+    f.Depth.update(cards[0], {});
+    assert.equal(state.world, world);
+    assert.equal(state.placed, world);
+    const receiver = f.Depth.states.get(cards[1]);
+    const exposed = f.Depth.exposed(receiver);
+    f.Depth.update(cards[1], {});
+    assert.equal(f.Depth.exposed(receiver), exposed);
+    const originalExposed = f.Depth.exposed;
+    let exposureReads = 0;
+    f.Depth.exposed = function (...args) { exposureReads++; return originalExposed.apply(this, args); };
+    state.receiverStates = [receiver];
+    f.Depth.update(cards[0], { x: 10000 });
+    assert.equal(exposureReads, 0);
+    assert.equal(f.warnings.length, 0);
+});
+
+test("reused table cards preserve exact base bounds when their pile moves with an appended play", () => {
+    const f = fixture();
+    const cards = [f.card(200), f.card(230), f.card(260)];
+    const table = f.table(cards);
+    f.Depth.prepareTable(table);
+    const previous = cards.map(card => ({ ...f.Depth.states.get(card).layoutBounds }));
+    table.left = 220;
+    table.top = 210;
+    cards.forEach(card => { card.left += 20; card.top += 10; });
+    const original = cards[1].getBoundingClientRect.bind(cards[1]);
+    cards[1].getBoundingClientRect = () => {
+        const bounds = original();
+        return { ...bounds, top: bounds.top + .000015 };
+    };
+    f.Depth.prepareTable(table);
+    cards.forEach((card, index) => {
+        assert.deepEqual({ ...f.Depth.states.get(card).layoutBounds },
+            { ...previous[index], left: previous[index].left + 20, top: previous[index].top + 10 });
+    });
+    assert.equal(f.warnings.length, 0);
+});
+
 test("seven depth sheets follow the artwork border color instead of a universal beige edge", () => {
     for (const color of ["#9d9bdf", "#8a5f0f", "#89a6cf", "#b8a15b", "#cbbd9f"]) {
         const f = fixture(color);
