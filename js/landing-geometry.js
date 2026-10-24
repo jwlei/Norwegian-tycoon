@@ -20,6 +20,7 @@
     const mix = (a, b, t) => a + (b - a) * t;
     const rotations = new WeakMap();
     const planes = new WeakMap();
+    const outlines = new Map();
 
     function rotate(x, y, z, pose) {
         let m = rotations.get(pose);
@@ -76,22 +77,30 @@
 
     function silhouette(pose, z = 0) {
         const width = pose.width || WIDTH, height = pose.height || HEIGHT;
-        const inset = .75 * width / 80, insetY = .75 * height / 120;
-        const radius = (pose.radius ?? 8.75) * width / 80;
-        const radiusY = (pose.radius ?? 8.75) * height / 120;
-        const points = [];
-        for (const [x, y, angle] of [
-            [-width / 2 + inset + radius, -height / 2 + insetY + radiusY, 180],
-            [width / 2 - inset - radius, -height / 2 + insetY + radiusY, 270],
-            [width / 2 - inset - radius, height / 2 - insetY - radiusY, 0],
-            [-width / 2 + inset + radius, height / 2 - insetY - radiusY, 90]
-        ]) {
-            for (let step = 0; step <= 16; step++) {
-                const theta = radians(angle + step * 90 / 16);
-                points.push(world(x + Math.cos(theta) * radius, y + Math.sin(theta) * radiusY, z, pose));
+        const key = `${width}:${height}:${pose.radius ?? 8.75}`;
+        let outline = outlines.get(key);
+        if (!outline) {
+            const inset = .75 * width / 80, insetY = .75 * height / 120;
+            const radius = (pose.radius ?? 8.75) * width / 80;
+            const radiusY = (pose.radius ?? 8.75) * height / 120;
+            outline = [];
+            for (const [x, y, angle] of [
+                [-width / 2 + inset + radius, -height / 2 + insetY + radiusY, 180],
+                [width / 2 - inset - radius, -height / 2 + insetY + radiusY, 270],
+                [width / 2 - inset - radius, height / 2 - insetY - radiusY, 0],
+                [-width / 2 + inset + radius, height / 2 - insetY - radiusY, 90]
+            ]) {
+                for (let step = 0; step <= 16; step++) {
+                    const theta = radians(angle + step * 90 / 16);
+                    outline.push({ x: x + Math.cos(theta) * radius, y: y + Math.sin(theta) * radiusY });
+                }
             }
+            if (outlines.size >= 64) {
+                outlines.delete(outlines.keys().next().value);
+            }
+            outlines.set(key, outline);
         }
-        return points;
+        return outline.map(point => world(point.x, point.y, z, pose));
     }
 
     function insideOutline(pose, u, v, margin = 0) {

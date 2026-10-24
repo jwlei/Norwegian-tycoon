@@ -8,6 +8,40 @@ const flat = (x = 0, y = 0, z = 3.06) => ({ x, y, z, pitch: 0, yaw: 0, roll: 0 }
 const nearestGap = (cards, pose) => Math.min(...G.samples(pose, -G.EDGE)
     .map(point => point.z - G.supportHeight(cards, point.x, point.y)));
 
+test("cached outlines preserve every original contour point at full precision for all poses and sizes", () => {
+    function originalSilhouette(pose, z = 0) {
+        const width = pose.width || G.WIDTH, height = pose.height || G.HEIGHT;
+        const inset = .75 * width / 80, insetY = .75 * height / 120;
+        const radius = (pose.radius ?? 8.75) * width / 80;
+        const radiusY = (pose.radius ?? 8.75) * height / 120;
+        const points = [];
+        for (const [x, y, angle] of [
+            [-width / 2 + inset + radius, -height / 2 + insetY + radiusY, 180],
+            [width / 2 - inset - radius, -height / 2 + insetY + radiusY, 270],
+            [width / 2 - inset - radius, height / 2 - insetY - radiusY, 0],
+            [-width / 2 + inset + radius, height / 2 - insetY - radiusY, 90]
+        ]) {
+            for (let step = 0; step <= 16; step++) {
+                const theta = (angle + step * 90 / 16) * Math.PI / 180;
+                points.push(G.world(x + Math.cos(theta) * radius, y + Math.sin(theta) * radiusY, z, pose));
+            }
+        }
+        return points;
+    }
+    for (let index = 0; index < 150; index++) {
+        const pose = { x: index * 3, y: -index, z: index / 3, pitch: index % 37 - 18,
+            yaw: index % 31 - 15, roll: index % 13, width: 80 + index / 2, height: 120 + index,
+            radius: index % 3 == 0 ? 0 : index % 3 == 1 ? 8.75 : undefined };
+        for (const z of [0, -G.EDGE]) {
+            const expected = originalSilhouette(pose, z);
+            assert.deepEqual(G.silhouette(pose, z), expected);
+            const outline = G.silhouette(pose, z);
+            outline[0].x = Infinity;
+            assert.deepEqual(G.silhouette(pose, z), expected, "Returned points cannot mutate cached outlines");
+        }
+    }
+});
+
 test("bare felt produces a level card with a 3px edge and a tight contact shadow", () => {
     const pose = G.landing([], 200, 220, 17);
     assert.equal(pose.pitch, 0);

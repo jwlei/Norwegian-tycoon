@@ -367,7 +367,74 @@ function resetCardTilt(cardElement) {
     cardElement.style.setProperty("--tilt-y", "0deg");
 }
 
+function prepareCardDragPreview(card, bounds) {
+    var image = card.querySelector("img");
+    var prepared = card._preparedDragPreview;
+    var source = image ? image.src : "";
+    if (prepared && (prepared.source != source || prepared.style != card.dataset.cardStyle ||
+        prepared.foil != card.dataset.foil)) {
+        if (typeof CardDepth != "undefined") { CardDepth.detach(prepared.preview); }
+        prepared = null;
+    }
+    var preview = prepared ? prepared.preview : null;
+    if (!preview) {
+        preview = card.cloneNode(true);
+        preview.removeAttribute("id");
+        preview.removeAttribute("aria-pressed");
+        preview.className = `game-card card-preview card-preview--${card.dataset.cardStyle} card-drag-preview`;
+        preview.tabIndex = -1;
+        preview.style.setProperty("--card-offset", "0px");
+        preview.style.setProperty("--card-rotation", "0deg");
+        preview.style.setProperty("--drag-offset-x", "0px");
+        preview.style.setProperty("--drag-offset-y", "0px");
+        preview.style.setProperty("--tilt-x", "0deg");
+        preview.style.setProperty("--tilt-y", "0deg");
+        preview.style.setProperty("--drag-scale", "1");
+        prepared = { preview, source, style: card.dataset.cardStyle, foil: card.dataset.foil };
+        card._preparedDragPreview = prepared;
+    }
+    preview.style.left = `${bounds.left}px`;
+    preview.style.top = `${bounds.top}px`;
+    preview.style.width = `${bounds.width}px`;
+    preview.style.height = `${bounds.height}px`;
+    var lift = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 18;
+    if (typeof CardDepth != "undefined") {
+        CardDepth.attach(preview, false);
+        CardDepth.update(preview, { lift });
+    }
+    return preview;
+}
+
+function cancelCardDragPreparation(hand) {
+    if (hand._dragPreparation != null) {
+        window.cancelIdleCallback(hand._dragPreparation);
+        hand._dragPreparation = null;
+    }
+}
+
+function scheduleCardDragPreparation(hand) {
+    cancelCardDragPreparation(hand);
+    if (typeof window.requestIdleCallback != "function") { return; }
+    var cards = Array.from(hand.querySelectorAll(".game-card"));
+    cards.sort((a, b) => Number(selectedCardKeys.has(b.dataset.cardKey)) -
+        Number(selectedCardKeys.has(a.dataset.cardKey)));
+    var prepareNext = function (deadline) {
+        hand._dragPreparation = null;
+        if (cardHandInertiaFrame != null || hand._cardDragPreview ||
+            hand._handGestureActive && hand._handGestureActive()) { return; }
+        if (deadline.timeRemaining() >= 4) {
+            var card = cards.shift();
+            if (card && card.parentElement == hand && !card._dragPreview) {
+                prepareCardDragPreview(card, card.getBoundingClientRect());
+            }
+        }
+        if (cards.length) { hand._dragPreparation = window.requestIdleCallback(prepareNext); }
+    };
+    if (cards.length) { hand._dragPreparation = window.requestIdleCallback(prepareNext); }
+}
+
 function startCardDragPreview(hand, event) {
+    cancelCardDragPreparation(hand);
     clearCardDragPreview(hand);
     var layer = document.createElement("div");
     layer.className = "card-drag-layer";
@@ -377,29 +444,10 @@ function startCardDragPreview(hand, event) {
     var measurements = Array.from(hand.querySelectorAll(".game-card"))
         .filter(card => selectedCardKeys.has(card.dataset.cardKey))
         .map(card => ({ card, bounds: card.getBoundingClientRect() }));
-    var lift = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 18;
     measurements.forEach(({ card, bounds }) => {
-        var preview = card.cloneNode(true);
-        preview.removeAttribute("id");
-        preview.removeAttribute("aria-pressed");
-        preview.className = `game-card card-preview card-preview--${card.dataset.cardStyle} card-drag-preview`;
-        preview.tabIndex = -1;
-        preview.style.left = `${bounds.left}px`;
-        preview.style.top = `${bounds.top}px`;
-        preview.style.width = `${bounds.width}px`;
-        preview.style.height = `${bounds.height}px`;
-        preview.style.setProperty("--card-offset", "0px");
-        preview.style.setProperty("--card-rotation", "0deg");
-        preview.style.setProperty("--drag-offset-x", "0px");
-        preview.style.setProperty("--drag-offset-y", "0px");
-        preview.style.setProperty("--tilt-x", "0deg");
-        preview.style.setProperty("--tilt-y", "0deg");
-        preview.style.setProperty("--drag-scale", "1");
+        var preview = prepareCardDragPreview(card, bounds);
+        delete card._preparedDragPreview;
         layer.appendChild(preview);
-        if (typeof CardDepth != "undefined") {
-            CardDepth.attach(preview, false);
-            CardDepth.update(preview, { lift });
-        }
         card.classList.add("is-drag-source");
         card._dragPreview = preview;
         cards.push(card);
@@ -416,6 +464,7 @@ function startCardDragPreview(hand, event) {
 
 function animateCardDragTilt(drag, time) {
     drag.frame = null;
+    applyCardDragPosition(drag);
     var elapsed = drag.lastFrameTime == null ? 16 : Math.max(1, time - drag.lastFrameTime);
     drag.lastFrameTime = time;
     var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -460,21 +509,35 @@ function moveCardDragPreview(hand, event, startX, startY) {
     var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     drag.pointerX = event.clientX;
     drag.pointerY = event.clientY;
+    drag.pendingPosition = { x: event.clientX - startX, y: event.clientY - startY };
     if (reducedMotion) {
         if (drag.frame != null) { cancelAnimationFrame(drag.frame); }
         animateCardDragTilt(drag, performance.now());
     } else if (drag.frame == null) {
         drag.frame = requestAnimationFrame(time => animateCardDragTilt(drag, time));
     }
+}
+
+function applyCardDragPosition(drag) {
+    if (!drag.pendingPosition) { return; }
+    var position = drag.pendingPosition;
+    drag.pendingPosition = null;
+    // Read table geometry before any per-card writes, once for the whole trick.
+    var onTable = isCardDropOnTable({ clientX: drag.pointerX, clientY: drag.pointerY });
+    var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     drag.previews.forEach(preview => {
-        preview.style.setProperty("--drag-offset-x", `${event.clientX - startX}px`);
-        preview.style.setProperty("--drag-offset-y", `${event.clientY - startY}px`);
+        preview.style.setProperty("--drag-offset-x", `${position.x}px`);
+        preview.style.setProperty("--drag-offset-y", `${position.y}px`);
         var scale = reducedMotion ? "1" : "1.12";
         if (preview.style.getPropertyValue("--drag-scale") !== scale) {
             preview.style.setProperty("--drag-scale", scale);
         }
     });
-    document.getElementById("gameTable").classList.toggle("is-card-drop-target", isCardDropOnTable(event));
+    document.getElementById("gameTable").classList.toggle("is-card-drop-target", onTable);
+}
+
+function flushCardDragPosition(hand) {
+    if (hand._cardDragPreview) { applyCardDragPosition(hand._cardDragPreview); }
 }
 
 function isCardDropOnTable(event) {
@@ -547,6 +610,7 @@ function clearCardDragPreview(hand) {
 function returnCardDragPreview(hand) {
     var drag = hand._cardDragPreview;
     if (!drag) { return; }
+    flushCardDragPosition(hand);
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         clearCardDragPreview(hand);
         return;
@@ -590,6 +654,7 @@ function returnCardDragPreview(hand) {
         if (!drag.returning || drag.returnToken != token) { return; }
         removeCardDragPreview(drag);
         if (hand._returningCardDrag == drag) { hand._returningCardDrag = null; }
+        scheduleCardDragPreparation(hand);
     }, 340);
 }
 
@@ -673,6 +738,7 @@ function stopCardHandInertia() {
 
 function animateHandScroll(element, targetScrollLeft, duration = null) {
     stopCardHandInertia();
+    cancelCardDragPreparation(element);
     var startScrollLeft = element.scrollLeft;
     // Small corrections otherwise spend most frames rounding to the same scroll pixel.
     if (duration == null) {
@@ -681,6 +747,7 @@ function animateHandScroll(element, targetScrollLeft, duration = null) {
     }
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         element.scrollLeft = targetScrollLeft;
+        scheduleCardDragPreparation(element);
         return;
     }
     var startTime = null;
@@ -692,14 +759,17 @@ function animateHandScroll(element, targetScrollLeft, duration = null) {
             : 1 - Math.pow(-2 * progress + 2, 3) / 2;
         element.scrollLeft = startScrollLeft + (targetScrollLeft - startScrollLeft) * eased;
         cardHandInertiaFrame = (progress < 1) ? requestAnimationFrame(step) : null;
+        if (progress >= 1) { scheduleCardDragPreparation(element); }
     };
     cardHandInertiaFrame = requestAnimationFrame(step);
 }
 
 function startCardHandInertia(element, velocity) {
     stopCardHandInertia();
+    cancelCardDragPreparation(element);
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
         Math.abs(velocity) < 0.04) {
+        scheduleCardDragPreparation(element);
         return;
     }
     var previousFrameTime = null;
@@ -725,6 +795,7 @@ function startCardHandInertia(element, velocity) {
             }
         }
         cardHandInertiaFrame = null;
+        scheduleCardDragPreparation(element);
     };
     cardHandInertiaFrame = requestAnimationFrame(continueInertia);
 }

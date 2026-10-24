@@ -729,6 +729,7 @@ test("drag previews escape hand clipping, follow both axes without a distance ca
     assert.equal(f.body.children.length, 1);
     assert.equal(f.body.children[0].children.length, 2);
     f.context.moveCardDragPreview(hand, { clientX: 350, clientY: 100 }, 100, 500);
+    f.context.flushCardDragPosition(hand);
     for (const card of [first, second]) {
         assert.equal(card.classList.contains("is-drag-source"), true);
         assert.equal(card._dragPreview.dataset.foil, "radiant");
@@ -785,6 +786,8 @@ test("four-card pickup and return batch layout reads and avoid repeated scale wr
     for (let index = 0; index < 20; index++) {
         f.context.moveCardDragPreview(hand, { clientX: 100 + index, clientY: 80 }, 100, 100);
     }
+    assert.equal(scaleWrites, 0, "Movement writes wait for the next display frame, not each input sample");
+    f.runFrame(1016);
     assert.equal(scaleWrites, 4, "A constant scale is not rewritten on every pointer event");
     assert.equal(f.pendingFrames, 1, "Four cards still share a single tilt frame");
     events.length = 0;
@@ -800,6 +803,137 @@ test("four-card pickup and return batch layout reads and avoid repeated scale wr
     const dragRule = css.match(/\.card-drag-layer > \.game-card\.has-card-depth\s*\{([^}]+)\}/)[1];
     assert.match(dragRule, /box-shadow:\s*none/);
     assert.match(dragRule, /will-change:\s*transform/);
+});
+
+test("prepared four-card pickups reuse their exact previews and remeasure size and position immediately", () => {
+    const f = fixture();
+    const hand = new Element();
+    let clones = 0;
+    let attachments = 0;
+    const attached = new WeakSet();
+    f.context.CardDepth = {
+        attach(preview) { if (!attached.has(preview)) { attachments++; attached.add(preview); } },
+        update() {}, detach(preview) { attached.delete(preview); }
+    };
+    const prepared = [];
+    for (let suit = 1; suit <= 4; suit++) {
+        const card = new Element();
+        card.className = "game-card";
+        card.dataset = { cardKey: `${suit}:5`, cardStyle: "cosmic", foil: "rainbow" };
+        const image = { src: `card-${suit}` };
+        card.querySelector = selector => selector == "img" ? image : null;
+        const clone = card.cloneNode.bind(card);
+        card.cloneNode = deep => { clones++; return clone(deep); };
+        hand.append(card);
+        prepared.push(f.context.prepareCardDragPreview(card, bounds));
+        card.bounds = { ...bounds, left: suit * 10, top: 75, width: 110, height: 165 };
+    }
+    vm.runInContext('[1,2,3,4].forEach(suit => selectedCardKeys.add(`${suit}:5`))', f.context);
+    assert.equal(clones, 4);
+    assert.equal(attachments, 4);
+    f.context.startCardDragPreview(hand, { clientX: 100, clientY: 100 });
+    assert.equal(clones, 4, "No cloning on a warmed pickup");
+    assert.equal(attachments, 4, "No depth construction on a warmed pickup");
+    hand.children.forEach((card, index) => {
+        assert.equal(card._dragPreview, prepared[index]);
+        assert.equal(card._dragPreview.style.left, `${(index + 1) * 10}px`);
+        assert.equal(card._dragPreview.style.width, "110px", "Resizing never stretches stale geometry");
+        assert.equal(card._preparedDragPreview, undefined, "An in-use preview cannot be borrowed twice");
+        assert.equal(card.classList.contains("is-drag-source"), true, "Pickup stays synchronous");
+    });
+});
+
+test("prepared artwork is invalidated by source, style or foil changes", () => {
+    const f = fixture();
+    const card = new Element();
+    card.className = "game-card";
+    card.dataset = { cardKey: "1:5", cardStyle: "normal", foil: "none" };
+    const image = { src: "original" };
+    card.querySelector = selector => selector == "img" ? image : null;
+    let previous = f.context.prepareCardDragPreview(card, bounds);
+    assert.equal(f.context.prepareCardDragPreview(card, bounds), previous);
+    for (const change of [
+        () => { image.src = "replacement"; },
+        () => { card.dataset.cardStyle = "pixel"; },
+        () => { card.dataset.foil = "rainbow"; }
+    ]) {
+        change();
+        const next = f.context.prepareCardDragPreview(card, bounds);
+        assert.notEqual(next, previous);
+        previous = next;
+    }
+});
+
+test("idle preparation prioritizes selected cards and yields completely to active input", () => {
+    const f = fixture();
+    const hand = new Element();
+    const callbacks = new Map();
+    let next = 0;
+    f.context.window.requestIdleCallback = callback => { callbacks.set(++next, callback); return next; };
+    f.context.window.cancelIdleCallback = id => callbacks.delete(id);
+    for (let suit = 1; suit <= 4; suit++) {
+        const card = new Element();
+        card.className = "game-card";
+        card.dataset = { cardKey: `${suit}:5`, cardStyle: "normal", foil: "none" };
+        hand.append(card);
+    }
+    vm.runInContext('selectedCardKeys.add("4:5")', f.context);
+    const runIdle = remaining => {
+        const [id, callback] = callbacks.entries().next().value;
+        callbacks.delete(id);
+        callback({ timeRemaining: () => remaining });
+    };
+    f.context.scheduleCardDragPreparation(hand);
+    runIdle(0);
+    assert.ok(hand.children.every(card => !card._preparedDragPreview), "No work without idle budget");
+    runIdle(10);
+    assert.ok(hand.children[3]._preparedDragPreview, "The selected trick is prepared first");
+    assert.equal(hand.children.filter(card => card._preparedDragPreview).length, 1,
+        "At most one card is prepared per idle callback");
+    hand._handGestureActive = () => true;
+    runIdle(10);
+    assert.equal(callbacks.size, 0, "Preparation stops while the user is interacting");
+    f.context.scheduleCardDragPreparation(hand);
+    f.context.cancelCardDragPreparation(hand);
+    assert.equal(callbacks.size, 0);
+});
+
+test("four-card movement performs one read before writes per frame and flushes the final position on return", () => {
+    const f = fixture();
+    const hand = new Element();
+    for (let suit = 1; suit <= 4; suit++) {
+        const card = new Element();
+        card.className = "game-card";
+        card.dataset = { cardKey: `${suit}:5`, cardStyle: "normal", foil: "rainbow" };
+        hand.append(card);
+    }
+    vm.runInContext('[1,2,3,4].forEach(suit => selectedCardKeys.add(`${suit}:5`))', f.context);
+    f.context.startCardDragPreview(hand, { clientX: 100, clientY: 500 });
+    const events = [];
+    const table = f.context.document.getElementById("gameTable");
+    table.getBoundingClientRect = () => { events.push("read"); return bounds; };
+    hand._cardDragPreview.previews.forEach(preview => {
+        const set = preview.style.setProperty;
+        preview.style.setProperty = (name, value) => { events.push(name); set(name, value); };
+    });
+    for (let index = 0; index < 20; index++) {
+        f.context.moveCardDragPreview(hand, { clientX: 200 + index, clientY: 100 }, 100, 500);
+    }
+    assert.equal(events.length, 0, "Input samples never force style or layout work");
+    f.runFrame(1016);
+    assert.equal(events[0], "read");
+    assert.equal(events.filter(event => event == "read").length, 1);
+    assert.equal(events.filter(event => event == "--drag-offset-x").length, 4);
+    hand._cardDragPreview.previews.forEach(preview => {
+        assert.equal(preview.properties.get("--drag-offset-x"), "119px", "Use the newest sample");
+    });
+    const drag = hand._cardDragPreview;
+    f.context.moveCardDragPreview(hand, { clientX: 250, clientY: 95 }, 100, 500);
+    f.context.returnCardDragPreview(hand);
+    drag.release.forEach(release => {
+        assert.equal(release.x, 150, "A release between frames still uses the exact final position");
+        assert.equal(release.y, -405);
+    });
 });
 
 test("velocity tilt lifts the leading edges, clamps and settles all selected cards together", () => {
@@ -994,6 +1128,27 @@ function pointerFixture({ desktop = false, valid = true, mode = "flick", blocked
     return { ...f, hand, card, state, event,
         advance(value) { f.now = value; } };
 }
+
+test("a release between display frames flushes the exact final mouse or touch position before playing", () => {
+    for (const desktop of [false, true]) {
+        const f = pointerFixture({ desktop });
+        f.context.playSelectedCards = () => {
+            const preview = f.hand._cardDragPreview.previews[0];
+            assert.equal(preview.properties.get("--drag-offset-x"), "80px");
+            assert.equal(preview.properties.get("--drag-offset-y"), "-300px");
+            f.state.plays++;
+            return true;
+        };
+        f.hand.onpointerdown(f.event(100, 500));
+        f.advance(1020);
+        f.hand.onpointermove(f.event(150, 420));
+        f.advance(1040);
+        f.hand.onpointerup(f.event(180, 200));
+        assert.equal(f.state.plays, 1);
+        assert.equal(f.pendingFrames, 0, "The queued drag frame never survives release");
+        assert.equal(f.body.children.length, 0);
+    }
+});
 
 test("mobile Button mode disables drag and flick without changing the selection", () => {
     for (const selected of [false, true]) {
@@ -1466,6 +1621,69 @@ test("auto-scroll still honors explicit durations, reduced motion and manual can
     f.context.animateHandScroll(hand, 60);
     assert.equal(hand.scrollLeft, 60);
     assert.equal(f.pendingFrames, 0);
+});
+
+test("suggestion scrolling postpones preview preparation until the original animation completes", () => {
+    for (const method of ["centerHandSelection", "scrollHandCardsIntoView"]) {
+        const f = fixture();
+        const hand = new Element();
+        hand.scrollLeft = 100;
+        hand.scrollWidth = 1200;
+        hand.clientWidth = 400;
+        const card = new Element();
+        card.className = "game-card is-selected";
+        card.dataset = { cardKey: "1:5", cardStyle: "normal", foil: "rainbow" };
+        card.bounds = { left: -40, right: 40, top: 0, bottom: 120, width: 80, height: 120 };
+        hand.append(card);
+        hand.querySelectorAll = () => [card];
+        const callbacks = new Map();
+        let next = 0;
+        f.context.window.requestIdleCallback = callback => { callbacks.set(++next, callback); return next; };
+        f.context.window.cancelIdleCallback = id => callbacks.delete(id);
+        f.context.window.requestAnimationFrame = f.context.requestAnimationFrame;
+        vm.runInContext(`selectedCardOwner = "room:owner";
+            autoSelectedTurnKey = "turn"; autoScrollEmptyTurnKey = "turn";`, f.context);
+        f.context.scheduleCardDragPreparation(hand);
+        assert.equal(callbacks.size, 1);
+        f.types.GameLayout[method](hand, "room:owner", ["1:5"], "turn");
+        assert.equal(callbacks.size, 0, "No preview construction competes with suggestion measurement");
+        f.runFrame(1000);
+        f.runFrame(1016);
+        assert.equal(callbacks.size, 0, "Starting the scroll cancels background preparation");
+        f.runFrame(1032);
+        f.runFrame(1132);
+        assert.equal(callbacks.size, 0);
+        assert.equal(card._preparedDragPreview, undefined);
+        f.runFrame(2000);
+        assert.equal(f.pendingFrames, 0);
+        assert.equal(callbacks.size, 1, "Preview warming resumes after the final scroll frame");
+        assert.equal(hand.scrollLeft, 12, "The existing comfort margin and target remain exact");
+    }
+});
+
+test("already-visible suggestions resume preparation without introducing a scroll animation", () => {
+    const f = fixture();
+    const hand = new Element();
+    hand.scrollLeft = 100;
+    hand.scrollWidth = 1200;
+    hand.clientWidth = 400;
+    const card = new Element();
+    card.className = "game-card is-selected";
+    card.dataset = { cardKey: "1:5", cardStyle: "normal", foil: "none" };
+    card.bounds = { left: 100, right: 180, top: 0, bottom: 120, width: 80, height: 120 };
+    hand.append(card);
+    hand.querySelectorAll = () => [card];
+    let idleRequests = 0;
+    f.context.window.requestIdleCallback = () => ++idleRequests;
+    f.context.window.cancelIdleCallback = () => {};
+    f.context.window.requestAnimationFrame = f.context.requestAnimationFrame;
+    vm.runInContext('selectedCardOwner = "room:owner"', f.context);
+    f.types.GameLayout.centerHandSelection(hand, "room:owner", ["1:5"]);
+    f.runFrame(1000);
+    f.runFrame(1016);
+    assert.equal(hand.scrollLeft, 100);
+    assert.equal(f.pendingFrames, 0);
+    assert.equal(idleRequests, 1);
 });
 
 test("scroll inertia advances monotonically and stops at the hand boundary without bouncing", () => {
@@ -2047,6 +2265,7 @@ test("a caught card follows the finger from where it was caught and can still be
     f.layer.onpointerdown(f.press(100, 460));
     f.advance(2510);
     f.hand.onpointermove(f.press(100, 450));
+    f.runFrame(2510);
     assert.equal(f.preview.properties.get("--drag-offset-y"), "-50px", "No jump back to the hand");
     f.advance(2530);
     f.hand.onpointermove(f.press(100, 425));

@@ -113,6 +113,67 @@ test("seven depth sheets follow the artwork border color instead of a universal 
     }
 });
 
+test("artwork metadata parses once per source and retains exact radius and seven layer colors", () => {
+    const f = fixture("#9d9bdf");
+    let parses = 0;
+    const Parser = f.context.DOMParser;
+    f.context.DOMParser = class extends Parser {
+        parseFromString(...args) { parses++; return super.parseFromString(...args); }
+    };
+    f.Depth.attach(f.element);
+    const first = f.Depth.states.get(f.element);
+    for (let index = 0; index < 4; index++) {
+        const card = f.card(200 + index * 10);
+        f.Depth.attach(card);
+        const state = f.Depth.states.get(card);
+        assert.equal(state.radius, first.radius);
+        assert.deepEqual(state.layers.map(layer => layer.getAttribute("fill")),
+            first.layers.map(layer => layer.getAttribute("fill")));
+        assert.deepEqual(state.layers.map(layer => layer.getAttribute("d")),
+            first.layers.map(layer => layer.getAttribute("d")));
+        assert.notEqual(state.id, first.id, "Reusable metadata never shares SVG IDs or mutable state");
+    }
+    assert.equal(parses, 1);
+    for (let index = 0; index < 130; index++) {
+        const card = f.card(200);
+        card.image = { src: `data:image/svg+xml,%3Csvg%2F%3E%20${index}` };
+        f.Depth.attach(card, false);
+    }
+    assert.equal(f.Depth.artworkMetadata.size, 128, "Browsing appearances does not retain unbounded artwork");
+    assert.equal(f.warnings.length, 0);
+});
+
+test("hand scrolling never measures unrelated tables and page scrolling batches flight reads before writes", () => {
+    const f = fixture();
+    const events = [];
+    const table = new f.Node("div");
+    table.getBoundingClientRect = () => {
+        events.push("read");
+        return { left: 190, top: 150 };
+    };
+    const flights = Array.from({ length: 4 }, () => {
+        const element = new f.Node("div");
+        let translation = "";
+        Object.defineProperty(element.style, "translate", {
+            get: () => translation,
+            set(value) { events.push("write"); translation = value; }
+        });
+        const state = { element, scene: { table }, anchor: { x: 200, y: 200 } };
+        f.Depth.states.set(element, state);
+        f.Depth.anchored.add(state);
+        return element;
+    });
+    f.Depth.followScroll({ contains: () => false });
+    assert.deepEqual(events, [], "Sibling hand scrolls do not trigger flight layout reads or writes");
+    f.Depth.followScroll(f.context.document);
+    assert.deepEqual(events, ["read", "write", "write", "write", "write"]);
+    assert.ok(flights.every(flight => flight.style.translate == "-10px -50px"));
+    events.length = 0;
+    f.Depth.followScroll({ contains: candidate => candidate === table });
+    assert.deepEqual(events, ["read", "write", "write", "write", "write"],
+        "A scrolling table ancestor still updates all anchored cards immediately");
+});
+
 test("translation and receiver-only changes do not repaint identical card artwork or shadow filters", () => {
     const f = fixture();
     f.Depth.attach(f.element);

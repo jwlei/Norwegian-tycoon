@@ -19,6 +19,7 @@ class CardDepth {
     static nextId = 0;
     static warned = false;
     static listeningForScroll = false;
+    static artworkMetadata = new Map();
     static FLOOR = "floor";
     static paper = ["#dedbc7", "#bdbea9", "#e7e2cf", "#c5c5b1", "#dedbc7", "#b5bba4", "#e7e2cf"];
 
@@ -50,6 +51,23 @@ class CardDepth {
         ).join("") + "Z" : "";
     }
 
+    static metadata(source) {
+        let metadata = this.artworkMetadata.get(source);
+        if (!metadata) {
+            const document = new DOMParser().parseFromString(
+                decodeURIComponent(source.slice(source.indexOf(",") + 1)), "image/svg+xml");
+            const rect = document.querySelector("svg > rect");
+            if (!rect) { throw new Error("The card SVG has no outer rectangle."); }
+            const radius = Number(rect.getAttribute("rx") || 0);
+            metadata = { radius: radius ? radius + .75 : 0, colors: this.paperColors(rect) };
+            if (this.artworkMetadata.size >= 128) {
+                this.artworkMetadata.delete(this.artworkMetadata.keys().next().value);
+            }
+            this.artworkMetadata.set(source, metadata);
+        }
+        return metadata;
+    }
+
     static attach(element, render = true) {
         if (this.states.has(element)) { return; }
         const image = element.querySelector("img");
@@ -58,16 +76,13 @@ class CardDepth {
         if (inherited) { inherited.remove(); }
         element.classList.remove("has-card-depth");
         try {
-            const source = new DOMParser().parseFromString(
-                decodeURIComponent(image.src.slice(image.src.indexOf(",") + 1)), "image/svg+xml");
-            const rect = source.querySelector("svg > rect");
-            if (!rect) { throw new Error("The card SVG has no outer rectangle."); }
+            const metadata = this.metadata(image.src);
             const id = `card-depth-${this.nextId++}`;
             const svg = this.node("svg", { class: "card-depth-svg", "aria-hidden": "true", focusable: "false" });
             const defs = this.node("defs", {}, svg);
             const freeShadow = this.node("g", {}, svg);
             const faceGroup = this.node("g", { class: "card-depth-face" }, svg);
-            const layers = this.paperColors(rect).map(fill => this.node("path", { fill }, faceGroup));
+            const layers = metadata.colors.map(fill => this.node("path", { fill }, faceGroup));
             const face = this.node("image", { href: image.src }, faceGroup);
             const gradient = this.node("linearGradient", { id: `${id}-light`, x1: 0, y1: 0, x2: 1, y2: 1 }, defs);
             this.node("stop", { offset: 0, "stop-color": "#fff" }, gradient);
@@ -76,9 +91,8 @@ class CardDepth {
             const clip = this.node("clipPath", { id: `${id}-clip`, clipPathUnits: "userSpaceOnUse" }, defs);
             const outline = this.node("path", {}, clip);
             const receiverShadows = this.node("g", { "clip-path": `url(#${id}-clip)` }, svg);
-            const radius = Number(rect.getAttribute("rx") || 0);
             const state = { element, svg, defs, freeShadow, layers, face, light, outline, receiverShadows, id,
-                radius: radius ? radius + .75 : 0, pose: { pitch: 0, yaw: 0, roll: 0, lift: 18 },
+                radius: metadata.radius, pose: { pitch: 0, yaw: 0, roll: 0, lift: 18 },
                 receiverStates: [], shadowEntries: new Map(), nextShadow: 0, hidden: element.style.opacity === "0" };
             this.states.set(element, state);
             element.appendChild(svg);
@@ -535,15 +549,24 @@ class CardDepth {
         state.anchor = { ...state.scene.origin };
         this.anchored.add(state);
         if (!this.listeningForScroll && typeof document.addEventListener === "function") {
-            document.addEventListener("scroll", () => this.followScroll(), { capture: true, passive: true });
+            document.addEventListener("scroll", event => this.followScroll(event.target), { capture: true, passive: true });
             this.listeningForScroll = true;
         }
     }
 
-    static followScroll() {
+    static followScroll(scroller = null) {
+        const positions = new Map();
+        const updates = [];
         for (const state of this.anchored) {
             if (this.states.get(state.element) !== state || !state.scene || !state.scene.table.isConnected) { continue; }
-            const box = state.scene.table.getBoundingClientRect();
+            const table = state.scene.table;
+            // Scrolling a sibling (such as the hand) cannot move this flight's table.
+            if (scroller && scroller !== document &&
+                (typeof scroller.contains !== "function" || !scroller.contains(table))) { continue; }
+            if (!positions.has(table)) { positions.set(table, table.getBoundingClientRect()); }
+            updates.push({ state, box: positions.get(table) });
+        }
+        for (const { state, box } of updates) {
             state.element.style.translate = `${box.left - state.anchor.x}px ${box.top - state.anchor.y}px`;
         }
     }

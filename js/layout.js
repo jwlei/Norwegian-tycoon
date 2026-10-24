@@ -2096,6 +2096,7 @@ class GameLayout {
         element.classList.remove("is-dealing-in");
         clearCardDragPreview(element);
         if (element.onpointercancel) { element.onpointercancel(); }
+        cancelCardDragPreparation(element);
         var previousScrollLeft = element.scrollLeft;
         var shouldCenterAutoSelection = false;
         var autoCenterTurnKey = null;
@@ -2453,6 +2454,7 @@ class GameLayout {
             }
             var pointerUpTime = pointerEventTime(event);
             recordFlickMovement(activeDrag, event.clientX, event.clientY, pointerUpTime);
+            flushCardDragPosition(element);
             handScrollDrag = null;
             element.classList.remove("is-hand-dragging");
             if (activeDrag.didMove) {
@@ -2495,6 +2497,7 @@ class GameLayout {
                 resetCardTilt(activeDrag.cardElement);
             }
             flushDeferredHandUpdate();
+            if (isPlayingTurn && !keepDragPosition) { scheduleCardDragPreparation(element); }
         };
         element.onpointercancel = function () {
             if (handScrollDrag) { restorePointerSelection(handScrollDrag); }
@@ -2507,6 +2510,7 @@ class GameLayout {
             clearDragStyles();
             clearCardDragPreview(element);
             flushDeferredHandUpdate();
+            if (isPlayingTurn) { scheduleCardDragPreparation(element); }
         };
         element.onlostpointercapture = function (event) {
             if (handScrollDrag && handScrollDrag.pointerId == event.pointerId) { element.onpointercancel(); }
@@ -3021,6 +3025,7 @@ class GameLayout {
             element.classList.add("hand-finished");
         }
         element.scrollLeft = previousScrollLeft;
+        if (isPlayingTurn) { scheduleCardDragPreparation(element); }
         if (previousHandOwner === ownerKey) {
             this.animateHandReflow(element, previousCardBounds);
         }
@@ -3083,6 +3088,7 @@ class GameLayout {
     }
     static scrollHandCardsIntoView(element, ownerKey, cardKeys, turnKey) {
         stopCardHandInertia();
+        cancelCardDragPreparation(element);
         var scrollVersion = cardHandScrollVersion;
         window.requestAnimationFrame(function () {
             window.requestAnimationFrame(function () {
@@ -3091,6 +3097,7 @@ class GameLayout {
                     autoScrollEmptyTurnKey != turnKey) {
                     return;
                 }
+                scheduleCardDragPreparation(element);
                 var cardKeySet = new Set(cardKeys);
                 var cards = Array.from(element.querySelectorAll(".game-card"))
                     .filter(card => cardKeySet.has(card.dataset.cardKey));
@@ -3121,6 +3128,7 @@ class GameLayout {
     }
     static centerHandSelection(element, ownerKey, cardKeys, turnKey = null) {
         stopCardHandInertia();
+        cancelCardDragPreparation(element);
         var scrollVersion = cardHandScrollVersion;
         window.requestAnimationFrame(function () {
             window.requestAnimationFrame(function () {
@@ -3128,6 +3136,7 @@ class GameLayout {
                     (turnKey != null && autoSelectedTurnKey != turnKey)) {
                     return;
                 }
+                scheduleCardDragPreparation(element);
                 var selectedCards = Array.from(element.querySelectorAll(
                     ".game-card.is-selected, .game-card.is-exchange-selected"
                 ));

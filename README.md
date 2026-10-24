@@ -91,6 +91,19 @@ node --test
 
 ### Card depth and landing
 
+Multi-card pickup prepares the unchanged SVG drag previews during idle time, selected cards first.
+Preparation stops during active gestures; an unprepared pickup still builds synchronously without
+waiting for an idle callback. Preview dimensions and positions are remeasured at pickup, and artwork,
+style or foil changes invalidate prepared previews. Drag translation, tilt and foil coordinates share
+one display-frame update; release flushes the latest position before play or return. All pointer
+samples still reach flick detection. SVG border metadata and the original full-resolution outline
+samples are bounded caches; seven-layer edges, shadows, foil treatments and motion are unchanged.
+
+Suggested-card auto-scroll keeps its original distance-based duration, easing and comfort margins.
+Preview preparation waits until auto-scroll or hand inertia finishes instead of competing with it.
+Hand scroll events no longer measure or reposition unrelated landing flights; page or table-ancestor
+scrolls still update every flight immediately, with one table measurement before all position writes.
+
 Idle foils use the approved six-second light drift and gentle intensity pulse, without moving the card or changing its tuned colors. Only the foil pseudo-elements animate; dragging, flights, hidden drag sources and reduced-motion preferences disable the idle effect. This uses CSS animation rather than a JavaScript frame loop, but animated gradients still have a repaint cost.
 
 Played cards carry their visible foil light position, eased pattern position and intensity from the hand or drag preview into flight. The light follows the same tilt/settling poses as the card face and blends into the destination's idle phase at the whole play's reveal, including staggered groups. Recreated native table cards share the document's six-second phase so a table refresh does not restart their shimmer. Flight foil keyframes are computed once; no additional frame loop is introduced.
