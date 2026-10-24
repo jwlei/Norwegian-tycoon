@@ -1636,7 +1636,7 @@
             var game = null;
             var setupListener = null;
             try {
-                game = new PresidentGame(null, false);
+                game = new PresidentGame(null, true);
                 // Keep Firebase's room cache alive until connectGame attaches its listener.
                 var setupReady = new Promise((resolve, reject) => {
                     setupListener = resolve;

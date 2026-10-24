@@ -123,12 +123,11 @@ test("foil lists every supplied variant except reverse holo non-rares and defaul
         "Ringer", "Vev", "Regnbue", "Kontrast", "Gullglans", "Rutenett", "Fargespill", "Perlemor", "Stråler"]);
     assert.deepEqual(Array.from(types.Card.foilOptionsByUnlock(), option => option.id),
         ["none", "full-art", "holo", "trainer-full-art", "vstar", "radiant", "vmax",
-            "gallery-v", "v", "gallery-vmax", "galaxy", "rainbow-alt", "rainbow", "gold", "gallery-holo"]);
-    assert.deepEqual([3, 5, 10, 20, 50, 100].map(wins =>
-        types.Card.foilOptions().filter(option => types.Card.foilUnlockWins(option.id) == wins).length
-    ), [3, 3, 2, 2, 2, 2]);
+            "gallery-v", "v", "gallery-vmax", "galaxy", "rainbow-alt", "rainbow", "gallery-holo", "gold"]);
+    assert.deepEqual(Array.from(types.Card.foilOptionsByUnlock(), option =>
+        types.Card.foilUnlockWins(option.id)), [0, 1, 2, 3, 4, 6, 9, 13, 17, 23, 31, 40, 50, 62, 75]);
     assert.equal(types.Card.foilUnlockWins("rainbow"), 50);
-    assert.equal(types.Card.foilUnlockWins("gold"), 100);
+    assert.equal(types.Card.foilUnlockWins("gold"), 75);
     assert.ok(names.every(name => name.length <= 11));
     for (const invalid of [undefined, null, "", "reverse-holo", "<script>"]) {
         assert.equal(types.Card.normalizeFoil(invalid), "none");
@@ -137,6 +136,39 @@ test("foil lists every supplied variant except reverse holo non-rares and defaul
     preferences.set("CardFoil", "radiant");
     assert.equal(types.GameLayout.cardFoil(), "radiant");
     assert.equal(types.GameLayout.cardStyle(), "normal");
+});
+
+test("selected card styles render distinct artwork and unlock in the displayed progression", () => {
+    const { Card } = fixture().types;
+    const selectedStyles = ["onyx-gold", "love-notes", "cherry-blossom", "solar-eclipse", "marble-noir",
+        "stained-glass", "spellbook", "space-explorer", "tarot-moon", "desert-caravan",
+        "butterfly-garden", "astronomy-atlas"];
+    const expectedOrder = ["normal", "monochrome", "minimalist", ...selectedStyles.slice(0, 3), "origami", "gold",
+        ...selectedStyles.slice(3, 6), "crystal", "silver", "holo", "spellbook", "cosmic", "space-explorer",
+        "tarot-moon", "gothic", "parallax", "desert-caravan", "butterfly-garden", "pixel", "neon",
+        "cyberpunk", "glitched", "astronomy-atlas"];
+    const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    const menu = html.slice(html.indexOf('id="dialogCardStyle"'), html.indexOf('id="cardStyleCloseButton"'));
+    const menuOrder = Array.from(menu.matchAll(/data-card-style="([^"]+)"/g), match => match[1]);
+    assert.deepEqual(menuOrder, ["botanical", ...expectedOrder]);
+
+    let previousUnlock = -1;
+    for (const style of expectedOrder) {
+        const unlock = Card.styleUnlockRounds(style);
+        assert.ok(unlock > previousUnlock, `${style} must appear after the previous unlock milestone`);
+        previousUnlock = unlock;
+    }
+    assert.equal(previousUnlock, 150);
+    for (const style of selectedStyles) {
+        assert.equal(Card.normalizeStyle(style), style);
+        const svg = decodeURIComponent(new Card(2, 8).toImageDataUri(style).split(",")[1]);
+        assert.match(svg, /<svg\b/);
+        assert.notEqual(svg, decodeURIComponent(new Card(2, 8).toImageDataUri("normal").split(",")[1]));
+    }
+    const onyx = decodeURIComponent(new Card(1, 8).toImageDataUri("onyx-gold").split(",")[1]);
+    assert.match(onyx, /#171717/);
+    assert.match(onyx, /#d6b45a/);
+    assert.doesNotMatch(onyx, /m33 27 2-8 5 5 5-5 2 8/);
 });
 
 test("approved English-named foil treatments match the selected printed appearance", () => {
@@ -326,7 +358,7 @@ test("the foil selector persists independently, updates previews and never regis
     context.currentPlayerName = null;
     context.localizedMessage = text => text;
     context.readLastUsedPlayerName = () => "Ada";
-    context.playerPresidentWins = 5;
+    context.playerPresidentWins = 12;
     context.playerWinsName = "Ada";
     context.playerWinsLoading = false;
     context.playerWinsError = false;
@@ -352,12 +384,12 @@ test("the foil selector persists independently, updates previews and never regis
     assert.ok(options.children.every(button => button.querySelectorAll(".card-preview").length == 1));
     assert.deepEqual(options.children.slice(0, 5).map(button => button.dataset.cardFoil),
         ["none", "full-art", "holo", "trainer-full-art", "vstar"]);
-    assert.equal(nodes.get("cardFoilWins").textContent, "Your wins: 5");
+    assert.equal(nodes.get("cardFoilWins").textContent, "Your wins: 12");
     const goldRow = options.children.find(button => button.dataset.cardFoil == "gold");
     const gold = goldRow.querySelector(".card-foil-option__select");
     assert.equal(gold.disabled, true);
     assert.equal(gold.querySelector(".card-foil-option__unlock").textContent,
-        "Krever 100 seire");
+        "Krever 75 seire");
     assert.equal(goldRow.disabled, undefined);
     const preview = goldRow.querySelector(".card-preview");
     assert.equal(preview.tabIndex, 0);
@@ -395,9 +427,18 @@ test("foil locks show win requirements, block locked selection and exempt the na
         Card: fixture().types.Card, getPlayerKey: () => "owner"
     });
     vm.runInContext(connection.slice(start, end), context);
+    for (const option of context.Card.foilOptions()) {
+        const required = context.Card.foilUnlockWins(option.id);
+        if (required > 0) {
+            context.playerPresidentWins = required - 1;
+            assert.equal(context.isCardFoilUnlocked(option.id, "Ada"), false, option.id);
+        }
+        context.playerPresidentWins = required;
+        assert.equal(context.isCardFoilUnlocked(option.id, "Ada"), true, option.id);
+    }
+    context.playerPresidentWins = 0;
     assert.equal(context.isCardFoilUnlocked("holo", "Ada"), false);
-    assert.equal(context.isCardFoilUnlocked("holo", "Ada"), false);
-    context.playerPresidentWins = 3;
+    context.playerPresidentWins = 2;
     assert.equal(context.isCardFoilUnlocked("holo", "Ada"), true);
     context.playerWinsLoading = true;
     assert.equal(context.isCardFoilUnlocked("holo", "Ada"), false);
@@ -461,14 +502,18 @@ test("opening the menu refreshes wins by name and stale responses cannot unlock 
     assert.ok(updates >= 5);
 });
 
-test("card styles preserve their order and unlock five at 5 rounds, five at 15 and the remainder at 30", () => {
+test("card styles unlock in the displayed progression from early milestones to 150 rounds", () => {
     const { context, types } = fixture();
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
     const styles = Array.from(html.matchAll(/class="card-style-option" data-card-style="([^"]+)"/g), match => match[1]);
-    assert.deepEqual(styles, ["botanical", "normal", "monochrome", "minimalist", "origami", "gothic",
-        "silver", "gold", "crystal", "holo", "parallax", "cosmic", "pixel", "neon", "cyberpunk", "glitched"]);
-    assert.deepEqual(styles.slice(2).map(style => types.Card.styleUnlockRounds(style)),
-        [5, 5, 5, 5, 5, 15, 15, 15, 15, 15, 30, 30, 30, 30]);
+    const expectedOrder = ["botanical", "normal", "monochrome", "minimalist", "onyx-gold", "love-notes",
+        "cherry-blossom", "origami", "gold", "solar-eclipse", "marble-noir", "stained-glass", "crystal",
+        "silver", "holo", "spellbook", "cosmic", "space-explorer", "tarot-moon", "gothic", "parallax",
+        "desert-caravan", "butterfly-garden", "pixel", "neon", "cyberpunk", "glitched", "astronomy-atlas"];
+    assert.deepEqual(styles, expectedOrder);
+    const milestones = [1, 2, 3, 5, 7, 9, 12, 15, 19, 23, 27, 32, 37, 43, 50, 57, 66, 76, 86,
+        98, 109, 119, 129, 137, 145, 150];
+    assert.deepEqual(styles.slice(2).map(style => types.Card.styleUnlockRounds(style)), milestones);
     Object.assign(context, {
         playerRoundsPlayed: 0, playerWinsName: "Ada", currentPlayerName: "Ada",
         playerWinsLoading: false, playerWinsError: false
@@ -477,9 +522,13 @@ test("card styles preserve their order and unlock five at 5 rounds, five at 15 a
     const start = connection.indexOf("        function isCardStyleUnlocked(");
     const end = connection.indexOf("        function updateCardStyleButtons()", start);
     vm.runInContext(connection.slice(start, end), context);
-    for (const [rounds, count] of [[0, 1], [4, 1], [5, 6], [14, 6], [15, 11], [29, 11], [30, 15]]) {
+    context.playerRoundsPlayed = 0;
+    assert.equal(styles.filter(style => context.isCardStyleUnlocked(style, "Ada")).length, 1);
+    for (const [index, rounds] of milestones.entries()) {
+        context.playerRoundsPlayed = rounds - 1;
+        assert.equal(styles.filter(style => context.isCardStyleUnlocked(style, "Ada")).length, index + 1);
         context.playerRoundsPlayed = rounds;
-        assert.equal(styles.filter(style => context.isCardStyleUnlocked(style, "Ada")).length, count);
+        assert.equal(styles.filter(style => context.isCardStyleUnlocked(style, "Ada")).length, index + 2);
     }
     context.playerWinsLoading = true;
     assert.equal(context.isCardStyleUnlocked("silver", "Ada"), false);
@@ -562,15 +611,15 @@ test("locked card styles disable only selection while their previews stay intera
     assert.equal(rows[1].querySelector(".card-style-option__select").disabled, false);
     assert.equal(rows[2].querySelector(".card-style-option__select").disabled, false);
     assert.equal(rows[3].querySelector(".card-style-option__select").disabled, true);
-    assert.equal(rows[3].querySelector(".card-style-option__unlock").textContent, "Krever 15 runder");
+    assert.equal(rows[3].querySelector(".card-style-option__unlock").textContent, "Krever 12 runder");
     assert.equal(rows[4].querySelector(".card-style-option__select").disabled, true);
     assert.ok(rows.every(row => row.disabled === undefined));
     assert.equal(bound.length, 15);
     assert.ok(bound.every(preview => preview.tabIndex == 0));
     assert.equal(f.nodes.get("cardStyleRounds").textContent, "Dine runder: 5");
-    f.context.playerRoundsPlayed = 30;
+    f.context.playerRoundsPlayed = 150;
     f.context.updateCardStyleButtons();
-    assert.equal(f.nodes.get("cardStyleRounds").textContent, "Dine runder: 30",
+    assert.equal(f.nodes.get("cardStyleRounds").textContent, "Dine runder: 150",
         "A fresh count must update even when existing preview images are reused");
     assert.equal(bound.length, 15);
     assert.equal(rows[4].querySelector(".card-style-option__select").disabled, false);

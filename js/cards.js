@@ -140,7 +140,9 @@ class Card {
         }
         return ["normal", "holo", "gold", "pixel", "parallax", "neon",
             "monochrome", "minimalist", "cyberpunk", "glitched", "cosmic", "origami", "gothic",
-            "silver", "crystal"].includes(style)
+            "silver", "crystal", "onyx-gold", "love-notes", "cherry-blossom", "solar-eclipse",
+            "marble-noir", "stained-glass", "spellbook", "space-explorer", "tarot-moon",
+            "desert-caravan", "butterfly-garden", "astronomy-atlas"].includes(style)
             ? style : "normal";
     }
     static hasAllAppearanceUnlocks(playerName, playerKey = "") {
@@ -150,9 +152,13 @@ class Card {
     static styleUnlockRounds(style) {
         return {
             normal: 0, botanical: 0,
-            monochrome: 5, minimalist: 5, origami: 5, gothic: 5, silver: 5,
-            gold: 15, crystal: 15, holo: 15, parallax: 15, cosmic: 15,
-            pixel: 30, neon: 30, cyberpunk: 30, glitched: 30
+            monochrome: 1, minimalist: 2, "onyx-gold": 3, "love-notes": 5,
+            "cherry-blossom": 7, origami: 9, gold: 12, "solar-eclipse": 15,
+            "marble-noir": 19, "stained-glass": 23, crystal: 27, silver: 32,
+            holo: 37, spellbook: 43, cosmic: 50, "space-explorer": 57,
+            "tarot-moon": 66, gothic: 76, parallax: 86, "desert-caravan": 98,
+            "butterfly-garden": 109, pixel: 119, neon: 129, cyberpunk: 137,
+            glitched: 145, "astronomy-atlas": 150
         }[style] ?? null;
     }
     static foilOptions() {
@@ -180,26 +186,25 @@ class Card {
     static foilUnlockWins(foil) {
         return {
             none: 0,
-            holo: 3,
-            galaxy: 20,
-            v: 10,
-            vmax: 5,
-            vstar: 5,
-            "full-art": 3,
+            holo: 2,
+            galaxy: 31,
+            v: 17,
+            vmax: 9,
+            vstar: 4,
+            "full-art": 1,
             "trainer-full-art": 3,
-            radiant: 5,
-            "rainbow-alt": 50,
-            "gallery-holo": 100,
-            "gallery-v": 10,
-            "gallery-vmax": 20,
+            radiant: 6,
+            "rainbow-alt": 40,
+            "gallery-holo": 62,
+            "gallery-v": 13,
+            "gallery-vmax": 23,
             rainbow: 50,
-            gold: 100
+            gold: 75
         }[foil] ?? null;
     }
     static foilOptionsByUnlock() {
-        // Fixed English alphabetical order within each unlock tier, independent of UI language.
         const order = ["none", "full-art", "holo", "trainer-full-art", "vstar", "radiant", "vmax",
-            "gallery-v", "v", "gallery-vmax", "galaxy", "rainbow-alt", "rainbow", "gold", "gallery-holo"];
+            "gallery-v", "v", "gallery-vmax", "galaxy", "rainbow-alt", "rainbow", "gallery-holo", "gold"];
         const options = Card.foilOptions();
         return order.map(id => options.find(option => option.id == id));
     }
@@ -259,7 +264,19 @@ class Card {
             gothic: { color: isRed ? "#f4a1ab" : "#e5ddd0", paper: ["#30232d", "#120f18"], edge: "#b69e78", inner: "#685565" },
             silver: { color: isRed ? "#823447" : "#263346", paper: ["#f8fbff", "#aab8c8"], edge: "#65788d", inner: "#8fa0b3" },
             crystal: { color: isRed ? "#8a2867" : "#1a427a", paper: ["#f0fdff", "#cad8f8"], edge: "#749cbf", inner: "#a5bde3" },
-            botanical: { color: isRed ? "#c7a85e" : "#92d98c", paper: ["#143b2a", "#071c16"], edge: "#b8a15b", inner: "#3c7048" }
+            botanical: { color: isRed ? "#c7a85e" : "#92d98c", paper: ["#143b2a", "#071c16"], edge: "#b8a15b", inner: "#3c7048" },
+            "onyx-gold": { color: "#d6b45a", paper: ["#171717", "#090909"], edge: "#aa8439", inner: "#634d27" },
+            "love-notes": { color: isRed ? "#bd365e" : "#763753", paper: ["#fff4f3", "#f4dfe8"], edge: "#c77a91", inner: "#e8b4c2" },
+            "cherry-blossom": { color: isRed ? "#b83b62" : "#465747", paper: ["#fff5f3", "#f1e3e3"], edge: "#b98c91", inner: "#dfc4c5" },
+            "solar-eclipse": { color: isRed ? "#f0a36c" : "#d5c4a8", paper: ["#1c1b20", "#0d0d11"], edge: "#a65d40", inner: "#52382e" },
+            "marble-noir": { color: isRed ? "#d6d9df" : "#aeb8c7", paper: ["#24262b", "#111318"], edge: "#8b929e", inner: "#4b505b" },
+            "stained-glass": { color: isRed ? "#e96e64" : "#78c3ae", paper: ["#1d2830", "#101820"], edge: "#c8aa63", inner: "#526b69" },
+            spellbook: { color: isRed ? "#e8a7ca" : "#c6b0ef", paper: ["#28213a", "#171425"], edge: "#a78bcc", inner: "#5c4c74" },
+            "space-explorer": { color: isRed ? "#ed8c90" : "#8acbe8", paper: ["#17233c", "#0c1428"], edge: "#7899cb", inner: "#394c72" },
+            "tarot-moon": { color: isRed ? "#e2b2c1" : "#ddc78f", paper: ["#28243d", "#171626"], edge: "#b99c6c", inner: "#5e526c" },
+            "desert-caravan": { color: isRed ? "#ad493d" : "#665040", paper: ["#f4dfba", "#dec291"], edge: "#a67850", inner: "#c49a63" },
+            "butterfly-garden": { color: isRed ? "#b95478" : "#566d91", paper: ["#f4edf2", "#e4e5ef"], edge: "#9380a7", inner: "#c3b5cb" },
+            "astronomy-atlas": { color: isRed ? "#e1a56c" : "#a8c3e3", paper: ["#19263b", "#101827"], edge: "#c7a761", inner: "#50617a" }
         }[style] || null;
         const palette = theme || { color: isRed ? "#ad3447" : "#193b35", paper: ["#fffdf6", "#f3ead8"], edge: "#cbbd9f", inner: "#d8cba9" };
         const color = palette.color;
@@ -382,7 +399,62 @@ class Card {
                 <path d="M40 20 27 43l13 42 13-42Z" fill="#ffffff" fill-opacity=".45"/>
                 <path d="m15 41 12 2-6 42 19 18-13-60 13-23m25 21-12 2 6 42-19 18 13-60-13-23" fill="#a8b8ef" fill-opacity=".22"/>
                 <path d="m40 20 25 21-25 44-25-44Zm0 65v18" fill="none"/>
-                </g><path d="M64 23v10m-5-5h10M12 89v7m-3-3.5h6" stroke="#ffffff" stroke-width="1.5"/>`
+                </g><path d="M64 23v10m-5-5h10M12 89v7m-3-3.5h6" stroke="#ffffff" stroke-width="1.5"/>`,
+            "onyx-gold": `<g fill="none" stroke="${palette.edge}" stroke-width="1.1" opacity=".65">
+                <circle cx="40" cy="60" r="29"/><circle cx="40" cy="60" r="25"/>
+                <path d="M12 39q8-5 12-13m44 13q-8-5-12-13M12 81q8 5 12 13m44-13q-8 5-12 13"/>
+                </g><circle cx="40" cy="60" r="18" fill="${palette.edge}" opacity=".1"/>`,
+            "love-notes": `<g fill="#d36e89" opacity=".2">
+                <path d="M20 48c-9-6-2-16 5-9 7-7 14 3 5 9l-5 5Z"/>
+                <path d="M56 75c-8-5-2-14 4-8 6-6 12 3 4 8l-4 4Z"/>
+                <path d="M40 38c-6-4-1-11 4-6 5-5 10 2 4 6l-4 3Z"/>
+                </g>`,
+            "cherry-blossom": `<g fill="none" stroke="${palette.edge}" stroke-width="2" opacity=".38">
+                <path d="M8 87q19-7 25-26t19-23q8-4 19 0"/>
+                </g><g fill="#d98ca2" opacity=".68">
+                <path d="M23 55c-7-2-6-9-1-10-2-6 5-8 8-3 6-2 9 5 4 9 1 6-7 8-11 4Z"/>
+                <path d="M57 44c-6-2-5-8-1-9-2-5 4-7 7-3 5-2 8 4 3 7 1 5-6 7-9 5Z"/>
+                <circle cx="30" cy="49" r="2" fill="#f5d49a"/><circle cx="64" cy="42" r="1.8" fill="#f5d49a"/>
+                </g>`,
+            "solar-eclipse": `<circle cx="40" cy="59" r="25" fill="${palette.edge}" opacity=".16"/>
+                <circle cx="43" cy="57" r="17" fill="${palette.paper[0]}" opacity=".55"/>
+                <circle cx="36" cy="54" r="17" fill="${palette.paper[1]}"/>
+                <circle cx="36" cy="54" r="23" fill="none" stroke="${palette.edge}" stroke-width="1.4" opacity=".62"/>`,
+            "marble-noir": `<g fill="none" stroke="${palette.edge}" stroke-width="2" opacity=".27">
+                <path d="M4 41q12-9 15 3t14 1q8-4 8-15t14-8q8 2 21-8"/>
+                <path d="M4 91q14-12 20 0t16 0q8-12 17-2t19-5"/>
+                </g><path d="M13 25q12 4 18 15" fill="none" stroke="#fff" stroke-width=".8" opacity=".2"/>`,
+            "stained-glass": `<g stroke="${palette.edge}" stroke-width="1.3" opacity=".58">
+                <path d="M16 89V48a24 24 0 0 1 48 0v41Z" fill="#d8a750" fill-opacity=".13"/>
+                <path d="M40 25v64M17 57h46M25 34l30 48M55 34 25 82" fill="none"/>
+                <path d="M18 82h44" fill="none" stroke-width="2"/>
+                </g>`,
+            spellbook: `<g opacity=".24" stroke="${palette.edge}" stroke-width="1.4" stroke-linejoin="round">
+                <path d="M12 40q13-7 28 1 15-8 28-1v39q-15-6-28 2-13-8-28-2Z" fill="${palette.inner}"/>
+                <path d="M40 41v40M19 49q9-3 16 1m-16 7q9-3 16 1m13-8q8-4 16-1m-16 8q8-4 16-1" fill="none"/>
+                <path d="M59 24a11 11 0 1 0 10 16 9 9 0 1 1-10-16Z" fill="${palette.edge}" stroke="none"/>
+                </g>`,
+            "space-explorer": `<g fill="none" stroke="${palette.edge}" opacity=".55">
+                <ellipse cx="40" cy="59" rx="29" ry="12" transform="rotate(-28 40 59)" stroke-width="1.4"/>
+                <circle cx="40" cy="59" r="16" fill="${palette.inner}" fill-opacity=".28" stroke-width="1.2"/>
+                <circle cx="62" cy="46" r="3" fill="${palette.edge}" stroke="none"/>
+                </g><circle cx="19" cy="35" r="1.5" fill="${palette.edge}"/><circle cx="61" cy="84" r="1" fill="${palette.edge}"/>`,
+            "tarot-moon": `<path d="M46 31a23 23 0 1 0 16 39 25 25 0 1 1-16-39Z" fill="${palette.edge}" opacity=".48"/>
+                <path d="m24 36 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5Zm38 39 1.2 3 3 1.2-3 1.2-1.2 3-1.2-3-3-1.2 3-1.2Z" fill="${palette.edge}" opacity=".75"/>`,
+            "desert-caravan": `<path d="M5 76q17-15 32-4 15-10 38 3v29H5Z" fill="${palette.edge}" opacity=".23"/>
+                <path d="M5 88q20-10 37 1 13-8 33-1" fill="none" stroke="${palette.edge}" stroke-width="1.5" opacity=".65"/>
+                <circle cx="57" cy="34" r="10" fill="#e5ae58" opacity=".46"/>
+                <g fill="${palette.color}" opacity=".65"><path d="M20 70q1-8 5-8 3 0 4 5l4 2v3h-5v-2h-4v2h-5v-2Z"/>
+                <path d="m24 63 1-5 2 5m1 8v5m5-5v5"/></g>`,
+            "butterfly-garden": `<g fill="${palette.edge}" opacity=".35">
+                <path d="M40 57C34 38 15 32 16 46q1 11 19 14c-17 3-21 15-12 17q12 1 17-15c5 16 17 16 18 6 1-8-9-12-16-9 16-4 21-15 13-19-8-4-13 6-15 17Z"/>
+                </g><path d="M40 42v31m-1-20-5-5m6 11 5-5" fill="none" stroke="${palette.color}" stroke-width="1.3" opacity=".6"/>`,
+            "astronomy-atlas": `<g fill="none" stroke="${palette.edge}" opacity=".58">
+                <circle cx="40" cy="58" r="7" fill="${palette.inner}" fill-opacity=".45"/>
+                <ellipse cx="40" cy="58" rx="26" ry="11" transform="rotate(-35 40 58)" stroke-width="1.2"/>
+                <ellipse cx="40" cy="58" rx="26" ry="11" transform="rotate(35 40 58)" stroke-width="1.2"/>
+                <circle cx="63" cy="43" r="2.4" fill="${palette.edge}" stroke="none"/>
+                </g><path d="M20 31v7m-3.5-3.5h7M59 79v6m-3-3h6" stroke="${palette.edge}" stroke-width="1.1" opacity=".7"/>`
         }[style] || "";
         const glow = style === "neon"
             ? `<defs><filter id="neon" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`

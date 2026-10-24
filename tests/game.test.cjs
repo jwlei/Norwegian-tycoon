@@ -1851,7 +1851,7 @@ test("AMOLED forces dark mode and a black browser bar, then restores the preferr
     assert.equal(storage.get("norwegian-tycoon-theme"), "dark");
 });
 
-test("quick play requires a count, uses the saved or localized name and starts a private bot game", async () => {
+test("quick play requires a count, uses the saved or localized name and starts a public bot game", async () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const start = source.indexOf("        var quickPlayPlayerCount");
     const end = source.indexOf("        var publicLobbies", start);
@@ -1868,6 +1868,7 @@ test("quick play requires a count, uses the saved or localized name and starts a
         const games = [];
         let stored = null;
         let cached = null;
+        const listings = new Map();
         const listeners = new Set();
         const clone = value => JSON.parse(JSON.stringify(value));
         const room = {
@@ -1899,7 +1900,11 @@ test("quick play requires a count, uses the saved or localized name and starts a
         const { PresidentGame, PresidentPlayer } = loadGame(null, {
             getPlayerKey: preferences.getPlayerKey,
             firebase: { database: () => ({
-                ref: path => path.startsWith("boms_1/") ? room : { remove: () => Promise.resolve() }
+                ref: path => path.startsWith("boms_1/") ? room : {
+                    remove: () => { listings.delete(path); return Promise.resolve(); },
+                    set: value => { listings.set(path, value); return Promise.resolve(); },
+                    onDisconnect: () => ({ remove() {} })
+                }
             }) }
         });
         let connections = 0;
@@ -1942,7 +1947,13 @@ test("quick play requires a count, uses the saved or localized name and starts a
         await button.click();
         await pending;
         assert.equal(games.length, 1);
-        assert.equal(games[0].isPublic, false);
+        assert.equal(games[0].isPublic, true);
+        assert.equal(stored.isPublic, true);
+        const listing = Array.from(listings.values()).find(value => value.id === games[0].id);
+        assert.ok(listing, "Quick play appears in the public lobby list");
+        assert.equal(listing.players, count);
+        assert.equal(listing.bots, count - 1);
+        assert.equal(listing.waiting, false);
         assert.equal(games[0].status, "S");
         assert.equal(games[0].players.length, count);
         const humans = games[0].players.filter(player => player.playerKey !== "PC");

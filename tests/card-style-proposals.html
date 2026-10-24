@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Card style proposals</title>
+    <style>
+        :root { color-scheme: dark; font: 16px/1.5 system-ui, sans-serif; background: #101b1d; color: #edf4f1; }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 28px; }
+        main { max-width: 1320px; margin: auto; }
+        h1, h2, p { margin-top: 0; }
+        h1 { font-size: clamp(1.7rem, 4vw, 2.4rem); }
+        h2 { margin-bottom: 16px; font-size: 1.3rem; }
+        .intro { max-width: 760px; color: #c0d0ca; }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0; }
+        button { font: inherit; }
+        .filter, .proposal-card__keep {
+            border: 1px solid #526964;
+            border-radius: 8px;
+            background: #192725;
+            color: inherit;
+            cursor: pointer;
+        }
+        .filter { padding: 8px 13px; }
+        .filter[aria-pressed="true"] { border-color: #d7bd79; background: #35301f; }
+        .selection { min-height: 1.5em; margin: 12px 0 24px; color: #e6d29a; }
+        .section { margin: 32px 0; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
+        .style-card { min-width: 0; padding: 10px; border: 1px solid #304541; border-radius: 12px; background: #162220; }
+        .style-card[hidden] { display: none; }
+        .card-preview {
+            position: relative;
+            width: min(100%, 132px);
+            aspect-ratio: 2 / 3;
+            margin: 0 auto 10px;
+            overflow: hidden;
+            border-radius: 11%;
+            background: #f3ead8;
+            box-shadow: 0 5px 14px #0008;
+            isolation: isolate;
+        }
+        .card-preview > img { position: relative; z-index: 0; display: block; width: 100%; height: 100%; object-fit: fill; }
+        .style-card h3 { margin: 0 0 2px; font-size: .94rem; line-height: 1.25; }
+        .style-card p { min-height: 2.6em; margin: 0; color: #a9bbb5; font-size: .76rem; line-height: 1.35; }
+        .style-card__tag { display: inline-block; margin: 0 0 5px; color: #d8c68f; font-size: .68rem; font-weight: 650; }
+        .proposal-card__keep { width: 100%; margin-top: 9px; padding: 6px 8px; font-size: .82rem; }
+        .proposal-card__keep[aria-pressed="true"] { border-color: #d7bd79; background: #42391f; color: #ffe6a3; }
+        .card-preview--pixel > img { image-rendering: pixelated; }
+        .card-preview--holo::after, .card-preview--parallax::after {
+            position: absolute;
+            inset: 2%;
+            z-index: 1;
+            border-radius: 10%;
+            content: "";
+            pointer-events: none;
+        }
+        .card-preview--holo::after { border-color: #fa95da; background: linear-gradient(115deg, transparent 20%, #ff5aaa55 34%, #ffe87155 46%, #6bffd055 60%, #72aeff55 72%, transparent 86%); }
+        .card-preview--parallax::after { background: repeating-linear-gradient(135deg, transparent 0 12px, #708cff55 13px 14px, transparent 15px 25px); }
+        .card-preview--neon { box-shadow: 0 0 12px #55edff88, 0 0 22px #ff60c866; }
+        .card-preview--gold { box-shadow: 0 0 12px #f0be3c88; }
+        @media (max-width: 520px) {
+            body { padding: 16px; }
+            .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+            .style-card { padding: 8px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { scroll-behavior: auto !important; }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Card style proposals</h1>
+    <p class="intro">Browse 50 original illustrated card themes alongside the current styles. The proposals use uncluttered faces, a restrained frame and one clear central motif. Nothing here changes the game. Mark the proposals you would keep.</p>
+    <nav class="toolbar" aria-label="Filter card styles">
+        <button class="filter" type="button" data-filter="all" aria-pressed="true">All styles</button>
+        <button class="filter" type="button" data-filter="existing" aria-pressed="false">Existing</button>
+        <button class="filter" type="button" data-filter="proposal" aria-pressed="false">New proposals</button>
+    </nav>
+    <output id="shortlist" class="selection" aria-live="polite">No new proposals selected.</output>
+    <section class="section" aria-labelledby="existing-heading">
+        <h2 id="existing-heading">Existing styles (16)</h2>
+        <div id="existing" class="grid"></div>
+    </section>
+    <section class="section" aria-labelledby="proposals-heading">
+        <h2 id="proposals-heading">New card themes (50)</h2>
+        <div id="proposals" class="grid"></div>
+    </section>
+</main>
+<script src="../js/cards.js"></script>
+<script>
+    const existingStyles = [
+        ["normal", "Klassisk"], ["botanical", "Grønn tåke"], ["monochrome", "Monochrome"],
+        ["minimalist", "Minimalistisk"], ["origami", "Origami"], ["gothic", "Gotisk"],
+        ["silver", "Sølv"], ["gold", "Gull"], ["crystal", "Krystall"], ["holo", "Holo"],
+        ["parallax", "Parallax"], ["cosmic", "Kosmisk"], ["pixel", "Pixel Art"],
+        ["neon", "Neon"], ["cyberpunk", "Cyberpunk"], ["glitched", "Glitched"]
+    ];
+    const themeProposals = [
+        { id: "onyx-gold", name: "Onyx & Gold", description: "A black lacquer card with a restrained gold medallion and gilded corners.", bg: "#101011", ink: "#e2be65", art: '<circle cx="40" cy="48" r="21" fill="#d6b45a" fill-opacity=".12" stroke="currentColor" stroke-width="2"/><circle cx="40" cy="48" r="17" fill="none" stroke="currentColor" stroke-width="1"/><path d="M22 39q6-4 9-10m27 10q-6-4-9-10M22 57q6 4 9 10m27-10q-6 4-9 10" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="40" cy="48" r="2" fill="#fff0b0"/>' },
+        { id: "rose-quartz", name: "Rose Quartz", description: "A cut gemstone centerpiece with translucent angular facets and mineral veins.", bg: "#32212d", ink: "#f1b9d1", art: '<path d="m40 25 17 13-4 23-13 12-13-12-4-23Z" fill="#cd8dad" fill-opacity=".25" stroke="currentColor" stroke-width="1.7"/><path d="m40 25 1 48m16-35-17 14-17-14m4 23 13-9 13 9m-26-23 26 0" fill="none" stroke="currentColor" stroke-width="1"/><path d="m29 42 8-10 2 19Z" fill="#fff" fill-opacity=".25"/>' },
+        { id: "arctic-glass", name: "Arctic Glass", description: "Frosted ice panes, sharp snow crystals and cracked-glass edges.", bg: "#d8eff2", ink: "#397587", art: '<path d="M40 25v48m-21-24h42M25 33l30 32M55 33 25 65M40 25l-5 8m5-8 5 8M40 73l-5-8m5 8 5-8M19 49l8-5m-8 5 8 5m34-5-8-5m8 5-8 5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 28 5-5 5 5-5 5Zm39 41 4-4 4 4-4 4Z" fill="none" stroke="currentColor"/>' },
+        { id: "emerald-velvet", name: "Emerald Velvet", description: "A dark velvet field framed by curling leaves and a jeweled crest.", bg: "#102a20", ink: "#9fc880", art: '<path d="M40 64C17 53 25 34 40 29c15 5 23 24 0 35Zm0-34v37M39 43c-12-10-20-2-14 5m16 3c12-10 20-2 14 5M31 34c-8-10-16-5-13 2m31-2c8-10 16-5 13 2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="m40 22 3 5-3 5-3-5Z" fill="#e6d196"/>' },
+        { id: "sapphire-night", name: "Sapphire Night", description: "A midnight sea with layered wave crests and a polished sapphire.", bg: "#0f1c3d", ink: "#73a9f3", art: '<path d="M15 48q8-12 16 0t16 0 18 0M14 57q9-12 18 0t18 0 17 0M18 67q8-10 16 0t16 0 14 0" fill="none" stroke="currentColor" stroke-width="2"/><path d="m40 25 9 10-9 10-9-10Z" fill="#4a78cf" fill-opacity=".55" stroke="#c6dcff" stroke-width="1.3"/><circle cx="40" cy="35" r="2" fill="#fff"/>' },
+        { id: "amethyst-mist", name: "Amethyst Mist", description: "A cluster of tall amethyst crystals rising through a violet haze.", bg: "#24172f", ink: "#c4a0ed", art: '<path d="m20 67 3-23 8-11 8 11v23Zm17 0 3-34 8-14 8 14 3 34Zm-20 0h44" fill="#9574c5" fill-opacity=".24" stroke="currentColor" stroke-width="1.5"/><path d="m23 44 8 4 8-4m1-11 8 7 8-7m-19 34 3-23m0 23 3-34" fill="none" stroke="#f0ddff" stroke-width="1"/>' },
+        { id: "ruby-smoke", name: "Ruby Smoke", description: "A faceted ruby sealed in a plume of dark, curling smoke.", bg: "#24161d", ink: "#e8797a", art: '<path d="M19 41c-6-9 2-15 10-13m22 1c11-7 17 4 8 11m-40 21c-6 8 0 14 9 12m31-10c9 10 17 0 10-8" fill="none" stroke="#b9a3a6" stroke-opacity=".6" stroke-width="2"/><path d="m40 31 13 9-5 20-8 8-8-8-5-20Z" fill="#bd263d" fill-opacity=".55" stroke="currentColor" stroke-width="2"/><path d="m27 40 13 7 13-7m-13-9v37" fill="none" stroke="#ffc2af"/>' },
+        { id: "mother-of-pearl", name: "Mother of Pearl", description: "A sculpted shell with radiating ribs and an iridescent pearl.", bg: "#ece4dc", ink: "#a87994", art: '<path d="M20 61q2-27 20-36 18 9 20 36-20 17-40 0Z" fill="#d6bacb" fill-opacity=".3" stroke="currentColor" stroke-width="1.5"/><path d="M40 26v40M40 29 25 58m15-29 15 29M40 35 30 65m10-30 10 30M40 31 20 61m20-30 20 30" fill="none" stroke="#f8f1eb" stroke-width="1.3"/><circle cx="40" cy="54" r="7" fill="#f8f1df" stroke="currentColor"/>' },
+        { id: "copper-patina", name: "Copper Patina", description: "An aged instrument dial with gear teeth, rivets and verdigris.", bg: "#193832", ink: "#d59a67", art: '<circle cx="40" cy="50" r="19" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="40" cy="50" r="12" fill="none" stroke="#72a999" stroke-width="3"/><circle cx="40" cy="50" r="4" fill="#d59a67"/><path d="M40 27v7m0 32v7M17 50h7m32 0h7M24 34l5 5m22 22 5 5m0-32-5 5m-22 22-5 5" stroke="currentColor" stroke-width="3"/><path d="m40 50 8-9" stroke="#f1cc8d" stroke-width="2"/>' },
+        { id: "champagne-satin", name: "Champagne Satin", description: "A refined sunburst fan, silk-like folds and pearl accents.", bg: "#f0e3c8", ink: "#a78343", art: '<path d="M18 55q22-35 44 0M22 56l18-25 18 25M28 57l12-26 12 26M18 60h44M22 65h36" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="40" cy="55" r="3" fill="#fff8e8" stroke="currentColor"/><path d="M24 73h32m-27 4h22" stroke="#c5ad7d"/>' },
+        { id: "navy-silver", name: "Navy & Silver", description: "A navigator's compass rose with silver bearings and star points.", bg: "#16263b", ink: "#c1d0dc", art: '<circle cx="40" cy="50" r="22" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="40" cy="50" r="16" fill="none" stroke="#71869a"/><path d="m40 27 5 18 17 5-17 5-5 18-5-18-17-5 17-5Z" fill="#8da6bb" fill-opacity=".35" stroke="currentColor" stroke-width="1.3"/><path d="M40 31v38m-19-19h38" stroke="#fff" stroke-opacity=".65"/>' },
+        { id: "ivory-forest", name: "Ivory & Forest", description: "An engraved evergreen tree with layered boughs and rootwork.", bg: "#eee9d8", ink: "#426a4c", art: '<path d="m40 24-13 16h8L23 52h12L21 65h38L45 52h12L45 40h8Z" fill="#577d58" fill-opacity=".24" stroke="currentColor" stroke-width="1.5"/><path d="M40 29v43m-8-28 8 6 8-6m-14 17 6 5 8-5M29 72q11-7 22 0" fill="none" stroke="currentColor" stroke-width="1.4"/>' },
+        { id: "burgundy-blush", name: "Burgundy & Blush", description: "A dramatic rose bloom with layered petals on a wine-dark field.", bg: "#381c2b", ink: "#e0a0ae", art: '<path d="M40 40c-13-15-23 2-8 11-15 4-5 21 8 10 13 11 23-6 8-10 15-9 5-26-8-11Z" fill="#a93e5d" stroke="currentColor" stroke-width="1.4"/><path d="M40 40c-8-8-13 3-4 7-10 3-3 13 4 7 7 6 14-4 4-7 9-6 4-15-4-7Zm0 21q-3 13-12 15m12-9q7-8 14-3" fill="none" stroke="#f2cfca" stroke-width="1.3"/>' },
+        { id: "teal-brass", name: "Teal & Brass", description: "A brass astrolabe with rotating rings around a teal star.", bg: "#12373a", ink: "#d0b16b", art: '<circle cx="40" cy="50" r="22" fill="none" stroke="currentColor" stroke-width="1.5"/><ellipse cx="40" cy="50" rx="10" ry="22" fill="none" stroke="#85b9ae" transform="rotate(35 40 50)"/><ellipse cx="40" cy="50" rx="10" ry="22" fill="none" stroke="currentColor" transform="rotate(-35 40 50)"/><path d="m40 36 4 10 10 4-10 4-4 10-4-10-10-4 10-4Z" fill="#83c1b5" stroke="currentColor"/>' },
+        { id: "slate-rose-gold", name: "Slate & Rose Gold", description: "An ornamental rose medallion with fine copper-pink engraving.", bg: "#36363b", ink: "#d59a91", art: '<circle cx="40" cy="50" r="22" fill="none" stroke="currentColor"/><circle cx="40" cy="50" r="18" fill="none" stroke="#d5c7bd" stroke-dasharray="2 2"/><path d="M40 36c-11-9-16 3-5 9-12 4-3 17 5 9 8 8 17-5 5-9 11-6 6-18-5-9Z" fill="#bd7778" fill-opacity=".65" stroke="currentColor"/><path d="M40 54q-2 16-12 21m12-13q8-8 14-2" fill="none" stroke="#e8b8a3"/>' },
+        { id: "opal-shift", name: "Opal Shift", description: "A luminous opal cabochon with layered color bands and bright inclusions.", bg: "#dcdde5", ink: "#7b76a8", art: '<ellipse cx="40" cy="50" rx="20" ry="26" fill="#72b9b1" fill-opacity=".3" stroke="#7772a2" stroke-width="1.5"/><path d="M22 43q18-14 36 0M20 50q20-13 40 0M22 58q18-10 36 0" fill="none" stroke="#d28bb6" stroke-width="3"/><path d="m29 38 3 3m16 18 3 3m-18-1 2-2m15-23 2 2" stroke="#fff" stroke-width="2"/>' },
+        { id: "aurora-borealis", name: "Aurora Borealis", description: "Curtains of northern light sweep behind a field of polar stars.", bg: "#102632", ink: "#83d7ba", art: '<path d="M15 54q12-36 24 0t26 0M14 62q13-30 26 0t26 0M18 69q11-22 22 0t22 0" fill="none" stroke="#70d6ae" stroke-width="3" opacity=".75"/><path d="M40 24v9m-4-5h8m12 8v5m-2-2h4M25 38v5m-2-2h4" stroke="#e6f5d5" stroke-width="1.5"/><circle cx="40" cy="48" r="3" fill="#d8c6f5"/>' },
+        { id: "love-notes", name: "Love Notes", description: "A mirrored Love Queen with flowing rose hair, a heart crown, patterned gown and a shower of tiny hearts.", bg: "#fff0f1", ink: "#bd496c", court: true, art: '<path d="m40 19-4 7-8-4 3 10 9 4 9-4 3-10-8 4Z" fill="#c93e65" stroke="#7f304c" stroke-width="1.2"/><circle cx="40" cy="38" r="6" fill="#f4c6aa" stroke="#7f304c" stroke-width="1"/><path d="M34 38q-3-10 6-11t6 11l6 11-6-2-6-6-6 6-6 2Z" fill="#a84e72" stroke="#7f304c" stroke-width="1.2"/><path d="M32 30q-7 1-7 10l7-2m16-8q7 1 7 10l-7-2" fill="none" stroke="#d95d7d" stroke-width="1.7"/><path d="M29 49q11-6 22 0l5 8-10-3-6 5-6-5-10 3Z" fill="#df5473" stroke="#7f304c" stroke-width="1.2"/><path d="m30 49 5 6-5 4m20-10-5 6 5 4m-12-7 3 4 3-4" fill="none" stroke="#fff0d5" stroke-width="1.2"/><path d="M21 39q-4-6 1-8 5 1 2 5m35 9q5-7 9-2-1 5-6 4M25 53q-4-6 1-8 5 1 2 5m27 6q5-7 9-2-1 5-6 4" fill="none" stroke="#bd496c" stroke-width="1.3"/><path d="M25 58q15 5 30 0" fill="none" stroke="#d69a57" stroke-width="1"/><path d="m19 27 2 3 3 1-3 1-2 3-1-3-3-1 3-1Zm42 21 2 3 3 1-3 1-2 3-1-3-3-1 3-1Z" fill="#cf4366"/>' },
+        { id: "heartbeat", name: "Heartbeat", description: "A graphic ECG pulse cuts through a dark medical-monitor grid.", bg: "#161d24", ink: "#ff5568", art: '<path d="M16 49h12l5-12 9 28 7-20 5 8h11" fill="none" stroke="currentColor" stroke-width="3"/><path d="M18 33h44M18 67h44M27 27v47m26-47v47" stroke="#70808c" stroke-opacity=".45" stroke-width=".7"/><circle cx="40" cy="50" r="24" fill="none" stroke="#9e3445" stroke-opacity=".6"/>' },
+        { id: "cherry-blossom", name: "Cherry Blossom", description: "A dark branching cherry tree covered with five-petal blossoms.", bg: "#f2e4e5", ink: "#89536b", art: '<path d="M40 70q-3-17 0-30m0 15q-11-13-21-15m21 8q12-12 22-15m-22 5q-6-11-13-13m13 17q9-8 14-7" fill="none" stroke="#493548" stroke-width="2"/><g fill="#e49bb4" stroke="#a56b88"><circle cx="19" cy="39" r="4"/><circle cx="59" cy="34" r="4"/><circle cx="27" cy="20" r="4"/><circle cx="54" cy="48" r="4"/><circle cx="40" cy="31" r="4"/></g><g fill="#fff0e5"><circle cx="19" cy="39" r="1.5"/><circle cx="59" cy="34" r="1.5"/><circle cx="27" cy="20" r="1.5"/><circle cx="54" cy="48" r="1.5"/><circle cx="40" cy="31" r="1.5"/></g>' },
+        { id: "sakura-gold", name: "Sakura Gold", description: "A Japanese fan and drifting petals framed by gold cloud curls.", bg: "#f4e5e1", ink: "#ac8060", art: '<path d="M25 58q15-29 30 0Zm0 0h30m-22-18 4 18m7-18-4 18" fill="#e5a4b1" fill-opacity=".32" stroke="#ad795a" stroke-width="1.3"/><path d="M17 34q8-8 13 0-5 5-11 1m35 12q8-8 13 0-5 5-11 1m-35 28q8-8 13 0-5 5-11 1" fill="none" stroke="#c4a157" stroke-width="1.5"/><path d="M40 28q-5-6 0-9 5 3 0 9Zm18 28q-5-6 0-9 5 3 0 9Z" fill="#d78199"/>' },
+        { id: "mediterranean", name: "Mediterranean", description: "A cobalt-and-terracotta ceramic tile with repeating eight-point stars.", bg: "#f3eee0", ink: "#28548a", art: '<path d="m40 25 6 10 12-2-2 12 10 5-10 6 2 12-12-2-6 10-6-10-12 2 2-12-10-6 10-5-2-12 12 2Z" fill="#d8805e" fill-opacity=".7" stroke="currentColor" stroke-width="1.6"/><path d="m40 31 4 13 12 6-12 6-4 12-4-12-12-6 12-6Z" fill="#fff" fill-opacity=".75" stroke="currentColor"/><circle cx="40" cy="50" r="4" fill="#d8805e"/>' },
+        { id: "nordic-frost", name: "Nordic Frost", description: "A Scandinavian snowflake rune with woven border knots.", bg: "#e1edf0", ink: "#527d88", art: '<path d="M40 25v48m-20-24h40M26 36l28 28M54 36 26 64m14-39-5 8m5-8 5 8m-5 40-5-8m5 8 5-8M20 49l8-5m-8 5 8 5m32-5-8-5m8 5-8 5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m17 29 4-4 4 4-4 4Zm34 42 4-4 4 4-4 4Zm0-42 4-4 4 4-4 4Z" fill="#a8c5bf" stroke="currentColor"/>' },
+        { id: "art-deco", name: "Art Deco", description: "A bold symmetrical fan, stepped lines and a sunburst medallion.", bg: "#102e35", ink: "#d4b66b", art: '<path d="M16 64h48M20 58h40M25 52h30M30 46h20M35 40h10M40 40V26M23 58q17-44 34 0M29 58q11-31 22 0M35 58q5-17 10 0" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="40" cy="34" r="3" fill="#f1dfaa"/><path d="M18 69h44M23 74h34" stroke="#d4b66b"/>' },
+        { id: "solar-eclipse", name: "Solar Eclipse", description: "A black sun crowned by a copper corona and fine radial rays.", bg: "#101014", ink: "#d28350", art: '<circle cx="40" cy="49" r="19" fill="#d28350" fill-opacity=".22" stroke="currentColor" stroke-width="2"/><circle cx="44" cy="46" r="15" fill="#101014" stroke="#f1b477" stroke-width="1.5"/><path d="M40 21v7m0 43v7M12 49h8m40 0h8M20 29l6 6m28 28 6 6m0-40-6 6M26 63l-6 6" stroke="#f1b477" stroke-width="1.5"/><path d="M19 79h42" stroke="#8c553a"/>' },
+        { id: "marble-noir", name: "Marble Noir", description: "Black stone with bold white mineral veins and silver inlay.", bg: "#17191f", ink: "#c7d0dc", art: '<path d="M19 27q18 9 4 19t16 13q16 6 4 18m20-50q-17 8-8 17t-13 13q-13 6-3 19" fill="none" stroke="#e6e8eb" stroke-width="2"/><path d="M14 39q13 4 5 14t13 12m26-37q-8 8 2 13t-4 18q-7 9 8 14" fill="none" stroke="#8390a0" stroke-width="1.2"/><path d="M22 30q9 4 15 0m7 48q8-5 14 0" stroke="#fff" stroke-opacity=".6"/>' },
+        { id: "heritage-cream", name: "Heritage Cream", description: "An old-world heraldic shield with an engraved crown and crossed suits.", bg: "#eee1c7", ink: "#793947", art: '<path d="M22 31h36v18q0 17-18 25Q22 66 22 49Z" fill="#8c4050" fill-opacity=".2" stroke="currentColor" stroke-width="1.8"/><path d="m31 39 4 7h10l4-7m-13 21 4-7 4 7m-8-15 8 10m0-10-8 10" fill="none" stroke="#b28b4c" stroke-width="1.8"/><path d="m31 28 2-8 7 5 7-5 2 8" fill="none" stroke="#b28b4c" stroke-width="1.6"/>' },
+        { id: "pressed-botanicals", name: "Pressed Botanicals", description: "A herbarium specimen: pressed leaves, stems and tiny seed heads.", bg: "#e3e5d6", ink: "#557559", art: '<path d="M40 72V35m0 22q-20-1-17-17 15 0 17 17Zm0-11q18-2 17-18-14 1-17 18Zm0-12q-14-1-13-14 12 0 13 14Zm0 31q18-2 21-13-16-3-21 13Z" fill="#8ea37a" fill-opacity=".55" stroke="currentColor" stroke-width="1.4"/><circle cx="27" cy="40" r="1.5" fill="#c09959"/><circle cx="52" cy="43" r="1.5" fill="#c09959"/><path d="M24 76h32" stroke="#a88759"/>' },
+        { id: "stained-glass", name: "Stained Glass", description: "A jewel-toned rose window divided by dark leaded-glass lines.", bg: "#18202b", ink: "#c5aa64", art: '<circle cx="40" cy="50" r="23" fill="#17212e" stroke="currentColor" stroke-width="2"/><path d="M40 27v46M17 50h46M24 34l32 32m0-32L24 66" stroke="#222735" stroke-width="3"/><path d="m40 28 10 12-10 10-10-10Zm-22 22 12-10 10 10-10 10Zm22 0 10-10 10 10-10 10Zm-10 10 10-10 10 10-10 12Z" fill="#6ba797" fill-opacity=".62" stroke="#252b36" stroke-width="2"/><circle cx="40" cy="50" r="4" fill="#d36f62"/>' },
+        { id: "cobalt-porcelain", name: "Cobalt Porcelain", description: "A blue-and-white porcelain vase with hand-painted curling vines.", bg: "#f4f1e8", ink: "#31558e", art: '<path d="M33 28h14l-2 9q10 8 9 24-1 12-14 12T26 61q-1-16 9-24Z" fill="#d7e1f1" stroke="currentColor" stroke-width="1.6"/><path d="M31 46q9-7 18 0m-18 9q9 7 18 0M40 38v25m0-13q-12-8-13 1m13 7q11-9 14 0" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M30 33h20" stroke="currentColor" stroke-width="2"/>' },
+        { id: "dragon-guard", name: "Dragon Guard", description: "A coiled dragon curls around a shield, with scale detailing and a crest.", bg: "#20232a", ink: "#d78a52", art: '<path d="M25 67q-10-8 2-14-9-12 5-15 6-14 18-7l7 7-7 8-8-3-6 8q13-2 17 8 3 9-9 12-9 2-12-5l-5 7Z" fill="#7b4938" stroke="currentColor" stroke-width="1.8"/><path d="m45 31 6-8 2 9m-15 9 5 2m-10 8 5 2m-7 10 6 1m13-20 8-4-2 9" fill="none" stroke="#efc78c" stroke-width="1.3"/><path d="m40 39 8 4v10q-2 8-8 11-6-3-8-11V43Z" fill="#35594c" stroke="#dfc08a"/>' },
+        { id: "spellbook", name: "Spellbook", description: "An open grimoire, moon phases and a carefully drawn arcane seal.", bg: "#211b34", ink: "#d0b4f5", art: '<path d="M40 36q-12-8-22-4v29q11-4 22 5 11-9 22-5V32q-10-4-22 4Z" fill="#443452" stroke="currentColor" stroke-width="1.7"/><path d="M40 36v30m-15-25q6-1 11 3m-11 5q6-1 11 3m19-11q-6-1-11 3m11 5q-6-1-11 3" fill="none" stroke="#f0dcaa" stroke-width="1"/><circle cx="40" cy="25" r="5" fill="none" stroke="#f0dcaa"/><path d="M40 17v-4m-8 12h-4m28 0h-8" stroke="#f0dcaa"/>' },
+        { id: "space-explorer", name: "Space Explorer", description: "A helmeted explorer framed by a ringed planet and distant stars.", bg: "#111a2e", ink: "#81c5e8", art: '<circle cx="40" cy="48" r="20" fill="none" stroke="#d6b5ff" stroke-width="1.4" transform="rotate(-20 40 48)"/><ellipse cx="40" cy="48" rx="27" ry="8" fill="none" stroke="#e5b761" stroke-width="2" transform="rotate(-20 40 48)"/><circle cx="40" cy="48" r="12" fill="#dce8e8" stroke="currentColor" stroke-width="1.6"/><path d="M32 47q8-8 16 0v7H32Zm-2 9h20m-23 7h26" fill="#6b94ad" stroke="#dce8e8"/><path d="m20 28 2 4 4 1-4 2-2 4-2-4-4-2 4-1Zm40 35 2 3 3 1-3 2-2 3-1-3-4-2 4-1Z" fill="#f5da8d"/>' },
+        { id: "deep-sea", name: "Deep Sea", description: "A luminous jellyfish floats among coral branches and bubbles.", bg: "#102c3d", ink: "#83d9d4", art: '<path d="M26 45q1-17 14-17t14 17q-14 12-28 0Z" fill="#8b76c4" fill-opacity=".75" stroke="currentColor" stroke-width="1.5"/><path d="M30 47q-2 14 2 18m7-15q-2 12 2 18m6-20q-3 12 1 17m-27-3q5-6 10 0m21 1q5-8 11-2m-38 8q4-5 8 0m21-1q6-5 10 1" fill="none" stroke="#f1b5df" stroke-width="1.5"/><circle cx="24" cy="35" r="2" fill="#d4f6e8"/><circle cx="59" cy="30" r="1.5" fill="#d4f6e8"/><circle cx="60" cy="56" r="2" fill="#d4f6e8"/>' },
+        { id: "cat-cafe", name: "Cat Café", description: "A curled-up cat, whiskers, yarn and tiny paw prints in a cozy frame.", bg: "#f2e7d6", ink: "#8e6850", art: '<path d="M24 57q-5-18 9-23l-1-9 10 6q9-2 14 7 6 12-5 22-13 11-27-3Z" fill="#d5b38a" stroke="currentColor" stroke-width="1.6"/><path d="m31 42 4 2m11 0 4-2m-12 8q4 3 8 0m-18-7-8-3m8 7-9 2m34-6 8-3m-8 7 9 2m-29 17q13-6 25 0" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="24" cy="28" r="2" fill="#c3886d"/><circle cx="57" cy="29" r="2" fill="#c3886d"/><path d="M40 72c-8-5-4-13 2-10 6-3 10 5 2 10l-2 2Z" fill="none" stroke="#b97962"/>' },
+        { id: "puppy-park", name: "Puppy Park", description: "A friendly floppy-eared dog with a collar, bone and playful paw marks.", bg: "#eaf0d8", ink: "#80643d", art: '<path d="M29 37q-11-16-14 0 0 14 11 15m28-15q11-16 14 0 0 14-11 15M27 43q0-15 13-15t13 15v12q-13 15-26 0Z" fill="#d8bb83" stroke="currentColor" stroke-width="1.7"/><circle cx="35" cy="46" r="1.5" fill="#28251f"/><circle cx="45" cy="46" r="1.5" fill="#28251f"/><ellipse cx="40" cy="52" rx="4" ry="3" fill="#3e3530"/><path d="M36 57q4 4 8 0m-13 8h18m-9-2v5m-3-4h6" fill="none" stroke="#b24f47" stroke-width="1.5"/><path d="m40 22 2 4 4 1-4 2-2 4-2-4-4-2 4-1Z" fill="#e5b451"/>' },
+        { id: "dinosaur-age", name: "Dinosaur Age", description: "A fossilized fern and dinosaur footprint on a warm stone card.", bg: "#e8dfc8", ink: "#66744d", art: '<path d="M30 68q0-19 10-30 11 11 10 30m-20-14q10-3 20 0M31 45l18 18m-15-24 13 22" fill="none" stroke="#80905f" stroke-width="1.6"/><path d="M40 54q-5-7-10-3l-4 5 6 2 2 8h4l2-8 6-2-3-5q-5-4-3 3Zm-14-4-3-3m26 2 4-3m-22 9-5 1m24-1 5 1" fill="#8a7860" stroke="currentColor" stroke-width="1.3"/><circle cx="24" cy="34" r="1" fill="#9b8b68"/><circle cx="57" cy="37" r="1.5" fill="#9b8b68"/>' },
+        { id: "pirate-map", name: "Pirate Map", description: "A compass, dotted treasure route and tiny X mark on aged parchment.", bg: "#ead9b5", ink: "#79533c", art: '<path d="M19 32q8-5 15 0 6-5 12 0 7-5 15 0v34q-8-5-15 0-6-5-12 0-7-5-15 0Z" fill="#dfc58f" stroke="currentColor" stroke-width="1.5"/><path d="M25 58q10-18 18-8t12-8m-13-5 4 5-4 5m0-10-4 5 4 5" fill="none" stroke="#a3553e" stroke-width="1.4" stroke-dasharray="2 2"/><circle cx="40" cy="50" r="12" fill="none" stroke="#886444"/><path d="m40 38 3 12-3 12-3-12Z" fill="#9d513e"/><path d="m53 61 5 5m0-5-5 5" stroke="#a3553e" stroke-width="2"/>' },
+        { id: "wild-west", name: "Wild West", description: "A sheriff's star, tooled leather and a classic frontier badge.", bg: "#6b3d2d", ink: "#e5bd72", art: '<path d="m40 25 5 13 14-5-5 14 13 3-13 6 5 13-14-5-5 13-5-13-14 5 5-13-13-6 13-3-5-14 14 5Z" fill="#bd8a48" fill-opacity=".5" stroke="currentColor" stroke-width="1.7"/><circle cx="40" cy="51" r="7" fill="#633d2c" stroke="#f1d99e"/><path d="M23 32h34m-34 38h34M29 28v-4m22 4v-4m-22 49v-4m22 4v-4" stroke="#f1d99e" stroke-width="1.4"/>' },
+        { id: "stadium-sport", name: "Stadium Lights", description: "A stitched ball under stadium beams and a cheering-crowd horizon.", bg: "#163649", ink: "#f0ce72", art: '<circle cx="40" cy="49" r="17" fill="#f1eee3" stroke="#d79b55" stroke-width="1.5"/><path d="M40 32q-6 8 0 17 8-5 17-1M40 66q6-8 0-17-8 5-17 1m3-14q9 6 14-3m14 28q-9-6-14 3" fill="none" stroke="#59768a" stroke-width="1.5"/><path d="M20 25v20m-4-20h8m32 0v20m-4-20h8M18 72v-6m6 6v-9m6 9v-5m20 5v-8m6 8v-6m6 6v-10" stroke="#f0ce72" stroke-width="1.6"/>' },
+        { id: "arcade-quest", name: "Arcade Quest", description: "A pixel-art joystick, high-score bars and a four-color power-up.", bg: "#17162b", ink: "#64f1cf", art: '<rect x="21" y="30" width="38" height="35" rx="3" fill="#26254a" stroke="#ff67b7" stroke-width="1.5"/><path d="M27 38h26M27 44h16M27 58h5v-5h5v5h5v-8h5v8h6" fill="none" stroke="#70edda" stroke-width="2" shape-rendering="crispEdges"/><path d="M34 73v-8m12 8v-8m-18 8h24" stroke="#f1d16c" stroke-width="2"/><path d="m40 20 5 5-5 5-5-5Z" fill="#fc5e94"/>' },
+        { id: "vinyl-melody", name: "Vinyl Melody", description: "A grooved record, music notes and a small golden center label.", bg: "#2c2034", ink: "#e5b7df", art: '<circle cx="40" cy="50" r="22" fill="#211d28" stroke="currentColor" stroke-width="1.5"/><circle cx="40" cy="50" r="17" fill="none" stroke="#8c7592"/><circle cx="40" cy="50" r="12" fill="none" stroke="#8c7592"/><circle cx="40" cy="50" r="6" fill="#d49b63"/><path d="M54 31v20q-7-3-9 3-1 5 5 4 5-1 5-7V39l8-2v-9Z" fill="#e5b7df"/>' },
+        { id: "tarot-moon", name: "Moon Tarot", description: "A crescent moon, stars and ornamental tarot frame.", bg: "#25223b", ink: "#e5cb8f", art: '<path d="M47 27q-17 6-10 22 6 13 21 6-11 2-15-8-4-10 4-20Z" fill="#e7cc91" stroke="currentColor"/><circle cx="31" cy="35" r="2" fill="#f5e8c1"/><circle cx="57" cy="43" r="1.5" fill="#f5e8c1"/><path d="m29 53 2 4 4 1-4 2-2 4-2-4-4-2 4-1Zm26 10 2 4 4 1-4 2-2 4-2-4-4-2 4-1Z" fill="#c0a5d8"/><path d="M22 28h8m20 0h8M22 72h8m20 0h8" stroke="currentColor"/>' },
+        { id: "steampunk", name: "Steampunk", description: "Interlocking brass gears, a winding key and engraved machine marks.", bg: "#30251c", ink: "#d4a35e", art: '<circle cx="34" cy="49" r="15" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="50" cy="57" r="10" fill="none" stroke="#a97a45" stroke-width="2"/><circle cx="34" cy="49" r="5" fill="none" stroke="#f0d39a"/><circle cx="50" cy="57" r="3" fill="none" stroke="#f0d39a"/><path d="M34 29v5m0 30v5M14 49h5m30 0h5M20 35l4 4m21 21 4 4m0-29-4 4M24 59l-4 4m30-6h7m-7-6h7" stroke="currentColor" stroke-width="2"/>' },
+        { id: "race-day", name: "Race Day", description: "A sweeping checkered flag, racing stripe and winner's laurel.", bg: "#20262d", ink: "#f2d675", art: '<path d="M22 29h30v22H22Z" fill="#f4f0df" stroke="currentColor"/><path d="M22 29h10v11H22Zm20 0h10v11H42ZM32 40h10v11H32Z" fill="#d65257"/><path d="M20 60h40m-34 5h28m-22 5h16" stroke="#66c5c5" stroke-width="2"/><path d="M19 33q-9 13 0 25m42-25q9 13 0 25" fill="none" stroke="#8ca978" stroke-width="2"/>' },
+        { id: "mountain-trail", name: "Mountain Trail", description: "Layered alpine peaks, a winding trail and a tiny summit flag.", bg: "#dce8e8", ink: "#4c7180", art: '<path d="m16 65 18-30 8 13 9-20 16 37Z" fill="#819eaa" stroke="currentColor" stroke-width="1.5"/><path d="m27 47 7-12 6 10-6-3Zm19-2 5-17 9 17-9-5Z" fill="#f4f4e9" stroke="#718c98"/><path d="M39 48q-8 8 1 12t-4 11m7-42v-9h9l-4 4 4 4h-9" fill="none" stroke="#b77e59" stroke-width="1.5"/>' },
+        { id: "desert-caravan", name: "Desert Caravan", description: "A setting sun, dunes and a camel caravan beneath a star.", bg: "#f0d9b5", ink: "#a36a45", art: '<circle cx="47" cy="38" r="10" fill="#e79762"/><path d="M15 62q17-18 33-2 12-12 18-8v17H15Z" fill="#d9a96c"/><path d="M15 70q21-12 44-1" fill="none" stroke="#a36a45" stroke-width="1.5"/><path d="M25 55h13l3 3h-3l-2 5h-2l-1-5h-4l-2 5h-2l1-7Zm24-1h9l2 3h-3l-1 4h-2l-1-4h-3l-2 4h-2l1-5Z" fill="#51443b"/><path d="m25 31 2 4 4 1-4 2-2 4-2-4-4-2 4-1Z" fill="#fff3ca"/>' },
+        { id: "koi-pond", name: "Koi Pond", description: "Two circling koi swim around a quiet pond with lily pads.", bg: "#dce9e1", ink: "#3b7270", art: '<path d="M40 48q-12-13-20-4 6 13 20 4Zm0 0q12-13 20-4-6 13-20 4Z" fill="#e88762" stroke="#fff4df" stroke-width="2"/><path d="M20 44 14 39v10Zm40 0 6-5v10Z" fill="#df7558" stroke="#fff4df"/><circle cx="25" cy="43" r="1" fill="#252d2c"/><circle cx="55" cy="43" r="1" fill="#252d2c"/><ellipse cx="29" cy="65" rx="8" ry="3" fill="#87a97d"/><path d="M24 65q5-9 10 0m19 4q5-8 10 0" fill="none" stroke="#53765c"/><circle cx="40" cy="30" r="2" fill="#fff"/>' },
+        { id: "patisserie", name: "Patisserie", description: "A tiered celebration cake topped with berries and delicate icing.", bg: "#f6e5df", ink: "#a65e70", art: '<path d="M25 48h30v21H25Zm4-12h22v12H29Z" fill="#f4c3bc" stroke="currentColor" stroke-width="1.5"/><path d="M25 53q5-5 10 0t10 0 10 0m-26 9q5-5 10 0t10 0 10 0" fill="none" stroke="#fff8eb" stroke-width="2"/><path d="M40 25c-7 0-7 9 0 10 7-1 7-10 0-10Zm-9 8q-6-5-8 1 1 6 7 4m20-5q6-5 8 1-1 6-7 4" fill="#bc4457" stroke="#8f3647"/><path d="M40 22v-4" stroke="#d4a65e" stroke-width="2"/>' },
+        { id: "halloween", name: "Harvest Haunt", description: "A carved pumpkin, crescent moon and little bats in a playful night sky.", bg: "#28203a", ink: "#ecaa62", art: '<path d="M40 42q-17-13-19 6-1 18 19 17 20 1 19-17-2-19-19-6Z" fill="#dc813e" stroke="currentColor" stroke-width="1.5"/><path d="M40 42v22m-8-17 3 4-3 3m16-7-3 4 3 3m-13 7q5 4 10 0m-8-19 3-7 3 7" fill="none" stroke="#57352e" stroke-width="1.6"/><path d="M54 29q-10-5-13 4 8-5 13 2m-28-8 2 4 4 1-4 2-2 4-2-4-4-2 4-1Z" fill="#f3d48c"/><path d="m59 40 3-4 3 4-3 4Z" fill="#171624"/>' },
+        { id: "norse-saga", name: "Norse Saga", description: "A longship with a carved dragon prow sails between knotwork waves and rune stones.", bg: "#1c3039", ink: "#d6b779", art: '<path d="M18 53q22 13 44 0l-6 13H25Zm4-4h36M30 49V34h20v15M40 34V24m0 2 11 7H40Z" fill="#a85f43" fill-opacity=".5" stroke="currentColor" stroke-width="1.5"/><path d="M23 57q6-8 12 0t12 0 12 0M20 66q6-8 12 0t12 0 12 0M25 35q5-8 10 0t10 0" fill="none" stroke="#9fc0bb" stroke-width="1.4"/><path d="M26 43q4-5 8 0-4 5-8 0Zm18 0q4-5 8 0-4 5-8 0Z" fill="none" stroke="#f0d7a0"/><path d="M29 25v5m-2-3h4m20 7v5m-2-3h4" stroke="#f0d7a0"/>' },
+        { id: "royal-court", name: "Royal Court", description: "A mirrored Queen of Hearts portrait with jeweled crown, curled hair, geometric sleeves and a patterned teal gown.", bg: "#f4eee2", ink: "#183d46", court: true, art: '<path d="m40 17-5 11-10-6 3 13 12 5 12-5 3-13-10 6Z" fill="#df4f5b" stroke="#17191b" stroke-width="1.5"/><circle cx="30" cy="22" r="2" fill="#e8c875"/><circle cx="40" cy="19" r="2" fill="#e8c875"/><circle cx="50" cy="22" r="2" fill="#e8c875"/><path d="M30 35q-2-11 10-11t10 11v8H30Z" fill="#e6a84d" stroke="#17191b" stroke-width="1.4"/><ellipse cx="40" cy="37" rx="7" ry="9" fill="#f1c59f" stroke="#17191b" stroke-width="1.2"/><path d="M36 37h2m4 0h2m-6 5q2 2 4 0" stroke="#32251f" stroke-width="1" stroke-linecap="round"/><path d="M33 31q-4 4-2 13l-5 8 7-2 7-7m7-12q4 4 2 13l5 8-7-2-7-7" fill="#d99449" stroke="#17191b" stroke-width="1.4"/><path d="M25 53q15-8 30 0l7 7-11-3-11 7-11-7-11 3Z" fill="#087f79" stroke="#17191b" stroke-width="1.5"/><path d="m25 53 6 7-6 7m30-14-6 7 6 7m-19-11 4 5 4-5" fill="none" stroke="#fff4df" stroke-width="1.5"/><path d="M21 47h7m24 0h7" stroke="#17191b" stroke-width="1.4"/>' },
+        { id: "phantom-masquerade", name: "Phantom Masquerade", description: "A jeweled half-mask with feather plumes, lace curls and a midnight ballroom motif.", bg: "#221c32", ink: "#d7b3e5", art: '<path d="M20 38q10-12 20-3 10-9 20 3-2 15-20 18-18-3-20-18Z" fill="#573d72" stroke="currentColor" stroke-width="1.6"/><path d="M23 38q8-6 16 1l-3 8q-7-1-13-9m34 0q-8-6-16 1l3 8q7-1 13-9Z" fill="#f2d48c" stroke="#b88dd0"/><path d="m40 36 4 6-4 9-4-9Zm-15-4q-10-14-8-20 13 7 19 17m19 7q10-14 8-20-13 7-19 17" fill="#865ea1" stroke="currentColor"/><path d="M25 61q15-10 30 0m-26 5q11-7 22 0m-18 6q7-5 14 0" fill="none" stroke="#b88dd0" stroke-width="1.4"/><circle cx="28" cy="42" r="1.5" fill="#fff"/><circle cx="52" cy="42" r="1.5" fill="#fff"/>' },
+        { id: "phoenix-flame", name: "Phoenix Flame", description: "A rising phoenix unfurls layered wings through curling ribbons of fire.", bg: "#311d24", ink: "#f0a75e", art: '<path d="M40 66q-8-12 0-30 2 12 10 15-1-9 5-15 0 15 8 18-6 16-23 19-17-3-23-19 8-3 8-18 6 6 5 15 8-3 10-15Z" fill="#c94b3e" stroke="currentColor" stroke-width="1.5"/><path d="M40 42q-6 11 0 24 6-13 0-24Z" fill="#ffe3a2"/><path d="m25 51 12 5m18-5-12 5M29 61l10 2m12-2-10 2M40 28v-8m-5 5 5-7 5 7" fill="none" stroke="#ffd589" stroke-width="1.5"/><circle cx="40" cy="69" r="2" fill="#fff0c7"/>' },
+        { id: "samurai-crest", name: "Samurai Crest", description: "A lacquered kabuto helmet, crossed katana and a rising-sun crest.", bg: "#292125", ink: "#d7ad6c", art: '<path d="M23 47q0-22 17-24 17 2 17 24H23Zm-4 2h42l-7 7H26Zm21-26v-8m0 0-5 7m5-7 5 7" fill="#963f42" stroke="currentColor" stroke-width="1.5"/><path d="M30 40h20M40 26v20m-17-8-9 28m32-28 9 28M14 66l28-28m24 28L38 38" stroke="#e7ded0" stroke-width="1.6"/><circle cx="40" cy="39" r="5" fill="#d7ad6c" stroke="#171719"/><path d="M25 60h30m-25 5h20m-15 5h10" stroke="#d7ad6c" stroke-width="1.5"/>' },
+        { id: "vampire-nocturne", name: "Vampire Nocturne", description: "A crimson moon, bat-winged crest and ornate gothic window tracery.", bg: "#27171f", ink: "#cf6974", art: '<path d="M24 68V42q16-22 32 0v26M29 67V44l11-13 11 13v23M40 31v37M30 45h20" fill="none" stroke="#b89a82" stroke-width="1.5"/><circle cx="40" cy="45" r="11" fill="#b83a4b" fill-opacity=".75"/><path d="M40 40q-8-11-17-4l5 2-1 5 8-1m5-2q8-11 17-4l-5 2 1 5-8-1" fill="#211b23" stroke="currentColor"/><path d="M40 50v7m-8 0h16m-12 5h8" stroke="#e8c5ac" stroke-width="1.2"/><path d="M17 74h46" stroke="#b89a82"/>' },
+        { id: "jungle-expedition", name: "Jungle Expedition", description: "A macaw perched among giant split leaves, vines and hidden orchids.", bg: "#18372d", ink: "#e0b864", art: '<path d="M21 68q-5-24 13-38 5 18-4 29 13-16 27-11-5 18-22 20Zm19 2q-2-23 14-34 6 17-3 26 9-8 17-5-5 14-18 18Z" fill="#4f936c" stroke="#a8c987" stroke-width="1.4"/><path d="M27 47q-8-4-8-12m39 2q5-8 1-14m-29 44q5-8 9-12" fill="none" stroke="#9ecf9c" stroke-width="1.5"/><path d="M31 39q6-10 17-3l-4 9-10 1Zm7 1 9-4-3 8-6 4-6-2Z" fill="#e25c52" stroke="#f0c85e" stroke-width="1.2"/><circle cx="42" cy="39" r="1" fill="#151b17"/><path d="m26 28 2 4 4 1-4 2-2 4-2-4-4-2 4-1Z" fill="#d9c55e"/>' },
+        { id: "wildflower-field", name: "Wildflower Field", description: "An illustrated bouquet of poppies, daisies and cornflowers tied with ribbon.", bg: "#f3eddd", ink: "#527a62", art: '<path d="M40 70V44m0 18L26 44m14 16 14-21M26 44 22 30m32 3 4-13m-19 26 1-22" fill="none" stroke="#547a5b" stroke-width="1.5"/><g stroke="#83577a" stroke-width="1"><circle cx="22" cy="28" r="6" fill="#d66d6d"/><circle cx="58" cy="18" r="5" fill="#7698c4"/><circle cx="39" cy="22" r="5" fill="#e7bd5d"/></g><g fill="#fff0d5"><circle cx="22" cy="28" r="2"/><circle cx="58" cy="18" r="1.7"/><circle cx="39" cy="22" r="1.7"/></g><path d="m34 58 6 3 6-3-2 10-4 5-4-5Z" fill="#c87f78" stroke="#83577a"/>' },
+        { id: "butterfly-garden", name: "Butterfly Garden", description: "A symmetrical swallowtail butterfly with patterned wings and dotted flight path.", bg: "#e9e6f1", ink: "#715797", art: '<path d="M40 47q-9-24-23-17-5 15 14 22-17 9-10 22 16 3 19-19 3 22 19 19 7-13-10-22 19-7 14-22-14-7-23 17Z" fill="#c89bd1" stroke="currentColor" stroke-width="1.5"/><path d="M40 47q-7-17-17-13 1 9 13 15m4-2q7-17 17-13-1 9-13 15M40 53q-8 15-11 16m11-16q8 15 11 16m-11-16v17" fill="none" stroke="#fff0ca" stroke-width="1.5"/><circle cx="40" cy="48" r="3" fill="#e7b967"/><path d="M31 31q4-10 8-5m2 0q6-6 9 2" fill="none" stroke="currentColor"/>' },
+        { id: "french-cafe", name: "Parisian Café", description: "A porcelain espresso cup, croissant and little café awning stripes.", bg: "#f2e5d7", ink: "#794b47", art: '<path d="M23 43h31v19q-2 9-15 9T24 62Zm31 5h7q8 13-7 15" fill="#e8ddd0" stroke="currentColor" stroke-width="1.5"/><path d="M29 49h19m-15-6q4-6 8 0m-19 29h34" fill="none" stroke="#ad7659" stroke-width="1.5"/><path d="M22 30h36l-4 8H26Zm2-5h32v5H24Z" fill="#c75f59" stroke="currentColor"/><path d="M31 30v8m9-8v8m9-8v8" stroke="#f8eee1" stroke-width="2"/><path d="M27 81q4-8 9-2 5-8 10-2 5-8 9 0" fill="none" stroke="#d5a85c" stroke-width="2"/>' },
+        { id: "circus-carnival", name: "Circus Carnival", description: "A striped big top, ticket-star medallion and festive bunting.", bg: "#f4e5cb", ink: "#a23e4e", art: '<path d="M20 67 40 29l20 38Zm7-14h26M33 42h14M18 68h44" fill="#e4bd70" fill-opacity=".25" stroke="currentColor" stroke-width="1.6"/><path d="m40 29 6 12-6 26-6-26Z" fill="#bc4450" fill-opacity=".7"/><circle cx="40" cy="26" r="4" fill="#d7ae5e" stroke="currentColor"/><path d="M19 34v-7l6 4 6-4 6 4 6-4 6 4 6-4 6 4v7" fill="none" stroke="#547d83" stroke-width="1.5"/><path d="m23 75 4-4 4 4-4 4Zm26 0 4-4 4 4-4 4Z" fill="#4e8185"/>' },
+        { id: "clockwork-garden", name: "Clockwork Garden", description: "A mechanical flower blooms from brass gears and precise clock hands.", bg: "#252b2a", ink: "#cfad69", art: '<circle cx="40" cy="51" r="19" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="40" cy="51" r="13" fill="none" stroke="#81a28c" stroke-width="2"/><path d="M40 51V38m0 13 10 6m-10-33v5m0 44v5M18 51h5m34 0h5m-38-15 4 4m24 24 4 4m0-32-4 4M24 63l-4 4" stroke="currentColor" stroke-width="1.5"/><path d="M40 32q-10-12 0-15 10 3 0 15Zm19 19q12-10 15 0-3 10-15 0ZM40 70q10 12 0 15-10-3 0-15ZM21 51Q9 41 6 51q3 10 15 0Z" fill="#638875" stroke="#d7bd79"/>' },
+        { id: "snow-kingdom", name: "Snow Kingdom", description: "An icy palace with pointed towers, snowflake windows and drifting flakes.", bg: "#dcebf0", ink: "#59839a", art: '<path d="M20 67V43l8 5V35l8 6V28h8v13l8-6v13l8-5v24Z" fill="#b9d7e2" stroke="currentColor" stroke-width="1.5"/><path d="M36 67V55q4-8 8 0v12m-16-13h4m20 0h4M40 28v-7m-4 3 4-4 4 4m-25 9 2 4 4 1-4 2-2 4-2-4-4-2 4-1Z" fill="none" stroke="#f8ffff" stroke-width="1.5"/><circle cx="57" cy="30" r="2" fill="#fff"/><circle cx="24" cy="68" r="1.5" fill="#fff"/>' },
+        { id: "garden-greenhouse", name: "Glasshouse", description: "A Victorian greenhouse with arched panes, climbing vines and potted blooms.", bg: "#dce8d7", ink: "#527b63", art: '<path d="M20 70V39q20-26 40 0v31ZM27 69V41q13-18 26 0v28M20 48h40M20 58h40M40 28v42" fill="#b7d7c1" fill-opacity=".25" stroke="currentColor" stroke-width="1.5"/><path d="M24 66q9-3 5-13 10-2 7-12m19 25q-8-6-2-13-8-3-4-9" fill="none" stroke="#648c63" stroke-width="1.5"/><circle cx="29" cy="52" r="3" fill="#d18180"/><circle cx="53" cy="57" r="3" fill="#e0bb66"/><path d="M17 72h46" stroke="#a17c54" stroke-width="2"/>' },
+        { id: "deep-space", name: "Deep Space", description: "A spiral galaxy, constellation paths and tiny orbital satellites.", bg: "#10152b", ink: "#aeb2ef", art: '<path d="M20 57q5-21 25-18 19 3 13 17-5 12-20 8-12-4-6-13 5-8 13-3" fill="none" stroke="#d58bd4" stroke-width="3"/><circle cx="40" cy="51" r="3" fill="#fff1c2"/><path d="m24 31 2 4 4 1-4 2-2 4-2-4-4-2 4-1Zm36 33 2 4 4 1-4 2-2 4-2-4-4-2 4-1Z" fill="#d7c9ff"/><circle cx="54" cy="27" r="2" fill="#86d5e7"/><circle cx="24" cy="70" r="1.5" fill="#86d5e7"/><path d="M26 35 54 27 62 64 24 70Z" fill="none" stroke="#9da9dd" stroke-opacity=".55" stroke-dasharray="2 2"/>' },
+        { id: "royal-portrait", name: "Royal Portrait", description: "A mirrored queen with jeweled crown, curled hair and richly patterned gown.", bg: "#f1e9d9", ink: "#293843", art: '<path d="m40 20-5 9-9-5 3 13 11 5 11-5 3-13-9 5Z" fill="#c94d5b" stroke="#25252a" stroke-width="1.5"/><circle cx="40" cy="43" r="8" fill="#e9ba91" stroke="#25252a"/><path d="M32 43q-4-19 8-19t8 19l9 19-9-4-8-10-8 10-9 4Z" fill="#b97c42" stroke="#25252a" stroke-width="1.5"/><path d="M27 61q13-7 26 0v15H27Z" fill="#187c77" stroke="#25252a" stroke-width="1.5"/><path d="m29 63 5 5-5 5 5 5m12-15-5 5 5 5-5 5m-9-12 4 4m5 3 4 4" fill="none" stroke="#f5e1b0" stroke-width="1.5"/><circle cx="36" cy="43" r="1" fill="#222"/><circle cx="44" cy="43" r="1" fill="#222"/><path d="M36 49q4 3 8 0" fill="none" stroke="#a95255"/>' },
+        { id: "dragonfly-meadow", name: "Dragonfly Meadow", description: "A fine-winged dragonfly hovers above water reeds and seed heads.", bg: "#e5eee0", ink: "#4b7b72", art: '<path d="M40 35v34m0-24q-11-22-20-10 4 12 20 13m0-3q11-22 20-10-4 12-20 13m-2 2q-11 6-13 17 10 1 16-10m1-7q11 6 13 17-10 1-16-10" fill="#c1dfe0" fill-opacity=".6" stroke="currentColor" stroke-width="1.4"/><circle cx="40" cy="31" r="3" fill="#d18e66"/><path d="M21 74V60m-4 14V64m43 10V59m4 15V63m-47 4q4-4 8 0m35 0q4-4 8 0" stroke="#78976c" stroke-width="1.4"/><circle cx="25" cy="44" r="1.5" fill="#e3bd69"/><circle cx="57" cy="43" r="1.5" fill="#e3bd69"/>' },
+        { id: "astronomy-atlas", name: "Astronomy Atlas", description: "A brass orrery maps the sun, moon and planets along engraved orbital rings.", bg: "#18243b", ink: "#dabd77", art: '<circle cx="40" cy="50" r="5" fill="#e3a958"/><ellipse cx="40" cy="50" rx="23" ry="9" fill="none" stroke="currentColor" transform="rotate(-28 40 50)"/><ellipse cx="40" cy="50" rx="23" ry="9" fill="none" stroke="#92a9cb" transform="rotate(35 40 50)"/><circle cx="20" cy="41" r="3" fill="#8eb2dc"/><circle cx="54" cy="38" r="2.5" fill="#d887a5"/><circle cx="48" cy="63" r="2" fill="#9bd0c5"/><path d="M40 24v8m0 36v8M14 50h8m36 0h8m-43-19 5 5m28 28 5 5m0-38-5 5M22 64l-5 5" stroke="currentColor"/>' },
+        { id: "enchanted-forest", name: "Enchanted Forest", description: "A tiny lit cottage beneath curling branches, mushrooms and fireflies.", bg: "#193026", ink: "#c2cf87", art: '<path d="M19 50q0-20 18-20 4-13 18-7 13 8 4 20 12 12-1 22H23q-10-7-4-15Z" fill="#345b42" stroke="currentColor" stroke-width="1.5"/><path d="M31 53V41h18v12m-21 0h24M28 41l12-10 12 10" fill="#bb785b" stroke="#e4cb91" stroke-width="1.4"/><rect x="38" y="45" width="5" height="8" fill="#f4d788"/><path d="M24 70q4-13 8 0m16 0q4-13 8 0m-29 1h13m10 0h13" fill="#be665d" stroke="#e3b781"/><circle cx="23" cy="33" r="1.5" fill="#e9e69b"/><circle cx="58" cy="36" r="1.5" fill="#e9e69b"/>' },
+        { id: "medieval-tapestry", name: "Medieval Tapestry", description: "A woven heraldic lion, shield and fleur-de-lis with embroidered borders.", bg: "#6d2734", ink: "#e0c47a", art: '<path d="M40 30 56 37v14q-2 15-16 22-14-7-16-22V37Z" fill="#244d56" stroke="currentColor" stroke-width="1.7"/><path d="M40 40q-7-8-11 0l4 5-3 7 7-2 3 7 4-7 7 2-3-7 4-5q-4-8-11 0Z" fill="#d59a54" stroke="#f2d99b"/><path d="m20 30 4 4 4-4 4 4 4-4 4 4 4-4 4 4 4-4 4 4 4-4m-40 44 4 4 4-4 4 4 4-4 4 4 4-4 4 4 4-4 4 4 4-4" fill="none" stroke="#e8d091" stroke-width="1.3"/><path d="M40 20q-8 8 0 14 8-6 0-14Zm-18 5q-5 6 0 10 5-4 0-10Zm36 0q-5 6 0 10 5-4 0-10Z" fill="#d9bd72"/>' },
+        { id: "fireworks-night", name: "Fireworks Night", description: "Layered bursts of sparkling fireworks bloom above a festive skyline.", bg: "#141c32", ink: "#f1c96c", art: '<path d="M25 34v-9m0 0-6-5m6 5 7-6m-7 6 1 9m19 11V28m0 0-7-7m7 7 8-8m-8 8 8 7m-8-7-8 7m22 20v-8m0 0-6-5m6 5 6-5" stroke="#ef7a73" stroke-width="1.6"/><g fill="#f4d47b"><circle cx="25" cy="34" r="2"/><circle cx="45" cy="46" r="2"/><circle cx="59" cy="52" r="2"/></g><path d="M17 70h46m-42 0V59h8v11m4 0V54h9v16m5 0V61h9v9" fill="#344b61" stroke="#8eb9c3" stroke-width="1.3"/><circle cx="21" cy="29" r="1" fill="#fff"/><circle cx="55" cy="38" r="1" fill="#fff"/>' },
+        { id: "royal-flush", name: "Royal Flush", description: "A mirrored King with swept hair, a pointed crown, velvet collar, beard and crossed ceremonial blades.", bg: "#f2eadb", ink: "#183c48", court: true, art: '<path d="m40 17-5 11-10-6 3 13 12 5 12-5 3-13-10 6Z" fill="#d9515d" stroke="#181a1d" stroke-width="1.4"/><path d="m28 25-5-5 9 2m20 3 5-5-9 2" fill="none" stroke="#d39a51" stroke-width="1.5"/><circle cx="40" cy="37" r="8" fill="#efc19a" stroke="#181a1d"/><path d="M32 36q-4-14 8-14t8 14l8 16-8-3-8-7-8 7-8 3Z" fill="#d39a51" stroke="#181a1d" stroke-width="1.4"/><path d="M33 40q7 4 14 0l-2 9-5 4-5-4Z" fill="#49342d" stroke="#181a1d"/><path d="M36 36h2m4 0h2m-6 7q2 1 4 0" stroke="#29221e" stroke-width="1" stroke-linecap="round"/><path d="M25 54q15-8 30 0l7 7-11-3-11 7-11-7-11 3Z" fill="#087e78" stroke="#181a1d" stroke-width="1.4"/><path d="m25 54 6 7-6 7m30-14-6 7 6 7m-19-12 4 5 4-5" fill="none" stroke="#f9edcf" stroke-width="1.5"/><path d="M18 45 30 59m32-14L50 59M16 42l3 3m45-3-3 3" stroke="#9d6550" stroke-width="1.5"/>' }
+    ];
+    const baseCard = new Card(2, 12);
+    const existingGrid = document.getElementById("existing");
+    const proposalGrid = document.getElementById("proposals");
+    const additionalThemeIds = new Set([
+        "norse-saga", "royal-court", "phantom-masquerade", "phoenix-flame",
+        "samurai-crest", "vampire-nocturne", "jungle-expedition", "wildflower-field",
+        "butterfly-garden", "french-cafe", "circus-carnival", "snow-kingdom",
+        "deep-space", "astronomy-atlas", "enchanted-forest", "royal-flush"
+    ]);
+    const newThemes = themeProposals.filter((proposal, index) =>
+        proposal.id === "onyx-gold" ||
+        (index >= 16 && index < 50 && proposal.id !== "sakura-gold") ||
+        additionalThemeIds.has(proposal.id));
+
+    function renderExisting([id, name]) {
+        const item = document.createElement("article");
+        item.className = "style-card";
+        item.dataset.kind = "existing";
+        const preview = document.createElement("div");
+        preview.className = `card-preview card-preview--${id}`;
+        const image = document.createElement("img");
+        image.alt = "";
+        image.src = baseCard.toImageDataUri(id, "none", false);
+        preview.appendChild(image);
+        const title = document.createElement("h3");
+        title.textContent = name;
+        const description = document.createElement("p");
+        description.textContent = id;
+        item.append(preview, title, description);
+        existingGrid.appendChild(item);
+    }
+
+    function proposalImage(proposal) {
+        const { bg, ink, art, id, court } = proposal;
+        const suit = ["♠", "♥", "♣", "♦"][themeProposals.findIndex(item => item.id === id) % 4];
+        const portrait = id === "love-notes"
+            ? '<ellipse cx="40" cy="38" rx="5.5" ry="7" fill="#f4c6aa" stroke="#7f304c" stroke-width=".8"/><path d="M37 37h1m4 0h1m-2 2v2m-3 1q2 1 4 0" fill="none" stroke="#60404a" stroke-width=".7" stroke-linecap="round"/>'
+            : "";
+        const illustration = court
+            ? `<g>${art}${portrait}</g><path d="M20 60h40" stroke="${ink}" stroke-width="1.2"/><circle cx="40" cy="60" r="2" fill="${ink}"/><g transform="rotate(180 40 60)">${art}${portrait}</g>`
+            : `<g>${art}</g>`;
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 120">
+            <rect x="1.5" y="1.5" width="77" height="117" rx="8" fill="${bg}" stroke="${ink}" stroke-width="1.5"/>
+            <rect x="5" y="5" width="70" height="110" rx="6" fill="none" stroke="${ink}" stroke-opacity=".48" stroke-width=".65"/>
+            <g fill="${ink}" font-family="Georgia,serif" font-size="11" font-weight="700" text-anchor="middle">
+                <text x="14" y="18">Q</text><text x="14" y="28" font-size="8">${suit}</text>
+            </g>
+            <g transform="rotate(180 66 102)" fill="${ink}" font-family="Georgia,serif" font-size="11" font-weight="700" text-anchor="middle">
+                <text x="66" y="108">Q</text><text x="66" y="98" font-size="8">${suit}</text>
+            </g>
+            <g color="${ink}">${illustration}</g>
+        </svg>`;
+        return Card.imageSource(svg);
+    }
+
+    function renderProposal(proposal, index) {
+        const item = document.createElement("article");
+        item.className = "style-card";
+        item.dataset.kind = "proposal";
+        const preview = document.createElement("div");
+        preview.className = "card-preview proposal-preview";
+        const image = document.createElement("img");
+        image.alt = "";
+        image.src = proposalImage(proposal);
+        preview.appendChild(image);
+        const title = document.createElement("h3");
+        title.textContent = `${String(index + 1).padStart(2, "0")}. ${proposal.name}`;
+        const tag = document.createElement("span");
+        tag.className = "style-card__tag";
+        tag.textContent = "New theme";
+        const detail = document.createElement("p");
+        detail.textContent = proposal.description;
+        const keep = document.createElement("button");
+        keep.className = "proposal-card__keep";
+        keep.type = "button";
+        keep.setAttribute("aria-pressed", "false");
+        keep.textContent = "Keep this proposal";
+        keep.addEventListener("click", () => {
+            keep.setAttribute("aria-pressed", String(keep.getAttribute("aria-pressed") !== "true"));
+            keep.textContent = keep.getAttribute("aria-pressed") === "true" ? "Selected to keep" : "Keep this proposal";
+            updateShortlist();
+        });
+        item.append(preview, tag, title, detail, keep);
+        item.dataset.styleId = proposal.id;
+        proposalGrid.appendChild(item);
+    }
+
+    function updateShortlist() {
+        const selected = Array.from(proposalGrid.querySelectorAll('.proposal-card__keep[aria-pressed="true"]'))
+            .map(button => button.closest(".style-card").querySelector("h3").textContent);
+        document.getElementById("shortlist").textContent = selected.length
+            ? `Selected to keep (${selected.length}): ${selected.join(", ")}`
+            : "No new proposals selected.";
+    }
+
+    existingStyles.forEach(renderExisting);
+    newThemes.forEach(renderProposal);
+    document.querySelectorAll(".filter").forEach(button => {
+        button.addEventListener("click", () => {
+            const filter = button.dataset.filter;
+            document.querySelectorAll(".filter").forEach(option =>
+                option.setAttribute("aria-pressed", String(option === button)));
+            document.querySelectorAll(".style-card").forEach(card => {
+                card.hidden = filter !== "all" && card.dataset.kind !== filter;
+            });
+            document.getElementById("existing-heading").hidden = filter === "proposal";
+            document.getElementById("proposals-heading").hidden = filter === "existing";
+        });
+    });
+</script>
+</body>
+</html>

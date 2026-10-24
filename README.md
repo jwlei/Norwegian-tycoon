@@ -13,7 +13,7 @@ Boms og President (also known as Norwegian Tycoon) is a free card game for 2–4
 ## Features
 
 - Public and private multiplayer lobbies, with invite links and room codes
-- Quick play against bots, plus bot opponents in hosted games
+- Quick play against bots in public lobbies, plus bot opponents in hosted games
 - Spectator mode and reconnection to an active game
 - Player profiles, optional PIN-based profile recovery, and a leaderboard
 - Game log, round results, turn timers, and configurable ready/start flow
@@ -36,6 +36,44 @@ On mobile, the playing table gains roughly 70% of the Pass button's height from 
 Mandatory President/Boms and Vice President/Vice Boms exchanges complete independently. Each pair receives its cards and confirms its own summary without blocking the other pair's selections or delivery; normal play waits for both pairs. Concurrent confirmations are reapplied to the latest shared state to preserve both trades. Selected outgoing cards and received-card summaries use the sender's card design and foil, respecting the existing card-style visibility preference.
 
 ## Running locally
+
+### Appearance progression
+
+Card styles unlock through **rounds played**, while foils unlock through **President wins**.
+Both selectors list rewards in milestone order, with frequent early unlocks and increasingly
+spaced later rewards. The hidden Green Haze style retains its separate eligibility rules.
+
+| Rounds played | Card style | Wins | Foil |
+| ---: | --- | ---: | --- |
+| 0 | Classic | 0 | None |
+| 1 | Monochrome | 1 | Rings |
+| 2 | Minimalist | 2 | Stripes |
+| 3 | Onyx & Gold | 3 | Weave |
+| 5 | Love Notes | 4 | Facets |
+| 7 | Cherry Blossom | 6 | Grid |
+| 9 | Origami | 9 | Waves |
+| 12 | Gold | 13 | Pearlescent |
+| 15 | Solar Eclipse | 17 | Prism |
+| 19 | Marble Noir | 23 | Rays |
+| 23 | Stained Glass | 31 | Stardust |
+| 27 | Crystal | 40 | Contrast |
+| 32 | Silver | 50 | Rainbow |
+| 37 | Holo | 62 | Iridescent |
+| 43 | Spellbook | 75 | Gold sheen |
+| 50 | Cosmic | | |
+| 57 | Space Explorer | | |
+| 66 | Moon Tarot | | |
+| 76 | Gothic | | |
+| 86 | Parallax | | |
+| 98 | Desert Caravan | | |
+| 109 | Butterfly Garden | | |
+| 119 | Pixel Art | | |
+| 129 | Neon | | |
+| 137 | Cyberpunk | | |
+| 145 | Glitched | | |
+| 150 | Astronomy Atlas | | |
+
+### Local server
 
 The project is a static website with no build step. Serve the repository root over localhost or HTTPS, then open it in a browser. For example, with Python installed:
 
