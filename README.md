@@ -91,6 +91,12 @@ node --test
 
 ### Card depth and landing
 
+Settings include a local, saved **Card shadows** choice. **Fancy** (the default) keeps the
+existing projected, blurred shadows and card-to-card shadowing. **Simple** uses one unblurred,
+offset silhouette per card, skipping shadow projection, occlusion tests and receiver shadows.
+It applies immediately to table cards, drags and flights, including prepared drag previews when
+next used. Card artwork, seven-layer edges, foil treatments, landing physics and motion are unchanged.
+
 Multi-card pickup prepares the unchanged SVG drag previews during idle time, selected cards first.
 Preparation stops during active gestures; an unprepared pickup still builds synchronously without
 waiting for an idle callback. Preview dimensions and positions are remeasured at pickup, and artwork,

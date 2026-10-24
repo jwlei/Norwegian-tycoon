@@ -3725,6 +3725,7 @@ select:focus-visible {
 
 .setting-speed,
 .setting-turn-speed,
+.setting-card-shadow,
 .setting-play-input,
 .setting-card-style-scope,
 .setting-language {
@@ -3740,6 +3741,7 @@ select:focus-visible {
 
 .speed-options,
 .turn-speed-options,
+.card-shadow-options,
 .play-input-options,
 .card-style-scope-options,
 .quick-play-options,
@@ -3759,6 +3761,10 @@ select:focus-visible {
 .animation-speed-option:hover,
 .animation-speed-option:active,
 .animation-speed-option:focus,
+.card-shadow-option,
+.card-shadow-option:hover,
+.card-shadow-option:active,
+.card-shadow-option:focus,
 .play-input-option,
 .play-input-option:hover,
 .play-input-option:active,
@@ -3788,6 +3794,7 @@ select:focus-visible {
 
 .speed-option + .speed-option,
 .animation-speed-option + .animation-speed-option,
+.card-shadow-option + .card-shadow-option,
 .play-input-option + .play-input-option,
 .card-style-scope-option + .card-style-scope-option,
 .quick-play-option + .quick-play-option,
@@ -3799,6 +3806,8 @@ select:focus-visible {
 .speed-option[aria-pressed="true"]:hover,
 .animation-speed-option[aria-pressed="true"],
 .animation-speed-option[aria-pressed="true"]:hover,
+.card-shadow-option[aria-pressed="true"],
+.card-shadow-option[aria-pressed="true"]:hover,
 .play-input-option[aria-pressed="true"],
 .play-input-option[aria-pressed="true"]:hover,
 .card-style-scope-option[aria-pressed="true"],

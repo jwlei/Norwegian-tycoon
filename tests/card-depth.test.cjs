@@ -73,6 +73,134 @@ function fixture(borderColor = null) {
 
 const numbers = d => d.match(/-?\d+\.\d+/g).map(Number);
 
+test("simple shadows bypass projection, occlusion and blur while preserving the rendered card", () => {
+    const f = fixture();
+    assert.equal(f.Depth.shadowStyle, "fancy");
+    f.Depth.attach(f.element);
+    const state = f.Depth.states.get(f.element);
+    const artwork = JSON.stringify([state.layers.map(layer => layer.attributes), state.face.attributes,
+        state.light.attributes, state.outline.attributes, state.pose]);
+    const original = state.shadowEntries.get(f.Depth.FLOOR);
+    const fancyPath = original.path;
+    f.context.document.querySelectorAll = () => [f.element];
+    const geometry = f.context.LandingGeometry;
+    f.context.LandingGeometry = new Proxy(geometry, {
+        get(target, key) {
+            if (["shadow", "shadowVisible", "exposedPoints"].includes(key)) {
+                return () => assert.fail(`Simple shadows must not call ${key}`);
+            }
+            return target[key];
+        }
+    });
+    const before = f.created.length;
+    f.Depth.setShadowStyle("simple");
+    const simple = state.shadowEntries.get(f.Depth.FLOOR);
+    assert.equal(original.shape.removed, true);
+    assert.equal(original.filter.removed, true, "Old blur filters are removed when changing modes");
+    assert.deepEqual(f.created.slice(before), ["path"], "Simple mode adds only one unfiltered silhouette");
+    assert.equal(simple.path, state.faceOutline);
+    assert.equal(simple.filter, null);
+    assert.equal(simple.shape.hasAttribute("filter"), false);
+    assert.equal(state.shadowEntries.size, 1);
+    assert.equal(JSON.stringify([state.layers.map(layer => layer.attributes), state.face.attributes,
+        state.light.attributes, state.outline.attributes, state.pose]), artwork);
+    f.Depth.setHidden(f.element, true);
+    assert.equal(simple.shape.style.display, "none");
+    f.Depth.setHidden(f.element, false);
+    assert.equal(simple.shape.style.display, "");
+    f.Depth.update(f.element, { lift: 45, pitch: 12, yaw: -7 });
+    assert.equal(simple.path, state.faceOutline, "Shadow follows the current tilt and outline");
+    f.Depth.update(f.element, { lift: 18, pitch: 0, yaw: 0 });
+    f.context.LandingGeometry = geometry;
+    f.Depth.setShadowStyle("fancy");
+    assert.equal(simple.shape.removed, true);
+    assert.equal(state.shadowEntries.get(f.Depth.FLOOR).path, fancyPath, "Fancy rendering is restored exactly");
+    assert.equal(f.warnings.length, 0);
+});
+
+test("simple table and flight shadows use the floor without receiver shadows or filters", () => {
+    const f = fixture();
+    f.Depth.setShadowStyle("simple");
+    const cards = [f.card(200), f.card(230), f.card(260)];
+    const table = f.table(cards);
+    f.Depth.prepareTable(table);
+    const scene = f.Depth.scenes.get(table);
+    for (const card of cards) {
+        const state = f.Depth.states.get(card);
+        assert.equal(state.shadowEntries.size, 1);
+        const entry = state.shadowEntries.get(f.Depth.FLOOR);
+        assert.equal(entry.host, scene.floor);
+        assert.equal(entry.filter, null);
+        assert.equal(state.receiverShadows.children.length, 0);
+        assert.ok(entry.shape.getAttribute("transform").startsWith("translate("));
+    }
+    const flight = f.card(200);
+    f.Depth.attach(flight, false);
+    const state = f.Depth.states.get(flight);
+    f.Depth.bind(state, scene, cards.map(card => f.Depth.states.get(card)));
+    state.isFlight = true;
+    f.Depth.update(flight, { x: 250, y: 220, lift: 60 });
+    assert.equal(state.shadowEntries.size, 1);
+    assert.equal(state.shadowEntries.get(f.Depth.FLOOR).host, scene.floor);
+    state.shadowless = true;
+    f.Depth.update(flight, {});
+    assert.equal(state.shadowEntries.get(f.Depth.FLOOR).shape.style.display, "none");
+    assert.equal(f.warnings.length, 0);
+});
+
+test("prepared detached cards adopt the current shadow setting on their next update", () => {
+    const f = fixture();
+    f.Depth.attach(f.element);
+    const state = f.Depth.states.get(f.element);
+    const original = state.shadowEntries.get(f.Depth.FLOOR);
+    f.Depth.setShadowStyle("simple");
+    assert.equal(state.shadowStyle, "fancy", "Detached previews are not queried for a live refresh");
+    f.Depth.update(f.element, {});
+    assert.equal(state.shadowStyle, "simple");
+    assert.equal(original.shape.removed, true);
+    assert.equal(state.shadowEntries.get(f.Depth.FLOOR).filter, null);
+    assert.throws(() => f.Depth.setShadowStyle("invalid"), { name: "RangeError" });
+});
+
+test("shadow settings restore, persist and synchronize Fancy and Simple with accessible buttons", () => {
+    const connection = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const begin = connection.indexOf("        function updateCardShadowButtons(");
+    const block = connection.slice(begin, connection.indexOf("        function updatePlayInputButtons()", begin));
+    for (const saved of ["", "invalid", "fancy", "simple"]) {
+        const buttons = ["fancy", "simple"].map(style => ({
+            dataset: { cardShadow: style }, attributes: {},
+            setAttribute(key, value) { this.attributes[key] = value; },
+            addEventListener(type, handler) { this[type] = handler; }
+        }));
+        const storageListeners = [];
+        const writes = [];
+        const context = vm.createContext({
+            CardDepth: { shadowStyle: "fancy", setShadowStyle(style) { this.shadowStyle = style; } },
+            document: { querySelectorAll: () => buttons },
+            window: { addEventListener(type, handler) { storageListeners.push(handler); } },
+            getCookie(key) { assert.equal(key, "CardShadowStyle"); return saved; },
+            setCookie(...args) { writes.push(args); }
+        });
+        vm.runInContext(block, context);
+        assert.equal(context.CardDepth.shadowStyle, saved === "simple" ? "simple" : "fancy");
+        buttons[1].click();
+        assert.deepEqual(writes.pop(), ["CardShadowStyle", "simple", 1000]);
+        assert.equal(buttons[1].attributes["aria-pressed"], "true");
+        assert.equal(buttons[0].attributes["aria-pressed"], "false");
+        buttons[0].click();
+        assert.equal(context.CardDepth.shadowStyle, "fancy");
+        assert.deepEqual(writes.pop(), ["CardShadowStyle", "fancy", 1000]);
+        storageListeners[0]({ key: "unrelated", newValue: "simple" });
+        assert.equal(context.CardDepth.shadowStyle, "fancy");
+        storageListeners[0]({ key: "norwegian-tycoon-cookie-CardShadowStyle", newValue: "simple" });
+        assert.equal(context.CardDepth.shadowStyle, "simple");
+        assert.equal(buttons[1].attributes["aria-pressed"], "true");
+        storageListeners[0]({ key: "norwegian-tycoon-cookie-CardShadowStyle", newValue: null });
+        assert.equal(context.CardDepth.shadowStyle, "fancy");
+        assert.equal(buttons[0].attributes["aria-pressed"], "true");
+    }
+});
+
 test("recreated cards keep the document's six-second foil phase without changing other animations", () => {
     const f = fixture();
     f.context.document.timeline = { currentTime: 8123 };

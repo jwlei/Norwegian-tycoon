@@ -2135,6 +2135,24 @@
             if (event.key == "norwegian-tycoon-cookie-MaxVisibleMessages") { updateMaxMessageButtons(); }
         });
         updateMaxMessageButtons();
+        function updateCardShadowButtons(style) {
+            CardDepth.setShadowStyle(style == "simple" ? "simple" : "fancy");
+            document.querySelectorAll(".card-shadow-option").forEach(button => {
+                button.setAttribute("aria-pressed", String(button.dataset.cardShadow == CardDepth.shadowStyle));
+            });
+        }
+        document.querySelectorAll(".card-shadow-option").forEach(button => {
+            button.addEventListener("click", function () {
+                setCookie("CardShadowStyle", button.dataset.cardShadow, 1000);
+                updateCardShadowButtons(button.dataset.cardShadow);
+            });
+        });
+        window.addEventListener("storage", function (event) {
+            if (event.key != "norwegian-tycoon-cookie-CardShadowStyle") { return; }
+            setCookie("CardShadowStyle", event.newValue == "simple" ? "simple" : "fancy", 1000);
+            updateCardShadowButtons(event.newValue);
+        });
+        updateCardShadowButtons(getCookie("CardShadowStyle"));
         function updatePlayInputButtons() {
             var mode = GameLayout.playInputMode();
             document.getElementById("playInputFlickHint").hidden = mode == "button";

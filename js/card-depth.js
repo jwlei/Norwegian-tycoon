@@ -8,6 +8,7 @@ class CardDepth {
     // Tables with more cards than this keep full shadows only on their top DETAILED_CARDS cards.
     static SIMPLIFY_FROM = 12;
     static DETAILED_CARDS = 8;
+    static shadowStyle = "fancy";
 
     static states = new WeakMap();
     static scenes = new WeakMap();
@@ -22,6 +23,13 @@ class CardDepth {
     static artworkMetadata = new Map();
     static FLOOR = "floor";
     static paper = ["#dedbc7", "#bdbea9", "#e7e2cf", "#c5c5b1", "#dedbc7", "#b5bba4", "#e7e2cf"];
+
+    static setShadowStyle(style) {
+        if (style !== "fancy" && style !== "simple") { throw new RangeError("Unknown card shadow style."); }
+        if (this.shadowStyle === style) { return; }
+        this.shadowStyle = style;
+        document.querySelectorAll(".has-card-depth").forEach(element => this.update(element, {}));
+    }
 
     static paperColors(rect) {
         const color = rect.getAttribute("stroke");
@@ -156,7 +164,7 @@ class CardDepth {
     static renderKey(state) {
         const pose = state.placed;
         const parts = [pose.width, pose.height, pose.x, pose.y, pose.z, pose.pitch, pose.yaw, pose.roll,
-            state.hidden, state.shadowless, state.scene ? state.scene.version : 0];
+            state.hidden, state.shadowless, this.shadowStyle, state.scene ? state.scene.version : 0];
         const add = other => { const p = other.placed; if (p) { parts.push(p.x, p.y, p.z, p.pitch, p.yaw, p.roll); } };
         state.receiverStates.forEach(add);
         if (state.isFlight && state.scene) { state.scene.flights.forEach(add); }
@@ -189,12 +197,21 @@ class CardDepth {
         const transform = `matrix(${a.x}, ${a.y}, ${b.x}, ${b.y}, 0, ${-G.VIEW_SHEAR * world.z})`;
         state.face.setAttribute("transform", transform);
         const outline = this.path(top.map(G.screen), world);
+        state.faceOutline = outline;
         state.light.setAttribute("d", outline);
         state.outline.setAttribute("d", outline);
         state.element.style.setProperty("--depth-face-transform", transform);
     }
 
     static renderShadows(state) {
+        if (state.shadowStyle !== this.shadowStyle) {
+            this.removeShadows(state);
+            state.shadowStyle = this.shadowStyle;
+        }
+        if (this.shadowStyle === "simple") {
+            this.renderSimpleShadow(state);
+            return;
+        }
         const G = LandingGeometry, caster = state.placed;
         const detailed = this.detailed(state);
         for (const receiver of [null, ...state.receiverStates]) {
@@ -227,6 +244,31 @@ class CardDepth {
                 : state.scene ? state.scene.floor : state.freeShadow);
             this.setBlur(state, entry, shared ? 0 : shadow.blur);
         }
+    }
+
+    static renderSimpleShadow(state) {
+        let entry = state.shadowEntries.get(this.FLOOR);
+        if (state.hidden || state.shadowless) {
+            if (entry) { entry.shape.style.display = "none"; }
+            return;
+        }
+        entry = entry || this.createShadow(state, null);
+        const caster = state.placed, origin = state.scene ? state.scene.origin : caster;
+        const offset = 2 + Math.min(10, Math.max(0, caster.z) * .15);
+        const transform = `translate(${caster.x - origin.x + offset}, ${caster.y - origin.y + offset})`;
+        if (entry.path !== state.faceOutline) {
+            entry.shape.setAttribute("d", state.faceOutline);
+            entry.path = state.faceOutline;
+        }
+        if (entry.transform !== transform) {
+            entry.shape.setAttribute("transform", transform);
+            entry.transform = transform;
+        }
+        if (entry.opacity !== .22) {
+            entry.shape.setAttribute("opacity", .22);
+            entry.opacity = .22;
+        }
+        entry.shape.style.display = "";
     }
 
     static moveShadow(entry, host) {
