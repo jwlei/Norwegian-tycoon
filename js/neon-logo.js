@@ -67,11 +67,34 @@ const NeonLogo = {
             ${layer("core", plain('stroke="#fff" stroke-width=".55"'), 'opacity=".85"')}
         </div>`;
     },
+    bounds(svg) {
+        const bounds = svg.querySelector("g").getBBox();
+        if (bounds.width) { return bounds; }
+        // Language can change during a game, when the splash has display:none.
+        const measurement = svg.cloneNode(true);
+        measurement.setAttribute("style", "position:fixed;left:0;top:0;width:620px;height:140px;visibility:hidden;pointer-events:none");
+        document.body.appendChild(measurement);
+        try {
+            return measurement.querySelector("g").getBBox();
+        } finally {
+            measurement.remove();
+        }
+    },
     render(language) {
         document.querySelectorAll("[data-neon-logo]").forEach(slot => {
             if (slot.dataset.neonLanguage === language) { return; }
             slot.dataset.neonLanguage = language;
             slot.innerHTML = this.markup(language, slot.dataset.neonLogo || "neon-logo");
+            // Fit the actual lettering, not the original SVG's empty right-hand space.
+            const bounds = this.bounds(slot.querySelector(".neon-logo__tubes"));
+            const padding = 18;
+            const width = bounds.width + padding * 2;
+            const height = bounds.height + padding * 2;
+            const viewBox = `${bounds.x - padding} ${bounds.y - padding} ${width} ${height}`;
+            slot.querySelectorAll("svg").forEach(svg => svg.setAttribute("viewBox", viewBox));
+            slot.style.setProperty("--neon-width", `${width}px`);
+            slot.style.setProperty("--neon-ratio", `${width} / ${height}`);
+            slot.style.setProperty("--neon-scale", width / height);
         });
     }
 };

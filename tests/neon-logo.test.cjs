@@ -62,6 +62,74 @@ test("the neon logo renders before blocking scripts and follows the selected lan
         "The intro plays once per visit");
 });
 
+test("render centres every SVG layer on the actual artwork and refits when language changes", () => {
+    const context = vm.createContext({});
+    vm.runInContext(read("js/neon-logo.js"), context);
+    const layers = Array.from({ length: 5 }, () => ({
+        setAttribute(name, value) { this[name] = value; }
+    }));
+    const properties = {};
+    let measurements = 0;
+    const slot = {
+        dataset: { neonLogo: "splash-logo" },
+        style: { setProperty(name, value) { properties[name] = value; } },
+        querySelector() {
+            return { querySelector() { return { getBBox() {
+                measurements++;
+                return { x: 20, y: 10, width: slot.dataset.neonLanguage === "no" ? 390 : 460, height: 120 };
+            } }; } };
+        },
+        querySelectorAll() { return layers; }
+    };
+    context.document = { querySelectorAll() { return [slot]; } };
+    for (const [language, width] of [["no", 426], ["en", 496]]) {
+        vm.runInContext(`NeonLogo.render("${language}")`, context);
+        assert.ok(layers.every(layer => layer.viewBox === `2 -8 ${width} 156`));
+        assert.equal(properties["--neon-width"], `${width}px`);
+        assert.equal(properties["--neon-ratio"], `${width} / 156`);
+        assert.equal(properties["--neon-scale"], width / 156);
+        vm.runInContext(`NeonLogo.render("${language}")`, context);
+    }
+    assert.equal(measurements, 2, "Only measure when rendering a new language, never during animation");
+    assert.match(read("css/ui-refresh.css"), /aspect-ratio: var\(--neon-ratio, 620 \/ 140\)/);
+});
+
+test("logo measurement works while the splash is hidden and cleans up its temporary SVG", () => {
+    const context = vm.createContext({});
+    vm.runInContext(read("js/neon-logo.js"), context);
+    const bounds = { x: 20, y: 10, width: 460, height: 120 };
+    const attributes = {};
+    let appended = false, removed = false;
+    const clone = {
+        setAttribute(name, value) { attributes[name] = value; },
+        querySelector() { return { getBBox() { assert.ok(appended); return bounds; } }; },
+        remove() { removed = true; }
+    };
+    context.document = { body: { appendChild(node) { assert.equal(node, clone); appended = true; } } };
+    context.svg = {
+        querySelector() { return { getBBox() { return { width: 0 }; } }; },
+        cloneNode(deep) { assert.equal(deep, true); return clone; }
+    };
+    assert.equal(vm.runInContext("NeonLogo.bounds(svg)", context), bounds);
+    assert.ok(removed);
+    assert.match(attributes.style, /visibility:hidden;pointer-events:none/);
+    clone.querySelector = () => ({ getBBox() { throw new Error("measurement failed"); } });
+    removed = false;
+    assert.throws(() => vm.runInContext("NeonLogo.bounds(svg)", context), /measurement failed/);
+    assert.ok(removed, "Cleanup also runs if measuring fails; errors are not swallowed");
+});
+
+test("AMOLED flattens UI surfaces without disabling neon, cards or focus outlines", () => {
+    const css = read("css/ui-refresh.css");
+    const flat = css.slice(css.indexOf("/* Flat AMOLED surfaces"));
+    assert.match(flat, /:root\[data-color-theme="amoled"\] \{ --shadow: none; \}/);
+    assert.match(flat, /:is\(#gameShell, #mainMenu, #gameTable\) \{\s*background: #000;/);
+    assert.match(flat, /button, \.dialog-window,[\s\S]*?background-image: none !important;\s*box-shadow: none !important;/);
+    assert.match(flat, /button:is\(:hover, :active\) \{\s*transform: none;/);
+    assert.match(flat, /\.dialog-container \{ backdrop-filter: none; \}/);
+    assert.doesNotMatch(flat, /animation:|outline:|\.card(?=[\s.{:#>])|\.neon-logo/);
+});
+
 test("neon pulse, flicker, flash and splash intro animate only opacity and transforms and respect reduced motion", () => {
     const css = read("css/ui-refresh.css");
     for (const name of ["neon-logo-pulse", "neon-logo-flicker", "neon-logo-flash", "neon-logo-ignite", "neon-logo-glow-on",

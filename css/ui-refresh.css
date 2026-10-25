@@ -3,9 +3,9 @@
 /* Neon logo: no backing board, only a soft shadow behind the tubes. */
 .game-logo__neon {
     position: relative;
-    width: min(92%, 620px, calc(28vh * 620 / 140));
+    width: min(92%, var(--neon-width, 620px), calc(28vh * var(--neon-scale, 4.4286)));
     margin: 0 auto;
-    aspect-ratio: 620 / 140;
+    aspect-ratio: var(--neon-ratio, 620 / 140);
 }
 .neon-logo,
 .neon-logo > svg {
@@ -259,4 +259,51 @@ button:focus-visible {
 .color-theme-preview > span + span {
     background: linear-gradient(90deg, var(--neon-a) 0 48%, transparent 48% 52%, var(--neon-b) 52% 100%);
     box-shadow: 0 0 8px color-mix(in srgb, var(--neon-a) 50%, transparent);
+}
+
+/* Flat AMOLED surfaces; keep neon, card depth and foil effects intact. */
+:root[data-color-theme="amoled"] { --shadow: none; }
+
+:root[data-color-theme="amoled"] :is(#gameShell, #mainMenu, #gameTable) {
+    background: #000;
+}
+
+/* Override raised control states without changing their semantic fills or focus outlines. */
+:root[data-color-theme="amoled"] :is(
+    button, .dialog-window, .setting-row, .setting-row__switch, .setting-row__switch > span,
+    #gameMenu, #gameTable, #playerList > div, .player-summary, .exchange,
+    .speed-options, .turn-speed-options, .card-shadow-options, .play-input-options,
+    .card-style-scope-options, .quick-play-options, .language-options
+) {
+    background-image: none !important;
+    box-shadow: none !important;
+}
+
+:root[data-color-theme="amoled"] :is(.dialog-window, .setting-row, #gameTable) {
+    border-color: var(--line);
+}
+
+:root[data-color-theme="amoled"] :is(#settingsButton, #homeButton, #gameLogButton, #rulesButton, .game-menu-toggle) {
+    background-color: var(--surface-soft);
+    border-color: var(--line);
+    transform: none;
+}
+
+:root[data-color-theme="amoled"] :is(#settingsButton, #homeButton, #gameLogButton, #rulesButton, .game-menu-toggle):hover {
+    background-color: var(--surface-hover);
+    border-color: var(--focus);
+}
+
+:root[data-color-theme="amoled"] :is(#mainMenu, #gameMenu, #playerActions, .dialog-window) button:is(:hover, :active) {
+    transform: none;
+}
+
+:root[data-color-theme="amoled"] .dialog-container { backdrop-filter: none; }
+
+[data-color-preview="amoled"].color-theme-preview {
+    background: #000;
+}
+[data-color-preview="amoled"].color-theme-preview > span + span {
+    background: var(--neon-b);
+    box-shadow: none;
 }
