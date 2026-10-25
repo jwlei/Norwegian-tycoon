@@ -21,6 +21,7 @@ class CardDepth {
     static warned = false;
     static listeningForScroll = false;
     static artworkMetadata = new Map();
+    static supersampledArtwork = new Map();
     static FLOOR = "floor";
     static paper = ["#dedbc7", "#bdbea9", "#e7e2cf", "#c5c5b1", "#dedbc7", "#b5bba4", "#e7e2cf"];
 
@@ -76,6 +77,111 @@ class CardDepth {
         return metadata;
     }
 
+    static useSupersampling() {
+        return typeof window !== "undefined" &&
+            window.matchMedia("(hover: hover) and (pointer: fine)").matches &&
+            !window.matchMedia("(any-pointer: coarse)").matches;
+    }
+
+    static prepareSupersampling(state, source) {
+        if (!this.useSupersampling()) { return; }
+        let pending = this.supersampledArtwork.get(source);
+        if (!pending) {
+            const image = new Image();
+            image.src = source;
+            pending = image.decode().then(() => image);
+            if (this.supersampledArtwork.size >= 64) {
+                this.supersampledArtwork.delete(this.supersampledArtwork.keys().next().value);
+            }
+            this.supersampledArtwork.set(source, pending);
+        }
+        pending.then(image => {
+            if (this.states.get(state.element) !== state || !state.element.isConnected) { return; }
+            const canvas = document.createElement("canvas");
+            const context = canvas.getContext("2d");
+            if (!context) { throw new Error("Canvas 2D is unavailable."); }
+            const raster = this.node("foreignObject", { class: "card-depth-face", "pointer-events": "none" });
+            raster.appendChild(canvas);
+            state.svg.insertBefore(raster, state.receiverShadows);
+            state.raster = { canvas, context, element: raster, image };
+            if (state.world) {
+                state.key = null;
+                this.update(state.element, {});
+            }
+        }).catch(error => {
+            console.warn("2x card supersampling unavailable; retaining native SVG rendering.", error);
+            if (state.raster) {
+                state.raster.element.remove();
+                delete state.raster;
+                state.faceGroup.style.display = "";
+            }
+        });
+    }
+
+    static renderSupersampledFace(state) {
+        if (!state.raster) { return; }
+        const G = LandingGeometry, world = state.world;
+        const { canvas, context: ctx, element, image } = state.raster;
+        const top = G.silhouette(world), normal = G.rotate(0, 0, 1, world);
+        const outlines = state.layers.map((layer, index) => {
+            const depth = G.EDGE * (1 - index / (state.layers.length - 1));
+            return top.map(point => {
+                const projected = G.screen({ x: point.x - normal.x * depth,
+                    y: point.y - normal.y * depth, z: point.z - normal.z * depth });
+                return { x: projected.x - world.x, y: projected.y - world.y };
+            });
+        });
+        const points = outlines.flat();
+        const left = Math.floor(Math.min(...points.map(p => p.x))) - 2;
+        const upper = Math.floor(Math.min(...points.map(p => p.y))) - 2;
+        const width = Math.ceil(Math.max(...points.map(p => p.x))) + 2 - left;
+        const height = Math.ceil(Math.max(...points.map(p => p.y))) + 2 - upper;
+        // Twice the display pixel density in each axis, including on Retina desktops.
+        const scale = 2 * (window.devicePixelRatio || 1);
+        const pixelsWide = Math.ceil(width * scale), pixelsHigh = Math.ceil(height * scale);
+        if (canvas.width !== pixelsWide) { canvas.width = pixelsWide; }
+        if (canvas.height !== pixelsHigh) { canvas.height = pixelsHigh; }
+        Object.assign(canvas.style, { width: "100%", height: "100%", display: "block" });
+        for (const [key, value] of Object.entries({ x: left, y: upper, width, height })) {
+            element.setAttribute(key, value);
+        }
+        ctx.resetTransform();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.setTransform(canvas.width / width, 0, 0, canvas.height / height,
+            -left * canvas.width / width, -upper * canvas.height / height);
+        outlines.forEach((outline, index) => {
+            ctx.beginPath();
+            outline.forEach((point, i) => i ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+            ctx.closePath();
+            ctx.fillStyle = state.layers[index].getAttribute("fill");
+            ctx.fill();
+        });
+        const a = G.screen(G.rotate(1, 0, 0, world)), b = G.screen(G.rotate(0, 1, 0, world));
+        ctx.save();
+        ctx.transform(a.x, a.y, b.x, b.y, 0, -G.VIEW_SHEAR * world.z);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(image, -world.width / 2, -world.height / 2, world.width, world.height);
+        ctx.restore();
+        // Match the SVG's object-bounding-box lighting gradient on the top outline.
+        const outline = outlines[outlines.length - 1];
+        ctx.beginPath();
+        outline.forEach((point, i) => i ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+        ctx.closePath();
+        const xs = outline.map(p => p.x), ys = outline.map(p => p.y);
+        ctx.save();
+        ctx.clip();
+        ctx.translate(Math.min(...xs), Math.min(...ys));
+        ctx.scale(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+        const gradient = ctx.createLinearGradient(0, 0, 1, 1);
+        gradient.addColorStop(0, "rgba(255,255,255,0.13)");
+        gradient.addColorStop(1, "rgba(11,33,18,0.039)");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 1, 1);
+        ctx.restore();
+        state.faceGroup.style.display = "none";
+    }
+
     static attach(element, render = true, synchronizeFoil = true) {
         if (this.states.has(element)) { return; }
         const image = element.querySelector("img");
@@ -99,7 +205,7 @@ class CardDepth {
             const clip = this.node("clipPath", { id: `${id}-clip`, clipPathUnits: "userSpaceOnUse" }, defs);
             const outline = this.node("path", {}, clip);
             const receiverShadows = this.node("g", { "clip-path": `url(#${id}-clip)` }, svg);
-            const state = { element, svg, defs, freeShadow, layers, face, light, outline, receiverShadows, id,
+            const state = { element, svg, defs, freeShadow, faceGroup, layers, face, light, outline, receiverShadows, id,
                 radius: metadata.radius, pose: { pitch: 0, yaw: 0, roll: 0, lift: 18 },
                 receiverStates: [], shadowEntries: new Map(), nextShadow: 0, hidden: element.style.opacity === "0" };
             this.states.set(element, state);
@@ -107,6 +213,7 @@ class CardDepth {
             element.classList.add("has-card-depth");
             if (synchronizeFoil) { this.syncFoilPhase([element]); }
             if (render) { this.update(element, state.pose); }
+            this.prepareSupersampling(state, image.src);
         } catch (error) {
             this.warn(error);
             this.detach(element);
@@ -229,6 +336,7 @@ class CardDepth {
     static renderKey(state) {
         const pose = state.placed;
         const parts = [pose.width, pose.height, pose.x, pose.y, pose.z, pose.pitch, pose.yaw, pose.roll,
+            state.raster ? window.devicePixelRatio : 0,
             state.hidden, state.shadowless, this.shadowStyle, state.scene ? state.scene.version : 0];
         const add = other => { const p = other.placed; if (p) { parts.push(p.x, p.y, p.z, p.pitch, p.yaw, p.roll); } };
         state.receiverStates.forEach(add);
@@ -239,7 +347,8 @@ class CardDepth {
     static renderCard(state) {
         const G = LandingGeometry, world = state.world;
         const { width, height } = world;
-        const geometryKey = [width, height, world.z, world.pitch, world.yaw, world.roll].join(":");
+        const geometryKey = [width, height, world.z, world.pitch, world.yaw, world.roll,
+            state.raster ? window.devicePixelRatio : 0].join(":");
         if (state.geometryKey === geometryKey) { return; }
         state.geometryKey = geometryKey;
         const size = `${width}:${height}`;
@@ -266,6 +375,7 @@ class CardDepth {
         state.light.setAttribute("d", outline);
         state.outline.setAttribute("d", outline);
         state.element.style.setProperty("--depth-face-transform", transform);
+        this.renderSupersampledFace(state);
     }
 
     static renderShadows(state) {

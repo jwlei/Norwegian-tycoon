@@ -401,7 +401,7 @@ button:disabled {
         transform: translateY(8px);
     }
     to {
-        opacity: 1;
+        opacity: var(--player-summary-opacity, 1);
         transform: translateY(0);
     }
 }
@@ -2365,7 +2365,7 @@ select:focus-visible {
     inset: 0;
     z-index: 5;
     border-radius: inherit;
-    box-shadow: inset 0 0 0 2px var(--success);
+    box-shadow: inset 0 0 0 2px var(--accent);
     opacity: 0;
     pointer-events: none;
 }

@@ -370,6 +370,8 @@ test("the foil selector persists independently, updates previews and never regis
     let appearanceSaves = 0;
     context.rememberCardAppearanceChoice = () => appearanceSaves++;
     const connection = source("connection.js");
+    const lockStart = connection.indexOf("        function cardAppearanceIsLocked()");
+    vm.runInContext(connection.slice(lockStart, connection.indexOf("        function openSettings()", lockStart)), context);
     const helperStart = connection.indexOf("        function bindCardPreviewTilt(wrapper)");
     vm.runInContext(connection.slice(helperStart,
         connection.indexOf("        function updateCardAppearancePreview()", helperStart)), context);
@@ -414,6 +416,14 @@ test("the foil selector persists independently, updates previews and never regis
     assert.deepEqual(dialogs.slice(-2), [["Settings", false], ["CardFoil", true]]);
     nodes.get("cardFoilCloseButton").onclick();
     assert.deepEqual(dialogs.slice(-2), [["CardFoil", false], ["Settings", true]]);
+    const lockedMessages = [];
+    context.showGameToast = message => lockedMessages.push(message);
+    context.currentGame = { status: "S", getPlayer: () => null };
+    context.updateCardFoilButtons();
+    assert.ok(options.children.every(row => row.querySelector(".card-foil-option__select").disabled));
+    radiant.onclick();
+    assert.equal(appearanceSaves, 1, "An in-progress game cannot change its foil");
+    assert.equal(lockedMessages.length, 1);
 });
 
 test("foil locks show win requirements, block locked selection and exempt the named players", () => {
@@ -596,7 +606,7 @@ test("locked card styles disable only selection while their previews stay intera
     f.context.document.documentElement = { dataset: {} };
     const bound = [];
     Object.assign(f.context, {
-        playerRoundsPlayed: 5, playerWinsName: "Ada", currentPlayerName: "Ada",
+        currentGame: null, playerRoundsPlayed: 5, playerWinsName: "Ada", currentPlayerName: "Ada",
         playerWinsLoading: false, playerWinsError: false,
         localizedMessage: text => text, updateCardAppearancePreview() {},
         readLastUsedPlayerName: () => "Ada",
@@ -623,6 +633,9 @@ test("locked card styles disable only selection while their previews stay intera
         "A fresh count must update even when existing preview images are reused");
     assert.equal(bound.length, 15);
     assert.equal(rows[4].querySelector(".card-style-option__select").disabled, false);
+    f.context.currentGame = { status: "G", getPlayer: () => null };
+    f.context.updateCardStyleButtons();
+    assert.ok(rows.every(row => row.querySelector(".card-style-option__select").disabled));
 });
 
 test("foil overlays cover the full card surface and settings share one card preview", () => {
@@ -669,7 +682,7 @@ test("foil reduces light and pattern movement by twenty percent with 400ms easin
 test("idle foil animation toggle defaults on, preserves opt-out, persists and synchronizes across tabs", () => {
     const connection = source("connection.js");
     const start = connection.indexOf("        function updateIdleFoilAnimation(");
-    const block = connection.slice(start, connection.indexOf("        function updateCardShadowButtons(", start));
+    const block = connection.slice(start, connection.indexOf("        function updateTableSurfaceButtons(", start));
     for (const saved of [undefined, null, "true", "false", "invalid"]) {
         const button = new Element();
         button.getAttribute = name => button.attributes[name];

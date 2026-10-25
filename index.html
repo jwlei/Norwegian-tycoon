@@ -51,9 +51,9 @@
     <link rel="stylesheet" href="css/common.css">
     <link rel="stylesheet" href="css/game.css?v=1.0.0">
     <link rel="stylesheet" href="css/mobile.css">
-    <link rel="stylesheet" href="css/theme.css?v=1.0.0&amp;rev=7">
-    <link rel="stylesheet" href="css/color-themes.css?v=1.0.0&amp;rev=1">
-    <link rel="stylesheet" href="css/ui-refresh.css?v=1.0.0&amp;rev=3">
+    <link rel="stylesheet" href="css/theme.css?v=1.0.0&amp;rev=9">
+    <link rel="stylesheet" href="css/color-themes.css?v=1.0.0&amp;rev=2">
+    <link rel="stylesheet" href="css/ui-refresh.css?v=1.0.0&amp;rev=6">
     <link rel="stylesheet" href="css/foil.css?v=1.0.0&amp;rev=4">
     <link rel="stylesheet" href="css/card-depth.css?v=1.0.0&amp;rev=2">
     <script id="applySavedColorTheme">
@@ -66,7 +66,7 @@
                 var match = document.cookie.match(/(?:^|;\s*)ColorTheme=([^;]*)/);
                 saved = match ? decodeURIComponent(match[1]) : null;
             }
-            var light = { "vs-bla": true, sol: true, papir: true };
+            var light = { "vs-bla": true, sol: true, papir: true, sandstein: true, salvie: true, skifer: true, lavendel: true };
             if (saved && /^[a-z-]+$/.test(saved)) { root.dataset.colorTheme = saved; }
             root.dataset.theme = light[saved] ? "light" : "dark";
         })();
@@ -99,7 +99,7 @@
             <span class="game-menu-toggle__icon" aria-hidden="true"></span>
         </button>
         <div id="mainMenu" class="is-intro" role="group" aria-label="Hovedmeny">
-            <div class="game-logo"><div class="game-logo__neon" data-neon-logo="splash-logo"></div><small id="splashPlayerName" data-i18n-skip hidden></small></div>
+            <div class="game-logo"><div class="game-logo__neon" data-neon-logo="splash-logo"></div><small id="splashPlayerName" data-i18n-skip role="button" tabindex="0" aria-haspopup="dialog" aria-controls="dialogSaveProfile" hidden></small></div>
             <script src="js/neon-logo.js?v=1.0.0&amp;rev=2"></script>
             <button type="button" id="newGameButton" title="Lag nytt spill" style="grid-row: 2 / 3; grid-column: 2 / -2;">Lag nytt spill</button>
             <button type="button" id="resumeGameButton" hidden>Fortsett spillet</button>
@@ -148,14 +148,16 @@
         </div>
         <small id="lobbyCapacity" role="status" aria-live="polite" hidden></small>
         <div id="gameTable">
-            <div id="turnTimer" class="turn-timer" hidden>
-                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                    <circle cx="8" cy="8" r="6.5"></circle>
-                    <path d="M8 4.5V8l2.5 1.5"></path>
-                </svg>
-                <span id="turnCountdown" class="turn-countdown"></span>
-                <button type="button" id="extendTurnButton" title="Utsett 120 sekunder"
-                    aria-label="Utsett 120 sekunder" hidden>+120 s</button>
+            <div id="tableStatusDock" class="table-status-dock">
+                <div id="turnTimer" class="turn-timer" hidden>
+                    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                        <circle cx="8" cy="8" r="6.5"></circle>
+                        <path d="M8 4.5V8l2.5 1.5"></path>
+                    </svg>
+                    <span id="turnCountdown" class="turn-countdown"></span>
+                    <button type="button" id="extendTurnButton" title="Utsett 120 sekunder"
+                        aria-label="Utsett 120 sekunder" hidden>+120 s</button>
+                </div>
             </div>
             <span id="tableTurnHint" hidden>Det er din tur å legge ut</span>
         </div>
@@ -260,15 +262,12 @@
                     </div>
                     <div id="cardAppearancePreview" class="card-appearance-preview" aria-hidden="true"></div>
                 </div>
-                <button type="button" id="idleFoilAnimationToggleButton" class="setting-row" aria-pressed="true">
-                    <span class="setting-row__text"><strong>Folieanimasjon i hvile</strong><small>Slå av for bedre ytelse. Folie vises fortsatt på kortene.</small></span>
-                    <span class="setting-row__switch" aria-hidden="true"><span></span></span>
-                </button>
-                <div class="setting-row setting-card-shadow" role="group" aria-label="Kortskygger">
-                    <span class="setting-row__text"><strong>Kortskygger</strong><small>Enkle skygger gir bedre ytelse. Kortutseende og bevegelser er uendret.</small></span>
-                    <span class="card-shadow-options">
-                        <button type="button" class="card-shadow-option" data-card-shadow="fancy" aria-pressed="true">Detaljerte</button>
-                        <button type="button" class="card-shadow-option" data-card-shadow="simple" aria-pressed="false">Enkle</button>
+                <small id="cardAppearanceLocked" hidden>Kortutseende kan bare endres mellom spill.</small>
+                <div class="setting-row setting-table-surface" role="group" aria-label="Spillebord">
+                    <span class="setting-row__text"><strong>Spillebord</strong><small>Velg ensfarget eller teksturert bordflate.</small></span>
+                    <span class="speed-options">
+                        <button type="button" class="speed-option" data-table-surface="textured" aria-pressed="true">Teksturert</button>
+                        <button type="button" class="speed-option" data-table-surface="flat" aria-pressed="false">Flat</button>
                     </span>
                 </div>
                 <h3 class="settings-category">Spill og styring</h3>
@@ -309,6 +308,18 @@
                         <small id="playInputButtonHint" hidden>Velg kort og bekreft med spillknappen</small>
                     </span>
                 </div>
+                <h3 class="settings-category">Ytelse</h3>
+                <button type="button" id="idleFoilAnimationToggleButton" class="setting-row" aria-pressed="true">
+                    <span class="setting-row__text"><strong>Folieanimasjon i hvile</strong><small>Slå av for bedre ytelse. Folie vises fortsatt på kortene.</small></span>
+                    <span class="setting-row__switch" aria-hidden="true"><span></span></span>
+                </button>
+                <div class="setting-row setting-card-shadow" role="group" aria-label="Kortskygger">
+                    <span class="setting-row__text"><strong>Kortskygger</strong><small>Enkle skygger gir bedre ytelse. Kortutseende og bevegelser er uendret.</small></span>
+                    <span class="card-shadow-options">
+                        <button type="button" class="card-shadow-option" data-card-shadow="fancy" aria-pressed="true">Detaljerte</button>
+                        <button type="button" class="card-shadow-option" data-card-shadow="simple" aria-pressed="false">Enkle</button>
+                    </span>
+                </div>
             </div>
             <div class="dialog-footer">
                 <button type="button" onclick="showDialog('Settings',false);">Lukk</button>
@@ -319,6 +330,9 @@
         <div class="dialog-window">
             <div class="dialog-title">Velg fargetema</div>
             <div class="dialogBody color-theme-list">
+                <h3 class="settings-category" data-theme-category="classic">Klassisk</h3>
+                <button type="button" class="color-theme-option" data-color-theme="classic" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="classic" aria-hidden="true"><span></span><span></span></span><strong>Klassisk kortbord</strong></button>
+                <h3 class="settings-category" data-theme-category="dark">Mørke temaer</h3>
                 <button type="button" class="color-theme-option" data-color-theme="darcula" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="darcula" aria-hidden="true"><span></span><span></span></span><strong>Darcula</strong></button>
                 <button type="button" class="color-theme-option" data-color-theme="skumring" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="skumring" aria-hidden="true"><span></span><span></span></span><strong>Skumring</strong></button>
                 <button type="button" class="color-theme-option" data-color-theme="hostlov" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="hostlov" aria-hidden="true"><span></span><span></span></span><strong>Høstløv</strong></button>
@@ -335,11 +349,18 @@
                 <button type="button" class="color-theme-option" data-color-theme="synthwave" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="synthwave" aria-hidden="true"><span></span><span></span></span><strong>Synthwave</strong></button>
                 <button type="button" class="color-theme-option" data-color-theme="rose" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="rose" aria-hidden="true"><span></span><span></span></span><strong>Rosé</strong></button>
                 <button type="button" class="color-theme-option" data-color-theme="glod" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="glod" aria-hidden="true"><span></span><span></span></span><strong>Glød</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="kontrast" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="kontrast" aria-hidden="true"><span></span><span></span></span><strong>Høy kontrast</strong></button>
                 <button type="button" class="color-theme-option" data-color-theme="amoled" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="amoled" aria-hidden="true"><span></span><span></span></span><strong>AMOLED Black</strong></button>
+                <h3 class="settings-category" data-theme-category="mid">Mellomtoner</h3>
+                <button type="button" class="color-theme-option" data-color-theme="sandstein" data-theme-mode="light" aria-pressed="false"><span class="color-theme-preview" data-color-preview="sandstein" aria-hidden="true"><span></span><span></span></span><strong>Sandstein</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="salvie" data-theme-mode="light" aria-pressed="false"><span class="color-theme-preview" data-color-preview="salvie" aria-hidden="true"><span></span><span></span></span><strong>Salvie</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="skifer" data-theme-mode="light" aria-pressed="false"><span class="color-theme-preview" data-color-preview="skifer" aria-hidden="true"><span></span><span></span></span><strong>Skifer</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="lavendel" data-theme-mode="light" aria-pressed="false"><span class="color-theme-preview" data-color-preview="lavendel" aria-hidden="true"><span></span><span></span></span><strong>Lavendel</strong></button>
+                <h3 class="settings-category" data-theme-category="light">Lyse temaer</h3>
                 <button type="button" class="color-theme-option" data-color-theme="sol" data-theme-mode="light" aria-pressed="false"><span class="color-theme-preview" data-color-preview="sol" aria-hidden="true"><span></span><span></span></span><strong>Sol</strong></button>
                 <button type="button" class="color-theme-option" data-color-theme="papir" data-theme-mode="light" aria-pressed="false"><span class="color-theme-preview" data-color-preview="papir" aria-hidden="true"><span></span><span></span></span><strong>Papir</strong></button>
                 <button type="button" class="color-theme-option" data-color-theme="vs-bla" data-theme-mode="light" aria-pressed="false"><span class="color-theme-preview" data-color-preview="vs-bla" aria-hidden="true"><span></span><span></span></span><strong>Studio Blå</strong></button>
+                <h3 class="settings-category" data-theme-category="contrast">Høy kontrast</h3>
+                <button type="button" class="color-theme-option" data-color-theme="kontrast" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="kontrast" aria-hidden="true"><span></span><span></span></span><strong>Høy kontrast</strong></button>
             </div>
             <div class="dialog-footer">
                 <button type="button" id="colorThemeCloseButton">Lukk</button>
@@ -447,14 +468,16 @@
             <div class="dialogBody">
                 <div><label for="dialogPlayerNameTxt">Skriv inn navnet ditt, maks 24 tegn</label></div>
                 <div><input class="autofocus" type="text" id="dialogPlayerNameTxt" maxlength="60" /></div>
+                <div class="player-pin-row">
                 <button type="button" id="playerUsePin" class="setting-row" aria-pressed="false" aria-controls="playerPinFields">
                     <span class="setting-row__text"><strong>Bruk PIN</strong></span>
                     <span class="setting-row__switch" aria-hidden="true"><span></span></span>
                 </button>
                 <div id="playerPinFields" hidden>
                     <input type="text" id="playerRecoveryPin" inputmode="numeric" autocomplete="off" minlength="3" maxlength="6" pattern="([0-9]{3,4}|[0-9]{6})" placeholder="PIN (6 sifre)" aria-label="PIN (6 sifre)" aria-describedby="playerPinHint">
-                    <small id="playerPinHint">Ikke gjenbruk en viktig PIN fra andre steder, dette er enkel spillgjenoppretting.<br>Uten PIN lagres profilen på denne enheten. Flere spillere kan bruke samme navn.<br>Bruk navn og PIN for å hente profilen på en annen enhet.</small>
                 </div>
+                </div>
+                <small id="playerPinHint">Ikke gjenbruk en viktig PIN fra andre steder, dette er enkel spillgjenoppretting.<br>Uten PIN lagres profilen på denne enheten. Flere spillere kan bruke samme navn.<br>Bruk navn og PIN for å hente profilen på en annen enhet.</small>
                 <div id="playerNameError" style="color: red;"></div>
             </div>
             <div class="dialog-footer">
@@ -608,10 +631,56 @@
         </div>
     </div>
 
+    <div id="dialogSaveProfile" class="dialog-container">
+        <div class="dialog-window">
+            <div class="dialog-title">Behold fremgangen din</div>
+            <div class="dialogBody">
+                <p>Gå til Innstillinger → Bytt navn og slå på Bruk PIN for å lagre spiller-IDen din. Bruk samme navn og PIN på andre enheter for å beholde statistikk og opplåsinger.</p>
+            </div>
+            <div class="dialog-footer">
+                <button type="button" onclick="showDialog('SaveProfile', false); document.getElementById('settingsButton').click();">Åpne innstillinger</button>
+                <button type="button" onclick="showDialog('SaveProfile', false);">Lukk</button>
+            </div>
+        </div>
+    </div>
+    <div id="dialogPlayGuide" class="dialog-container">
+        <div class="dialog-window">
+            <div class="dialog-title">Visuell spillguide</div>
+            <div class="dialogBody play-guide">
+                <section>
+                    <h3>1. Bli kvitt kortene</h3>
+                    <div class="play-guide__cards" aria-hidden="true"><span>7 ♥</span><span>7 ♠</span><b>→</b><span>9 ♦</span><span>9 ♣</span></div>
+                    <p>Match antallet kort på bordet og legg lik eller høyere verdi. På tomt bord velger du singel, par, tress eller fire like.</p>
+                </section>
+                <section>
+                    <h3>2. Velg og spill</h3>
+                    <div class="play-guide__gesture" aria-hidden="true">☝ → ↑</div>
+                    <p>Trykk på kort for å velge. Sveip sidelengs for å bla i hånden. Dra kortene til bordet, flick opp eller bruk Legg ut.</p>
+                </section>
+                <section>
+                    <h3>3. Pass og nytt bord</h3>
+                    <div class="play-guide__flow" aria-hidden="true"><span>Pass</span><b>→</b><span>Pass</span><b>→</b><span>↻</span></div>
+                    <p>Når alle andre passer, ryddes bordet. Siste utspiller starter igjen. Er spilleren ferdig, starter neste aktive spiller i turrekkefølgen.</p>
+                </section>
+                <section>
+                    <h3>4. Spesialkort</h3>
+                    <div class="play-guide__cards" aria-hidden="true"><span>3 ♣</span><b>↻</b><span>8 ♥</span><span>8 ♠</span><span>8 ♦</span><span>8 ♣</span></div>
+                    <p>Kløver 3 rydder bordet, men slår ikke fire like og taper hvis det er ditt siste kort. Fire like fra hånden kan slås av høyere fire like. Fire like samlet fra singler eller par rydder bordet.</p>
+                </section>
+                <section>
+                    <h3>5. Plassering og bytte</h3>
+                    <div class="play-guide__flow" aria-hidden="true"><span>👑</span><b>⇄</b><span>🗑️</span></div>
+                    <p>Første ut blir President, siste blir Boms. Før neste runde byttes kort etter plassering. Se reglene for ditt spillerantall.</p>
+                </section>
+            </div>
+            <div class="dialog-footer"><button type="button" onclick="showDialog('PlayGuide', false); showDialog('Rules', true);">Tilbake til reglene</button></div>
+        </div>
+    </div>
     <div id="dialogRules" class="dialog-container">
         <div class="dialog-window">
             <div class="dialog-title">Regler</div>
             <div class="dialogBody rules-content">
+                <button type="button" class="play-guide-shortcut" onclick="showDialog('Rules', false); showDialog('PlayGuide', true);">Visuell spillguide</button>
                 <section>
                     <h3>Slik spiller du</h3>
                     <ul>
@@ -653,7 +722,6 @@
                 <section>
                     <h3>Tid og frakobling</h3>
                     <p>Du har 120 sekunder per tur, med én utsettelse på 120 sekunder per runde.</p>
-                    <p>Etter hvert fullførte bytte vises mottatte kort i 3, 5 eller 7 sekunder etter valgt meldingshastighet. Trykk Fortsett for å bli klar tidligere. Neste bytte eller runden starter når alle er klare. Botene bruker 5–10 sekunder på hvert byttesteg.</p>
                     <p>Ved tidsavbrudd eller frakobling kan en bot fortsette for deg. Ta tilbake plassen når du er tilbake.</p>
                 </section>
             </div>
@@ -779,19 +847,19 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js"></script>
     <script src="js/cards.js?v=1.0.0"></script>
     <script src="js/landing-geometry.js?v=1.0.0&amp;rev=3"></script>
-    <script src="js/card-depth.js?v=1.0.0&amp;rev=6"></script>
+    <script src="js/card-depth.js?v=1.0.0&amp;rev=7"></script>
     <script src="js/player.js?v=1.0.0"></script>
     <script src="js/shared.js?v=1.0.0&amp;rev=3"></script>
     <script src="js/identity.js?v=1.0.0"></script>
-    <script src="js/bot.js?v=1.0.0"></script>
+    <script src="js/bot.js?v=1.0.0&amp;rev=2"></script>
     <script src="js/presence.js?v=1.0.0"></script>
-    <script src="js/game.js?v=1.0.0&amp;rev=4"></script>
-    <script src="js/layout.js?v=1.0.0&amp;rev=6"></script>
-    <script src="js/engine.js?v=1.0.0&amp;rev=2"></script>
+    <script src="js/game.js?v=1.0.0&amp;rev=5"></script>
+    <script src="js/layout.js?v=1.0.0&amp;rev=8"></script>
+    <script src="js/engine.js?v=1.0.0&amp;rev=4"></script>
     <script src="js/bot-turn.js?v=1.0.0"></script>
-    <script src="js/connection.js?v=1.0.0&amp;rev=7"></script>
+    <script src="js/connection.js?v=1.0.0&amp;rev=10"></script>
     <script src="js/leaderboard.js?v=1.0.0"></script>
-    <script src="js/i18n.js?v=1.0.0&amp;rev=4"></script>
+    <script src="js/i18n.js?v=1.0.0&amp;rev=7"></script>
 </body>
 
 </html>

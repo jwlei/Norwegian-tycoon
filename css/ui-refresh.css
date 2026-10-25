@@ -88,9 +88,9 @@ button:not(.game-card) {
 #gameLogButton,
 #rulesButton,
 .game-menu-toggle {
-    border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
+    border: 0;
     border-radius: 14px;
-    background: var(--surface-soft);
+    background: transparent;
     color: var(--ink);
     transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
 }
@@ -99,8 +99,7 @@ button:not(.game-card) {
 #gameLogButton:hover,
 #rulesButton:hover,
 .game-menu-toggle:hover {
-    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-    background: var(--surface-hover);
+    background: transparent;
     color: var(--ink);
     transform: none;
 }
@@ -170,6 +169,11 @@ button:not(.game-card) {
 }
 
 /* Segmented controls: one connected track with a filled selected option. */
+:root[data-table-surface="flat"] #gameTable {
+    background: var(--felt);
+    box-shadow: none;
+}
+
 .speed-options,
 .turn-speed-options,
 .card-shadow-options,
@@ -280,14 +284,12 @@ button:focus-visible {
 }
 
 :root[data-color-theme="amoled"] :is(#settingsButton, #homeButton, #gameLogButton, #rulesButton, .game-menu-toggle) {
-    background-color: var(--surface-soft);
-    border-color: var(--line);
+    background-color: transparent;
     transform: none;
 }
 
 :root[data-color-theme="amoled"] :is(#settingsButton, #homeButton, #gameLogButton, #rulesButton, .game-menu-toggle):hover {
-    background-color: var(--surface-hover);
-    border-color: var(--focus);
+    background-color: transparent;
 }
 
 :root[data-color-theme="amoled"] :is(#mainMenu, #gameMenu, #playerActions, .dialog-window) button:is(:hover, :active) {
@@ -302,4 +304,108 @@ button:focus-visible {
 [data-color-preview="amoled"].color-theme-preview > span + span {
     background: var(--neon-b);
     box-shadow: none;
+}
+
+#splashPlayerName {
+    cursor: pointer;
+    text-decoration: underline dashed;
+    text-underline-offset: 4px;
+}
+
+#gameShell.game-active:not(.Lobby):not(.GameFinished) #playerList .player-summary.is-finished {
+    --player-summary-opacity: .68;
+    opacity: .68;
+}
+
+.player-pin-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.player-pin-row > #playerUsePin { flex: 0 0 155px; }
+.player-pin-row > #playerPinFields { flex: 1; min-width: 0; }
+#playerPinHint { display: block; color: var(--muted); }
+
+.color-theme-list > .settings-category { margin: 16px 4px 4px; }
+
+#playerList .is-reorderable {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+#playerList .is-reordering { --player-summary-opacity: .65; opacity: .65; }
+#playerList .is-reorder-target { outline: 2px dashed var(--focus); outline-offset: 2px; }
+
+.play-guide { display: grid; gap: 16px; }
+.play-guide section { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); }
+.play-guide h3 { margin: 0 0 12px; }
+.play-guide p { margin-bottom: 0; }
+.play-guide__cards, .play-guide__flow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+.play-guide__cards > span {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 62px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink);
+    font-weight: 700;
+}
+.play-guide__flow > span, .play-guide__gesture { font-size: 1.6rem; text-align: center; }
+
+.table-status-dock {
+    position: absolute;
+    z-index: 70;
+    right: 8px;
+    bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+}
+.table-status-dock > #turnTimer {
+    position: static;
+    order: 2;
+}
+.table-status-dock > .table-card-pile__count {
+    position: static;
+    order: 1;
+    display: inline-flex;
+    align-items: center;
+    width: auto;
+    padding: 3px 6px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface-soft);
+    color: var(--muted);
+    font-size: .7rem;
+    font-weight: 400;
+    line-height: 1.45;
+    transform: none;
+    box-shadow: none;
+    font-variant-numeric: tabular-nums;
+}
+#gameTable:has(#gameToastRegion:not([hidden]) > .game-toast.is-visible) > .table-status-dock {
+    bottom: calc(var(--toast-stack-height) + 10px);
+}
+.table-status-dock > .table-card-pile__count[hidden] { display: none; }
+.game-end-vote__choices button.has-waiting-player {
+    border: 2px solid var(--warning);
+    background: var(--warning-soft);
+    color: var(--ink);
+}
+.lobby-waiting-hint { color: var(--warning); }
+
+@media (orientation: landscape) and (max-height: 500px) {
+    #gameTable:has(#gameToastRegion:not([hidden]) > .game-toast.is-visible) > .table-status-dock {
+        top: 4px;
+        bottom: auto;
+    }
 }

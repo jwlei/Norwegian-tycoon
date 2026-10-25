@@ -165,7 +165,7 @@ class PresidentPlayer extends Player {
         result["lastPlacement"] = this.lastPlacement;
         if (this.playerKey == "PC") {
             result.botSkill = BotAI.skill(this.botSkill);
-            result.botSkillVersion = 1;
+            result.botSkillVersion = 2;
         }
         if (this.gaveUp === true) {
             result["gaveUp"] = true;
@@ -193,7 +193,7 @@ class PresidentPlayer extends Player {
             : 0;
         this.gaveUp = record["gaveUp"] === true;
         this.botSkill = this.playerKey == "PC"
-            ? (record.botSkillVersion === 1 ? BotAI.skill(record.botSkill) : BotAI.skillForName(this.name))
+            ? (record.botSkillVersion === 2 ? BotAI.skill(record.botSkill) : BotAI.skillForName(this.name))
             : null;
         this.leaveAfterExchange = record["leaveAfterExchange"] === true;
         return this;
@@ -238,6 +238,7 @@ class PresidentGame extends Game {
         this.playedCards = [];
         this.shufflePlayerOrder = false;
         this.preservePlayerOrderOnStart = false;
+        this.lobbyPlayerOrder = false;
         this.endGameVoteResolvedForStart = false;
         this.hostKey = id == null ? getPlayerKey() : null;
         this.hostName = null;
@@ -264,6 +265,7 @@ class PresidentGame extends Game {
         var shouldShuffle = this.shufflePlayerOrder === true ||
             (this.status == "O" && this.preservePlayerOrderOnStart !== true);
         this.preservePlayerOrderOnStart = false;
+        this.lobbyPlayerOrder = false;
         return shouldShuffle;
     }
     startGame() {
@@ -365,6 +367,7 @@ class PresidentGame extends Game {
             "hostName": this.hostName ?? null,
             "isPublic": this.isPublic === true,
             "preservePlayerOrderOnStart": this.preservePlayerOrderOnStart,
+            "lobbyPlayerOrder": this.lobbyPlayerOrder === true,
             ...(this.status != "F" ? { roundStartVote: null, gameEndVote: null } : {}),
             ts: new Date()
         };
@@ -872,8 +875,8 @@ class PresidentGame extends Game {
             player.presidentStreak = 0;
             player.bomsStreak = 0;
         });
-        this.preservePlayerOrderOnStart = false;
-        this.shufflePlayerOrder = true;
+        this.preservePlayerOrderOnStart = this.lobbyPlayerOrder === true;
+        this.shufflePlayerOrder = this.lobbyPlayerOrder !== true;
     }
     addPlayer(incomingPlayer) {
         return new Promise(resolve => {
@@ -952,7 +955,8 @@ class PresidentGame extends Game {
                     next.spillere = next.spillere.map(player => Object.assign({}, player, {
                         plassering: 0, lastPlacement: 0, presidentStreak: 0, bomsStreak: 0
                     }));
-                    next.preservePlayerOrderOnStart = false;
+                    next.preservePlayerOrderOnStart = current.lobbyPlayerOrder === true;
+                    next.shufflePlayerOrder = current.lobbyPlayerOrder !== true;
                 }
                 next.status = "O";
                 next.playedCards = [];
@@ -982,10 +986,34 @@ class PresidentGame extends Game {
                 this.status = record.status;
                 this.lastHumanActionAt = GamePresence.lastActivityAt(record);
                 this.preservePlayerOrderOnStart = record.preservePlayerOrderOnStart === true;
+                this.lobbyPlayerOrder = record.lobbyPlayerOrder === true;
                 this.updatePublicListing();
                 resolve({ player: this.getPlayer(assignedName) });
             }, false);
         });
+    }
+    async reorderLobbyPlayers(sourceName, targetName) {
+        if (this.connectionOnline === false) { throw new Error("Kan ikke flytte spillere uten tilkobling."); }
+        var result = await this.databaseRef.transaction(record => {
+            if (!record || record.status != "O" || GamePresence.isExpired(record) ||
+                record.hostKey != getPlayerKey() ||
+                (record.hostName != null && record.hostName != this.localPlayerName)) { return; }
+            var players = (record.spillere || []).slice();
+            var from = players.findIndex(player => player.nick == sourceName);
+            var to = players.findIndex(player => player.nick == targetName);
+            if (from < 0 || to < 0 || from == to) { return; }
+            players.splice(to, 0, players.splice(from, 1)[0]);
+            return Object.assign({}, record, {
+                spillere: players, preservePlayerOrderOnStart: true, shufflePlayerOrder: false, lobbyPlayerOrder: true
+            });
+        }, undefined, false);
+        if (!result.committed) {
+            throw new Error("Bare verten kan flytte spillere i en åpen lobby. Prøv igjen.");
+        }
+        this.players = PresidentPlayer.deserializePlayers(result.snapshot.val().spillere);
+        this.preservePlayerOrderOnStart = true;
+        this.shufflePlayerOrder = false;
+        this.lobbyPlayerOrder = true;
     }
     removeLobbyPlayer(player) {
         return new Promise(resolve => {
@@ -1011,8 +1039,8 @@ class PresidentGame extends Game {
                     next.spillere = next.spillere.map(record => Object.assign({}, record, {
                         plassering: 0, lastPlacement: 0, presidentStreak: 0, bomsStreak: 0
                     }));
-                    next.preservePlayerOrderOnStart = false;
-                    next.shufflePlayerOrder = true;
+                    next.preservePlayerOrderOnStart = current.lobbyPlayerOrder === true;
+                    next.shufflePlayerOrder = current.lobbyPlayerOrder !== true;
                 }
                 return next;
             }, (error, committed, snapshot) => {
@@ -1025,6 +1053,7 @@ class PresidentGame extends Game {
                 var record = snapshot.val();
                 this.players = PresidentPlayer.deserializePlayers(record.spillere || []);
                 this.preservePlayerOrderOnStart = record.preservePlayerOrderOnStart === true;
+                this.lobbyPlayerOrder = record.lobbyPlayerOrder === true;
                 this.shufflePlayerOrder = record.shufflePlayerOrder === true;
                 this.updatePublicListing();
                 resolve({});
@@ -1951,13 +1980,13 @@ class PresidentGame extends Game {
     }
     async setPlayerCardAppearance(style, foil = "none") {
         var name = this.localPlayerName;
-        if (this.connectionOnline === false ||
+        if ((this.status != "O" && this.status != "F") || this.connectionOnline === false ||
             Card.normalizeStyle(style, name || "", getPlayerKey()) != style ||
             Card.normalizeFoil(foil) != foil) {
             throw new Error("Kan ikke lagre kortutseendet nå.");
         }
         var result = await this.databaseRef.transaction(record => {
-            if (!record || GamePresence.isExpired(record)) { return; }
+            if (!record || !["O", "F"].includes(record.status) || GamePresence.isExpired(record)) { return; }
             var player = (record.spillere || []).find(player =>
                 player.spillerKey == getPlayerKey() && player.nick == name);
             if (!player) { return; }
@@ -2249,14 +2278,12 @@ class PresidentGame extends Game {
                 }
             });
             var lastPilePlayer = this.getPlayer(clearedPile.name);
-            var remainingPlayers = this.players.filter(player => player.placement == 0);
-            var lastPilePlayerFinishedWithTwoRemaining =
+            var lastPilePlayerFinished =
                 info.text == "Alle spillere sa pass" &&
                 lastPilePlayer != null &&
-                lastPilePlayer.placement > 0 &&
-                remainingPlayers.length == 2;
+                lastPilePlayer.placement > 0;
             var nextPlayerIndex;
-            if (lastPilePlayerFinishedWithTwoRemaining) {
+            if (lastPilePlayerFinished) {
                 nextPlayerIndex = this.players.indexOf(lastPilePlayer);
                 do {
                     nextPlayerIndex = (nextPlayerIndex + 1) % this.players.length;

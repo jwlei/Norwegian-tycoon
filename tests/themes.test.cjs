@@ -2,13 +2,92 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const css = fs.readFileSync(path.join(__dirname, "..", "css", "theme.css"), "utf8");
 const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 const themeCss = fs.readFileSync(path.join(__dirname, "..", "css", "color-themes.css"), "utf8");
-const themes = ["darcula", "skumring", "hostlov", "kobolt", "monokai", "furu", "solarisert", "fjord", "modern", "atom",
-    "nattugle", "vampyr", "mokka", "synthwave", "rose", "glod", "kontrast", "amoled", "sol", "papir", "vs-bla"];
-const lightThemes = ["sol", "papir", "vs-bla"];
+const themes = ["classic", "darcula", "skumring", "hostlov", "kobolt", "monokai", "furu", "solarisert", "fjord", "modern", "atom",
+    "nattugle", "vampyr", "mokka", "synthwave", "rose", "glod", "amoled", "sandstein", "salvie", "skifer", "lavendel", "sol", "papir", "vs-bla", "kontrast"];
+const lightThemes = ["sandstein", "salvie", "skifer", "lavendel", "sol", "papir", "vs-bla"];
+
+test("table surface restores, saves and synchronizes without changing the selected theme", () => {
+    const connection = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const start = connection.indexOf("        function updateTableSurfaceButtons(");
+    const block = connection.slice(start, connection.indexOf("        function updateCardShadowButtons(", start));
+    for (const saved of [null, "textured", "flat", "invalid"]) {
+        const buttons = ["textured", "flat"].map(surface => ({
+            dataset: { tableSurface: surface }, attributes: {},
+            setAttribute(key, value) { this.attributes[key] = value; },
+            addEventListener(type, handler) { this[type] = handler; }
+        }));
+        const root = { dataset: { colorTheme: "classic" } }, writes = [], listeners = [];
+        const context = vm.createContext({
+            document: { documentElement: root, querySelectorAll: () => buttons },
+            window: { addEventListener(type, listener) { listeners.push(listener); } },
+            getCookie(key) { assert.equal(key, "TableSurface"); return saved; },
+            setCookie(...args) { writes.push(args); }
+        });
+        vm.runInContext(block, context);
+        assert.equal(root.dataset.tableSurface, saved === "flat" ? "flat" : "textured");
+        buttons[1].click();
+        assert.equal(root.dataset.tableSurface, "flat");
+        assert.equal(buttons[1].attributes["aria-pressed"], "true");
+        assert.equal(buttons[0].attributes["aria-pressed"], "false");
+        assert.deepEqual(writes.pop(), ["TableSurface", "flat", 1000]);
+        listeners[0]({ key: "unrelated", newValue: "textured" });
+        assert.equal(root.dataset.tableSurface, "flat");
+        listeners[0]({ key: "norwegian-tycoon-cookie-TableSurface", newValue: "textured" });
+        assert.equal(root.dataset.tableSurface, "textured");
+        assert.equal(buttons[0].attributes["aria-pressed"], "true");
+        buttons[1].click();
+        listeners[0]({ key: "norwegian-tycoon-cookie-TableSurface", newValue: null });
+        assert.equal(root.dataset.tableSurface, "textured");
+        assert.equal(root.dataset.colorTheme, "classic");
+    }
+});
+
+test("flat tables are solid theme colours and delayed card outlines use the theme accent", () => {
+    const refresh = fs.readFileSync(path.join(__dirname, "..", "css", "ui-refresh.css"), "utf8");
+    assert.match(refresh, /:root\[data-table-surface="flat"\] #gameTable \{\s*background: var\(--felt\);\s*box-shadow: none;/);
+    assert.match(css, /\.table-play__beat-outline \{[^}]*box-shadow: inset 0 0 0 2px var\(--accent\);/);
+    const settings = html.slice(html.indexOf('id="dialogSettings"'), html.indexOf('id="dialogColorTheme"'));
+    assert.ok(settings.indexOf('data-table-surface="flat"') > settings.indexOf("Utseende"));
+    assert.ok(settings.indexOf('data-table-surface="flat"') < settings.indexOf("Spill og styring"));
+    const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
+    for (const label of ["Spillebord", "Teksturert", "Flat", "Velg ensfarget eller teksturert bordflate."]) {
+        assert.ok(translations.includes(`"${label}":`));
+    }
+});
+
+test("settings finish with performance controls and keep the PIN input beside its switch", () => {
+    const settings = html.slice(html.indexOf('id="dialogSettings"'), html.indexOf('id="dialogColorTheme"'));
+    assert.ok(settings.indexOf("Ytelse") > settings.indexOf("Kortstyring"));
+    assert.ok(settings.indexOf('id="idleFoilAnimationToggleButton"') > settings.indexOf("Ytelse"));
+    assert.ok(settings.indexOf('aria-label="Kortskygger"') > settings.indexOf("Ytelse"));
+    assert.match(settings, /id="cardAppearanceLocked" hidden/);
+    assert.match(html, /class="player-pin-row">[\s\S]*?id="playerUsePin"[\s\S]*?id="playerPinFields" hidden>[\s\S]*?id="playerRecoveryPin"/);
+    const refresh = fs.readFileSync(path.join(__dirname, "..", "css", "ui-refresh.css"), "utf8");
+    assert.match(refresh, /\.player-pin-row \{\s*display: flex;/);
+    assert.match(refresh, /:not\(\.Lobby\):not\(\.GameFinished\)[^{]+\.player-summary\.is-finished \{\s*--player-summary-opacity: \.68;\s*opacity: \.68;/);
+    assert.match(css, /@keyframes settle-in[\s\S]*?to \{\s*opacity: var\(--player-summary-opacity, 1\);/);
+});
+
+test("visual play guide and splash progress hint are accessible, bilingual shortcuts", () => {
+    assert.match(html, /id="splashPlayerName"[^>]*role="button" tabindex="0"[^>]*aria-controls="dialogSaveProfile"/);
+    const guide = html.slice(html.indexOf('id="dialogPlayGuide"'), html.indexOf('id="dialogRules"'));
+    const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
+    assert.equal((guide.match(/<section>/g) || []).length, 5);
+    for (const [, paragraph] of guide.matchAll(/<p>([^<]+)<\/p>/g)) {
+        assert.ok(translations.includes(`"${paragraph}":`), paragraph);
+    }
+    const rules = html.slice(html.indexOf('id="dialogRules"'), html.indexOf('id="dialogGameLog"'));
+    assert.match(rules, /class="play-guide-shortcut"/);
+    assert.doesNotMatch(rules, /3, 5 eller 7 sekunder|5–10 sekunder/);
+    assert.match(html, /id="dialogSaveProfile"[\s\S]*?samme navn og PIN på andre enheter/);
+    const connection = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    assert.match(connection, /getElementById\("splashPlayerName"\)\.addEventListener\("keydown"[\s\S]*?event.key == "Enter" \|\| event.key == " "/);
+});
 
 test("rules separate player counts, keep voting on the voting screen, and translate every paragraph", () => {
     const rules = html.slice(html.indexOf('id="dialogRules"'), html.indexOf('id="dialogGameLog"'));
@@ -88,15 +167,19 @@ function themePalette(theme) {
     return Object.fromEntries(Array.from(block[1].matchAll(/(--[\w-]+):\s*([^;]+);/g), match => [match[1], match[2].trim()]));
 }
 
-test("twenty-one themes are listed dark by accent hue, then light, each with a complete palette and fixed mode", () => {
+test("twenty-six themes are grouped by category and hue with a complete palette and fixed mode", () => {
     const options = Array.from(html.matchAll(/class="color-theme-option" data-color-theme="([^"]+)" data-theme-mode="([^"]+)"/g),
         match => [match[1], match[2]]);
     assert.deepEqual(options.map(([theme]) => theme), themes);
     assert.deepEqual(options.filter(([, mode]) => mode === "light").map(([theme]) => theme), lightThemes);
     assert.doesNotMatch(html, /class="theme-toggle/, "The theme decides dark or light mode");
-    const darkAccents = themes.filter(theme => !lightThemes.includes(theme) && !["kontrast", "amoled"].includes(theme))
-        .map(theme => hue(rgb(themePalette(theme)["--accent"])));
-    assert.deepEqual(darkAccents, [...darkAccents].sort((a, b) => a - b));
+    const categories = Array.from(html.matchAll(/data-theme-category="([^"]+)"[^>]*>[\s\S]*?(?=<h3 class="settings-category" data-theme-category|<\/div>\s*<div class="dialog-footer")/g));
+    assert.deepEqual(categories.map(match => match[1]), ["classic", "dark", "mid", "light", "contrast"]);
+    for (const category of categories) {
+        const accents = Array.from(category[0].matchAll(/class="color-theme-option" data-color-theme="([^"]+)"/g), match => match[1])
+            .filter(theme => theme != "amoled").map(theme => hue(rgb(themePalette(theme)["--accent"])));
+        assert.deepEqual(accents, [...accents].sort((a, b) => a - b), category[1]);
+    }
     for (const theme of themes) {
         const palette = themePalette(theme);
         assert.ok(html.includes(`data-color-preview="${theme}"`));
@@ -130,7 +213,7 @@ for (const theme of themes) {
             `${theme}: focus ring contrast`);
         const hues = [];
         for (const role of ["success", "warning", "danger"]) {
-            const color = rgb(mode === "dark" && palette[`--${role}`] ? palette[`--${role}`] : base[`--${role}${mode === "light" ? "-light" : ""}`]);
+            const color = rgb(palette[`--${role}`] || base[`--${role}${mode === "light" ? "-light" : ""}`]);
             const tint = mix(color, surface, role === "danger" ? .12 : .18);
             assert.ok(contrast(color, tint) >= 4.5, `${theme}/${role}: status text contrast ${contrast(color, tint).toFixed(2)}`);
             assert.ok(contrast(ink, tint) >= 4.5, `${theme}/${role}: body text on status tint`);
@@ -338,7 +421,7 @@ test("leaderboard has smaller text and compact mobile cells without shrinking so
 });
 
 test("required cards pulse for one second then rest for two, without competing with foil", () => {
-    assert.match(css, /\.table-play__beat-outline\s*\{[^}]*box-shadow:\s*inset 0 0 0 2px var\(--success\);[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;/);
+    assert.match(css, /\.table-play__beat-outline\s*\{[^}]*box-shadow:\s*inset 0 0 0 2px var\(--accent\);[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;/);
     assert.match(css, /:has\(> \.table-pile-summary--required:not\(\[hidden\]\)\):not\(:has\(#gameToastRegion:not\(\[hidden\]\) > \.game-toast\.is-visible\)\) \.table-play__beat-outline\s*\{[^}]*animation:\s*required-pile-pulse 3s ease-in-out infinite;/);
     assert.match(css, /@keyframes required-pile-pulse\s*\{\s*0%, 33\.333%, 100% \{ opacity: 0; \}\s*16\.667% \{ opacity: 0\.55; \}/);
     assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*#gameTable \.table-play__beat-outline\s*\{\s*animation:\s*none !important;/);

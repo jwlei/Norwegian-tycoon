@@ -378,6 +378,106 @@
     --neon-b: #9ecbff;
 }
 
+:root[data-color-theme="classic"],
+[data-color-preview="classic"] {
+    --felt: #123d2c;
+    --felt-deep: #0b281d;
+    --surface: #123729;
+    --surface-soft: #194532;
+    --ink: #fff8e7;
+    --muted: #d8d7bc;
+    --line: #8aa38e;
+    --accent: #edc66a;
+    --on-accent: #18241c;
+    --accent-hover: #f5d68d;
+    --focus: #f5d68d;
+    --neon-a: #edc66a;
+    --neon-b: #8fe0b4;
+    --success: #8fe0b4;
+    --warning: #f2d18b;
+    --danger: #ffa9aa;
+}
+
+:root[data-color-theme="sandstein"],
+[data-color-preview="sandstein"] {
+    --felt: #bdb09a;
+    --felt-deep: #b9ad98;
+    --surface: #d0c3ad;
+    --surface-soft: #c6b9a3;
+    --ink: #1e211e;
+    --muted: #38392e;
+    --line: #615c4e;
+    --accent: #76551a;
+    --on-accent: #ffffff;
+    --accent-hover: #624613;
+    --focus: #634613;
+    --neon-a: #795816;
+    --neon-b: #36694b;
+    --success: #09452e;
+    --warning: #50350d;
+    --danger: #851c2f;
+}
+
+:root[data-color-theme="salvie"],
+[data-color-preview="salvie"] {
+    --felt: #aabdb0;
+    --felt-deep: #a6b9ac;
+    --surface: #c0d0c3;
+    --surface-soft: #b5c6b9;
+    --ink: #18221c;
+    --muted: #34493c;
+    --line: #4d6555;
+    --accent: #286343;
+    --on-accent: #ffffff;
+    --accent-hover: #1f5236;
+    --focus: #225c3b;
+    --neon-a: #286343;
+    --neon-b: #815827;
+    --success: #0b4b32;
+    --warning: #583c10;
+    --danger: #851c2f;
+}
+
+:root[data-color-theme="skifer"],
+[data-color-preview="skifer"] {
+    --felt: #a7b7c3;
+    --felt-deep: #a3b3bf;
+    --surface: #bfccd5;
+    --surface-soft: #b4c2cc;
+    --ink: #18222c;
+    --muted: #354654;
+    --line: #506271;
+    --accent: #265878;
+    --on-accent: #ffffff;
+    --accent-hover: #1d4865;
+    --focus: #214e70;
+    --neon-a: #265878;
+    --neon-b: #735037;
+    --success: #0b4b32;
+    --warning: #583c10;
+    --danger: #851c2f;
+}
+
+:root[data-color-theme="lavendel"],
+[data-color-preview="lavendel"] {
+    --felt: #b9aec6;
+    --felt-deep: #b5aac2;
+    --surface: #cec4d9;
+    --surface-soft: #c3b8cf;
+    --ink: #251d2d;
+    --muted: #483950;
+    --line: #665371;
+    --accent: #654287;
+    --on-accent: #ffffff;
+    --accent-hover: #53346f;
+    --focus: #5f357e;
+    --neon-a: #654287;
+    --neon-b: #276157;
+    --success: #0b4b32;
+    --warning: #583c10;
+    --danger: #851c2f;
+}
+
 :root[data-color-theme],
 [data-color-preview] {
     --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);

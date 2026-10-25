@@ -250,9 +250,21 @@
             watchCardAppearance();
         }
 
+        document.getElementById("splashPlayerName").addEventListener("click", function () {
+            showDialog("SaveProfile", true);
+        });
+        document.getElementById("splashPlayerName").addEventListener("keydown", function (event) {
+            if (event.key == "Enter" || event.key == " ") {
+                event.preventDefault();
+                showDialog("SaveProfile", true);
+            }
+        });
+
         function promptForPlayerName(isRename = false, errorMessage = "") {
             document.querySelector("#dialogPlayerName .dialog-title").textContent =
-                isRename ? "Bytt spillernavn" : "Hva vil du hete?";
+                isRename ? "Bytt spillernavn" :
+                    currentGame && ["S", "G"].includes(currentGame.status)
+                        ? "Du blir med i et spill som pågår" : "Hva vil du hete?";
             document.getElementById("dialogPlayerNameTxt").value =
                 isRename && currentPlayerName != null
                     ? currentPlayerName
@@ -317,7 +329,7 @@
             var toast = document.getElementById("spectatorJoinToast");
             if (spectatorJoinToastTimer != null) { clearTimeout(spectatorJoinToastTimer); }
             toast.replaceChildren();
-            appendColoredGameMessage(toast, localizedMessage("Spillet pågår. Du ser på til neste runde."), [], true);
+            appendColoredGameMessage(toast, localizedMessage("Du blir med i et spill som pågår. Du venter på plass til neste runde."), [], true);
             toast.classList.add("is-visible");
             spectatorJoinToastTimer = setTimeout(function () {
                 toast.classList.remove("is-visible");
@@ -1980,6 +1992,7 @@
                     connectingGame.gameEndVote = snapshotRecord["gameEndVote"] || null;
                     connectingGame.preservePlayerOrderOnStart =
                         snapshotRecord["preservePlayerOrderOnStart"] === true;
+                    connectingGame.lobbyPlayerOrder = snapshotRecord.lobbyPlayerOrder === true;
                     connectingGame.players = PresidentPlayer.deserializePlayers(storedPlayers);
                     connectingGame.cardStyles = snapshotRecord.cardStyles || {};
                     connectingGame.cardFoils = snapshotRecord.cardFoils || {};
@@ -2150,6 +2163,25 @@
             updateIdleFoilAnimation(event.newValue != "false");
         });
         updateIdleFoilAnimation(getCookie("IdleFoilAnimation") != "false");
+        function updateTableSurfaceButtons(surface) {
+            var selected = surface == "flat" ? "flat" : "textured";
+            document.documentElement.dataset.tableSurface = selected;
+            document.querySelectorAll("button[data-table-surface]").forEach(button => {
+                button.setAttribute("aria-pressed", String(button.dataset.tableSurface == selected));
+            });
+        }
+        document.querySelectorAll("button[data-table-surface]").forEach(button => {
+            button.addEventListener("click", function () {
+                setCookie("TableSurface", button.dataset.tableSurface, 1000);
+                updateTableSurfaceButtons(button.dataset.tableSurface);
+            });
+        });
+        window.addEventListener("storage", function (event) {
+            if (event.key != "norwegian-tycoon-cookie-TableSurface") { return; }
+            setCookie("TableSurface", event.newValue == "flat" ? "flat" : "textured", 1000);
+            updateTableSurfaceButtons(event.newValue);
+        });
+        updateTableSurfaceButtons(getCookie("TableSurface"));
         function updateCardShadowButtons(style) {
             CardDepth.setShadowStyle(style == "simple" ? "simple" : "fancy");
             document.querySelectorAll(".card-shadow-option").forEach(button => {
@@ -2323,7 +2355,7 @@
                 var button = row.querySelector(".card-style-option__select");
                 button.setAttribute("aria-pressed", String(row.dataset.cardStyle == style));
                 var unlocked = isCardStyleUnlocked(row.dataset.cardStyle, currentPlayerName || readLastUsedPlayerName());
-                button.disabled = !unlocked;
+                button.disabled = !unlocked || (currentGame != null && !["O", "F"].includes(currentGame.status));
                 row.classList.toggle("is-locked", !unlocked);
                 var unlock = button.querySelector(".card-style-option__unlock");
                 unlock.textContent = unlocked ? "" : localizedMessage(`Krever ${Card.styleUnlockRounds(row.dataset.cardStyle)} runder`);
@@ -2361,6 +2393,7 @@
         document.addEventListener("languagechange", updateCardStyleButtons);
 
         document.getElementById("cardStyleOpenButton").addEventListener("click", function () {
+            if (cardAppearanceIsLocked()) { return; }
             refreshPlayerPresidentWins();
             showDialog("Settings", false);
             showDialog("CardStyle", true);
@@ -2429,6 +2462,7 @@
         }
 
         function syncPlayerCardAppearance(game) {
+            if (!["O", "F"].includes(game.status)) { return; }
             var player = game.getPlayer(currentPlayerName);
             if (!player || player.playerKey != getPlayerKey() || game.connectionOnline === false) { return; }
             var style = GameLayout.cardStyle();
@@ -2451,6 +2485,7 @@
         }
         document.querySelectorAll(".card-style-scope-option").forEach(button => {
             button.addEventListener("click", function () {
+                if (cardAppearanceIsLocked()) { return; }
                 setCookie("CardStyleScope", button.dataset.scope, 1000);
                 updateCardStyleButtons();
                 if (currentGame) { refreshAfterTurnPause(currentGame); }
@@ -2495,6 +2530,7 @@
                     button.append(name, unlock);
                     row.append(cards, button);
                     button.addEventListener("click", function () {
+                        if (cardAppearanceIsLocked()) { return; }
                         if (!isCardFoilUnlocked(option.id, currentPlayerName || readLastUsedPlayerName())) {
                             return;
                         }
@@ -2520,7 +2556,7 @@
                     row.dataset.cardFoil,
                     currentPlayerName || readLastUsedPlayerName()
                 );
-                button.disabled = !unlocked;
+                button.disabled = !unlocked || (currentGame != null && !["O", "F"].includes(currentGame.status));
                 row.classList.toggle("is-locked", !unlocked);
                 var holder = row.querySelector(".card-style-option__cards");
                 var unlock = button.querySelector(".card-foil-option__unlock");
@@ -2554,6 +2590,7 @@
         updateCardFoilButtons();
         document.addEventListener("languagechange", updateCardFoilButtons);
         document.getElementById("cardFoilOpenButton").addEventListener("click", function () {
+            if (cardAppearanceIsLocked()) { return; }
             refreshPlayerPresidentWins();
             showDialog("Settings", false);
             showDialog("CardFoil", true);
@@ -2578,6 +2615,7 @@
 
         document.querySelectorAll(".card-style-option__select").forEach(button => {
             button.addEventListener("click", function () {
+                if (cardAppearanceIsLocked()) { return; }
                 var style = button.closest(".card-style-option").dataset.cardStyle;
                 if (!isCardStyleUnlocked(style, currentPlayerName || readLastUsedPlayerName())) { return; }
                 try { localStorage.setItem("cardStyle", style); } catch (error) { }
@@ -2594,10 +2632,19 @@
             });
         });
 
+        function cardAppearanceIsLocked() {
+            var locked = currentGame != null && !["O", "F"].includes(currentGame.status);
+            if (locked) { showGameToast("Kortutseende kan bare endres mellom spill.", currentGame); }
+            return locked;
+        }
         function openSettings() {
             var inGame = currentGame != null;
             updateSavedPlayerName();
             updateCardStyleButtons();
+            var appearanceLocked = inGame && !["O", "F"].includes(currentGame.status);
+            document.getElementById("cardStyleOpenButton").disabled = appearanceLocked;
+            document.getElementById("cardFoilOpenButton").disabled = appearanceLocked;
+            document.getElementById("cardAppearanceLocked").hidden = !appearanceLocked;
             refreshPlayerPresidentWins();
             GameLayout.setVisible("changeNameButton", !inGame || currentGame.status == "O");
             document.querySelector(".setting-turn-speed").hidden = false;

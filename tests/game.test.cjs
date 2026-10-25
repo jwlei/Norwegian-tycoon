@@ -647,7 +647,7 @@ function loadGame(cardStyle = null, globals = {}) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(source, context);
     }
-    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, BotAI, GameLayout, GamePresence, exchangeSummaryDuration, activeTradeOffer, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, assignPlayerColors, isGiftPackage, isCardAllowedForExchange, chooseSuggestedPlayStrength, isSneakyTradeAvailable, hasSneakyConsent, tryAutoPass })", context);
+    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, BotAI, GameLayout, GamePresence, exchangeSummaryDuration, activeTradeOffer, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, displayedPlayerPlacement, assignPlayerColors, isGiftPackage, isCardAllowedForExchange, chooseSuggestedPlayStrength, isSneakyTradeAvailable, hasSneakyConsent, tryAutoPass })", context);
 }
 
 function independentExchangeFixture() {
@@ -1129,7 +1129,7 @@ test("recipient selection and fresh snapshots update the same exchange status", 
     assert.equal(status(), "Kort til Recipient (1/2)");
 });
 
-test("outgoing selections and incoming previews retain the sender's design and foil without revealing private choices", () => {
+test("outgoing selections stay in the hand while delivered previews retain the sender's design and foil", () => {
     const { GameLayout, PresidentCard, game, players, nodes } = exchangeStatusFixture();
     GameLayout.styleForPlayer = (current, name) => {
         assert.equal(current, game);
@@ -1147,7 +1147,7 @@ test("outgoing selections and incoming previews retain the sender's design and f
         exchange.mode = mode;
         GameLayout.updateTable(game, players[0]);
         const previews = nodes().filter(node => node.className?.includes("exchange-selection__card"));
-        assert.equal(previews.length, 2, mode);
+        assert.equal(previews.length, mode == "Kan se" ? 2 : 0, mode);
         for (const preview of previews) {
             assert.match(preview.className, /card-preview--pixel/);
             assert.equal(preview.dataset.foil, "galaxy");
@@ -1565,7 +1565,9 @@ function savedPreferencesContext(cookieMode = "enabled", storage = new Map(), st
             cookies.set(pair.slice(0, split), pair.slice(split + 1));
         },
         getElementById(id) {
-            if (!elements.has(id)) { elements.set(id, {}); }
+            if (!elements.has(id)) {
+                elements.set(id, { addEventListener(type, handler) { this[type] = handler; } });
+            }
             return elements.get(id);
         }
     };
@@ -1754,14 +1756,14 @@ function colorThemeContext(storage = new Map(), storageBlocked = false) {
     return { context, options, elements, events, dialogs };
 }
 
-test("all twenty-one color themes have previews, set their own mode and persist without cookies", () => {
+test("all twenty-six color themes have previews, set their own mode and persist without cookies", () => {
     const storage = new Map();
     const { context, options, elements } = colorThemeContext(storage);
     assert.deepEqual(options.map(option => option.dataset.colorTheme),
-        ["darcula", "skumring", "hostlov", "kobolt", "monokai", "furu", "solarisert", "fjord", "modern", "atom",
-            "nattugle", "vampyr", "mokka", "synthwave", "rose", "glod", "kontrast", "amoled", "sol", "papir", "vs-bla"]);
+        ["classic", "darcula", "skumring", "hostlov", "kobolt", "monokai", "furu", "solarisert", "fjord", "modern", "atom",
+            "nattugle", "vampyr", "mokka", "synthwave", "rose", "glod", "amoled", "sandstein", "salvie", "skifer", "lavendel", "sol", "papir", "vs-bla", "kontrast"]);
     assert.deepEqual(options.filter(option => option.dataset.themeMode === "light").map(option => option.dataset.colorTheme),
-        ["sol", "papir", "vs-bla"]);
+        ["sandstein", "salvie", "skifer", "lavendel", "sol", "papir", "vs-bla"]);
     const root = context.document.documentElement;
     assert.equal(root.dataset.colorTheme, "modern");
     assert.equal(root.dataset.theme, "dark");
@@ -2450,7 +2452,7 @@ test("toast notices get separate lines without splitting punctuation inside play
         ["Alle passet. Dr. Bot starter.", "Alle passet.\nDr. Bot starter."],
         ["Dr. Bot: Fire like! Starter igjen.", "Dr. Bot: Fire like!\nStarter igjen."],
         ["Dr. Bot ble President! Someone ble Boms!", "Dr. Bot ble President!\nSomeone ble Boms!"],
-        ["Spillet pågår. Du ser på til neste runde.", "Spillet pågår.\nDu ser på til neste runde."]
+        ["Du blir med i et spill som pågår. Du venter på plass til neste runde.", "Du blir med i et spill som pågår.\nDu venter på plass til neste runde."]
     ]) {
         const nodes = [];
         context.appendColoredGameMessage({ appendChild: node => nodes.push(node) }, message, players, true);
@@ -4005,7 +4007,7 @@ test("spectator join notices use the toast area with two lines for exactly three
     vm.runInContext(source.slice(start, end), context);
     context.showSpectatorJoinToast();
     assert.equal(toast.style.top, undefined);
-    assert.equal(toast.textContent, "Spillet pågår. Du ser på til neste runde.");
+    assert.equal(toast.textContent, "Du blir med i et spill som pågår. Du venter på plass til neste runde.");
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
     assert.match(html, /id="playerActions"[\s\S]*?id="spectatorJoinToast"[\s\S]*?id="playerHand"/);
     assert.equal(duration, 3000);
@@ -4123,6 +4125,253 @@ function setupGame({ deferProfileTransactions = false, autoPass = false } = {}) 
     );
     return { game, players, pile, types, profileRecords, pendingProfileTransactions };
 }
+
+test("everyone passing after a player finishes hands the lead to the next active seat with any player count", () => {
+    for (const count of [3, 4, 5]) {
+        for (let finisher = 0; finisher < count; finisher++) {
+            const { game, players, pile, types } = setupGame();
+            while (players.length < count) {
+                players.push(new types.PresidentPlayer(`Seat ${players.length}`, "PC"));
+            }
+            players.forEach(player => {
+                player.cards = [new types.PresidentCard(1, 10)];
+                player.lastPlay = "Pass";
+            });
+            const last = players[finisher];
+            last.cards = [];
+            last.placement = 1;
+            last.lastPlay = pile(last, 8, 1);
+            game.piles = [pile(players[(finisher + count - 1) % count], 7, 1), last.lastPlay];
+            const next = game.nextTurnIndex((finisher + count - 1) % count);
+            assert.equal(next, (finisher + 1) % count, `count=${count}, finisher=${finisher}`);
+            assert.equal(game.piles.length, 0);
+            assert.match(game.turnPause.message, new RegExp(`${players[next].name} starter`));
+        }
+    }
+    const { game, players, pile, types } = setupGame();
+    players.push(new types.PresidentPlayer("Fourth", "PC"));
+    players.forEach(player => {
+        player.cards = [new types.PresidentCard(1, 10)];
+        player.lastPlay = "Pass";
+    });
+    players[0].placement = 1;
+    players[1].placement = 2;
+    players[0].cards = players[1].cards = [];
+    game.piles = [pile(players[0], 8, 1)];
+    assert.equal(game.nextTurnIndex(3), 2, "Skip already finished seats after the last player");
+});
+
+test("the last active player to play still leads when everyone else passes", () => {
+    const { game, players, pile, types } = setupGame();
+    players.forEach(player => { player.cards = [new types.PresidentCard(1, 10)]; });
+    players[0].lastPlay = players[2].lastPlay = "Pass";
+    game.piles = [pile(players[1], 8, 1)];
+    assert.equal(game.nextTurnIndex(0), 1);
+});
+
+test("previous President and Bum lose their rank icons as soon as the rank is claimed", () => {
+    const { game, players, types } = setupGame();
+    players[0].lastPlacement = 1;
+    players[1].lastPlacement = 3;
+    assert.equal(types.displayedPlayerPlacement(game, players[0]), 1);
+    assert.equal(types.displayedPlayerPlacement(game, players[1]), 3);
+    players[2].placement = 1;
+    assert.equal(types.displayedPlayerPlacement(game, players[0]), 0);
+    assert.equal(types.displayedPlayerPlacement(game, players[2]), 1);
+    players[0].placement = 3;
+    assert.equal(types.displayedPlayerPlacement(game, players[1]), 0);
+    assert.equal(types.displayedPlayerPlacement(game, players[0]), 3);
+    players.forEach(player => { player.placement = 0; });
+    assert.equal(types.displayedPlayerPlacement(game, players[0]), 1);
+});
+
+test("only the host can reorder an open lobby and the saved order survives transaction retries", async () => {
+    const { game, players, types } = setupGame();
+    game.status = "O";
+    game.localPlayerName = players[0].name;
+    let record = { status: "O", hostKey: "human-key", hostName: players[0].name,
+        spillere: players.map(player => player.toRecord()) };
+    game.databaseRef = { async transaction(update, complete) {
+        const first = update(structuredClone(record));
+        const retry = update(structuredClone(record));
+        assert.equal(JSON.stringify(first), JSON.stringify(retry));
+        if (retry) { record = retry; }
+        if (complete) { complete(null, !!retry, { val: () => record }); }
+        return { committed: !!retry, snapshot: { val: () => record } };
+    } };
+    await game.reorderLobbyPlayers(players[0].name, players[2].name);
+    assert.deepEqual(Array.from(game.players, player => player.name), ["Bot 1", "Bot 2", "Human"]);
+    assert.equal(record.preservePlayerOrderOnStart, true);
+    assert.equal(record.shufflePlayerOrder, false);
+    assert.equal(game.shouldShufflePlayersOnStart(), false);
+    record.spillere.push(new types.PresidentPlayer("New arrival", "new-key").toRecord());
+    await game.reorderLobbyPlayers("Human", "Bot 1");
+    assert.deepEqual(Array.from(game.players, player => player.name), ["Human", "Bot 1", "Bot 2", "New arrival"]);
+    assert.equal((await game.removeLobbyPlayer(game.getPlayer("New arrival"))).text, undefined);
+    assert.equal(record.preservePlayerOrderOnStart, true, "Membership changes must not randomize the host's order");
+    assert.equal(record.shufflePlayerOrder, false);
+    game.resetPreservedLobbyPlacements();
+    assert.equal(game.preservePlayerOrderOnStart, true);
+    assert.equal(game.shufflePlayerOrder, false);
+    await assert.rejects(game.reorderLobbyPlayers("Missing", "Human"), /Bare verten/);
+    record.hostKey = "another-key";
+    await assert.rejects(game.reorderLobbyPlayers("Human", "Bot 1"), /Bare verten/);
+    record.hostKey = "human-key";
+    for (const status of ["S", "G", "F"]) {
+        record.status = status;
+        await assert.rejects(game.reorderLobbyPlayers("Human", "Bot 1"), /Bare verten/);
+    }
+    game.connectionOnline = false;
+    await assert.rejects(game.reorderLobbyPlayers("Human", "Bot 1"), /tilkobling/);
+});
+
+test("lobby blocks drag directly after a threshold, keep button clicks, and support keyboard reordering", async () => {
+    const moves = [], timers = [];
+    const classes = () => {
+        const values = new Set();
+        return { add: value => values.add(value), remove: value => values.delete(value),
+            contains: value => values.has(value) };
+    };
+    const attributes = {};
+    const block = {
+        classList: classes(), dataset: { playerName: "Human" }, captured: false,
+        removeAttribute(name) { delete attributes[name]; },
+        setPointerCapture() { this.captured = true; },
+        hasPointerCapture() { return this.captured; },
+        releasePointerCapture() { this.captured = false; },
+        addEventListener(type, callback) { this.suppressClick = callback; },
+        removeEventListener() { delete this.suppressClick; }
+    };
+    const target = { classList: classes(), dataset: { playerName: "Guest" } };
+    const { GameLayout } = loadGame(null, {
+        document: { elementFromPoint: () => ({ closest: () => target }) },
+        setTimeout: callback => timers.push(callback)
+    });
+    const players = [{ name: "Human" }, { name: "Guest" }];
+    const game = { status: "O", hostKey: "human-key", players,
+        reorderLobbyPlayers: async (...args) => moves.push(args) };
+    GameLayout.bindLobbyReorder(block, game, players[0]);
+    assert.equal(block.tabIndex, 0);
+    assert.equal(block.classList.contains("is-reorderable"), true);
+    const down = interactive => ({
+        button: 0, target: { closest: () => interactive ? {} : null },
+        pointerId: 1, clientX: 10, clientY: 10
+    });
+    block.onpointerdown(down(true));
+    assert.equal(block.onpointermove, undefined, "Remove buttons must not start a drag");
+    block.onpointerdown(down(false));
+    block.onpointermove({ clientX: 12, clientY: 12 });
+    assert.equal(block.captured, false);
+    block.onpointerup();
+    assert.equal(moves.length, 0, "A normal tap must not reorder or suppress name expansion");
+    assert.equal(block.suppressClick, undefined);
+    block.onpointerdown(down(false));
+    block.onpointermove({ clientX: 30, clientY: 10, preventDefault() {} });
+    assert.equal(block.captured, true);
+    assert.equal(target.classList.contains("is-reorder-target"), true);
+    block.onpointerup();
+    assert.deepEqual(moves, [["Human", "Guest"]]);
+    assert.equal(block.captured, false);
+    assert.equal(target.classList.contains("is-reorder-target"), false);
+    assert.equal(typeof block.suppressClick, "function");
+    timers.forEach(callback => callback());
+    assert.equal(block.suppressClick, undefined, "Suppression cannot swallow a later unrelated tap");
+    block.onkeydown({ target: {}, key: "ArrowDown", preventDefault() { assert.fail(); } });
+    block.onkeydown({ target: block, key: "ArrowDown", preventDefault() {} });
+    assert.equal(moves.length, 2);
+    block.onpointerdown(down(false));
+    block.onpointermove({ clientX: 30, clientY: 10, preventDefault() {} });
+    block.onpointercancel();
+    assert.equal(moves.length, 2);
+    game.status = "S";
+    GameLayout.bindLobbyReorder(block, game, players[0]);
+    assert.equal(block.onpointerdown, null);
+    assert.equal(block.classList.contains("is-reorderable"), false);
+    game.status = "O";
+    game.hostKey = "someone-else";
+    GameLayout.bindLobbyReorder(block, game, players[0]);
+    assert.equal(block.onpointerdown, null);
+});
+
+test("end-game lobby votes highlight waiting players and clear their hint when nobody waits", () => {
+    class Element {
+        constructor() {
+            this.children = []; this.dataset = {}; this.style = {}; this.attributes = {};
+            const values = new Set();
+            this.classList = { add: value => values.add(value), remove: value => values.delete(value),
+                toggle: (value, force) => force ? values.add(value) : values.delete(value),
+                contains: value => values.has(value) };
+        }
+        append(...children) { children.forEach(child => this.appendChild(child)); }
+        appendChild(child) { child.parentElement = this; this.children.push(child); }
+        replaceChildren(...children) { this.children = []; this.append(...children); }
+        setAttribute(name, value) { this.attributes[name] = value; }
+        querySelectorAll() { return []; }
+        remove() { this.parentElement.children = this.parentElement.children.filter(child => child !== this); }
+    }
+    const nodes = new Map();
+    const { GameLayout } = loadGame(null, {
+        document: { getElementById: id => {
+            if (!nodes.has(id)) { nodes.set(id, new Element()); }
+            return nodes.get(id);
+        }, createElement: () => new Element() }
+    });
+    GameLayout.updatePlayerStatus = GameLayout.enableNameExpansion = () => {};
+    const { game, players } = setupGame();
+    game.status = "F";
+    game.gameEndVote = { id: "vote", votes: [] };
+    players.forEach((player, i) => { player.placement = i + 1; });
+    const descendants = node => [node, ...node.children.flatMap(descendants)];
+    for (const waiting of [true, false]) {
+        game.waitingSpectators = waiting ? { newcomer: { playerKey: "guest" } } : {};
+        GameLayout.updateTable(game, players[0]);
+        const all = descendants(nodes.get("gameTable"));
+        const button = all.find(node => node.textContent === "Lobby");
+        assert.ok(button);
+        assert.equal(button.classList.contains("has-waiting-player"), waiting);
+        assert.equal(!!all.find(node => node.id === "lobbyWaitingHint"), waiting);
+        assert.equal(button.attributes["aria-describedby"], waiting ? "lobbyWaitingHint" : undefined);
+    }
+});
+
+test("card appearance cannot change during trading or play, including a stale lobby transaction", async () => {
+    const { game, players } = setupGame();
+    game.localPlayerName = players[0].name;
+    let record = { status: "S", spillere: players.map(player => player.toRecord()) };
+    game.databaseRef = { async transaction(update) {
+        const next = update(record);
+        if (next) { record = next; }
+        return { committed: !!next, snapshot: { val: () => record } };
+    } };
+    for (const status of ["S", "G"]) {
+        game.status = status;
+        await assert.rejects(game.setPlayerCardAppearance("normal", "gold"), /kortutseendet/);
+    }
+    game.status = "O";
+    await assert.rejects(game.setPlayerCardAppearance("normal", "gold"), /kortutseendet/);
+    assert.equal(record.cardStyles, undefined);
+    assert.equal(record.cardFoils, undefined);
+});
+
+test("active cards keep the game snapshot appearance when local preferences change in another tab", () => {
+    const active = { status: "S", localCardStyleScope: "player" };
+    const { GameLayout, PresidentPlayer, GamePresence } = loadGame("pixel", {
+        currentGame: active, getCookie: key => key == "CardFoil" ? "rainbow" : "own"
+    });
+    const player = new PresidentPlayer("Human", "human-key");
+    const id = GamePresence.playerId(player);
+    active.getPlayer = name => name == player.name ? player : null;
+    active.cardStyles = { [id]: "normal" };
+    active.cardFoils = { [id]: "gold" };
+    GameLayout.cardStylePlayerName = player.name;
+    assert.equal(GameLayout.cardStyle(), "normal");
+    assert.equal(GameLayout.cardFoil(), "gold");
+    assert.equal(GameLayout.cardStyleScope(), "player");
+    active.status = "O";
+    assert.equal(GameLayout.cardStyle(), "pixel");
+    assert.equal(GameLayout.cardFoil(), "rainbow");
+    assert.equal(GameLayout.cardStyleScope(), "own");
+});
 
 test("completed games persist human names and award each president win once, including against bots", async () => {
     const { game, players, profileRecords } = setupGame();
@@ -4374,6 +4623,22 @@ test("unchanged piles reuse their DOM and current card objects while visual inpu
     const removed = next.element;
     removed.parentElement = null;
     assert.notEqual(render().element, removed, "Detached or cleared piles cannot be resurrected");
+    piles = [new CardPile("Owner", new PresidentCard(1, 8)),
+        new CardPile("Other", new PresidentCard(2, 8))];
+    view = render();
+    const badge = board._pileCount;
+    assert.equal(badge.textContent, "2 × 8");
+    assert.equal(badge.parentElement, board, "The count belongs to the status area, not the pile");
+    assert.equal(view.element.children.includes(badge), false);
+    GameLayout.clearTableContent(board, view.element);
+    assert.equal(badge.hidden, false);
+    piles.push(new CardPile("Owner", new PresidentCard(3, 8)));
+    render();
+    assert.equal(board._pileCount, badge);
+    assert.equal(badge.textContent, "3 × 8");
+    piles.push(new CardPile("Other", new PresidentCard(1, 9), new PresidentCard(2, 9)));
+    render();
+    assert.equal(badge.hidden, true, "Non-single plays must hide the old count");
 });
 
 test("table cleanup preserves a reused pile and releases removed depth and foil observers", () => {
@@ -5562,6 +5827,7 @@ test("card style display defaults to player-specific styles and preserves the ow
 
 test("publishing a player's style and foil updates only their seat and survives stale saves", async () => {
     const { game, players } = setupGame();
+    game.status = "O";
     game.localPlayerName = players[0].name;
     const { GamePresence } = loadGame();
     const id = GamePresence.playerId(players[0]);
@@ -5606,7 +5872,7 @@ test("the source player ID can publish and display the secret style under any na
     const { PresidentGame, PresidentPlayer, GamePresence, GameLayout } = context;
     const player = new PresidentPlayer("Renamed player", "source");
     const game = Object.assign(Object.create(PresidentGame.prototype), {
-        localPlayerName: player.name, players: [player]
+        localPlayerName: player.name, players: [player], status: "O"
     });
     let record = { status: "O", spillere: [player.toRecord()] };
     game.databaseRef = { async transaction(transform) {
@@ -5661,11 +5927,12 @@ test("public lobby metadata publishes the shared turn speed, defaulting older ro
     }
 });
 
-test("settings have three log-style categories with game speed directly below message duration", () => {
+test("settings have four log-style categories with performance controls at the bottom", () => {
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
     const css = fs.readFileSync(path.join(__dirname, "..", "css", "theme.css"), "utf8");
     const settings = html.slice(html.indexOf('id="dialogSettings"'), html.indexOf('id="dialogColorTheme"'));
-    assert.equal((settings.match(/class="settings-category"/g) || []).length, 3);
+    assert.equal((settings.match(/class="settings-category"/g) || []).length, 4);
+    assert.ok(settings.indexOf("Ytelse") > settings.indexOf("Spill og styring"));
     assert.match(settings, /data-speed="slow"[\s\S]*?<\/div>\s*<div class="setting-row setting-turn-speed"/);
     assert.match(css, /\.game-log__trick,\s*\.settings-category\s*\{/);
     assert.match(css, /\.game-log__trick::after,\s*\.settings-category::after\s*\{/);

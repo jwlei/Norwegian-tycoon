@@ -1,13 +1,14 @@
 class BotAI {
-    static skills = ["bad", "good", "pro", "god"];
+    // Stored IDs good/pro retain the Normal/Good strategies for existing games.
+    static skills = ["good", "pro", "god"];
 
     static buckets = {
-        bad: ["Bomsen", "Onkel Pass", "Guest_839201", "Knurt", "Turbo-Tore", "Jompa", "RNGesus"],
-        good: ["Boten Anna", "Haakon VIII", "Kurt-Josef", "Kjell-Bjarne", "Mathias (CEO)",
-            "J21Oslo", "Fetter Anton", "Tante_Pose", "BobRoss", "IlIllIlIIl"],
+        good: ["Bomsen", "Onkel Pass", "Guest_839201", "Knurt", "Turbo-Tore",
+            "Boten Anna", "Haakon VIII", "Kurt-Josef", "Kjell-Bjarne", "Mathias (CEO)",
+            "J21Oslo", "Tante_Pose", "IlIllIlIIl"],
         pro: ["Severin Suveren", "H4cker-man", "Steinar Storspiller", "xXLegolasXx",
-            "DeepSeek", "GPT6", "Sjefen_Over_Alle_Sjefer"],
-        god: ["Mysil Bergsprekken", "ギフテッド"]
+            "DeepSeek", "Sjefen_Over_Alle_Sjefer", "Fetter Anton"],
+        god: ["GPT6", "RNGesus", "ギフテッド", "Mysil Bergsprekken", "BobRoss", "Jompa"]
     };
 
     static skillForName(name) {
@@ -17,7 +18,7 @@ class BotAI {
     }
 
     static skill(value) {
-        if (value == null) { return "good"; }
+        if (value == null || value == "bad") { return "good"; }
         if (!BotAI.skills.includes(value)) {
             throw new Error(`Ukjent botnivå: ${value}`);
         }
@@ -307,10 +308,6 @@ class BotAI {
         if (moves.length == 0) { return null; }
         var winning = moves.find(move => move.length == view.cards.length && move[0].strengthRank != 16);
         if (winning != null) { return winning; }
-        if (skill == "bad") {
-            if (view.top != null && random() < 0.15) { return null; }
-            return moves[Math.floor(random() * moves.length)];
-        }
         if (view.top != null && view.top.own) { return null; }
         if (skill == "god") {
             if (view.opponents.some(other => !Array.isArray(other.cards) || other.cards.length != other.count)) {
@@ -369,7 +366,7 @@ class BotAI {
 
     // Call once per offer/participant; "sneaky" is a consent vote, not permission to start alone.
     static sneakyTradeChance(skill) {
-        return { bad: 0.08, good: 0.18, pro: 0.32, god: 0.48 }[BotAI.skill(skill)];
+        return { good: 0.18, pro: 0.32, god: 0.48 }[BotAI.skill(skill)];
     }
 
     static chooseSneakyConsent(player, random = Math.random) {
@@ -385,13 +382,12 @@ class BotAI {
         var available = BotAI.tradeCards(game, player, offer);
         if (available.length == 0) { return "skip"; }
         var sneakyChance = BotAI.sneakyTradeChance(skill);
-        var normalChance = { bad: 0.45, good: 0.65, pro: 0.82, god: 0.96 }[skill];
+        var normalChance = { good: 0.65, pro: 0.82, god: 0.96 }[skill];
         var roll = random();
         if (roll < sneakyChance) { return "sneaky"; }
         if (seat != offer.from || roll >= normalChance) { return "skip"; }
         var legal = available.filter(card => card.strengthRank >= 7 && card.strengthRank <= 11);
         if (legal.length == 0) { return "skip"; }
-        if (skill == "bad") { return "normal"; }
         var outgoing = BotAI.chooseExchange(player.cards, legal, 1, "good");
         var rest = BotAI.remaining(player.cards, outgoing);
         // Normal trades reveal no opponent identities, even for God: estimate a public 7–J return.
@@ -468,14 +464,6 @@ class BotAI {
     static chooseExchange(cards, available, count, skill = "good", random = Math.random) {
         skill = BotAI.skill(skill);
         if (available.length < count) { throw new Error("Botten har ikke nok gyldige byttekort."); }
-        if (skill == "bad") {
-            var shuffled = available.slice();
-            for (var i = shuffled.length - 1; i > 0; i--) {
-                var j = Math.floor(random() * (i + 1));
-                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-            }
-            return shuffled.slice(0, count);
-        }
         var best;
         var bestScore = Infinity;
         var visit = (start, chosen) => {

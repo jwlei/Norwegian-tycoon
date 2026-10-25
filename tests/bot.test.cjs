@@ -291,6 +291,8 @@ test("a Neutral bot cannot pass the President's received card on in a normal exc
 });
 
 test("skills default to good, persist for bots, and reject unknown levels explicitly", () => {
+    assert.deepEqual(Array.from(BotAI.skills), ["good", "pro", "god"]);
+    assert.equal(BotAI.skill("bad"), "good", "Retired Bad records use the Normal strategy");
     assert.equal(new PresidentPlayer("New", "PC").botSkill, "good");
     for (const skill of BotAI.skills) {
         const player = new PresidentPlayer("Bot", "PC");
@@ -339,7 +341,7 @@ test("bots can pass only on occupied tables and cannot respond with the wrong co
         assert.equal(BotAI.chooseMove(view(cards, { rank: 5, count: 2 }), skill, () => 0.1), null);
         assert.ok(BotAI.chooseMove(view(cards), skill, () => 0.1));
     }
-    assert.equal(BotAI.chooseMove(view(cards, { rank: 5, count: 1 }), "bad", () => 0.1), null);
+    assert.equal(BotAI.chooseMove(view(cards, { rank: 5, count: 1 }), "bad", () => 0.1)[0], cards[0]);
 });
 
 test("four accumulated equal cards require four higher cards, not club three", () => {
@@ -371,7 +373,7 @@ test("all 26 names belong to exactly one approved bucket and existing bots migra
     assert.equal(names.length, 26);
     assert.equal(new Set(names).size, 26);
     assert.deepEqual([...names].sort(), Array.from(types.BOT_NAMES).sort());
-    assert.deepEqual(Object.values(BotAI.buckets).map(bucket => bucket.length), [7, 10, 7, 2]);
+    assert.deepEqual(Object.values(BotAI.buckets).map(bucket => bucket.length), [13, 7, 6]);
     for (const [skill, bucket] of Object.entries(BotAI.buckets)) {
         for (const name of bucket) {
             assert.equal(new PresidentPlayer(name, "PC").botSkill, skill);
@@ -379,12 +381,38 @@ test("all 26 names belong to exactly one approved bucket and existing bots migra
             legacy.botSkill = "good";
             delete legacy.botSkillVersion;
             assert.equal(new PresidentPlayer().fromRecord(legacy).botSkill, skill);
+            legacy.botSkillVersion = 1;
+            legacy.botSkill = "bad";
+            assert.equal(new PresidentPlayer().fromRecord(legacy).botSkill, skill,
+                "Version-one records migrate to the new name buckets");
             assert.equal(new PresidentPlayer(name.toUpperCase(), "PC").botSkill, skill);
         }
     }
     const explicit = new PresidentPlayer("Mysil Bergsprekken", "PC");
+    explicit.botSkill = "pro";
+    assert.equal(explicit.toRecord().botSkillVersion, 2);
+    assert.equal(new PresidentPlayer().fromRecord(explicit.toRecord()).botSkill, "pro");
     explicit.botSkill = "bad";
-    assert.equal(new PresidentPlayer().fromRecord(explicit.toRecord()).botSkill, "bad");
+    assert.equal(new PresidentPlayer().fromRecord(explicit.toRecord()).botSkill, "good");
+});
+
+test("approved name tiers reserve God for the six selected names", () => {
+    assert.deepEqual(Array.from(BotAI.buckets.god),
+        ["GPT6", "RNGesus", "ギフテッド", "Mysil Bergsprekken", "BobRoss", "Jompa"]);
+    assert.deepEqual(Array.from(BotAI.buckets.pro),
+        ["Severin Suveren", "H4cker-man", "Steinar Storspiller", "xXLegolasXx",
+            "DeepSeek", "Sjefen_Over_Alle_Sjefer", "Fetter Anton"]);
+    assert.equal(BotAI.buckets.bad, undefined);
+});
+
+test("retired Bad strategies behave as Normal in play, exchanges and trade consent", () => {
+    const cards = [card(6), card(7), card(7, 2), card(14)];
+    const state = view(cards, { rank: 5, count: 1, own: false });
+    assert.deepEqual(BotAI.chooseMove(state, "bad", seededRandom(5)),
+        BotAI.chooseMove(state, "good", seededRandom(5)));
+    assert.deepEqual(BotAI.chooseExchange(cards, cards, 2, "bad", seededRandom(5)),
+        BotAI.chooseExchange(cards, cards, 2, "good", seededRandom(5)));
+    assert.equal(BotAI.sneakyTradeChance("bad"), BotAI.sneakyTradeChance("good"));
 });
 
 test("only God sees actual opponent hands, with copies instead of mutable references", () => {
@@ -689,7 +717,7 @@ test("actual exchanges obey restrictions and retain skill when returning to the 
     assert.equal(game.playedCards.length, 0);
 });
 
-test("even bad bots cannot give club three in a mandatory exchange", () => {
+test("every remaining tier excludes club three from a mandatory exchange", () => {
     for (const skill of BotAI.skills) {
         const game = gameWithHands([[card(4), card(5), card(3, 3)], [card(6)], [card(7)]]);
         game.players[0].botSkill = skill;
@@ -786,9 +814,9 @@ function simulate(seed, skills) {
 
 test("seeded games terminate legally with all skills and two, three or four players", () => {
     for (let seed = 1; seed <= 8; seed++) {
-        for (const skills of [["bad", "good"], ["pro", "bad"], ["pro", "good"],
-            ["bad", "good", "pro"], ["pro", "good", "bad", "pro"],
-            ["god", "pro"], ["god", "good", "pro"], ["god", "pro", "good", "bad"]]) {
+        for (const skills of [["good", "good"], ["pro", "good"], ["good", "pro"],
+            ["good", "good", "pro"], ["pro", "good", "good", "pro"],
+            ["god", "pro"], ["god", "good", "pro"], ["god", "pro", "good", "good"]]) {
             simulate(seed, skills);
         }
     }
@@ -816,7 +844,7 @@ test("God beats Pro in paired heads-up games with identical deals and swapped se
 });
 
 test("God outperforms the other levels in rotating three- and four-player tournaments", () => {
-    for (const lineup of [["god", "pro", "good"], ["god", "pro", "good", "bad"]]) {
+    for (const lineup of [["god", "pro", "good"], ["god", "pro", "good", "good"]]) {
         const placements = Object.fromEntries(lineup.map(skill => [skill, 0]));
         const wins = Object.fromEntries(lineup.map(skill => [skill, 0]));
         const seeds = 16;
@@ -831,30 +859,32 @@ test("God outperforms the other levels in rotating three- and four-player tourna
             }
         }
         const games = seeds * lineup.length;
-        const averages = Object.fromEntries(Object.entries(placements).map(([skill, total]) => [skill, total / games]));
+        const averages = Object.fromEntries(Object.entries(placements).map(([skill, total]) =>
+            [skill, total / (games * lineup.filter(entry => entry === skill).length)]));
         console.log("God multiplayer tournament:", { players: lineup.length, games, wins, averages });
         assert.ok(averages.god < averages.pro, "God must beat Pro on average");
         assert.ok(averages.god < averages.good, "God must beat Good on average");
-        if (lineup.includes("bad")) { assert.ok(averages.god < averages.bad); }
     }
 });
 
-test("paired rotating-seat tournament measures the three levels on identical deals", () => {
-    const placements = { bad: 0, good: 0, pro: 0 };
+test("paired rotating-seat tournament keeps Good stronger than Normal on identical deals", () => {
+    const placements = { good: 0, pro: 0 };
     const rounds = 90;
     let turns = 0;
     let maxDecisionMs = 0;
     for (let seed = 1; seed <= rounds; seed++) {
-        for (const skills of [["bad", "good", "pro"], ["good", "pro", "bad"], ["pro", "bad", "good"]]) {
+        for (const skills of [["good", "good", "pro"], ["good", "pro", "good"], ["pro", "good", "good"]]) {
             const result = simulate(seed, skills);
             result.players.forEach(p => { placements[p.botSkill] += p.placement; });
             turns += result.turns;
             maxDecisionMs = Math.max(maxDecisionMs, result.maxDecisionMs);
         }
     }
-    const averages = Object.fromEntries(Object.entries(placements).map(([skill, total]) => [skill, total / (rounds * 3)]));
+    const averages = {
+        good: placements.good / (rounds * 6),
+        pro: placements.pro / (rounds * 3)
+    };
     console.log("Bot tournament average placement (lower is better):", averages,
         "turns:", turns, "slowest decision ms:", maxDecisionMs.toFixed(1));
-    assert.ok(averages.good < averages.bad, "good must outperform bad on paired deals");
-    assert.ok(averages.pro < averages.good, "pro must outperform good on paired deals");
+    assert.ok(averages.pro < averages.good, "Good must outperform Normal on paired deals");
 });

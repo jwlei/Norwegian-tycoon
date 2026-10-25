@@ -121,7 +121,7 @@ test("logo measurement works while the splash is hidden and cleans up its tempor
 
 test("AMOLED flattens UI surfaces without disabling neon, cards or focus outlines", () => {
     const css = read("css/ui-refresh.css");
-    const flat = css.slice(css.indexOf("/* Flat AMOLED surfaces"));
+    const flat = css.slice(css.indexOf("/* Flat AMOLED surfaces"), css.indexOf("#splashPlayerName"));
     assert.match(flat, /:root\[data-color-theme="amoled"\] \{ --shadow: none; \}/);
     assert.match(flat, /:is\(#gameShell, #mainMenu, #gameTable\) \{\s*background: #000;/);
     assert.match(flat, /button, \.dialog-window,[\s\S]*?background-image: none !important;\s*box-shadow: none !important;/);
@@ -150,7 +150,7 @@ test("neon pulse, flicker, flash and splash intro animate only opacity and trans
 test("top bar buttons, segmented controls and switches use the refreshed theme styling", () => {
     const css = read("css/ui-refresh.css");
     assert.match(css, /button:not\(\.game-card\) \{\s*background-image: none !important;\s*box-shadow: none !important;/);
-    assert.match(css, /#settingsButton,\s*#homeButton,\s*#gameLogButton,\s*#rulesButton,\s*\.game-menu-toggle \{[^}]*background: var\(--surface-soft\);/);
+    assert.match(css, /#settingsButton,\s*#homeButton,\s*#gameLogButton,\s*#rulesButton,\s*\.game-menu-toggle \{[^}]*border: 0;[^}]*background: transparent;/);
     assert.match(css, /\.quick-play-options,\s*\.language-options \{[^}]*border-radius: 12px;[^}]*box-shadow: none;/);
     assert.match(css, /#mainMenu \.quick-play-option\[aria-pressed="true"\],[\s\S]*?background: var\(--accent\);\s*color: var\(--on-accent\);/);
     assert.match(css, /\.setting-row\[aria-pressed="true"\] \.setting-row__switch \{[^}]*background: var\(--accent\);/);

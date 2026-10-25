@@ -219,6 +219,12 @@ function isGiftPackage(piles) {
         (piles.length == 4 || piles[piles.length - 5].strengthRank != rank);
 }
 
+function displayedPlayerPlacement(game, player) {
+    if (player.placement > 0) { return player.placement; }
+    return game.players.some(other => other !== player && other.placement > 0 &&
+        other.placement == player.lastPlacement) ? 0 : player.lastPlacement;
+}
+
 function resultIconForPlacement(game, placement, player = null) {
     if (placement == 1) {
         return "👑" + (player && player.presidentStreak > 1 ? ` 🔥 ×${player.presidentStreak}` : "");

@@ -551,7 +551,7 @@ test("landing friction adds only a little slide, without acceleration or an endp
     }
 });
 
-test("native SVG keeps seven silhouette sheets at exactly 3px, with no canvas or WebGL", () => {
+test("touch rendering keeps seven native silhouette sheets at exactly 3px without canvas copies", () => {
     const f = fixture();
     f.Depth.attach(f.element);
     f.Depth.update(f.element, { pitch: 0, yaw: 0, lift: 0 });
@@ -563,8 +563,76 @@ test("native SVG keeps seven silhouette sheets at exactly 3px, with no canvas or
     const expected = numbers(f.Depth.path(G.silhouette(state.world, -3).map(G.screen), { x: 0, y: 0 }));
     numbers(state.layers[0].attributes.d).forEach((value, index) => assert.ok(Math.abs(value - expected[index]) <= .0011));
     assert.ok(f.created.every(tag => tag !== "canvas"));
-    assert.doesNotMatch(source, /getContext|devicePixelRatio|drawImage|WebGL|supersampl/);
+    assert.equal(state.raster, undefined);
+    assert.equal(f.Depth.useSupersampling(), false);
     assert.equal(f.frames.size, 0);
+});
+
+test("2x supersampling is desktop-only and measures twice the actual display pixel density", async () => {
+    const f = fixture();
+    let coarse = false, fine = true, dpr = 1, draws = 0;
+    f.context.window = {
+        get devicePixelRatio() { return dpr; },
+        matchMedia: query => ({ matches: query.includes("any-pointer") ? coarse : fine })
+    };
+    const context = {
+        resetTransform() {}, clearRect() {}, setTransform() {}, beginPath() {}, lineTo() {}, moveTo() {},
+        closePath() {}, fill() {}, save() {}, restore() {}, transform() {}, clip() {},
+        translate() {}, scale() {}, fillRect() {},
+        drawImage() { draws++; },
+        createLinearGradient() { return { addColorStop() {} }; }
+    };
+    f.context.document.createElement = () => ({ style: {}, getContext: () => context });
+    f.context.Image = class { decode() { return Promise.resolve(); } };
+    assert.equal(f.Depth.useSupersampling(), true);
+    coarse = true;
+    assert.equal(f.Depth.useSupersampling(), false, "Touch-capable devices keep native SVG");
+    coarse = false;
+    fine = false;
+    assert.equal(f.Depth.useSupersampling(), false);
+    fine = true;
+    f.Depth.attach(f.element);
+    await new Promise(resolve => setImmediate(resolve));
+    const state = f.Depth.states.get(f.element);
+    assert.equal(f.warnings.length, 0);
+    assert.equal(state.faceGroup.style.display, "none");
+    const raster = state.raster;
+    assert.equal(raster.canvas.width, Number(raster.element.attributes.width) * 2);
+    assert.equal(raster.canvas.height, Number(raster.element.attributes.height) * 2);
+    assert.equal(draws, 1);
+    f.Depth.update(f.element, {});
+    assert.equal(draws, 1, "Unchanged cards do not redraw or start a loop");
+    dpr = 2;
+    f.Depth.update(f.element, {});
+    assert.equal(raster.canvas.width, Number(raster.element.attributes.width) * 4);
+    assert.equal(raster.canvas.height, Number(raster.element.attributes.height) * 4);
+    assert.equal(draws, 2);
+    f.Depth.update(f.element, { pitch: 15, yaw: -20 });
+    assert.equal(draws, 3);
+    assert.equal(f.Depth.supersampledArtwork.size, 1, "Decoded artwork is cached, not every pose");
+    assert.equal(f.frames.size, 0);
+});
+
+test("supersampling failures retain the native face, and detached cards ignore late artwork", async () => {
+    const f = fixture();
+    f.context.window = { matchMedia: query => ({ matches: !query.includes("any-pointer") }) };
+    f.context.Image = class { decode() { return Promise.reject(new Error("decode failed")); } };
+    f.Depth.attach(f.element);
+    await new Promise(resolve => setImmediate(resolve));
+    const state = f.Depth.states.get(f.element);
+    assert.equal(state.raster, undefined);
+    assert.notEqual(state.faceGroup.style.display, "none");
+    assert.match(f.warnings[0][0], /retaining native SVG/);
+    f.Depth.supersampledArtwork.clear();
+    let decoded;
+    f.context.Image = class { decode() { return new Promise(resolve => { decoded = resolve; }); } };
+    const other = f.card(100);
+    f.Depth.attach(other);
+    f.Depth.detach(other);
+    decoded();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.Depth.states.has(other), false);
+    assert.equal(f.warnings.length, 1);
 });
 
 test("unchanged poses do not redraw, while rotation updates geometry and foil transforms", () => {
