@@ -3,15 +3,15 @@
 /* Neon logo: no backing board, only a soft shadow behind the tubes. */
 #mainMenu {
     align-content: start;
-    padding-top: max(clamp(18px, 5vw, 56px), calc((100svh - 720px) / 2));
+    padding-top: max(clamp(18px, 5vw, 56px), calc((100svh - 590px) / 2));
 }
 #mainMenu .game-logo {
     position: relative;
-    padding-bottom: 3.2em;
+    padding-bottom: 2.4rem;
 }
 #mainMenu #splashPlayerName {
     position: absolute;
-    top: calc(100% - 3em);
+    top: calc(100% - 2.4rem);
     left: 5%;
     width: 90%;
 }

@@ -68,8 +68,10 @@ test("the neon logo renders before blocking scripts and follows the selected lan
 test("splash reserves profile space and does not recenter for asynchronous content", () => {
     const css = read("css/ui-refresh.css");
     assert.match(css, /#mainMenu \{\s*align-content: start;/);
-    assert.match(css, /#mainMenu \.game-logo \{[^}]*padding-bottom: 3\.2em;/);
+    assert.match(css, /padding-top: max\(clamp\(18px, 5vw, 56px\), calc\(\(100svh - 590px\) \/ 2\)\);/);
+    assert.match(css, /#mainMenu \.game-logo \{[^}]*padding-bottom: 2\.4rem;/);
     assert.match(css, /#mainMenu #splashPlayerName \{\s*position: absolute;/);
+    assert.match(css, /top: calc\(100% - 2\.4rem\);/);
     assert.match(css, /animation-play-state: paused !important;/);
     assert.match(read("js/neon-logo.js"), /NeonLogo\.render\(savedLanguage\);[\s\S]*requestAnimationFrame\(\(\) => splash\.removeAttribute\("data-splash-pending"\)\)/);
 });
