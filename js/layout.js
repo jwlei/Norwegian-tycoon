@@ -604,8 +604,7 @@ class GameLayout {
         var samples = elements.map(element => {
             if (typeof getComputedStyle !== "function" || !element || element.dataset?.foil === "none") { return null; }
             var animations = advance && typeof element.getAnimations === "function" ? element.getAnimations({ subtree: true }) : [];
-            var idle = animations.filter(animation => animation.animationName === "foil-idle-color" ||
-                animation.animationName === "foil-idle-reflection");
+            var idle = animations.filter(animation => animation.animationName === "foil-idle-color");
             return { element: element, idle: idle, times: idle.map(animation => animation.currentTime) };
         });
         try {
@@ -799,18 +798,15 @@ class GameLayout {
             var flightFrames = [
                 {
                     transform: flightTransform(0, 0, startRotation, 1),
-                    "--foil-activity": hasTilt ? 1 : 0,
                     opacity: 1
                 },
                 {
                     transform: flightTransform(flightX * 0.65, flightY * 0.65, middleRotation, 0.35, middlePitch, middleYaw),
-                    "--foil-activity": hasTilt ? 0.35 : 0,
                     opacity: 1,
                     offset: 0.68
                 },
                 {
                     transform: flightTransform(flightX, flightY, targetRotation, 0),
-                    "--foil-activity": 0,
                     opacity: 1
                 }
             ];
@@ -823,7 +819,6 @@ class GameLayout {
                     return {
                         offset: progress,
                         transform: `translate(${pose.x - flightLeft - targetBounds.width / 2}px, ${pose.y - flightTop - targetBounds.height / 2}px) scale(${scale})`,
-                        "--foil-activity": amount,
                         opacity: 1
                     };
                 });

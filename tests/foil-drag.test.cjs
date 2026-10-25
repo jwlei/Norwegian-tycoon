@@ -663,21 +663,20 @@ test("foil reduces light and pattern movement by twenty percent with 400ms easin
     assert.match(css, /\.is-tilting::before,[\s\S]*?opacity: calc\(\.72 \* var\(--foil-strength\)\);/);
 });
 
-test("six-second idle foil animates only reflective layers and yields to gestures and reduced motion", () => {
+test("six-second idle foil animates one layer and yields to gestures and reduced motion", () => {
     const css = fs.readFileSync(path.join(__dirname, "..", "css", "foil.css"), "utf8");
     assert.match(css, /@media \(prefers-reduced-motion: no-preference\)/);
     assert.match(css, /animation: foil-idle-color 6s ease-in-out infinite;/);
-    assert.match(css, /animation: foil-idle-reflection 6s ease-in-out infinite;/);
+    assert.doesNotMatch(css, /foil-idle-reflection/);
     assert.match(css, /:not\(\.is-tilting,\s*\.card-flight, \.card-discard-flight, \.is-drag-source, \.card-drag-layer \*/);
-    for (const name of ["color", "reflection"]) {
-        const start = css.indexOf(`@keyframes foil-idle-${name}`);
-        const end = css.indexOf("\n}", start);
-        const frames = css.slice(start, end);
-        assert.match(frames, /0%, 100%/);
-        assert.match(frames, /--pointer-x: 46%; --pointer-y: 48%/);
-        assert.match(frames, /--pointer-x: 54%; --pointer-y: 52%/);
-        assert.doesNotMatch(frames, /transform|filter/);
-    }
+    const start = css.indexOf("@keyframes foil-idle-color");
+    const end = css.indexOf("\n}", start);
+    const frames = css.slice(start, end);
+    assert.match(frames, /0%, 100%/);
+    assert.match(frames, /--pointer-x: 46%; --pointer-y: 48%/);
+    assert.match(frames, /--pointer-x: 54%; --pointer-y: 52%/);
+    assert.doesNotMatch(frames, /transform|filter/);
+    assert.doesNotMatch(css, /foil-idle-reflection|--foil-activity/);
 });
 
 test("touch-dragging a foil preview tracks its pointer without selecting its option", () => {

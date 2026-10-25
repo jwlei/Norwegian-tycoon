@@ -110,11 +110,10 @@ New table cards collect animation references in one read batch before synchroniz
 Flight reveal sampling likewise advances all destination foil clocks, reads their styles together,
 then restores all clocks before constructing any flights.
 
-Where IntersectionObserver is available, hand and table foil animations pause only outside the
+Where IntersectionObserver is available, hand and table foil animations pause outside the
 visible/clipped area, with a 128px viewport margin. On return their clocks advance by the time spent
 offscreen, preserving the shimmer phase rather than restarting it. Observers disconnect when a hand
-or pile is replaced. Visible foil gradients, blend modes, filters and six-second timing are unchanged;
-there is no lower-resolution artwork, reduced shadow blur or lower animation sampling rate.
+or pile is replaced. The idle glare layer is static, so only the foil color layer animates.
 
 Multi-card pickup prepares the unchanged SVG drag previews during idle time, selected cards first.
 Preparation stops during active gestures; an unprepared pickup still builds synchronously without
@@ -129,7 +128,7 @@ Preview preparation waits until auto-scroll or hand inertia finishes instead of 
 Hand scroll events no longer measure or reposition unrelated landing flights; page or table-ancestor
 scrolls still update every flight immediately, with one table measurement before all position writes.
 
-Idle foils use the approved six-second light drift and gentle intensity pulse, without moving the card or changing its tuned colors. Only the foil pseudo-elements animate; dragging, flights, hidden drag sources and reduced-motion preferences disable the idle effect. This uses CSS animation rather than a JavaScript frame loop, but animated gradients still have a repaint cost.
+Idle foils use one six-second light drift and gentle intensity pulse, without moving the card or changing its tuned colors. The glare layer stays static at rest, reducing each foil from two animated layers to one; dragging, flights, hidden drag sources and reduced-motion preferences disable idle motion. The foil palette and full-resolution artwork remain unchanged.
 
 Played cards carry their visible foil light position, eased pattern position and intensity from the hand or drag preview into flight. The light follows the same tilt/settling poses as the card face and blends into the destination's idle phase at the whole play's reveal, including staggered groups. Recreated native table cards share the document's six-second phase so a table refresh does not restart their shimmer. Flight foil keyframes are computed once; no additional frame loop is introduced.
 

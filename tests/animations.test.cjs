@@ -28,7 +28,7 @@ test("card flights use the unrotated card size centred on a rotated card's bound
 
 test("foil sampling predicts the idle reveal phase without changing running or paused clocks", () => {
     const running = { animationName: "foil-idle-color", currentTime: 1234, playState: "running" };
-    const paused = { animationName: "foil-idle-reflection", currentTime: 2500, playState: "paused" };
+    const paused = { animationName: "required-card-pulse", currentTime: 2500, playState: "paused" };
     const context = load({
         getComputedStyle: (element, pseudo) => ({
             opacity: pseudo === "::before" ? .7 * (.46 + running.currentTime / 100000) : .7 * .29,
@@ -193,7 +193,7 @@ test("normal play animation restores the original movement, easing and card stag
     }
 });
 
-test("depth flights render rotation internally, preserve foil activity, and release renderer state", () => {
+test("depth flights render rotation internally, preserve foil rendering, and release renderer state", () => {
     const flights = [], animations = [], followers = [];
     let fullPoseCalls = 0, orientationCalls = 0;
     const states = new Map();
@@ -256,7 +256,6 @@ test("depth flights render rotation internally, preserve foil activity, and rele
         assert.doesNotMatch(frame.transform, /rotate|perspective/);
         assert.match(frame.transform, /scale/);
     }
-    assert.equal(animations[0].frames[0]["--foil-activity"], 1);
     assert.equal(animations[0].frames[0]["--pointer-x"], "0%");
     assert.equal(animations[0].frames[0]["--pointer-y"], "0%");
     assert.equal(animations[0].frames[0]["--foil-color-opacity"], .57);
@@ -435,7 +434,6 @@ test("played flights retain source tilt, scale and foil position and settle leve
     assert.match(frames[2].transform, /rotateX\(0deg\) rotateY\(0deg\) rotate\(15deg\) scale\(1\)/);
     assert.equal(frames[2]["--pointer-x"], "50%");
     assert.equal(frames[2]["--pointer-y"], "50%");
-    assert.equal(frames[2]["--foil-activity"], 0);
     assert.equal(frames[2]["--foil-color-opacity"], .48);
     assert.equal(frames[2]["--foil-glare-opacity"], .3);
     assert.equal(target.style.opacity, "0");

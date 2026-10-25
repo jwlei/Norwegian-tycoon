@@ -9,11 +9,6 @@
     inherits: true;
     initial-value: 50%;
 }
-@property --foil-activity {
-    syntax: "<number>";
-    inherits: true;
-    initial-value: 0;
-}
 @property --foil-color-opacity {
     syntax: "<number>";
     inherits: true;
@@ -237,12 +232,7 @@
     0%, 100% { --pointer-x: 46%; --pointer-y: 48%; opacity: calc(.46 * var(--foil-strength)); }
     50% { --pointer-x: 54%; --pointer-y: 52%; opacity: calc(.50 * var(--foil-strength)); }
 }
-@keyframes foil-idle-reflection {
-    0%, 100% { --pointer-x: 46%; --pointer-y: 48%; opacity: calc(.27 * var(--foil-strength)); }
-    50% { --pointer-x: 54%; --pointer-y: 52%; opacity: calc(.33 * var(--foil-strength)); }
-}
-
-/* Animate only the foil layers, leaving card transforms and guidance animations untouched. */
+/* Animate only the foil color layer, leaving card transforms and guidance animations untouched. */
 @media (prefers-reduced-motion: no-preference) {
     :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]):not(.is-tilting,
         .card-flight, .card-discard-flight, .is-drag-source, .card-drag-layer *,
@@ -254,19 +244,9 @@
         animation: foil-idle-color 6s ease-in-out infinite;
         transition: none;
     }
-    :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]):not(.is-tilting,
-        .card-flight, .card-discard-flight, .is-drag-source, .card-drag-layer *,
-        .card-foil-option:is(:hover, :focus-visible) *)::after {
-        background: radial-gradient(farthest-corner circle at
-            calc(50% + (var(--pointer-x) - 50%) * .8) calc(50% + (var(--pointer-y) - 50%) * .8),
-            #fff8 0%, #fff2 25%, transparent 65%);
-        animation: foil-idle-reflection 6s ease-in-out infinite;
-        transition: none;
-    }
 }
 
-.is-foil-offscreen[data-foil]::before,
-.is-foil-offscreen[data-foil]::after {
+.is-foil-offscreen[data-foil]::before {
     animation-play-state: paused !important;
 }
 
