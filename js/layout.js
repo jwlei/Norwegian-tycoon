@@ -2032,7 +2032,7 @@ class GameLayout {
                         var normalVote = document.createElement("button");
                         normalVote.type = "button";
                         normalVote.disabled = !canVote;
-                        normalVote.textContent = "Vanlig plassering";
+                        normalVote.textContent = "Fortsett";
                         normalVote.setAttribute("aria-pressed", String(voteMap.get(votePlayerId) === false));
                         normalVote.onclick = function () {
                             game.submitNeutralRoundVote(player, false);
@@ -2040,7 +2040,7 @@ class GameLayout {
                         var neutralVote = document.createElement("button");
                         neutralVote.type = "button";
                         neutralVote.disabled = !canVote;
-                        neutralVote.textContent = "Alle Nøytrale";
+                        neutralVote.textContent = "Alle nøytrale";
                         neutralVote.setAttribute("aria-pressed", String(voteMap.get(votePlayerId) === true));
                         neutralVote.onclick = function () {
                             game.submitNeutralRoundVote(player, true);

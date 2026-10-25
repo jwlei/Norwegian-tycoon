@@ -61,7 +61,7 @@ test("message options share a box and the optional timer bar has no effect on to
     const refresh = fs.readFileSync(path.join(__dirname, "..", "css", "ui-refresh.css"), "utf8");
     assert.match(refresh, /\.message-settings\.is-enabled \{[^}]*border: 1px solid var\(--line\);/);
     assert.match(css, /\.leaderboard-table th \{[^}]*position: sticky;[^}]*top: 0;/);
-    assert.match(css, /\.leaderboard-table-scroll \{[^}]*overflow: auto;/);
+    assert.match(css, /\.leaderboard-table-scroll \{[^}]*overflow: visible;/);
     assert.match(refresh, /#dialogRules \.play-guide-shortcut \{[^}]*margin: 0 auto 12px;[^}]*background: transparent;/);
 });
 
@@ -383,12 +383,22 @@ test("PIN toggle aligns with the full-width name field without horizontal button
     assert.match(css, /#playerUsePin\s*\{\s*margin:\s*8px 0;\s*\}/);
 });
 
-test("visible release and versioned local assets use version 1.1.0", () => {
-    assert.ok(html.includes('aria-label="Spillversjon 1.1.0">v1.1.0</span>'));
+test("visible release and versioned local assets use version 1.1.2", () => {
+    assert.ok(html.includes('aria-label="Spillversjon 1.1.2">v1.1.2</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"&]+)/g),
         match => match[1]);
     assert.ok(versions.length > 0);
-    assert.ok(versions.every(version => version === "1.1.0"));
+    assert.ok(versions.every(version => version === "1.1.2"));
+});
+
+test("neutral-round vote uses compact single-line choices in both languages", () => {
+    const layout = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
+    assert.match(layout, /normalVote\.textContent = "Fortsett";/);
+    assert.match(layout, /neutralVote\.textContent = "Alle nøytrale";/);
+    assert.match(translations, /"Fortsett": "Continue"/);
+    assert.match(translations, /"Alle nøytrale": "All neutral"/);
+    assert.match(css, /\.round-start-vote:not\(\.game-end-vote\) \.vote-choice > button \{\s*white-space: nowrap;/);
 });
 
 test("splash profile text wraps so long names cannot hide the logged-in player ID", () => {
@@ -463,9 +473,11 @@ test("settings and appearance close buttons use the same centered layout as rule
     for (const id of ["dialogSettings", "dialogCardStyle", "dialogCardFoil", "dialogColorTheme", "dialogPlayGuide", "dialogResults"]) {
         assert.match(css, new RegExp(`#${id} \\.dialog-footer,[\\s\\S]*?float: none;[\\s\\S]*?justify-content: center;`));
         assert.match(css, new RegExp(`#${id} \\.dialog-footer > button,[\\s\\S]*?width: min\\(100%, 240px\\);`));
-        assert.match(css, new RegExp(`#${id} \\.dialog-window,[\\s\\S]*?display: flex;[\\s\\S]*?overflow: hidden;`));
-        assert.match(css, new RegExp(`#${id} \\.dialogBody,[\\s\\S]*?min-height: 0;[\\s\\S]*?overflow-y: auto;`));
+        assert.match(css, new RegExp(`#${id} \\.dialog-window,[\\s\\S]*?display: flex;[\\s\\S]*?height: min\\(88dvh, 740px\\);[\\s\\S]*?overflow-y: auto;`));
+        assert.match(css, new RegExp(`#${id} \\.dialogBody,[\\s\\S]*?flex: 1 0 auto;[\\s\\S]*?overflow: visible;`));
     }
+    assert.match(css, /#dialogLeaderboard \.dialog-footer\s*\{[^}]*position: sticky;[^}]*bottom: 0;/);
+    assert.match(html, /class="leaderboard-toolbar">\s*<div class="dialog-title">Leaderboard<\/div>\s*<button[^>]*id="leaderboardBotsToggleButton"[\s\S]*?<span>Bots<\/span>/);
     assert.match(css, /#gameToastRegion\[data-max-visible="1"\]\s*\{[^}]*height: var\(--board-toast-height\);/);
     assert.doesNotMatch(css, /#gameToastRegion\[data-animation-speed="fast"\][^{]*\{[^}]*height:/);
 });

@@ -383,10 +383,14 @@ button:focus-visible {
 .message-settings.is-enabled > .setting-row { border: 0; background: transparent; }
 .message-settings > [hidden] { display: none; }
 .leaderboard-toolbar {
-    display: flex;
-    justify-content: flex-end;
-    padding: 0 16px 4px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px 12px;
 }
+.leaderboard-toolbar .dialog-title { grid-column: 2; padding: 0; }
+.leaderboard-toolbar #leaderboardBotsToggleButton { justify-self: end; }
 #leaderboardBotsToggleButton {
     display: inline-flex;
     align-items: center;

@@ -158,9 +158,11 @@ The top-bar controls are icons without button backgrounds. Settings end with a P
 
 The table uses its theme's surface (AMOLED remains flat black); there is no separate Flat/Textured selector. The delayed outline around the table cards uses the selected theme's accent colour.
 
-Long settings, rules, guide and appearance menus scroll their content while keeping their close footer visible. The visual guide shortcut is centered and understated. Enabling Messages groups its duration, maximum-visible and timer-bar options in one box. The optional countdown bar defaults on and saves independently of whether messages are visible.
+Long settings, rules, guide and appearance menus use up to 88% of viewport height (capped at 740px). Their titles scroll with the content while the close footer stays visible. The visual guide shortcut is centered and understated. Enabling Messages groups its duration, maximum-visible and timer-bar options in one box. The optional countdown bar defaults on and saves independently of whether messages are visible.
 
-The leaderboard keeps column headers visible during vertical scrolling, uses plain-looking clickable names with a separate ID popup, and offers a discreet Show bots toggle at the upper right (off by default). Future named bot results are aggregated under stable `bot-` profile keys with `isBot: true`; existing human statistics and the 50-most-recent eligible profile limit are retained. Bot names display an `(AI)` suffix only in the leaderboard. Previous bot rounds were not saved and cannot be backfilled.
+The neutral-round vote after three consecutive Bum finishes uses single-line choices: Fortsett / Alle nøytrale (Continue / All neutral in English). The existing vote and placement-reset rules are unchanged.
+
+The leaderboard keeps column headers visible during vertical scrolling, uses plain-looking clickable names with a separate ID popup, and offers a discreet Bots toggle on the title row (off by default, labelled Bots in both languages). Future named bot results are aggregated under stable `bot-` profile keys with `isBot: true`; existing human statistics and the 50-most-recent eligible profile limit are retained. Bot names display an `(AI)` suffix only in the leaderboard. Previous bot rounds were not saved and cannot be backfilled.
 
 Rules include a bilingual illustrated play guide. Finished players are dimmed during play, and previous President/Bum icons disappear once another player claims that rank. When everyone passes after the last player to play has finished, the next active seat in turn order leads. Selected exchange cards stay in the hand rather than being duplicated in the outgoing trade panel; received-card previews remain.
 

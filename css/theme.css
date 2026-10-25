@@ -1890,6 +1890,10 @@ select:focus-visible {
     font-size: 0.75rem;
 }
 
+.round-start-vote:not(.game-end-vote) .vote-choice > button {
+    white-space: nowrap;
+}
+
 .player-summary__host {
     font-size: 0.7rem;
 }
@@ -1998,8 +2002,9 @@ select:focus-visible {
 #dialogLeaderboard .dialog-window {
     display: flex;
     flex-direction: column;
-    height: min(80dvh, 640px);
-    overflow: hidden;
+    height: min(88dvh, 740px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 #dialogRules .dialog-title,
@@ -2024,11 +2029,10 @@ select:focus-visible {
 #dialogCardFoil .dialogBody,
 #dialogGameLog .game-log,
 #dialogLeaderboard .leaderboard-content {
-    flex: 1 1 auto;
-    min-height: 0;
+    flex: 1 0 auto;
+    min-height: auto;
     max-height: none;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    overflow: visible;
     padding: 8px 16px 16px;
 }
 
@@ -2043,6 +2047,10 @@ select:focus-visible {
 #dialogLeaderboard .dialog-footer {
     float: none;
     flex: 0 0 auto;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: var(--surface);
     justify-content: center;
     border-top: 1px solid var(--line);
 }
@@ -2070,15 +2078,12 @@ select:focus-visible {
 
 .leaderboard-table-scroll {
     max-width: 100%;
-    min-height: 0;
-    overflow: auto;
-    flex: 1 1 auto;
+    overflow: visible;
 }
 
 #dialogLeaderboard .leaderboard-content {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    display: block;
+    overflow: visible;
 }
 
 .leaderboard-table th {

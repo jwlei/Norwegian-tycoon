@@ -7,7 +7,7 @@
         // Static page text
         "Innstillinger": "Settings",
         "Ytelse": "Performance",
-        "Vis boter": "Show bots",
+        "Bots": "Bots",
         "Tidslinje for meldinger": "Message timer bar",
         "Vis nedtellingslinjen under meldinger.": "Show the countdown bar below messages.",
         "Du blir med i et spill som pågår": "You are joining a game in progress",
@@ -493,7 +493,7 @@
         "Flertall regnes av alle menneskespillere. Manglende stemmer teller ikke; uten flertall ved fristen går rommet til lobbyen.": "The majority is counted among all human players. Missing votes don't count; without a majority at the deadline the room goes to the lobby.",
         "Skal neste runde starte med alle Nøytrale?": "Should the next round start with everyone Neutral?",
         "Vanlig plassering": "Normal placement",
-        "Alle Nøytrale": "Everyone Neutral",
+        "Alle nøytrale": "All neutral",
         "Flertallet valgte at alle starter Nøytrale.": "The majority chose for everyone to start Neutral.",
         "Flertallet valgte vanlig plassering.": "The majority chose normal placement.",
         "Boter stemmer ikke. Manglende stemme teller som vanlig plassering; uavgjort gir Nøytral start.": "Bots don't vote. A missing vote counts as normal placement; a tie gives a Neutral start.",
