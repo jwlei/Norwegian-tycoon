@@ -51,9 +51,26 @@
     <link rel="stylesheet" href="css/common.css">
     <link rel="stylesheet" href="css/game.css?v=1.0.0">
     <link rel="stylesheet" href="css/mobile.css">
-    <link rel="stylesheet" href="css/theme.css?v=1.0.0&amp;rev=5">
+    <link rel="stylesheet" href="css/theme.css?v=1.0.0&amp;rev=6">
+    <link rel="stylesheet" href="css/color-themes.css?v=1.0.0&amp;rev=1">
+    <link rel="stylesheet" href="css/ui-refresh.css?v=1.0.0&amp;rev=1">
     <link rel="stylesheet" href="css/foil.css?v=1.0.0&amp;rev=4">
     <link rel="stylesheet" href="css/card-depth.css?v=1.0.0&amp;rev=2">
+    <script id="applySavedColorTheme">
+        // Applies the saved theme before first paint so the splash never flashes the default colours.
+        (function () {
+            var root = document.documentElement;
+            var saved = null;
+            try { saved = localStorage.getItem("norwegian-tycoon-cookie-ColorTheme"); } catch (error) { }
+            if (!saved) {
+                var match = document.cookie.match(/(?:^|;\s*)ColorTheme=([^;]*)/);
+                saved = match ? decodeURIComponent(match[1]) : null;
+            }
+            var light = { "vs-bla": true, sol: true, papir: true };
+            if (saved && /^[a-z-]+$/.test(saved)) { root.dataset.colorTheme = saved; }
+            root.dataset.theme = light[saved] ? "light" : "dark";
+        })();
+    </script>
 </head>
 
 <body data-idle-foil-animation="on">
@@ -81,8 +98,9 @@
             aria-label="Åpne spillmeny" aria-controls="gameMenu" aria-expanded="false" title="Åpne spillmeny">
             <span class="game-menu-toggle__icon" aria-hidden="true"></span>
         </button>
-        <div id="mainMenu" role="group" aria-label="Hovedmeny">
-            <div class="game-logo"><img src="icons/logo.svg" data-logo alt="Boms og President" /><small id="splashPlayerName" data-i18n-skip hidden></small></div>
+        <div id="mainMenu" class="is-intro" role="group" aria-label="Hovedmeny">
+            <div class="game-logo"><div class="game-logo__neon" data-neon-logo="splash-logo"></div><small id="splashPlayerName" data-i18n-skip hidden></small></div>
+            <script src="js/neon-logo.js?v=1.0.0&amp;rev=1"></script>
             <button type="button" id="newGameButton" title="Lag nytt spill" style="grid-row: 2 / 3; grid-column: 2 / -2;">Lag nytt spill</button>
             <button type="button" id="resumeGameButton" hidden>Fortsett spillet</button>
             <button type="button" id="joinGameButton" title="Koble til spill med kode" style="grid-row: 3 / 4; grid-column: 2 / -2;">Koble til med kode</button>
@@ -227,10 +245,6 @@
                     </span>
                 </div>
                 <h3 class="settings-category">Utseende</h3>
-                <button type="button" class="theme-toggle setting-row" aria-label="Mørk modus. Bytt til lys modus" aria-pressed="true">
-                    <span class="setting-row__text"><strong>Mørk modus</strong><small>Bytt mellom mørkt og lyst tema</small></span>
-                    <span class="setting-row__switch" aria-hidden="true"><span></span></span>
-                </button>
                 <button type="button" id="colorThemeOpenButton" class="setting-row" aria-haspopup="dialog">
                     <span class="setting-row__text"><strong>Fargetema</strong><small id="colorThemeCurrentName" data-i18n-skip></small></span>
                     <span id="colorThemeCurrent" aria-hidden="true"></span>
@@ -305,26 +319,27 @@
         <div class="dialog-window">
             <div class="dialog-title">Velg fargetema</div>
             <div class="dialogBody color-theme-list">
-                <button type="button" class="color-theme-option" data-color-theme="amoled" aria-pressed="false" title="Helt svarte bakgrunner. Bruker mørk modus."><span class="color-theme-preview" data-color-preview="amoled" aria-hidden="true"><span></span><span></span></span><strong>AMOLED Black</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="gray" aria-pressed="false"><span class="color-theme-preview" data-color-preview="gray" aria-hidden="true"><span></span><span></span></span><strong>Grå</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="burgundy" aria-pressed="false"><span class="color-theme-preview" data-color-preview="burgundy" aria-hidden="true"><span></span><span></span></span><strong>Burgunder</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="darcula" aria-pressed="false"><span class="color-theme-preview" data-color-preview="darcula" aria-hidden="true"><span></span><span></span></span><strong>Darcula</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="high-contrast-amber" aria-pressed="false"><span class="color-theme-preview" data-color-preview="high-contrast-amber" aria-hidden="true"><span></span><span></span></span><strong>Høy kontrast – Rav</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="amber" aria-pressed="false"><span class="color-theme-preview" data-color-preview="amber" aria-hidden="true"><span></span><span></span></span><strong>Rav</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="classic" aria-pressed="false"><span class="color-theme-preview" data-color-preview="classic" aria-hidden="true"><span></span><span></span></span><strong>Classic</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="monokai" aria-pressed="false"><span class="color-theme-preview" data-color-preview="monokai" aria-hidden="true"><span></span><span></span></span><strong>Monokai</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="forest" aria-pressed="false"><span class="color-theme-preview" data-color-preview="forest" aria-hidden="true"><span></span><span></span></span><strong>Skoggrønn</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="teal" aria-pressed="true"><span class="color-theme-preview" data-color-preview="teal" aria-hidden="true"><span></span><span></span></span><strong>Dyp turkis</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="material" aria-pressed="false"><span class="color-theme-preview" data-color-preview="material" aria-hidden="true"><span></span><span></span></span><strong>Material</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="solarized" aria-pressed="false"><span class="color-theme-preview" data-color-preview="solarized" aria-hidden="true"><span></span><span></span></span><strong>Solarized</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="nord" aria-pressed="false"><span class="color-theme-preview" data-color-preview="nord" aria-hidden="true"><span></span><span></span></span><strong>Nord</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="dark-modern" aria-pressed="false"><span class="color-theme-preview" data-color-preview="dark-modern" aria-hidden="true"><span></span><span></span></span><strong>Dark Modern</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="blue" aria-pressed="false"><span class="color-theme-preview" data-color-preview="blue" aria-hidden="true"><span></span><span></span></span><strong>Blå</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="one-dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="one-dark" aria-hidden="true"><span></span><span></span></span><strong>One Dark</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="high-contrast-blue" aria-pressed="false"><span class="color-theme-preview" data-color-preview="high-contrast-blue" aria-hidden="true"><span></span><span></span></span><strong>Høy kontrast – Blå</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="gradianto" aria-pressed="false"><span class="color-theme-preview" data-color-preview="gradianto" aria-hidden="true"><span></span><span></span></span><strong>Gradianto</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="amethyst" aria-pressed="false"><span class="color-theme-preview" data-color-preview="amethyst" aria-hidden="true"><span></span><span></span></span><strong>Ametyst</strong></button>
-                <button type="button" class="color-theme-option" data-color-theme="high-contrast-violet" aria-pressed="false"><span class="color-theme-preview" data-color-preview="high-contrast-violet" aria-hidden="true"><span></span><span></span></span><strong>Høy kontrast – Fiolett</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="darcula" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="darcula" aria-hidden="true"><span></span><span></span></span><strong>Darcula</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="skumring" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="skumring" aria-hidden="true"><span></span><span></span></span><strong>Skumring</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="hostlov" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="hostlov" aria-hidden="true"><span></span><span></span></span><strong>Høstløv</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="kobolt" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="kobolt" aria-hidden="true"><span></span><span></span></span><strong>Kobolt</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="monokai" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="monokai" aria-hidden="true"><span></span><span></span></span><strong>Monokai</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="furu" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="furu" aria-hidden="true"><span></span><span></span></span><strong>Furu</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="solarisert" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="solarisert" aria-hidden="true"><span></span><span></span></span><strong>Solarisert</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="fjord" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="fjord" aria-hidden="true"><span></span><span></span></span><strong>Fjord</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="modern" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="modern" aria-hidden="true"><span></span><span></span></span><strong>Moderne mørk</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="atom" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="atom" aria-hidden="true"><span></span><span></span></span><strong>Atom</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="nattugle" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="nattugle" aria-hidden="true"><span></span><span></span></span><strong>Nattugle</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="vampyr" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="vampyr" aria-hidden="true"><span></span><span></span></span><strong>Vampyr</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="mokka" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="mokka" aria-hidden="true"><span></span><span></span></span><strong>Mokka</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="synthwave" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="synthwave" aria-hidden="true"><span></span><span></span></span><strong>Synthwave</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="rose" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="rose" aria-hidden="true"><span></span><span></span></span><strong>Rosé</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="glod" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="glod" aria-hidden="true"><span></span><span></span></span><strong>Glød</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="kontrast" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="kontrast" aria-hidden="true"><span></span><span></span></span><strong>Høy kontrast</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="amoled" data-theme-mode="dark" aria-pressed="false"><span class="color-theme-preview" data-color-preview="amoled" aria-hidden="true"><span></span><span></span></span><strong>AMOLED Black</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="sol" data-theme-mode="light" aria-pressed="false"><span class="color-theme-preview" data-color-preview="sol" aria-hidden="true"><span></span><span></span></span><strong>Sol</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="papir" data-theme-mode="light" aria-pressed="false"><span class="color-theme-preview" data-color-preview="papir" aria-hidden="true"><span></span><span></span></span><strong>Papir</strong></button>
+                <button type="button" class="color-theme-option" data-color-theme="vs-bla" data-theme-mode="light" aria-pressed="false"><span class="color-theme-preview" data-color-preview="vs-bla" aria-hidden="true"><span></span><span></span></span><strong>Studio Blå</strong></button>
             </div>
             <div class="dialog-footer">
                 <button type="button" id="colorThemeCloseButton">Lukk</button>
@@ -766,7 +781,7 @@
     <script src="js/landing-geometry.js?v=1.0.0&amp;rev=3"></script>
     <script src="js/card-depth.js?v=1.0.0&amp;rev=6"></script>
     <script src="js/player.js?v=1.0.0"></script>
-    <script src="js/shared.js?v=1.0.0&amp;rev=2"></script>
+    <script src="js/shared.js?v=1.0.0&amp;rev=3"></script>
     <script src="js/identity.js?v=1.0.0"></script>
     <script src="js/bot.js?v=1.0.0"></script>
     <script src="js/presence.js?v=1.0.0"></script>
@@ -776,7 +791,7 @@
     <script src="js/bot-turn.js?v=1.0.0"></script>
     <script src="js/connection.js?v=1.0.0&amp;rev=7"></script>
     <script src="js/leaderboard.js?v=1.0.0"></script>
-    <script src="js/i18n.js?v=1.0.0&amp;rev=3"></script>
+    <script src="js/i18n.js?v=1.0.0&amp;rev=4"></script>
 </body>
 
 </html>

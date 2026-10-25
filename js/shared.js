@@ -143,77 +143,50 @@ function getPlayerKey() {
     return key;
 }
 
-function initializeThemeToggle() {
-    const root = document.documentElement;
-    const storageKey = "norwegian-tycoon-theme";
-    const themeButtons = document.querySelectorAll(".theme-toggle");
-    let storedTheme = null;
-    try { storedTheme = localStorage.getItem(storageKey); } catch (error) { }
-    let preferredTheme = (storedTheme === "light" || storedTheme === "dark") ? storedTheme : "dark";
-
-    function applyTheme(theme) {
-        const amoled = root.dataset.colorTheme === "amoled";
-        if (amoled) { theme = "dark"; }
-        const isDark = theme === "dark";
-        root.dataset.theme = theme;
-        themeButtons.forEach(button => {
-            const label = button.querySelector(".theme-toggle__label");
-            const actionLabel = amoled ? "AMOLED Black bruker mørk modus" :
-                (isDark ? "Bytt til lys modus" : "Bytt til mørk modus");
-            button.disabled = amoled;
-            const description = button.querySelector(".setting-row__text small");
-            if (description) {
-                description.textContent = amoled ? actionLabel : "Bytt mellom mørkt og lyst tema";
-            }
-            button.setAttribute("aria-pressed", String(isDark));
-            if (label) {
-                label.textContent = isDark ? "Mørk" : "Lys";
-            }
-            button.setAttribute(
-                "aria-label",
-                `${isDark ? "Mørk" : "Lys"} modus. ${actionLabel}`
-            );
-            button.title = actionLabel;
-        });
-        const themeColor = document.querySelector('meta[name="theme-color"]');
-        if (themeColor) {
-            themeColor.content = amoled ? "#000000" : (isDark ? "#1e1e1e" : "#f3f6f8");
-        }
-    }
-
-    applyTheme(preferredTheme);
-    document.addEventListener("colorthemechange", () => applyTheme(preferredTheme));
-    themeButtons.forEach(button => {
-        button.addEventListener("click", function () {
-            preferredTheme = (root.dataset.theme === "dark") ? "light" : "dark";
-            try { localStorage.setItem(storageKey, preferredTheme); } catch (error) { }
-            applyTheme(preferredTheme);
-        });
-    });
-    window.addEventListener("storage", event => {
-        if (event.key === storageKey) {
-            preferredTheme = event.newValue === "light" ? "light" : "dark";
-            applyTheme(preferredTheme);
-        }
-    });
-}
+// Saved IDs from the previous theme set map to the closest new theme; light-mode users get a light theme.
+const COLOR_THEME_DEFAULT = "modern";
+const LEGACY_COLOR_THEMES = {
+    gray: "modern", burgundy: "glod", "high-contrast-amber": "kontrast", "high-contrast-blue": "kontrast",
+    "high-contrast-violet": "kontrast", amber: "hostlov", classic: "furu", forest: "furu", teal: "solarisert",
+    material: "solarisert", solarized: "solarisert", nord: "fjord", "dark-modern": "modern", blue: "atom",
+    "one-dark": "atom", gradianto: "vampyr", amethyst: "vampyr"
+};
+const LEGACY_LIGHT_COLOR_THEMES = { blue: "vs-bla", "dark-modern": "vs-bla", "one-dark": "vs-bla", nord: "vs-bla",
+    solarized: "sol", teal: "sol", classic: "sol", forest: "sol", amber: "sol", material: "sol" };
 
 function initializeColorTheme() {
     const root = document.documentElement;
     const options = Array.from(document.querySelectorAll(".color-theme-option"));
     const current = document.getElementById("colorThemeCurrent");
     const currentName = document.getElementById("colorThemeCurrentName");
+    const option = theme => options.find(button => button.dataset.colorTheme === theme);
+
+    function resolve(theme) {
+        if (option(theme)) { return theme; }
+        if (!Object.prototype.hasOwnProperty.call(LEGACY_COLOR_THEMES, theme)) { return COLOR_THEME_DEFAULT; }
+        let legacyMode = null;
+        try { legacyMode = localStorage.getItem("norwegian-tycoon-theme"); } catch (error) { }
+        return legacyMode === "light" ? LEGACY_LIGHT_COLOR_THEMES[theme] || "papir" : LEGACY_COLOR_THEMES[theme];
+    }
 
     function applyColorTheme(theme) {
-        const selected = options.find(button => button.dataset.colorTheme === theme) ||
-            options.find(button => button.dataset.colorTheme === "teal");
+        const resolved = resolve(theme);
+        if (resolved !== theme && Object.prototype.hasOwnProperty.call(LEGACY_COLOR_THEMES, theme)) {
+            setCookie("ColorTheme", resolved, 1000);
+        }
+        const selected = option(resolved) || option(COLOR_THEME_DEFAULT);
         root.dataset.colorTheme = selected.dataset.colorTheme;
+        root.dataset.theme = selected.dataset.themeMode === "light" ? "light" : "dark";
         options.forEach(button => {
             button.setAttribute("aria-pressed", String(button === selected));
         });
         current.replaceChildren(selected.querySelector(".color-theme-preview").cloneNode(true));
         const name = selected.querySelector("strong").textContent;
         currentName.textContent = window.I18n ? window.I18n.msg(name) : name;
+        const themeColor = typeof document.querySelector === "function" ? document.querySelector('meta[name="theme-color"]') : null;
+        if (themeColor && typeof getComputedStyle === "function") {
+            themeColor.content = getComputedStyle(root).getPropertyValue("--felt-deep").trim() || themeColor.content;
+        }
         document.dispatchEvent(new CustomEvent("colorthemechange"));
     }
 
@@ -255,10 +228,8 @@ function initializeRulesPlayerOptions() {
 
 if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initializeRulesPlayerOptions, { once: true });
-    document.addEventListener("DOMContentLoaded", initializeThemeToggle, { once: true });
     document.addEventListener("DOMContentLoaded", initializeColorTheme, { once: true });
 } else {
     initializeRulesPlayerOptions();
-    initializeThemeToggle();
     initializeColorTheme();
 }

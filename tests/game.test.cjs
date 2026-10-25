@@ -1591,7 +1591,7 @@ function savedPreferencesContext(cookieMode = "enabled", storage = new Map(), st
     vm.runInContext(shared.slice(shared.indexOf("var savedCookieValues"),
         shared.indexOf("function hasClass")) +
         shared.slice(shared.indexOf("function generatePlayerKey()"),
-            shared.indexOf("function initializeThemeToggle()")), context);
+            shared.indexOf("// Saved IDs from the previous theme set")), context);
     const connection = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     vm.runInContext(connection.slice(connection.indexOf("        function readLastUsedPlayerName()"),
         connection.indexOf("        function promptForPlayerName(")), context);
@@ -1720,39 +1720,12 @@ test("short ID generation excludes biased bytes and keeps letters and digits cas
     assert.equal(context.generatePlayerKey(), "AZaz09");
 });
 
-test("theme controls still initialize and work when local storage is blocked", () => {
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "shared.js"), "utf8");
-    let click;
-    const button = {
-        querySelector: () => null, setAttribute() {},
-        addEventListener(type, handler) { click = handler; }
-    };
-    const root = { dataset: {} };
-    const context = vm.createContext({
-        document: {
-            documentElement: root, querySelectorAll: () => [button], querySelector: () => null,
-            addEventListener() {}
-        },
-        window: { addEventListener() {} },
-        localStorage: {
-            getItem() { throw new Error("Storage unavailable"); },
-            setItem() { throw new Error("Storage unavailable"); }
-        }
-    });
-    vm.runInContext(source.slice(source.indexOf("function initializeThemeToggle()"),
-        source.indexOf('if (document.readyState === "loading")')), context);
-    context.initializeThemeToggle();
-    assert.equal(root.dataset.theme, "dark");
-    click();
-    assert.equal(root.dataset.theme, "light");
-});
-
 function colorThemeContext(storage = new Map(), storageBlocked = false) {
     const context = savedPreferencesContext("ignored", storage, storageBlocked);
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-    const options = Array.from(html.matchAll(/class="color-theme-option" data-color-theme="([^"]+)"[^>]*>.*?<strong>([^<]+)<\/strong>/g),
-        ([, theme, name]) => ({
-            dataset: { colorTheme: theme }, pressed: null,
+    const options = Array.from(html.matchAll(/class="color-theme-option" data-color-theme="([^"]+)" data-theme-mode="([^"]+)"[^>]*>.*?<strong>([^<]+)<\/strong>/g),
+        ([, theme, mode, name]) => ({
+            dataset: { colorTheme: theme, themeMode: mode }, pressed: null,
             setAttribute(key, value) { if (key === "aria-pressed") { this.pressed = value; } },
             addEventListener(type, callback) { this[type] = callback; },
             querySelector(selector) {
@@ -1775,26 +1748,28 @@ function colorThemeContext(storage = new Map(), storageBlocked = false) {
     context.window.addEventListener = (type, callback) => { events[type] = callback; };
     context.showDialog = (name, visible) => dialogs.push([name, visible]);
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "shared.js"), "utf8");
-    vm.runInContext(source.slice(source.indexOf("function initializeColorTheme()"),
+    vm.runInContext(source.slice(source.indexOf("// Saved IDs from the previous theme set"),
         source.indexOf('if (document.readyState === "loading")')), context);
     context.initializeColorTheme();
     return { context, options, elements, events, dialogs };
 }
 
-test("all twenty color themes have previews and persist without cookies", () => {
+test("all twenty-one color themes have previews, set their own mode and persist without cookies", () => {
     const storage = new Map();
     const { context, options, elements } = colorThemeContext(storage);
     assert.deepEqual(options.map(option => option.dataset.colorTheme),
-        ["amoled", "gray", "burgundy", "darcula", "high-contrast-amber", "amber", "classic",
-            "monokai", "forest", "teal", "material", "solarized", "nord", "dark-modern", "blue", "one-dark",
-            "high-contrast-blue", "gradianto", "amethyst", "high-contrast-violet"]);
-    assert.equal(context.document.documentElement.dataset.colorTheme, "teal");
-    context.document.documentElement.dataset.theme = "light";
+        ["darcula", "skumring", "hostlov", "kobolt", "monokai", "furu", "solarisert", "fjord", "modern", "atom",
+            "nattugle", "vampyr", "mokka", "synthwave", "rose", "glod", "kontrast", "amoled", "sol", "papir", "vs-bla"]);
+    assert.deepEqual(options.filter(option => option.dataset.themeMode === "light").map(option => option.dataset.colorTheme),
+        ["sol", "papir", "vs-bla"]);
+    const root = context.document.documentElement;
+    assert.equal(root.dataset.colorTheme, "modern");
+    assert.equal(root.dataset.theme, "dark");
     for (const option of options) {
         option.click();
         const theme = option.dataset.colorTheme;
-        assert.equal(context.document.documentElement.dataset.colorTheme, theme);
-        assert.equal(context.document.documentElement.dataset.theme, "light");
+        assert.equal(root.dataset.colorTheme, theme);
+        assert.equal(root.dataset.theme, option.dataset.themeMode, "The theme decides dark or light mode");
         assert.equal(options.filter(candidate => candidate.pressed === "true").length, 1);
         assert.equal(option.pressed, "true");
         assert.equal(elements.colorThemeCurrent.preview.theme, theme);
@@ -1807,55 +1782,40 @@ test("color themes remain usable with blocked storage, validate saved values and
     const { context, options, elements, events, dialogs } = colorThemeContext(new Map(), true);
     elements.colorThemeOpenButton.click();
     assert.deepEqual(dialogs.splice(0), [["Settings", false], ["ColorTheme", true]]);
-    options.find(option => option.dataset.colorTheme === "forest").click();
-    assert.equal(context.getCookie("ColorTheme"), "forest");
+    options.find(option => option.dataset.colorTheme === "furu").click();
+    assert.equal(context.getCookie("ColorTheme"), "furu");
     assert.deepEqual(dialogs.splice(0), [["ColorTheme", false], ["Settings", true]]);
-    context.window.I18n = { msg: name => name === "Skoggrønn" ? "Forest green" : name };
+    context.window.I18n = { msg: name => name === "Furu" ? "Pine" : name };
     events.languagechange();
-    assert.equal(elements.colorThemeCurrentName.textContent, "Forest green");
+    assert.equal(elements.colorThemeCurrentName.textContent, "Pine");
     elements.colorThemeCloseButton.click();
     assert.deepEqual(dialogs.splice(0), [["ColorTheme", false], ["Settings", true]]);
-    events.storage({ key: "norwegian-tycoon-cookie-ColorTheme", newValue: "gray" });
-    assert.equal(context.document.documentElement.dataset.colorTheme, "gray");
-    events.storage({ key: "unrelated", newValue: "amber" });
-    assert.equal(context.document.documentElement.dataset.colorTheme, "gray");
+    events.storage({ key: "norwegian-tycoon-cookie-ColorTheme", newValue: "papir" });
+    assert.equal(context.document.documentElement.dataset.colorTheme, "papir");
+    assert.equal(context.document.documentElement.dataset.theme, "light");
+    events.storage({ key: "unrelated", newValue: "sol" });
+    assert.equal(context.document.documentElement.dataset.colorTheme, "papir");
     events.storage({ key: "norwegian-tycoon-cookie-ColorTheme", newValue: "invalid" });
-    assert.equal(context.document.documentElement.dataset.colorTheme, "teal");
+    assert.equal(context.document.documentElement.dataset.colorTheme, "modern");
+    assert.equal(context.document.documentElement.dataset.theme, "dark");
     const invalid = new Map([["norwegian-tycoon-cookie-ColorTheme", "invalid"]]);
-    assert.equal(colorThemeContext(invalid).context.document.documentElement.dataset.colorTheme, "teal");
+    assert.equal(colorThemeContext(invalid).context.document.documentElement.dataset.colorTheme, "modern");
 });
 
-test("AMOLED forces dark mode and a black browser bar, then restores the preferred appearance", () => {
-    const storage = new Map([["norwegian-tycoon-theme", "light"]]);
-    const { context, options, events } = colorThemeContext(storage);
-    const button = {
-        querySelector: () => null, setAttribute() {},
-        addEventListener(type, callback) { this[type] = callback; }
-    };
-    const meta = {};
-    context.document.querySelectorAll = () => [button];
-    context.document.querySelector = () => meta;
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "shared.js"), "utf8");
-    vm.runInContext(source.slice(source.indexOf("function initializeThemeToggle()"),
-        source.indexOf("function initializeColorTheme()")), context);
-    context.initializeThemeToggle();
-    const root = context.document.documentElement;
-    assert.equal(root.dataset.theme, "light");
-    options.find(option => option.dataset.colorTheme === "amoled").click();
-    assert.equal(root.dataset.theme, "dark");
-    assert.equal(meta.content, "#000000");
-    assert.equal(button.disabled, true);
-    assert.equal(button.title, "AMOLED Black bruker mørk modus");
-    assert.equal(storage.get("norwegian-tycoon-theme"), "light");
-    events.storage({ key: "norwegian-tycoon-theme", newValue: "light" });
-    assert.equal(root.dataset.theme, "dark");
-    options.find(option => option.dataset.colorTheme === "gray").click();
-    assert.equal(root.dataset.theme, "light");
-    assert.equal(meta.content, "#f3f6f8");
-    assert.equal(button.disabled, false);
-    button.click();
-    assert.equal(root.dataset.theme, "dark");
-    assert.equal(storage.get("norwegian-tycoon-theme"), "dark");
+test("previously saved themes migrate to the closest new theme, honouring the old light mode", () => {
+    for (const [legacy, mode, expected, expectedMode] of [
+        ["teal", undefined, "solarisert", "dark"], ["teal", "light", "sol", "light"], ["blue", "light", "vs-bla", "light"],
+        ["gray", "light", "papir", "light"], ["one-dark", "dark", "atom", "dark"], ["high-contrast-blue", "dark", "kontrast", "dark"],
+        ["amoled", "light", "amoled", "dark"], ["gradianto", undefined, "vampyr", "dark"]
+    ]) {
+        const storage = new Map([["norwegian-tycoon-cookie-ColorTheme", legacy]]);
+        if (mode) { storage.set("norwegian-tycoon-theme", mode); }
+        const { context } = colorThemeContext(storage);
+        const root = context.document.documentElement;
+        assert.equal(root.dataset.colorTheme, expected, legacy);
+        assert.equal(root.dataset.theme, expectedMode, legacy);
+        assert.equal(context.getCookie("ColorTheme"), expected, "Migrated themes are saved once");
+    }
 });
 
 test("quick play requires a count, uses the saved or localized name and starts a public bot game", async () => {

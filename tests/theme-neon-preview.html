@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Theme, neon sign and UI proposals</title>
+    <link rel="stylesheet" href="theme-neon-preview.css">
+</head>
+<body>
+<main>
+    <header class="intro">
+        <h1>Theme, neon sign and UI proposals</h1>
+        <p>Preview only: production themes, logo and settings are unchanged. Pick a theme to recolour the whole
+            preview, including the neon sign. Use the switches to compare the current UI and logo with the proposals.</p>
+        <output id="status" role="status" aria-live="polite"></output>
+    </header>
+
+    <section class="picker" aria-labelledby="pickerTitle">
+        <h2 id="pickerTitle">20 themes across the colour spectrum</h2>
+        <p>Dark themes are ordered by accent hue, followed by high contrast and light themes. Names are original;
+            each palette is inspired by a popular VS Code, IntelliJ or Visual Studio theme.</p>
+        <div id="themeGrid" class="theme-grid"></div>
+    </section>
+
+    <section class="details" aria-labelledby="themeTitle">
+        <div>
+            <h2 id="themeTitle"></h2>
+            <p id="themeInspiration"></p>
+            <ul id="contrastChecks" class="checks" aria-label="WCAG contrast checks"></ul>
+        </div>
+        <ul id="themeSwatches" class="swatches" aria-label="Theme colours"></ul>
+    </section>
+
+    <div class="switches">
+        <label class="switch"><input id="uiStyle" type="checkbox" checked><span></span> Proposed UI</label>
+        <label class="switch"><input id="logoStyle" type="checkbox" checked><span></span> Neon sign logo</label>
+        <button type="button" id="replayIntro" class="replay">Replay splash intro</button>
+    </div>
+
+    <div id="mock" class="mock" data-ui="proposed" data-logo="neon">
+        <section class="mock-menu is-intro" aria-label="Main menu preview">
+            <div class="mock-topbar" aria-hidden="true"><i>⚙</i><span><i>☰</i><i>⌂</i></span></div>
+            <div class="mock-logo">
+                <div id="neonSlot"></div>
+                <img class="original-logo" src="../icons/logo.svg" alt="Boms og President, current logo">
+            </div>
+            <button type="button" class="primary">Lag nytt spill</button>
+            <button type="button" class="secondary">Koble til med kode</button>
+            <div class="panel quick">
+                <span class="label">Hurtigspill med bots</span>
+                <div class="segmented" role="group" aria-label="Antall spillere">
+                    <button type="button">2</button><button type="button" aria-pressed="true">3</button><button type="button">4</button>
+                </div>
+                <button type="button" class="primary">Start hurtigspill</button>
+            </div>
+            <div class="panel lobby">
+                <span class="label">Offentlige lobbyer</span>
+                <div class="lobby-row"><b>Kveldsrunden</b><span class="chip">3/4</span><button type="button" class="ghost">Bli med</button></div>
+            </div>
+        </section>
+
+        <section class="mock-game" aria-label="Game table preview">
+            <div class="seats">
+                <div class="seat"><span class="avatar">K</span><span>Kari<small>President</small></span><span class="chip">7</span></div>
+                <div class="seat is-turn"><span class="avatar">O</span><span>Ola<small>Spiller nå</small></span><span class="chip">5</span></div>
+                <div class="seat"><span class="avatar">B</span><span>Bot<small>Boms</small></span><span class="chip">9</span></div>
+            </div>
+            <div class="felt">
+                <span class="timer">0:24</span>
+                <div id="mockTable" class="table-cards"></div>
+                <span class="hint">Legg tre like eller høyere</span>
+            </div>
+            <div id="mockHand" class="hand"></div>
+            <div class="actions"><button type="button" class="secondary">Pass</button><button type="button" class="primary">Spill kort</button></div>
+        </section>
+
+        <section class="mock-settings panel" aria-label="Settings preview">
+            <span class="label">Utseende</span>
+            <div class="setting"><span><b>Folieanimasjon i hvile</b><small>Folie vises fortsatt på kortene.</small></span><span class="toggle is-on"></span></div>
+            <div class="setting"><span><b>Meldinger</b><small>Viser meldinger på spillbrettet.</small></span><span class="toggle"></span></div>
+            <span class="label">Spill og styring</span>
+            <div class="setting"><span><b>Animasjonshastighet</b></span>
+                <div class="segmented"><button type="button">Rask</button><button type="button" aria-pressed="true">Vanlig</button><button type="button">Sakte</button></div></div>
+        </section>
+    </div>
+
+    <section class="proposals" aria-labelledby="proposalTitle">
+        <h2 id="proposalTitle">Proposed UI changes</h2>
+        <ol id="proposalList"></ol>
+        <p><strong>Splash intro:</strong> on first entry the menu settles in, the sign's board fades up, the tubes
+            power on with a short flicker, the glow follows and then the menu items rise in sequence (about 1.4
+            seconds). It animates only opacity and transforms, runs once per visit and is skipped with reduced motion.</p>
+        <p><strong>Neon sign:</strong> drawn as layered SVG on an acrylic backboard with standoff screws,
+            tube supports, an unlit glass tube, a white-hot core, specular highlights, wall glow and a small
+            transformer. Colours come from each theme's two neon colours. The glow layer pulses gently
+            (opacity only, so it can stay on the compositor) and the lower line flickers briefly every
+            few seconds. Reduced motion keeps the sign lit and still.</p>
+    </section>
+</main>
+<script src="../js/cards.js"></script>
+<script src="theme-neon-preview.js"></script>
+</body>
+</html>

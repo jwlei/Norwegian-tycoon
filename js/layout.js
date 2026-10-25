@@ -270,6 +270,8 @@ class GameLayout {
                 ? this.capturePlayOrigins()
                 : null;
             setClass(mainMenu, "is-hidden", true);
+            // The splash intro plays once per visit; later returns to the menu use the quick settle.
+            setClass(mainMenu, "is-intro", false);
             this.updateGameButtons(game);
             this.updatePlayers(game, player);
             this.updateTable(game, player, existingPileSignatures, playOrigins);

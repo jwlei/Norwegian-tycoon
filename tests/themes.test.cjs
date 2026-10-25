@@ -5,10 +5,10 @@ const path = require("node:path");
 
 const css = fs.readFileSync(path.join(__dirname, "..", "css", "theme.css"), "utf8");
 const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-const themes = ["amoled", "gray", "burgundy", "darcula", "high-contrast-amber", "amber", "classic",
-    "monokai", "forest", "teal", "material", "solarized", "nord", "dark-modern", "blue", "one-dark",
-    "high-contrast-blue", "gradianto", "amethyst", "high-contrast-violet"];
-const highContrastThemes = ["high-contrast-amber", "high-contrast-blue", "high-contrast-violet"];
+const themeCss = fs.readFileSync(path.join(__dirname, "..", "css", "color-themes.css"), "utf8");
+const themes = ["darcula", "skumring", "hostlov", "kobolt", "monokai", "furu", "solarisert", "fjord", "modern", "atom",
+    "nattugle", "vampyr", "mokka", "synthwave", "rose", "glod", "kontrast", "amoled", "sol", "papir", "vs-bla"];
+const lightThemes = ["sol", "papir", "vs-bla"];
 
 test("rules separate player counts, keep voting on the voting screen, and translate every paragraph", () => {
     const rules = html.slice(html.indexOf('id="dialogRules"'), html.indexOf('id="dialogGameLog"'));
@@ -82,88 +82,68 @@ function hue(color) {
     return (sector * 60 + 360) % 360;
 }
 
-test("all twenty themes are hue-sorted and expose complete semantic palettes", () => {
-    const options = Array.from(html.matchAll(/class="color-theme-option" data-color-theme="([^"]+)"/g),
-        match => match[1]);
-    assert.deepEqual(options, themes);
+function themePalette(theme) {
+    const block = themeCss.match(new RegExp(`:root\\[data-color-theme="${theme}"\\],\\s*\\[data-color-preview="${theme}"\\]\\s*\\{([^}]*)\\}`));
+    assert.ok(block, `Missing palette for ${theme}`);
+    return Object.fromEntries(Array.from(block[1].matchAll(/(--[\w-]+):\s*([^;]+);/g), match => [match[1], match[2].trim()]));
+}
+
+test("twenty-one themes are listed dark by accent hue, then light, each with a complete palette and fixed mode", () => {
+    const options = Array.from(html.matchAll(/class="color-theme-option" data-color-theme="([^"]+)" data-theme-mode="([^"]+)"/g),
+        match => [match[1], match[2]]);
+    assert.deepEqual(options.map(([theme]) => theme), themes);
+    assert.deepEqual(options.filter(([, mode]) => mode === "light").map(([theme]) => theme), lightThemes);
+    assert.doesNotMatch(html, /class="theme-toggle/, "The theme decides dark or light mode");
+    const darkAccents = themes.filter(theme => !lightThemes.includes(theme) && !["kontrast", "amoled"].includes(theme))
+        .map(theme => hue(rgb(themePalette(theme)["--accent"])));
+    assert.deepEqual(darkAccents, [...darkAccents].sort((a, b) => a - b));
     for (const theme of themes) {
-        const palette = declarations(`[data-color-preview="${theme}"]`);
+        const palette = themePalette(theme);
         assert.ok(html.includes(`data-color-preview="${theme}"`));
-        for (const name of ["accent", "accent-hover", "success", "warning", "danger",
-            "success-light", "warning-light", "danger-light"]) {
+        for (const name of ["felt", "felt-deep", "surface", "surface-soft", "ink", "muted", "line", "accent", "on-accent",
+            "accent-hover", "focus", "neon-a", "neon-b"]) {
             assert.ok(palette[`--${name}`], `${theme} is missing ${name}`);
         }
     }
-});
-
-test("the three high-contrast themes meet text and status contrast targets in both modes", () => {
-    const lightOverrides = declarations(':root[data-theme="light"][data-color-theme^="high-contrast-"]');
-    for (const theme of highContrastThemes) {
-        const darkPalette = declarations(`[data-color-preview="${theme}"]`);
-        for (const mode of ["dark", "light"]) {
-            const palette = mode === "light" ? { ...darkPalette, ...lightOverrides } : darkPalette;
-            const surface = rgb(mode === "light" ? palette["--theme-light-surface"] : palette["--theme-surface"]);
-            const ink = rgb(palette["--ink"]);
-            const muted = rgb(palette["--muted"]);
-            assert.ok(contrast(ink, surface) >= 7, `${theme}/${mode}: primary text must meet AAA`);
-            assert.ok(contrast(muted, surface) >= 4.5, `${theme}/${mode}: secondary text contrast`);
-            const hues = [];
-            for (const role of ["success", "warning", "danger"]) {
-                const status = rgb(palette[`--${role}${mode === "light" ? "-light" : ""}`]);
-                assert.ok(contrast(status, surface) >= 4.5, `${theme}/${mode}/${role}: status contrast`);
-                hues.push(hue(status));
-            }
-            for (let first = 0; first < hues.length; first++) {
-                for (let second = first + 1; second < hues.length; second++) {
-                    const distance = Math.abs(hues[first] - hues[second]);
-                    assert.ok(Math.min(distance, 360 - distance) >= 25,
-                        `${theme}/${mode}: status hues must remain distinguishable`);
-                }
-            }
-        }
-    }
+    const head = html.slice(0, html.indexOf("</head>"));
+    assert.match(head, /id="applySavedColorTheme"/, "The saved theme applies before first paint");
+    for (const theme of lightThemes) { assert.match(head, new RegExp(`["\\s{]${theme.replace("-", "\\-")}"?: true`)); }
 });
 
 for (const theme of themes) {
-    test(`${theme} preserves readable text and distinguishable status colors in both modes`, () => {
-        const palette = { ...declarations(":root"), ...declarations(`[data-color-preview="${theme}"]`) };
-        for (const mode of theme === "amoled" ? ["dark"] : ["dark", "light"]) {
-            const surface = mode === "light" ? rgb(palette["--theme-light-surface"] || "#fff") :
-                theme === "amoled" ? rgb("#000") :
-                    palette["--theme-surface"] ? rgb(palette["--theme-surface"]) :
-                        mix(rgb(palette["--accent"]), rgb("#252526"), 0.06);
-            const ink = rgb(mode === "light" ? "#17212b" : "#f3f3f3");
-            const muted = rgb(mode === "light" ? "#465564" : "#c4c4c4");
-            const softSurface = mode === "light" ? mix(rgb(palette["--accent"]), rgb("#edf2f6"), 0.07) :
-                theme === "amoled" ? rgb("#111") : palette["--theme-soft"] ? rgb(palette["--theme-soft"]) :
-                    mix(rgb(palette["--accent"]), rgb("#2d2d30"), 0.08);
-            const hover = mix(ink, softSurface, 0.06);
-            assert.ok(contrast(ink, hover) >= 4.5, `${theme}/${mode}: hovered control text contrast`);
-            assert.ok(contrast(muted, hover) >= 4.5, `${theme}/${mode}: hovered icon contrast`);
-            const border = rgb(mode === "light" ? declarations(':root[data-theme="light"]')["--line"] :
-                theme === "amoled" ? palette["--line"] : declarations(":root")["--line"]);
-            assert.ok(contrast(border, surface) >= 3, `${theme}/${mode}: panel border contrast`);
-            const hues = [];
-            for (const role of ["success", "warning", "danger"]) {
-                const color = rgb(palette[`--${role}${mode === "light" ? "-light" : ""}`]);
-                const soft = mix(color, surface, role === "danger" ? 0.12 : 0.18);
-                assert.ok(contrast(color, soft) >= 4.5,
-                    `${theme}/${mode}/${role}: status text contrast ${contrast(color, soft).toFixed(2)}`);
-                assert.ok(contrast(ink, soft) >= 4.5, `${theme}/${mode}/${role}: body text contrast`);
-                assert.ok(contrast(muted, soft) >= 4.5, `${theme}/${mode}/${role}: detail text contrast`);
-                hues.push(hue(color));
-            }
-            for (let first = 0; first < hues.length; first++) {
-                for (let second = first + 1; second < hues.length; second++) {
-                    const distance = Math.abs(hues[first] - hues[second]);
-                    assert.ok(Math.min(distance, 360 - distance) >= 25,
-                        `${theme}/${mode}: status hues must be at least 25 degrees apart`);
-                }
+    test(`${theme} keeps readable text, controls and distinguishable status colours in its own mode`, () => {
+        const palette = themePalette(theme);
+        const mode = lightThemes.includes(theme) ? "light" : "dark";
+        const base = declarations(":root");
+        const surface = rgb(palette["--surface"]);
+        const soft = rgb(palette["--surface-soft"]);
+        const ink = rgb(palette["--ink"]);
+        const muted = rgb(palette["--muted"]);
+        for (const [name, background] of [["panel", surface], ["raised", soft], ["page", rgb(palette["--felt-deep"])]]) {
+            assert.ok(contrast(ink, background) >= 7, `${theme}: primary text on ${name}`);
+            assert.ok(contrast(muted, background) >= 4.5, `${theme}: secondary text on ${name}`);
+        }
+        assert.ok(contrast(rgb(palette["--line"]), surface) >= 3, `${theme}: control border contrast`);
+        assert.ok(contrast(rgb(palette["--line"]), soft) >= 3, `${theme}: raised control border contrast`);
+        assert.ok(contrast(rgb(palette["--on-accent"]), rgb(palette["--accent"])) >= 4.5, `${theme}: button text contrast`);
+        assert.ok(Math.max(contrast(rgb(palette["--focus"]), surface), contrast(rgb(palette["--focus"]), rgb(palette["--felt-deep"]))) >= 3,
+            `${theme}: focus ring contrast`);
+        const hues = [];
+        for (const role of ["success", "warning", "danger"]) {
+            const color = rgb(mode === "dark" && palette[`--${role}`] ? palette[`--${role}`] : base[`--${role}${mode === "light" ? "-light" : ""}`]);
+            const tint = mix(color, surface, role === "danger" ? .12 : .18);
+            assert.ok(contrast(color, tint) >= 4.5, `${theme}/${role}: status text contrast ${contrast(color, tint).toFixed(2)}`);
+            assert.ok(contrast(ink, tint) >= 4.5, `${theme}/${role}: body text on status tint`);
+            hues.push(hue(color));
+        }
+        for (let first = 0; first < hues.length; first++) {
+            for (let second = first + 1; second < hues.length; second++) {
+                const distance = Math.abs(hues[first] - hues[second]);
+                assert.ok(Math.min(distance, 360 - distance) >= 25, `${theme}: status hues must be at least 25 degrees apart`);
             }
         }
-        for (const fill of ["--accent", "--accent-hover", "--success-light", "--danger-light"]) {
-            assert.ok(contrast(rgb("#fff"), rgb(palette[fill])) >= 4.5,
-                `${theme}/${fill}: button text contrast`);
+        for (const fill of ["--success-light", "--danger-light"]) {
+            assert.ok(contrast(rgb("#fff"), rgb(base[fill])) >= 4.5, `${theme}/${fill}: status button text contrast`);
         }
     });
 }
@@ -175,7 +155,8 @@ test("status surfaces use theme tokens instead of legacy fixed green, gold and r
     assert.match(css, /--success-soft:\s*color-mix/);
     assert.match(css, /--warning-soft:\s*color-mix/);
     assert.match(css, /--danger-soft:\s*color-mix/);
-    assert.match(css, /\.color-theme-preview > span \+ span\s*\{[^}]*var\(--success\)[^}]*var\(--warning\)[^}]*var\(--danger\)/);
+    const refresh = fs.readFileSync(path.join(__dirname, "..", "css", "ui-refresh.css"), "utf8");
+    assert.match(refresh, /\.color-theme-preview > span \+ span\s*\{[^}]*var\(--neon-a\)[^}]*var\(--neon-b\)/);
 });
 
 test("playback and suggestion controls stay visually unbuttoned on hover and press", () => {
