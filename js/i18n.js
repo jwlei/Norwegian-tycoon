@@ -7,10 +7,9 @@
         // Static page text
         "Innstillinger": "Settings",
         "Ytelse": "Performance",
-        "Spillebord": "Playing table",
-        "Velg ensfarget eller teksturert bordflate.": "Choose a solid-colour or textured table surface.",
-        "Teksturert": "Textured",
-        "Flat": "Flat",
+        "Vis boter": "Show bots",
+        "Tidslinje for meldinger": "Message timer bar",
+        "Vis nedtellingslinjen under meldinger.": "Show the countdown bar below messages.",
         "Du blir med i et spill som pågår": "You are joining a game in progress",
         "Du blir med i et spill som pågår. Du venter på plass til neste runde.": "You are joining a game in progress. You are waiting for a seat in the next round.",
         "En spiller har blitt med og venter på plass. Gå til lobbyen for å ta spilleren med.": "A player has joined and is waiting for a seat. Go to the lobby to include them.",

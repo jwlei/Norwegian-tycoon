@@ -244,7 +244,14 @@
             var key = getPlayerKey();
             var pinProfile = getCookie("playerPinProfile");
             var hasPinProfile = pinProfile == encodeURIComponent(JSON.stringify([PlayerIdentity.normalizeName(name), key]));
-            splashName.textContent = name + (name && hasPinProfile ? ` · ID ${key}` : "");
+            splashName.textContent = name;
+            if (name && hasPinProfile) {
+                splashName.appendChild(document.createTextNode(" · "));
+                var splashId = document.createElement("span");
+                splashId.className = "splash-player-id";
+                splashId.textContent = `ID ${key}`;
+                splashName.appendChild(splashId);
+            }
             splashName.hidden = name == "";
             document.getElementById("settingsPlayerName").textContent = name;
             watchCardAppearance();
@@ -700,6 +707,9 @@
             var hidden = gameToastsHidden();
             document.getElementById("hideToastsToggleButton").setAttribute("aria-pressed", String(!hidden));
             document.querySelector(".setting-speed").hidden = hidden;
+            document.getElementById("messageSettings").classList.toggle("is-enabled", !hidden);
+            document.getElementById("messageTimerBarToggleButton").hidden = hidden;
+            document.getElementById("messageTimerBarToggleButton").disabled = hidden;
             document.getElementById("gameToastRegion").hidden = hidden;
             if (hidden) {
                 hideGameToast();
@@ -2163,25 +2173,6 @@
             updateIdleFoilAnimation(event.newValue != "false");
         });
         updateIdleFoilAnimation(getCookie("IdleFoilAnimation") != "false");
-        function updateTableSurfaceButtons(surface) {
-            var selected = surface == "flat" ? "flat" : "textured";
-            document.documentElement.dataset.tableSurface = selected;
-            document.querySelectorAll("button[data-table-surface]").forEach(button => {
-                button.setAttribute("aria-pressed", String(button.dataset.tableSurface == selected));
-            });
-        }
-        document.querySelectorAll("button[data-table-surface]").forEach(button => {
-            button.addEventListener("click", function () {
-                setCookie("TableSurface", button.dataset.tableSurface, 1000);
-                updateTableSurfaceButtons(button.dataset.tableSurface);
-            });
-        });
-        window.addEventListener("storage", function (event) {
-            if (event.key != "norwegian-tycoon-cookie-TableSurface") { return; }
-            setCookie("TableSurface", event.newValue == "flat" ? "flat" : "textured", 1000);
-            updateTableSurfaceButtons(event.newValue);
-        });
-        updateTableSurfaceButtons(getCookie("TableSurface"));
         function updateCardShadowButtons(style) {
             CardDepth.setShadowStyle(style == "simple" ? "simple" : "fancy");
             document.querySelectorAll(".card-shadow-option").forEach(button => {
@@ -2200,6 +2191,22 @@
             updateCardShadowButtons(event.newValue);
         });
         updateCardShadowButtons(getCookie("CardShadowStyle"));
+        function updateMessageTimerBar(enabled) {
+            document.body.dataset.messageTimerBar = enabled ? "on" : "off";
+            document.getElementById("messageTimerBarToggleButton").setAttribute("aria-pressed", String(enabled));
+        }
+        document.getElementById("messageTimerBarToggleButton").addEventListener("click", function () {
+            if (gameToastsHidden()) { return; }
+            var enabled = this.getAttribute("aria-pressed") != "true";
+            setCookie("MessageTimerBar", enabled, 1000);
+            updateMessageTimerBar(enabled);
+        });
+        window.addEventListener("storage", function (event) {
+            if (event.key != "norwegian-tycoon-cookie-MessageTimerBar") { return; }
+            setCookie("MessageTimerBar", event.newValue != "false", 1000);
+            updateMessageTimerBar(event.newValue != "false");
+        });
+        updateMessageTimerBar(getCookie("MessageTimerBar") != "false");
         function updatePlayInputButtons() {
             var mode = GameLayout.playInputMode();
             document.getElementById("playInputFlickHint").hidden = mode == "button";

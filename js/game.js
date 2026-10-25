@@ -8,6 +8,9 @@ const SHUFFLE_DURATION_MS = 3000;
 const PLAY_ANIMATION_MS = 520;
 const DISCARD_ANIMATION_MS = 720;
 
+// Set true to show the table outline while dragging cards over it.
+const CARD_DRAG_TABLE_HIGHLIGHT_ENABLED = false;
+
 // Input tuning: degrees, pixels, pixels per millisecond, then milliseconds.
 const CARD_TOUCH_PICKUP_CONE = 135;
 const CARD_FLICK_MIN_DISTANCE = 4;
@@ -552,7 +555,8 @@ function applyCardDragPosition(drag) {
     var position = drag.pendingPosition;
     drag.pendingPosition = null;
     // Read table geometry before any per-card writes, once for the whole trick.
-    var onTable = isCardDropOnTable({ clientX: drag.pointerX, clientY: drag.pointerY });
+    var onTable = CARD_DRAG_TABLE_HIGHLIGHT_ENABLED &&
+        isCardDropOnTable({ clientX: drag.pointerX, clientY: drag.pointerY });
     var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     drag.previews.forEach(preview => {
         preview.style.setProperty("--drag-offset-x", `${position.x}px`);

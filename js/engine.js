@@ -567,8 +567,11 @@ class PresidentGame extends Game {
         var roundKey = `${gameId}:${this.round || 1}:${this.shuffleStartedAt || 0}`;
         var finishedAt = this.endTime || Date.now();
         var playerCount = this.players.length;
-        var players = this.players.filter(player => player.playerKey != "PC").map(player => ({
-            playerKey: player.playerKey, name: player.name, placement: player.placement,
+        var players = this.players.map(player => ({
+            playerKey: player.playerKey == "PC"
+                ? `bot-${Array.from(player.name, character => character.codePointAt(0).toString(16)).join("-")}`
+                : player.playerKey,
+            isBot: player.playerKey == "PC", name: player.name, placement: player.placement,
             presidentStreak: player.presidentStreak, bomsStreak: player.bomsStreak
         }));
         await Promise.all(players.map(player =>
@@ -619,6 +622,7 @@ class PresidentGame extends Game {
                     };
                 }
                 return Object.assign({}, previous, {
+                    ...(player.isBot ? { isBot: true } : {}),
                     name: latestName,
                     nameUpdatedAt: Math.max(previous.nameUpdatedAt || 0, finishedAt),
                     names,

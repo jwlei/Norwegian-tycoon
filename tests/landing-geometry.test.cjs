@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const G = require("../js/landing-geometry.js");
 
-const flat = (x = 0, y = 0, z = 3.06) => ({ x, y, z, pitch: 0, yaw: 0, roll: 0 });
+const flat = (x = 0, y = 0, z = 2.56) => ({ x, y, z, pitch: 0, yaw: 0, roll: 0 });
 const nearestGap = (cards, pose) => Math.min(...G.samples(pose, -G.EDGE)
     .map(point => point.z - G.supportHeight(cards, point.x, point.y)));
 
@@ -77,11 +77,11 @@ test("cached outlines preserve every original contour point at full precision fo
     }
 });
 
-test("bare felt produces a level card with a 3px edge and a tight contact shadow", () => {
+test("bare felt produces a level card with a 2.5px edge and a tight contact shadow", () => {
     const pose = G.landing([], 200, 220, 17);
     assert.equal(pose.pitch, 0);
     assert.equal(pose.yaw, 0);
-    assert.ok(Math.abs(pose.z - 3.06) < 1e-9);
+    assert.ok(Math.abs(pose.z - 2.56) < 1e-9);
     assert.ok(Math.abs(nearestGap([], pose) - .06) < 1e-9);
     const shadow = G.shadow(pose);
     assert.ok(shadow.blur < .65);
@@ -93,7 +93,7 @@ test("a card fully on another card stays level at the actual support height", ()
     const pose = G.landing([below], 200, 220, 0);
     assert.ok(Math.abs(pose.pitch) < 1e-9);
     assert.ok(Math.abs(pose.yaw) < 1e-9);
-    assert.ok(Math.abs(pose.z - 6.12) < 1e-9);
+    assert.ok(Math.abs(pose.z - 5.12) < 1e-9);
     assert.ok(Math.abs(nearestGap([below], pose) - .06) < 1e-9);
 });
 
@@ -113,7 +113,7 @@ test("partial overlap creates yaw or pitch according to which edge is supported"
 });
 
 test("greater support heights create a greater resting slope without penetrating supports", () => {
-    const low = flat(200, 220, 3.06), high = flat(200, 220, 9.18);
+    const low = flat(200, 220, 2.56), high = flat(200, 220, 7.68);
     const lowPose = G.landing([low], 260, 220, 0);
     const highPose = G.landing([high], 260, 220, 0);
     assert.ok(highPose.yaw > lowPose.yaw);
@@ -135,13 +135,13 @@ test("crossed piles retain a moderate lean and compact shadow without losing sup
     assert.ok(Math.abs(nearestGap(cards, result.pose) - .06) < 1e-8);
 });
 
-test("native rounded outline has a constant 3px thickness in local coordinates", () => {
+test("native rounded outline has a constant 2.5px thickness in local coordinates", () => {
     const pose = { ...flat(200, 220, 20), pitch: 6, yaw: -5, roll: 24 };
     const top = G.silhouette(pose), bottom = G.silhouette(pose, -G.EDGE);
     assert.equal(top.length, bottom.length);
     top.forEach((point, index) => {
         assert.ok(Math.abs(Math.hypot(point.x - bottom[index].x, point.y - bottom[index].y,
-            point.z - bottom[index].z) - 3) < 1e-9);
+            point.z - bottom[index].z) - 2.5) < 1e-9);
     });
 });
 
@@ -150,7 +150,7 @@ test("production card dimensions and square pixel outlines use the same support 
     assert.ok(G.contains(card, 239.24, 279.24));
     assert.ok(!G.contains(card, 239.26, 279.24));
     const pose = G.landing([card], 200, 220, 0, { width: 80, height: 120, radius: 0 });
-    assert.ok(Math.abs(pose.z - 6.12) < 1e-9);
+    assert.ok(Math.abs(pose.z - 5.12) < 1e-9);
     assert.equal(pose.pitch, 0);
     assert.equal(pose.yaw, 0);
     card.pitch = 5;
@@ -235,15 +235,15 @@ test("cards do not cast a shadow upward onto a higher receiver", () => {
 test("shadow visibility counts the blur halo but ignores areas hidden under cards and their edges", () => {
     const resting = flat(200, 220);
     assert.ok(G.shadowVisible(resting, null, [resting]), "A resting card's soft contact halo still shows on the felt");
-    const above = flat(200, 220, 6.12);
+    const above = flat(200, 220, 5.12);
     assert.equal(G.shadowVisible(above, resting, [above]), false, "A card exactly on another hides its own shadow");
     const lifted = { ...above, z: 40 };
     assert.ok(G.shadowVisible(lifted, resting, [lifted]), "Raised cards cast a visible shadow beside themselves");
-    const cover = { ...flat(200, 220, 9.18), width: 200, height: 260 };
+    const cover = { ...flat(200, 220, 7.68), width: 200, height: 260 };
     assert.equal(G.shadowVisible(above, resting, [above, cover]), false, "A larger card on top hides everything beneath");
-    const faceBottom = 220 - .28 * 6.12 + (84 - .75 * 168 / 120);
+    const faceBottom = 220 - .28 * 5.12 + (84 - .75 * 168 / 120);
     assert.equal(G.screenContains(above, 200, faceBottom + .6), false);
-    assert.ok(G.screenCovers(above, 200, faceBottom + .6), "The 3px edge below the face counts as cover");
+    assert.ok(G.screenCovers(above, 200, faceBottom + .6), "The 2.5px edge below the face counts as cover");
 });
 
 test("a thrown card decelerates smoothly into its slide instead of braking in the air", () => {

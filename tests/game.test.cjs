@@ -276,7 +276,7 @@ test("toast expiry fades quickly at fast speed and cancels safely when a new mes
     assert.equal(visible, false);
 });
 
-test("messages default off, persist locally and hide only message speed settings", () => {
+test("messages default off and reveal their grouped settings and timer control only when enabled", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const saved = new Map();
     const button = {
@@ -285,6 +285,8 @@ test("messages default off, persist locally and hide only message speed settings
     };
     const speed = { hidden: false };
     const region = { hidden: false };
+    const timerToggle = {};
+    const settings = { enabled: false, classList: { toggle(name, enabled) { settings.enabled = enabled; } } };
     const spectator = { classList: { remove(name) { this.removed = name; } } };
     let clears = 0;
     const context = vm.createContext({
@@ -295,6 +297,7 @@ test("messages default off, persist locally and hide only message speed settings
         clearTimeout: id => { assert.equal(id, 10); },
         document: {
             getElementById: id => id == "hideToastsToggleButton" ? button :
+                id == "messageSettings" ? settings : id == "messageTimerBarToggleButton" ? timerToggle :
                 id == "spectatorJoinToast" ? spectator : region,
             querySelector: selector => { assert.equal(selector, ".setting-speed"); return speed; }
         }
@@ -306,6 +309,9 @@ test("messages default off, persist locally and hide only message speed settings
     assert.equal(button["aria-pressed"], "false");
     assert.equal(speed.hidden, true);
     assert.equal(region.hidden, true);
+    assert.equal(timerToggle.hidden, true);
+    assert.equal(timerToggle.disabled, true);
+    assert.equal(settings.enabled, false);
     assert.equal(clears, 1);
     assert.equal(context.spectatorJoinToastTimer, null);
     assert.equal(spectator.classList.removed, "is-visible");
@@ -315,6 +321,9 @@ test("messages default off, persist locally and hide only message speed settings
     assert.equal(button["aria-pressed"], "true");
     assert.equal(speed.hidden, false);
     assert.equal(region.hidden, false);
+    assert.equal(timerToggle.hidden, false);
+    assert.equal(timerToggle.disabled, false);
+    assert.equal(settings.enabled, true);
     assert.equal(clears, 1);
     context.updateToastVisibility();
     assert.equal(speed.hidden, false, "Reopening settings restores the saved visibility");
@@ -323,6 +332,8 @@ test("messages default off, persist locally and hide only message speed settings
     assert.equal(button["aria-pressed"], "false");
     assert.equal(speed.hidden, true);
     assert.equal(region.hidden, true);
+    assert.equal(timerToggle.hidden, true);
+    assert.equal(settings.enabled, false);
     assert.equal(clears, 2);
     assert.equal(saved.get("gameSpeed"), "slow", "Hiding must not overwrite the saved message speed");
     saved.delete("HideGameToasts");
@@ -1551,8 +1562,17 @@ test("mutual sneaky consent after trade initiation produces one additional parti
 function savedPreferencesContext(cookieMode = "enabled", storage = new Map(), storageBlocked = false) {
     const cookies = new Map();
     const elements = new Map();
+    const node = () => ({
+        children: [], text: "",
+        get textContent() { return this.text + this.children.map(child => child.textContent).join(""); },
+        set textContent(value) { this.text = value; this.children = []; },
+        appendChild(child) { this.children.push(child); },
+        addEventListener(type, handler) { this[type] = handler; }
+    });
     const document = {
         documentElement: { dataset: {} },
+        createElement: node,
+        createTextNode: text => ({ textContent: text }),
         get cookie() {
             if (cookieMode === "throws") { throw new Error("Cookies unavailable"); }
             return Array.from(cookies, ([name, value]) => `${name}=${value}`).join("; ");
@@ -1566,7 +1586,7 @@ function savedPreferencesContext(cookieMode = "enabled", storage = new Map(), st
         },
         getElementById(id) {
             if (!elements.has(id)) {
-                elements.set(id, { addEventListener(type, handler) { this[type] = handler; } });
+                elements.set(id, node());
             }
             return elements.get(id);
         }
@@ -1651,12 +1671,15 @@ test("splash only displays the matching player ID after a remembered PIN login",
     context.setCookie("playerPinProfile", encodeURIComponent(JSON.stringify(["ada", key])), 1000);
     context.updateSavedPlayerName();
     assert.equal(splash.textContent, `Ada · ID ${key}`);
+    assert.equal(splash.children[1].className, "splash-player-id");
+    assert.equal(splash.children[1].textContent, `ID ${key}`);
     const reloaded = savedPreferencesContext("ignored", storage);
     reloaded.updateSavedPlayerName();
     assert.equal(reloaded.document.getElementById("splashPlayerName").textContent, `Ada · ID ${key}`);
     context.setCookie("SpillerKey", "Other1", 1000);
     context.updateSavedPlayerName();
     assert.equal(splash.textContent, "Ada");
+    assert.equal(splash.children.length, 0, "Only a visible ID gets an underline span");
     context.setCookie("SpillerKey", key, 1000);
     context.saveLastUsedPlayerName("Grace");
     assert.equal(splash.textContent, "Grace");
@@ -4399,6 +4422,37 @@ test("completed games persist human names and award each president win once, inc
     assert.deepEqual(Array.from(profileRecords["playerStats/human-key"].names), ["Ada", "Ada Lovelace"]);
 });
 
+test("named bot statistics have stable separate keys, count once per round, and aggregate across games", async () => {
+    const { game, players, profileRecords } = setupGame();
+    players[0].name = "Jompa";
+    players[0].placement = 2;
+    players[1].name = "Jompa";
+    players[1].placement = 1;
+    players[2].name = "ギフテッド";
+    players[2].placement = 3;
+    game.endTime = 10000;
+    await game.recordFinishedPlayerStats();
+    await game.recordFinishedPlayerStats();
+    const botEntries = Object.entries(profileRecords).filter(([, record]) => record.isBot);
+    assert.equal(botEntries.length, 2);
+    for (const [key, record] of botEntries) {
+        assert.match(key, /^playerStats\/bot-[a-f0-9-]+$/);
+        assert.equal(record.roundsPlayed, 1);
+        assert.equal(record.lastActiveAt, 10000);
+    }
+    const [key, bot] = botEntries.find(([, record]) => record.name == "Jompa");
+    assert.equal(bot.presidentWins, 1);
+    assert.equal(bot.placementScore, 1);
+    assert.equal(profileRecords["playerStats/human-key"].isBot, undefined);
+    assert.equal(profileRecords["playerStats/human-key"].presidentWins, 0);
+    game.id = "another-room";
+    game.endTime = 20000;
+    await game.recordFinishedPlayerStats();
+    assert.equal(profileRecords[key].roundsPlayed, 2);
+    assert.equal(profileRecords[key].presidentWins, 2);
+    assert.equal(profileRecords["playerStats/PC"], undefined);
+});
+
 test("default player names never add president wins", async () => {
     const { game, players, profileRecords } = setupGame();
     players[0].name = "Player";
@@ -5933,7 +5987,7 @@ test("settings have four log-style categories with performance controls at the b
     const settings = html.slice(html.indexOf('id="dialogSettings"'), html.indexOf('id="dialogColorTheme"'));
     assert.equal((settings.match(/class="settings-category"/g) || []).length, 4);
     assert.ok(settings.indexOf("Ytelse") > settings.indexOf("Spill og styring"));
-    assert.match(settings, /data-speed="slow"[\s\S]*?<\/div>\s*<div class="setting-row setting-turn-speed"/);
+    assert.match(settings, /data-speed="slow"[\s\S]*?id="messageTimerBarToggleButton"[\s\S]*?<\/section>\s*<div class="setting-row setting-turn-speed"/);
     assert.match(css, /\.game-log__trick,\s*\.settings-category\s*\{/);
     assert.match(css, /\.game-log__trick::after,\s*\.settings-category::after\s*\{/);
     assert.match(css, /#playerActions > #playButton\s*\{\s*order: -1/);

@@ -76,6 +76,34 @@ test("pagination handles timestamp ties and more than one batch of excluded prof
     assert.ok(rows.every(row => row.name.startsWith("Named ")));
 });
 
+test("bots are excluded by default and share the activity limit only when enabled", async () => {
+    const f = fixture({
+        human1: { name: "Ada", lastActiveAt: 1 },
+        "bot-41": { name: "Jompa", isBot: true, lastActiveAt: 3 },
+        legacyBot: { name: "BobRoss", isBot: true, lastActiveAt: 2 }
+    });
+    assert.deepEqual(Array.from(await f.leaderboard.load(), row => row.name), ["Ada"]);
+    assert.deepEqual(Array.from(await f.leaderboard.load(true), row => row.name), ["Jompa", "BobRoss", "Ada"]);
+});
+
+test("bot toggle reloads, persists the choice and appends AI only to displayed bot names", async () => {
+    const f = uiFixture({
+        ABC123: { name: "Ada", lastActiveAt: 1 },
+        "bot-41": { name: "Jompa", isBot: true, lastActiveAt: 2 }
+    });
+    const writes = [];
+    f.context.setCookie = (...args) => writes.push(args);
+    await f.open();
+    assert.deepEqual(f.names(), ["Ada"]);
+    const toggle = f.elements.leaderboardBotsToggleButton;
+    await toggle.listeners.click();
+    assert.equal(toggle.attributes["aria-pressed"], "true");
+    assert.deepEqual(writes.pop(), ["LeaderboardShowBots", true, 1000]);
+    assert.deepEqual(f.names(), ["Ada", "Jompa (AI)"]);
+    await toggle.listeners.click();
+    assert.deepEqual(f.names(), ["Ada"]);
+});
+
 test("empty leaderboards terminate and database failures are propagated", async () => {
     const f = fixture({ old: { name: "Legacy", presidentWins: 20 } });
     assert.equal((await f.leaderboard.load()).length, 0);
@@ -116,7 +144,7 @@ function uiFixture(records = {}) {
         addEventListener(type, callback) { this.listeners[type] = callback; },
         setAttribute(name, value) { this.attributes[name] = value; }
     });
-    const elements = Object.fromEntries(["leaderboardRows", "leaderboardStatus", "leaderboardOpenButton", "leaderboardPlayerId", "dialogLeaderboard"]
+    const elements = Object.fromEntries(["leaderboardRows", "leaderboardStatus", "leaderboardOpenButton", "leaderboardPlayerId", "dialogLeaderboard", "leaderboardBotsToggleButton"]
         .map(id => [id, node()]));
     elements.leaderboardPlayerId.offsetParent = {
         getBoundingClientRect: () => ({ left: 10, top: 10, width: 300 })
@@ -147,6 +175,8 @@ function uiFixture(records = {}) {
     f.context.window = { I18n: { msg: text => text }, addEventListener() {} };
     f.context.console = { error: (...args) => errors.push(args) };
     f.context.showDialog = (...args) => dialogs.push(args);
+    f.context.getCookie = () => null;
+    f.context.setCookie = () => {};
     f.context.initializeLeaderboard();
     const open = () => elements.leaderboardOpenButton.listeners.click({ preventDefault() {} });
     const names = () => elements.leaderboardRows.children

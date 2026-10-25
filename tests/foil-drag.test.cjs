@@ -67,7 +67,7 @@ class Element {
     }
 }
 
-function fixture() {
+function fixture({ tableHighlight = false } = {}) {
     const preferences = new Map();
     const nodes = new Map();
     const timers = [];
@@ -100,7 +100,11 @@ function fixture() {
         }
     });
     for (const name of ["cards.js", "player.js", "bot.js", "presence.js", "game.js", "layout.js", "engine.js"]) {
-        vm.runInContext(source(name), context);
+        const code = name == "game.js" && tableHighlight
+            ? source(name).replace("const CARD_DRAG_TABLE_HIGHLIGHT_ENABLED = false;",
+                "const CARD_DRAG_TABLE_HIGHLIGHT_ENABLED = true;")
+            : source(name);
+        vm.runInContext(code, context);
     }
     const types = vm.runInContext("({ Card, PresidentCard, PresidentPlayer, PresidentGame, GameLayout })", context);
     return { context, types, preferences, nodes, body, timers,
@@ -682,7 +686,7 @@ test("foil reduces light and pattern movement by twenty percent with 400ms easin
 test("idle foil animation toggle defaults on, preserves opt-out, persists and synchronizes across tabs", () => {
     const connection = source("connection.js");
     const start = connection.indexOf("        function updateIdleFoilAnimation(");
-    const block = connection.slice(start, connection.indexOf("        function updateTableSurfaceButtons(", start));
+    const block = connection.slice(start, connection.indexOf("        function updateCardShadowButtons(", start));
     for (const saved of [undefined, null, "true", "false", "invalid"]) {
         const button = new Element();
         button.getAttribute = name => button.attributes[name];
@@ -816,7 +820,7 @@ test("drag previews escape hand clipping, follow both axes without a distance ca
         assert.equal(card._dragPreview.properties.get("--tilt-y"), "0deg");
         assert.equal(card._dragPreview.classList.contains("is-tilting"), false);
     }
-    assert.equal(f.nodes.get("gameTable").classList.contains("is-card-drop-target"), true);
+    assert.equal(f.nodes.get("gameTable").classList.contains("is-card-drop-target"), false);
     f.reducedMotion = true;
     f.context.moveCardDragPreview(hand, { clientX: 360, clientY: 110 }, 100, 500);
     assert.equal(first._dragPreview.properties.get("--tilt-x"), "0deg");
@@ -827,6 +831,22 @@ test("drag previews escape hand clipping, follow both axes without a distance ca
     assert.equal(first._dragPreview, undefined);
     assert.equal(first.classList.contains("is-drag-source"), false);
     assert.equal(f.nodes.get("gameTable").classList.contains("is-card-drop-target"), false);
+});
+
+test("table drag highlight can be restored with its source flag without changing drop detection", () => {
+    for (const tableHighlight of [false, true]) {
+        const f = fixture({ tableHighlight });
+        const table = f.context.document.getElementById("gameTable");
+        const drag = { previews: [], pointerX: 200, pointerY: 150, pendingPosition: { x: 0, y: -100 } };
+        assert.equal(f.context.isCardDropOnTable({ clientX: 200, clientY: 150 }), true);
+        f.context.applyCardDragPosition(drag);
+        assert.equal(table.classList.contains("is-card-drop-target"), tableHighlight);
+        drag.pointerY = 500;
+        drag.pendingPosition = { x: 0, y: 250 };
+        assert.equal(f.context.isCardDropOnTable({ clientX: 200, clientY: 500 }), false);
+        f.context.applyCardDragPosition(drag);
+        assert.equal(table.classList.contains("is-card-drop-target"), false);
+    }
 });
 
 test("four-card pickup and return batch layout reads and avoid repeated scale writes", () => {

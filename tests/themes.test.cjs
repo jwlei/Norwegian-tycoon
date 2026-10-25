@@ -11,53 +11,58 @@ const themes = ["classic", "darcula", "skumring", "hostlov", "kobolt", "monokai"
     "nattugle", "vampyr", "mokka", "synthwave", "rose", "glod", "amoled", "sandstein", "salvie", "skifer", "lavendel", "sol", "papir", "vs-bla", "kontrast"];
 const lightThemes = ["sandstein", "salvie", "skifer", "lavendel", "sol", "papir", "vs-bla"];
 
-test("table surface restores, saves and synchronizes without changing the selected theme", () => {
+test("message timer bar restores, saves and synchronizes independently from message visibility", () => {
     const connection = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
-    const start = connection.indexOf("        function updateTableSurfaceButtons(");
-    const block = connection.slice(start, connection.indexOf("        function updateCardShadowButtons(", start));
-    for (const saved of [null, "textured", "flat", "invalid"]) {
-        const buttons = ["textured", "flat"].map(surface => ({
-            dataset: { tableSurface: surface }, attributes: {},
+    const start = connection.indexOf("        function updateMessageTimerBar(");
+    const block = connection.slice(start, connection.indexOf("        function updatePlayInputButtons()", start));
+    for (const saved of [null, "true", "false", "invalid"]) {
+        const button = {
+            attributes: {},
             setAttribute(key, value) { this.attributes[key] = value; },
+            getAttribute(key) { return this.attributes[key]; },
             addEventListener(type, handler) { this[type] = handler; }
-        }));
-        const root = { dataset: { colorTheme: "classic" } }, writes = [], listeners = [];
+        };
+        const body = { dataset: {} }, writes = [], listeners = [];
+        let hidden = false;
         const context = vm.createContext({
-            document: { documentElement: root, querySelectorAll: () => buttons },
+            document: { body, getElementById: () => button },
             window: { addEventListener(type, listener) { listeners.push(listener); } },
-            getCookie(key) { assert.equal(key, "TableSurface"); return saved; },
+            gameToastsHidden: () => hidden,
+            getCookie(key) { assert.equal(key, "MessageTimerBar"); return saved; },
             setCookie(...args) { writes.push(args); }
         });
         vm.runInContext(block, context);
-        assert.equal(root.dataset.tableSurface, saved === "flat" ? "flat" : "textured");
-        buttons[1].click();
-        assert.equal(root.dataset.tableSurface, "flat");
-        assert.equal(buttons[1].attributes["aria-pressed"], "true");
-        assert.equal(buttons[0].attributes["aria-pressed"], "false");
-        assert.deepEqual(writes.pop(), ["TableSurface", "flat", 1000]);
-        listeners[0]({ key: "unrelated", newValue: "textured" });
-        assert.equal(root.dataset.tableSurface, "flat");
-        listeners[0]({ key: "norwegian-tycoon-cookie-TableSurface", newValue: "textured" });
-        assert.equal(root.dataset.tableSurface, "textured");
-        assert.equal(buttons[0].attributes["aria-pressed"], "true");
-        buttons[1].click();
-        listeners[0]({ key: "norwegian-tycoon-cookie-TableSurface", newValue: null });
-        assert.equal(root.dataset.tableSurface, "textured");
-        assert.equal(root.dataset.colorTheme, "classic");
+        assert.equal(body.dataset.messageTimerBar, saved === "false" ? "off" : "on");
+        button.click();
+        assert.deepEqual(writes.pop(), ["MessageTimerBar", saved === "false", 1000]);
+        hidden = true;
+        button.click();
+        assert.equal(writes.length, 0);
+        listeners[0]({ key: "norwegian-tycoon-cookie-MessageTimerBar", newValue: "false" });
+        assert.equal(body.dataset.messageTimerBar, "off");
+        listeners[0]({ key: "norwegian-tycoon-cookie-MessageTimerBar", newValue: null });
+        assert.equal(body.dataset.messageTimerBar, "on");
     }
 });
 
-test("flat tables are solid theme colours and delayed card outlines use the theme accent", () => {
+test("table surface selection is removed while delayed card outlines retain the theme accent", () => {
     const refresh = fs.readFileSync(path.join(__dirname, "..", "css", "ui-refresh.css"), "utf8");
-    assert.match(refresh, /:root\[data-table-surface="flat"\] #gameTable \{\s*background: var\(--felt\);\s*box-shadow: none;/);
+    assert.doesNotMatch(refresh, /data-table-surface/);
+    assert.doesNotMatch(html, /data-table-surface/);
     assert.match(css, /\.table-play__beat-outline \{[^}]*box-shadow: inset 0 0 0 2px var\(--accent\);/);
-    const settings = html.slice(html.indexOf('id="dialogSettings"'), html.indexOf('id="dialogColorTheme"'));
-    assert.ok(settings.indexOf('data-table-surface="flat"') > settings.indexOf("Utseende"));
-    assert.ok(settings.indexOf('data-table-surface="flat"') < settings.indexOf("Spill og styring"));
-    const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
-    for (const label of ["Spillebord", "Teksturert", "Flat", "Velg ensfarget eller teksturert bordflate."]) {
-        assert.ok(translations.includes(`"${label}":`));
+});
+
+test("message options share a box and the optional timer bar has no effect on toast timing", () => {
+    const section = html.slice(html.indexOf('id="messageSettings"'), html.indexOf('</section>', html.indexOf('id="messageSettings"')));
+    for (const option of ["hideToastsToggleButton", 'data-speed="normal"', 'data-max-messages="2"', "messageTimerBarToggleButton"]) {
+        assert.ok(section.includes(option), option);
     }
+    assert.match(css, /body\[data-message-timer-bar="off"\] \.game-toast::after \{\s*display: none;\s*animation: none;/);
+    const refresh = fs.readFileSync(path.join(__dirname, "..", "css", "ui-refresh.css"), "utf8");
+    assert.match(refresh, /\.message-settings\.is-enabled \{[^}]*border: 1px solid var\(--line\);/);
+    assert.match(css, /\.leaderboard-table th \{[^}]*position: sticky;[^}]*top: 0;/);
+    assert.match(css, /\.leaderboard-table-scroll \{[^}]*overflow: auto;/);
+    assert.match(refresh, /#dialogRules \.play-guide-shortcut \{[^}]*margin: 0 auto 12px;[^}]*background: transparent;/);
 });
 
 test("settings finish with performance controls and keep the PIN input beside its switch", () => {
@@ -69,6 +74,8 @@ test("settings finish with performance controls and keep the PIN input beside it
     assert.match(html, /class="player-pin-row">[\s\S]*?id="playerUsePin"[\s\S]*?id="playerPinFields" hidden>[\s\S]*?id="playerRecoveryPin"/);
     const refresh = fs.readFileSync(path.join(__dirname, "..", "css", "ui-refresh.css"), "utf8");
     assert.match(refresh, /\.player-pin-row \{\s*display: flex;/);
+    assert.match(refresh, /#splashPlayerName \{[^}]*text-decoration: none;/);
+    assert.match(refresh, /#splashPlayerName \.splash-player-id \{\s*text-decoration: underline dotted;/);
     assert.match(refresh, /:not\(\.Lobby\):not\(\.GameFinished\)[^{]+\.player-summary\.is-finished \{\s*--player-summary-opacity: \.68;\s*opacity: \.68;/);
     assert.match(css, /@keyframes settle-in[\s\S]*?to \{\s*opacity: var\(--player-summary-opacity, 1\);/);
 });
@@ -376,12 +383,12 @@ test("PIN toggle aligns with the full-width name field without horizontal button
     assert.match(css, /#playerUsePin\s*\{\s*margin:\s*8px 0;\s*\}/);
 });
 
-test("visible release and versioned local assets use version 1.0.0", () => {
-    assert.ok(html.includes('aria-label="Spillversjon 1.0.0">v1.0.0</span>'));
+test("visible release and versioned local assets use version 1.1.0", () => {
+    assert.ok(html.includes('aria-label="Spillversjon 1.1.0">v1.1.0</span>'));
     const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"&]+)/g),
         match => match[1]);
     assert.ok(versions.length > 0);
-    assert.ok(versions.every(version => version === "1.0.0"));
+    assert.ok(versions.every(version => version === "1.1.0"));
 });
 
 test("splash profile text wraps so long names cannot hide the logged-in player ID", () => {
@@ -453,9 +460,11 @@ test("settings use concise hints and mode-specific card control descriptions ins
 });
 
 test("settings and appearance close buttons use the same centered layout as rules", () => {
-    for (const id of ["dialogSettings", "dialogCardStyle", "dialogCardFoil"]) {
+    for (const id of ["dialogSettings", "dialogCardStyle", "dialogCardFoil", "dialogColorTheme", "dialogPlayGuide", "dialogResults"]) {
         assert.match(css, new RegExp(`#${id} \\.dialog-footer,[\\s\\S]*?float: none;[\\s\\S]*?justify-content: center;`));
         assert.match(css, new RegExp(`#${id} \\.dialog-footer > button,[\\s\\S]*?width: min\\(100%, 240px\\);`));
+        assert.match(css, new RegExp(`#${id} \\.dialog-window,[\\s\\S]*?display: flex;[\\s\\S]*?overflow: hidden;`));
+        assert.match(css, new RegExp(`#${id} \\.dialogBody,[\\s\\S]*?min-height: 0;[\\s\\S]*?overflow-y: auto;`));
     }
     assert.match(css, /#gameToastRegion\[data-max-visible="1"\]\s*\{[^}]*height: var\(--board-toast-height\);/);
     assert.doesNotMatch(css, /#gameToastRegion\[data-animation-speed="fast"\][^{]*\{[^}]*height:/);

@@ -3,7 +3,7 @@
 
     const WIDTH = 112;
     const HEIGHT = 168;
-    const EDGE = 3;
+    const EDGE = 2.5;
     const VIEW_SHEAR = .28;
     const LIGHT = { x: -.4, y: -.5, z: 1 };
     const CONTACT = .64;
@@ -161,7 +161,7 @@
         return insideAffine(pose, f.a, f.b, f.top, x, y);
     }
 
-    // Whether a screen point is hidden by the card, including its 3px edge (top face or underside).
+    // Whether a screen point is hidden by the card, including its edge (top face or underside).
     // Slivers under a quarter pixel cannot show a shadow, so they count as covered.
     function screenCovers(pose, x, y) {
         const f = footprint(pose);

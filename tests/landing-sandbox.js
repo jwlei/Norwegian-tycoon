@@ -169,7 +169,7 @@
         draw();
         controls();
         if (value === 1) {
-            setStatus("Settled. The 3px edge, resting tilt, and contact shadow remain. Add another or drag to a new position.");
+            setStatus("Settled. The 2.5px edge, resting tilt, and contact shadow remain. Add another or drag to a new position.");
         } else if (result.phase === "contact") {
             setStatus(`Contact: sliding and rocking to rest${result.bounce > .1 ? " \u00b7 small rebound" : ""}.`);
         } else { setStatus("In flight: a wider, softer shadow tracks height above each receiving surface."); }

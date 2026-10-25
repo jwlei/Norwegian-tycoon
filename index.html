@@ -51,9 +51,9 @@
     <link rel="stylesheet" href="css/common.css">
     <link rel="stylesheet" href="css/game.css?v=1.1.0">
     <link rel="stylesheet" href="css/mobile.css">
-    <link rel="stylesheet" href="css/theme.css?v=1.1.0&amp;rev=9">
+    <link rel="stylesheet" href="css/theme.css?v=1.1.0&amp;rev=10">
     <link rel="stylesheet" href="css/color-themes.css?v=1.1.0&amp;rev=2">
-    <link rel="stylesheet" href="css/ui-refresh.css?v=1.1.0&amp;rev=6">
+    <link rel="stylesheet" href="css/ui-refresh.css?v=1.1.0&amp;rev=8">
     <link rel="stylesheet" href="css/foil.css?v=1.1.0&amp;rev=4">
     <link rel="stylesheet" href="css/card-depth.css?v=1.1.0&amp;rev=2">
     <script id="applySavedColorTheme">
@@ -263,14 +263,8 @@
                     <div id="cardAppearancePreview" class="card-appearance-preview" aria-hidden="true"></div>
                 </div>
                 <small id="cardAppearanceLocked" hidden>Kortutseende kan bare endres mellom spill.</small>
-                <div class="setting-row setting-table-surface" role="group" aria-label="Spillebord">
-                    <span class="setting-row__text"><strong>Spillebord</strong><small>Velg ensfarget eller teksturert bordflate.</small></span>
-                    <span class="speed-options">
-                        <button type="button" class="speed-option" data-table-surface="textured" aria-pressed="true">Teksturert</button>
-                        <button type="button" class="speed-option" data-table-surface="flat" aria-pressed="false">Flat</button>
-                    </span>
-                </div>
                 <h3 class="settings-category">Spill og styring</h3>
+                <section id="messageSettings" class="message-settings" aria-label="Meldinger">
                 <button type="button" id="hideToastsToggleButton" class="setting-row" aria-pressed="false">
                     <span class="setting-row__text"><strong>Meldinger</strong><small>Viser meldinger på spillbrettet for deg. Hendelser vises alltid i spilloggen.</small></span>
                     <span class="setting-row__switch" aria-hidden="true"><span></span></span>
@@ -288,6 +282,11 @@
                         <button type="button" class="speed-option" data-max-messages="2" aria-pressed="false">2</button>
                     </span>
                 </div>
+                <button type="button" id="messageTimerBarToggleButton" class="setting-row" aria-pressed="true" hidden>
+                    <span class="setting-row__text"><strong>Tidslinje for meldinger</strong><small>Vis nedtellingslinjen under meldinger.</small></span>
+                    <span class="setting-row__switch" aria-hidden="true"><span></span></span>
+                </button>
+                </section>
                 <div class="setting-row setting-turn-speed" role="group" aria-label="Animasjonshastighet">
                     <span class="setting-row__text"><strong>Animasjonshastighet</strong></span>
                     <span class="turn-speed-options">
@@ -673,7 +672,7 @@
                     <p>Første ut blir President, siste blir Boms. Før neste runde byttes kort etter plassering. Se reglene for ditt spillerantall.</p>
                 </section>
             </div>
-            <div class="dialog-footer"><button type="button" onclick="showDialog('PlayGuide', false); showDialog('Rules', true);">Tilbake til reglene</button></div>
+            <div class="dialog-footer"><button class="autofocus" type="button" onclick="showDialog('PlayGuide', false);">Lukk</button></div>
         </div>
     </div>
     <div id="dialogRules" class="dialog-container">
@@ -740,6 +739,12 @@
     <div id="dialogLeaderboard" class="dialog-container">
         <div class="dialog-window">
             <div class="dialog-title">Leaderboard</div>
+            <div class="leaderboard-toolbar">
+                <button type="button" id="leaderboardBotsToggleButton" aria-pressed="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="2" y="6" width="20" height="12" rx="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="12" r="3" fill="currentColor"/></svg>
+                    <span>Vis boter</span>
+                </button>
+            </div>
             <div class="leaderboard-content">
                 <p id="leaderboardStatus" role="status" aria-live="polite"></p>
                 <div class="leaderboard-table-scroll" tabindex="0" role="region" aria-label="Sorterbart leaderboard">
@@ -846,20 +851,20 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js"></script>
     <script src="js/cards.js?v=1.1.0"></script>
-    <script src="js/landing-geometry.js?v=1.1.0&amp;rev=3"></script>
-    <script src="js/card-depth.js?v=1.1.0&amp;rev=7"></script>
+    <script src="js/landing-geometry.js?v=1.1.0&amp;rev=4"></script>
+    <script src="js/card-depth.js?v=1.1.0&amp;rev=8"></script>
     <script src="js/player.js?v=1.1.0"></script>
     <script src="js/shared.js?v=1.1.0&amp;rev=3"></script>
     <script src="js/identity.js?v=1.1.0"></script>
     <script src="js/bot.js?v=1.1.0&amp;rev=2"></script>
     <script src="js/presence.js?v=1.1.0"></script>
-    <script src="js/game.js?v=1.1.0&amp;rev=5"></script>
+    <script src="js/game.js?v=1.1.0&amp;rev=6"></script>
     <script src="js/layout.js?v=1.1.0&amp;rev=8"></script>
-    <script src="js/engine.js?v=1.1.0&amp;rev=4"></script>
+    <script src="js/engine.js?v=1.1.0&amp;rev=5"></script>
     <script src="js/bot-turn.js?v=1.1.0"></script>
-    <script src="js/connection.js?v=1.1.0&amp;rev=10"></script>
-    <script src="js/leaderboard.js?v=1.1.0"></script>
-    <script src="js/i18n.js?v=1.1.0&amp;rev=7"></script>
+    <script src="js/connection.js?v=1.1.0&amp;rev=12"></script>
+    <script src="js/leaderboard.js?v=1.1.0&amp;rev=2"></script>
+    <script src="js/i18n.js?v=1.1.0&amp;rev=8"></script>
 </body>
 
 </html>

@@ -169,11 +169,6 @@ button:not(.game-card) {
 }
 
 /* Segmented controls: one connected track with a filled selected option. */
-:root[data-table-surface="flat"] #gameTable {
-    background: var(--felt);
-    box-shadow: none;
-}
-
 .speed-options,
 .turn-speed-options,
 .card-shadow-options,
@@ -308,7 +303,10 @@ button:focus-visible {
 
 #splashPlayerName {
     cursor: pointer;
-    text-decoration: underline dashed;
+    text-decoration: none;
+}
+#splashPlayerName .splash-player-id {
+    text-decoration: underline dotted;
     text-underline-offset: 4px;
 }
 
@@ -359,6 +357,64 @@ button:focus-visible {
     font-weight: 700;
 }
 .play-guide__flow > span, .play-guide__gesture { font-size: 1.6rem; text-align: center; }
+
+#dialogRules .play-guide-shortcut {
+    display: block;
+    width: auto;
+    min-height: 32px;
+    margin: 0 auto 12px;
+    padding: 4px 10px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: .85rem;
+    font-weight: 400;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.message-settings.is-enabled {
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface-soft);
+}
+.message-settings { min-width: 0; }
+.message-settings > button { width: 100%; margin-left: 0; margin-right: 0; }
+.message-settings.is-enabled > .setting-row { border: 0; background: transparent; }
+.message-settings > [hidden] { display: none; }
+.leaderboard-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 16px 4px;
+}
+#leaderboardBotsToggleButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 28px;
+    margin: 0;
+    padding: 2px 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    box-shadow: none;
+    font-size: .75rem;
+    font-weight: 400;
+    opacity: .7;
+}
+#leaderboardBotsToggleButton[aria-pressed="true"] { color: var(--accent); opacity: 1; }
+#leaderboardBotsToggleButton svg { width: 22px; height: 22px; }
+#leaderboardBotsToggleButton[aria-pressed="true"] circle { transform: translateX(8px); }
+#dialogLeaderboard .leaderboard-player-name,
+#dialogLeaderboard .leaderboard-player-name:is(:hover, :active, :focus) {
+    padding: 6px 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    transform: none;
+    text-decoration: none;
+}
 
 .table-status-dock {
     position: absolute;

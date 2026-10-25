@@ -1,6 +1,6 @@
 "use strict";
 
-// Native SVG card depth: a 3px laminated edge, support-aware resting poses, and top-left light shadows.
+// Native SVG card depth: a 2.5px laminated edge, support-aware resting poses, and top-left light shadows.
 class CardDepth {
     // Shadow tuning.
     // Below this blur radius a filter is indistinguishable from the anti-aliased edge.

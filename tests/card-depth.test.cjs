@@ -165,7 +165,7 @@ test("prepared detached cards adopt the current shadow setting on their next upd
 test("shadow settings restore, persist and synchronize Fancy and Simple with accessible buttons", () => {
     const connection = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const begin = connection.indexOf("        function updateCardShadowButtons(");
-    const block = connection.slice(begin, connection.indexOf("        function updatePlayInputButtons()", begin));
+    const block = connection.slice(begin, connection.indexOf("        function updateMessageTimerBar(", begin));
     for (const saved of ["", "invalid", "fancy", "simple"]) {
         const buttons = ["fancy", "simple"].map(style => ({
             dataset: { cardShadow: style }, attributes: {},
@@ -551,16 +551,16 @@ test("landing friction adds only a little slide, without acceleration or an endp
     }
 });
 
-test("touch rendering keeps seven native silhouette sheets at exactly 3px without canvas copies", () => {
+test("touch rendering keeps seven native silhouette sheets at exactly 2.5px without canvas copies", () => {
     const f = fixture();
     f.Depth.attach(f.element);
     f.Depth.update(f.element, { pitch: 0, yaw: 0, lift: 0 });
     const state = f.Depth.states.get(f.element);
     assert.equal(state.layers.length, 7);
-    assert.equal(state.world.z, 3.06);
+    assert.equal(state.world.z, 2.56);
     assert.equal(state.svg.attributes.viewBox, "-56 -84 112 168");
     assert.equal(state.face.attributes.href, f.element.image.src);
-    const expected = numbers(f.Depth.path(G.silhouette(state.world, -3).map(G.screen), { x: 0, y: 0 }));
+    const expected = numbers(f.Depth.path(G.silhouette(state.world, -G.EDGE).map(G.screen), { x: 0, y: 0 }));
     numbers(state.layers[0].attributes.d).forEach((value, index) => assert.ok(Math.abs(value - expected[index]) <= .0011));
     assert.ok(f.created.every(tag => tag !== "canvas"));
     assert.equal(state.raster, undefined);
@@ -660,7 +660,7 @@ test("a lift-only update after an exact height uses the lift again", () => {
     f.Depth.update(f.element, { z: 40 });
     assert.equal(state.world.z, 40);
     f.Depth.update(f.element, { lift: 0 });
-    assert.ok(Math.abs(state.world.z - 3.06) < 1e-9);
+    assert.ok(Math.abs(state.world.z - 2.56) < 1e-9);
     f.Depth.update(f.element, { pitch: 5 });
     assert.ok(Math.abs(state.world.z - G.minimumHeight([], state.world)) < 1e-9, "Lift persists until changed");
 });
@@ -673,7 +673,7 @@ test("table cards fit actual supporting footprints and keep compact receiver sha
     const table = f.table([f.element, second]);
     f.Depth.prepareTable(table);
     const first = f.Depth.states.get(f.element), top = f.Depth.states.get(second);
-    assert.equal(first.rest.z, 3.06);
+    assert.equal(first.rest.z, 2.56);
     assert.ok(top.rest.yaw > .2);
     assert.equal(top.receiverStates.length, 1);
     const floor = top.shadowEntries.get("floor"), onFirst = top.shadowEntries.get(first);
@@ -791,7 +791,7 @@ test("production trajectory retains contact momentum and lands exactly on the pe
         const pose = sample(i / 100);
         const position = motion.positionAtProgress(i / 100);
         for (const key of ["x", "y", "roll"]) { assert.ok(Math.abs(position[key] - pose[key]) < 1e-8); }
-        assert.ok(G.samples(pose, -3).every(point => point.z >= .059));
+        assert.ok(G.samples(pose, -G.EDGE).every(point => point.z >= .059));
     }
 });
 

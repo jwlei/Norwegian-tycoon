@@ -1988,6 +1988,12 @@ select:focus-visible {
 }
 
 #dialogRules .dialog-window,
+#dialogResults .dialog-window,
+#dialogColorTheme .dialog-window,
+#dialogSettings .dialog-window,
+#dialogPlayGuide .dialog-window,
+#dialogCardStyle .dialog-window,
+#dialogCardFoil .dialog-window,
 #dialogGameLog .dialog-window,
 #dialogLeaderboard .dialog-window {
     display: flex;
@@ -1997,6 +2003,12 @@ select:focus-visible {
 }
 
 #dialogRules .dialog-title,
+#dialogResults .dialog-title,
+#dialogColorTheme .dialog-title,
+#dialogSettings .dialog-title,
+#dialogPlayGuide .dialog-title,
+#dialogCardStyle .dialog-title,
+#dialogCardFoil .dialog-title,
 #dialogGameLog .dialog-title,
 #dialogLeaderboard .dialog-title {
     flex: 0 0 auto;
@@ -2004,6 +2016,12 @@ select:focus-visible {
 }
 
 #dialogRules .rules-content,
+#dialogResults .dialogBody,
+#dialogColorTheme .dialogBody,
+#dialogSettings .dialogBody,
+#dialogPlayGuide .dialogBody,
+#dialogCardStyle .dialogBody,
+#dialogCardFoil .dialogBody,
 #dialogGameLog .game-log,
 #dialogLeaderboard .leaderboard-content {
     flex: 1 1 auto;
@@ -2015,6 +2033,9 @@ select:focus-visible {
 }
 
 #dialogRules .dialog-footer,
+#dialogResults .dialog-footer,
+#dialogColorTheme .dialog-footer,
+#dialogPlayGuide .dialog-footer,
 #dialogGameLog .dialog-footer,
 #dialogSettings .dialog-footer,
 #dialogCardStyle .dialog-footer,
@@ -2027,6 +2048,9 @@ select:focus-visible {
 }
 
 #dialogRules .dialog-footer > button,
+#dialogResults .dialog-footer > button,
+#dialogColorTheme .dialog-footer > button,
+#dialogPlayGuide .dialog-footer > button,
 #dialogGameLog .dialog-footer > button,
 #dialogSettings .dialog-footer > button,
 #dialogCardStyle .dialog-footer > button,
@@ -2046,7 +2070,22 @@ select:focus-visible {
 
 .leaderboard-table-scroll {
     max-width: 100%;
-    overflow-x: auto;
+    min-height: 0;
+    overflow: auto;
+    flex: 1 1 auto;
+}
+
+#dialogLeaderboard .leaderboard-content {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.leaderboard-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface);
 }
 
 .leaderboard-table {
@@ -2569,6 +2608,11 @@ select:focus-visible {
 
 .game-toast.is-visible::after {
     animation: game-toast-progress var(--toast-duration, 3000ms) linear forwards;
+}
+
+body[data-message-timer-bar="off"] .game-toast::after {
+    display: none;
+    animation: none;
 }
 
 @keyframes game-toast-progress {

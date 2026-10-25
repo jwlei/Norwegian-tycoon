@@ -1,5 +1,9 @@
 const PlayerLeaderboard = {
-    async load() {
+    isBot(record) {
+        return record.isBot === true || (typeof record.id == "string" &&
+            (record.id.startsWith("bot-") || record.id == "PC"));
+    },
+    async load(includeBots = false) {
         // Add .indexOn: ["lastActiveAt"] at /playerStats in the existing database rules.
         const ref = firebase.database().ref("playerStats");
         const rows = [];
@@ -12,7 +16,9 @@ const PlayerLeaderboard = {
             snapshot.forEach(child => { entries.push({ ...child.val(), id: child.key }); });
             entries.reverse();
             for (const record of entries) {
-                if (record.id != "PC" && typeof record.name == "string" && !PlayerIdentity.isDefaultName(record.name) &&
+                const isBot = PlayerLeaderboard.isBot(record);
+                if ((!isBot || includeBots) && record.id != "PC" &&
+                    typeof record.name == "string" && !PlayerIdentity.isDefaultName(record.name) &&
                     Number.isFinite(record.lastActiveAt) && record.lastActiveAt > 0) {
                     rows.push(record);
                     if (rows.length == 50) { break; }
@@ -48,6 +54,9 @@ function initializeLeaderboard() {
     let direction = "descending";
     let requestId = 0;
     let playerIdTimer = null;
+    let showBots = getCookie("LeaderboardShowBots") == "true";
+    const botsToggle = document.getElementById("leaderboardBotsToggleButton");
+    botsToggle.setAttribute("aria-pressed", String(showBots));
     const playerIdPopup = document.getElementById("leaderboardPlayerId");
     const body = document.getElementById("leaderboardRows");
     const status = document.getElementById("leaderboardStatus");
@@ -74,8 +83,9 @@ function initializeLeaderboard() {
                     const button = document.createElement("button");
                     button.type = "button";
                     button.className = "leaderboard-player-name";
-                    button.textContent = record.name;
-                    button.title = record.name;
+                    const isBot = PlayerLeaderboard.isBot(record);
+                    button.textContent = record.name + (isBot ? " (AI)" : "");
+                    button.title = button.textContent;
                     button.setAttribute("aria-controls", "leaderboardPlayerId");
                     button.addEventListener("click", () => {
                         hidePlayerId();
@@ -113,17 +123,15 @@ function initializeLeaderboard() {
         column = next;
         render();
     }));
-    document.getElementById("leaderboardOpenButton").addEventListener("click", async event => {
-        event.preventDefault();
+    async function loadRows() {
         const request = ++requestId;
         column = "roundsPlayed";
         direction = "descending";
         rows = [];
         render();
         status.textContent = message("Henter leaderboard…");
-        showDialog("Leaderboard", true);
         try {
-            const result = await PlayerLeaderboard.load();
+            const result = await PlayerLeaderboard.load(showBots);
             if (request != requestId) { return; }
             rows = result;
             status.textContent = rows.length == 0 ? message("Ingen registrerte runder ennå.") : "";
@@ -133,6 +141,17 @@ function initializeLeaderboard() {
             console.error("Kunne ikke hente leaderboard.", error);
             status.textContent = message("Kunne ikke hente leaderboard. Lukk og åpne igjen for å prøve på nytt.");
         }
+    }
+    botsToggle.addEventListener("click", () => {
+        showBots = !showBots;
+        setCookie("LeaderboardShowBots", showBots, 1000);
+        botsToggle.setAttribute("aria-pressed", String(showBots));
+        return loadRows();
+    });
+    document.getElementById("leaderboardOpenButton").addEventListener("click", event => {
+        event.preventDefault();
+        showDialog("Leaderboard", true);
+        return loadRows();
     });
 }
 
