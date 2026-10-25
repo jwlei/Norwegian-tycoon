@@ -11,7 +11,7 @@ const FoilPerformancePreview = {
         { id: "simple", name: "4. Simpler CSS",
             description: "Two static backgrounds, one blend mode and no filter chain. Lightweight opacity/transform motion. Less distinctive foil patterns." },
         { id: "current", name: "5. Current animated production CSS",
-            description: "Most measured main-thread work: original layered gradients, filters and blending. Idle motion repaints gradient coordinates. Most faithful reference." }
+            description: "Original layered gradients, filters and blending. Idle motion now uses an opacity pulse and contained glare drift. Recorded costs below predate this change." }
     ],
     escape(value) {
         return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;")

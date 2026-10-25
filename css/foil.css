@@ -29,6 +29,16 @@
     inherits: true;
     initial-value: .3;
 }
+@property --foil-glare-x {
+    syntax: "<percentage>";
+    inherits: true;
+    initial-value: 0%;
+}
+@property --foil-glare-y {
+    syntax: "<percentage>";
+    inherits: true;
+    initial-value: 0%;
+}
 :is(#playerHand .game-card, .card-preview)[data-foil] {
     isolation: isolate;
     /* Match the SVG card outline: its 1.5-unit stroke at x/y 1.5 leaves 0.75 of 80×120 units transparent,
@@ -115,7 +125,18 @@
 }
 :is(#playerHand .game-card, .card-preview).card-flight[data-foil]:not([data-foil="none"])::after {
     opacity: calc(var(--foil-glare-opacity) * var(--foil-strength));
+    translate: var(--foil-glare-x) var(--foil-glare-y);
     transition: none;
+}
+
+/* Drag previews receive a JavaScript-eased pattern position instead of restarting a CSS transition every frame. */
+:is(#playerHand .game-card, .card-preview).card-drag-preview[data-foil]:not([data-foil="none"])::before {
+    background-position: center, 0% var(--foil-pattern-y),
+        var(--foil-pattern-x) var(--foil-pattern-y), center;
+    transition: opacity 400ms ease;
+}
+:is(#playerHand .game-card, .card-preview).card-drag-preview.is-returning[data-foil]:not([data-foil="none"])::before {
+    transition: opacity 400ms ease, background-position 400ms ease-out;
 }
 
 :is(#playerHand .game-card, .card-preview)[data-foil="holo"] {
@@ -229,24 +250,33 @@
 }
 
 @keyframes foil-idle-color {
-    0%, 100% { --pointer-x: 46%; --pointer-y: 48%; opacity: calc(.46 * var(--foil-strength)); }
-    50% { --pointer-x: 54%; --pointer-y: 52%; opacity: calc(.50 * var(--foil-strength)); }
+    0%, 100% { opacity: calc(.46 * var(--foil-strength)); }
+    50% { opacity: calc(.50 * var(--foil-strength)); }
 }
-/* Animate only the foil color layer, leaving card transforms and guidance animations untouched. */
+@keyframes foil-idle-glare {
+    0%, 100% { translate: -3.2% -1.6%; }
+    50% { translate: 3.2% 1.6%; }
+}
+/* Idle motion uses only opacity and translate, so foil gradients are not recalculated every frame. */
 @media (prefers-reduced-motion: no-preference) {
     body:not([data-idle-foil-animation="off"]) :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]):not(.is-tilting,
         .card-flight, .card-discard-flight, .is-drag-source, .card-drag-layer *,
         .card-foil-option:is(:hover, :focus-visible) *)::before {
-        --foil-x: calc(50% + (var(--pointer-x) - 50%) * .8);
-        --foil-y: calc(50% + (var(--pointer-y) - 50%) * .8);
-        --foil-light: radial-gradient(farthest-corner circle at var(--foil-x) var(--foil-y),
-            #fff9 5%, #9995 40%, #000 100%);
         animation: foil-idle-color 6s ease-in-out infinite;
+        transition: none;
+    }
+    /* The drifting glare is inset by its travel distance, so it never extends past the card. */
+    body:not([data-idle-foil-animation="off"]) :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]):not(.is-tilting,
+        .card-flight, .card-discard-flight, .is-drag-source, .card-drag-layer *,
+        .card-foil-option:is(:hover, :focus-visible) *)::after {
+        inset: calc(.625% + 1.6%) calc(.9375% + 3.2%);
+        animation: foil-idle-glare 6s ease-in-out infinite;
         transition: none;
     }
 }
 
-.is-foil-offscreen[data-foil]::before {
+.is-foil-offscreen[data-foil]::before,
+.is-foil-offscreen[data-foil]::after {
     animation-play-state: paused !important;
 }
 

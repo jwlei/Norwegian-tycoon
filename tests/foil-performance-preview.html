@@ -22,6 +22,16 @@
     </div>
     <output id="status" role="status" aria-live="polite"></output>
     <section class="recorded">
+        <h2>Production idle update</h2>
+        <p>The recorded tables below measure the earlier idle animation, which moved gradient coordinates.
+            Production idle foil now pulses opacity and translates a glare layer inset by its travel distance.
+            On October 25, 2026, the same desktop browser measured the 26-card scrolling hand at
+            about 1,560 ms of main-thread task time before this change and 476 ms after it.
+            A four-card drag, which now eases the foil pattern in JavaScript instead of restarting CSS
+            transitions every frame, measured about 1,690 ms before and 1,185 ms after.
+            These are CPU measurements, not GPU timings or phone frame rates.</p>
+    </section>
+    <section class="recorded">
         <h2>Recorded desktop measurements</h2>
         <p>26 cards, rainbow foil, light/dark styles, 100 &times; 150 CSS pixels per card.
             Idle enabled except in the two static variants. Two runs per version in opposite orders;

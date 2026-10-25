@@ -661,6 +661,9 @@ test("foil reduces light and pattern movement by twenty percent with 400ms easin
     assert.match(css, /transition: opacity 400ms ease, background-position 400ms ease-out;/);
     assert.match(css, /transition: opacity 400ms ease;/);
     assert.match(css, /\.is-tilting::before,[\s\S]*?opacity: calc\(\.72 \* var\(--foil-strength\)\);/);
+    assert.match(css, /\.card-drag-preview\[data-foil\]:not\(\[data-foil="none"\]\)::before\s*\{[^}]*var\(--foil-pattern-x\) var\(--foil-pattern-y\)[^}]*transition: opacity 400ms ease;/);
+    assert.match(css, /\.card-drag-preview\.is-returning\[data-foil\][^{]*::before\s*\{\s*transition: opacity 400ms ease, background-position 400ms ease-out;/);
+    assert.equal(vm.runInContext("CARD_DRAG_FOIL_PATTERN_MS", fixture().context), 230);
 });
 
 test("idle foil animation toggle defaults on, preserves opt-out, persists and synchronizes across tabs", () => {
@@ -715,20 +718,29 @@ test("idle foil animation toggle defaults on, preserves opt-out, persists and sy
     assert.match(translations, /"Folieanimasjon i hvile": "Idle foil animation"/);
 });
 
-test("six-second idle foil animates one layer and yields to gestures and reduced motion", () => {
+test("six-second idle foil uses compositor-friendly opacity and contained glare drift", () => {
     const css = fs.readFileSync(path.join(__dirname, "..", "css", "foil.css"), "utf8");
     assert.match(css, /@media \(prefers-reduced-motion: no-preference\)/);
     assert.match(css, /animation: foil-idle-color 6s ease-in-out infinite;/);
+    assert.match(css, /animation: foil-idle-glare 6s ease-in-out infinite;/);
     assert.match(css, /body:not\(\[data-idle-foil-animation="off"\]\) :is\(#playerHand \.game-card, \.card-preview\)/);
     assert.doesNotMatch(css, /foil-idle-reflection/);
     assert.match(css, /:not\(\.is-tilting,\s*\.card-flight, \.card-discard-flight, \.is-drag-source, \.card-drag-layer \*/);
-    const start = css.indexOf("@keyframes foil-idle-color");
-    const end = css.indexOf("\n}", start);
-    const frames = css.slice(start, end);
-    assert.match(frames, /0%, 100%/);
-    assert.match(frames, /--pointer-x: 46%; --pointer-y: 48%/);
-    assert.match(frames, /--pointer-x: 54%; --pointer-y: 52%/);
-    assert.doesNotMatch(frames, /transform|filter/);
+    const keyframes = name => {
+        const start = css.indexOf(`@keyframes ${name}`);
+        return css.slice(start, css.indexOf("\n}", start));
+    };
+    const color = keyframes("foil-idle-color");
+    assert.match(color, /0%, 100% \{ opacity: calc\(\.46 \* var\(--foil-strength\)\); \}/);
+    assert.match(color, /50% \{ opacity: calc\(\.50 \* var\(--foil-strength\)\); \}/);
+    assert.doesNotMatch(color, /--pointer|background|transform|filter/);
+    const glare = keyframes("foil-idle-glare");
+    assert.match(glare, /translate: -3\.2% -1\.6%/);
+    assert.match(glare, /translate: 3\.2% 1\.6%/);
+    assert.doesNotMatch(glare, /--pointer|background|transform|filter/);
+    assert.match(css, /inset: calc\(\.625% \+ 1\.6%\) calc\(\.9375% \+ 3\.2%\);\s*animation: foil-idle-glare/);
+    assert.match(css, /\.is-foil-offscreen\[data-foil\]::before,\s*\.is-foil-offscreen\[data-foil\]::after/);
+    assert.match(css, /\.card-flight\[data-foil\][^{]*::after\s*\{[^}]*translate: var\(--foil-glare-x\) var\(--foil-glare-y\);/);
     assert.doesNotMatch(css, /foil-idle-reflection|--foil-activity/);
 });
 
@@ -1010,6 +1022,12 @@ test("velocity tilt lifts the leading edges, clamps and settles all selected car
     assert.ok(Math.abs(hand._cardDragPreview.pitch - hand._cardDragPreview.yaw * 0.7) < 1e-10);
     assert.ok(parseFloat(card._dragPreview.properties.get("--pointer-x")) < 50);
     assert.ok(parseFloat(card._dragPreview.properties.get("--pointer-y")) < 50);
+    const firstPointerX = parseFloat(card._dragPreview.properties.get("--pointer-x"));
+    const firstPatternX = parseFloat(card._dragPreview.properties.get("--foil-pattern-x"));
+    const targetPatternX = 50 + (firstPointerX - 50) * .8;
+    assert.ok(firstPatternX < 50 && firstPatternX > targetPatternX,
+        "The foil pattern eases toward the reflection without a CSS transition");
+    assert.ok(Math.abs(firstPatternX - (50 + (targetPatternX - 50) * (1 - Math.exp(-16 / 230)))) < .01);
     assert.equal(card._dragPreview.classList.contains("is-tilting"), true);
     for (const selected of [second, third]) {
         assert.ok(parseFloat(selected._dragPreview.properties.get("--tilt-x")) < pitch);
@@ -1031,6 +1049,8 @@ test("velocity tilt lifts the leading edges, clamps and settles all selected car
     assert.equal(card._dragPreview.properties.get("--tilt-y"), "0deg");
     assert.equal(card._dragPreview.properties.get("--pointer-x"), "50.00%");
     assert.equal(card._dragPreview.properties.get("--pointer-y"), "50.00%");
+    assert.equal(card._dragPreview.properties.get("--foil-pattern-x"), "50.00%");
+    assert.equal(card._dragPreview.properties.get("--foil-pattern-y"), "50.00%");
     assert.equal(card._dragPreview.classList.contains("is-tilting"), false);
     for (const selected of [second, third]) {
         assert.equal(selected._dragPreview.properties.get("--tilt-x"), "0deg");

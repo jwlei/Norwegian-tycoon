@@ -604,7 +604,7 @@ class GameLayout {
         var samples = elements.map(element => {
             if (typeof getComputedStyle !== "function" || !element || element.dataset?.foil === "none") { return null; }
             var animations = advance && typeof element.getAnimations === "function" ? element.getAnimations({ subtree: true }) : [];
-            var idle = animations.filter(animation => animation.animationName === "foil-idle-color");
+            var idle = animations.filter(animation => /^foil-idle-(color|glare)$/.test(animation.animationName));
             return { element: element, idle: idle, times: idle.map(animation => animation.currentTime) };
         });
         try {
@@ -622,11 +622,19 @@ class GameLayout {
                 var glare = getComputedStyle(sample.element, "::after");
                 var strength = parseFloat(color.getPropertyValue("--foil-strength")) || 1;
                 var pattern = color.backgroundPosition?.split(",")[2]?.trim().split(/\s+/);
+                var glareShift = String(glare.translate || "none").trim().split(/\s+/);
+                var glareOffset = (value, size) => {
+                    if (!value || value === "none") { return 0; }
+                    var number = parseFloat(value) || 0;
+                    return value.endsWith("px") ? (parseFloat(size) ? number / parseFloat(size) * 100 : 0) : number;
+                };
                 return {
                     pointerX: color.getPropertyValue("--pointer-x").trim() || "50%",
                     pointerY: color.getPropertyValue("--pointer-y").trim() || "50%",
                     patternX: pattern ? parseFloat(pattern[0]) : undefined,
                     patternY: pattern ? parseFloat(pattern[1]) : undefined,
+                    glareX: glareOffset(glareShift[0], glare.width),
+                    glareY: glareOffset(glareShift[1], glare.height),
                     foilColor: Number(color.opacity) / strength,
                     foilGlare: Number(glare.opacity) / strength
                 };
@@ -837,6 +845,10 @@ class GameLayout {
                 var sourcePatternY = source.patternY ?? 50 + (sourceY - 50) * .8;
                 var endPatternX = restingFoil?.patternX ?? 50 + (endX - 50) * .8;
                 var endPatternY = restingFoil?.patternY ?? 50 + (endY - 50) * .8;
+                var sourceGlareX = source.glareX ?? 0;
+                var sourceGlareY = source.glareY ?? 0;
+                var endGlareX = restingFoil?.glareX ?? 0;
+                var endGlareY = restingFoil?.glareY ?? 0;
                 var restPose = landingPose ? landingPose.orientationAtProgress(1) : { pitch: 0, yaw: 0 };
                 flightFrames.forEach((frame, index) => {
                     var progress = frame.offset ?? (index === 0 ? 0 : index === flightFrames.length - 1 ? 1 : .68);
@@ -852,6 +864,8 @@ class GameLayout {
                     frame["--foil-pattern-y"] = `${sourcePatternY + (endPatternY - sourcePatternY) * blend + tiltY * .8}%`;
                     frame["--foil-color-opacity"] = sourceColor + (endColor - sourceColor) * blend;
                     frame["--foil-glare-opacity"] = sourceGlare + (endGlare - sourceGlare) * blend;
+                    frame["--foil-glare-x"] = `${sourceGlareX + (endGlareX - sourceGlareX) * blend}%`;
+                    frame["--foil-glare-y"] = `${sourceGlareY + (endGlareY - sourceGlareY) * blend}%`;
                 });
             }
             var animation = flight.animate(flightFrames, {

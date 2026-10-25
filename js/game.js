@@ -365,7 +365,12 @@ function resetCardTilt(cardElement) {
     cardElement.classList.remove("is-tilting");
     cardElement.style.setProperty("--tilt-x", "0deg");
     cardElement.style.setProperty("--tilt-y", "0deg");
+    cardElement.style.setProperty("--pointer-x", "50%");
+    cardElement.style.setProperty("--pointer-y", "50%");
 }
+
+// Equivalent to the 400 ms ease-out foil transition restarted every frame, without creating transitions.
+var CARD_DRAG_FOIL_PATTERN_MS = 230;
 
 function prepareCardDragPreview(card, bounds) {
     var image = card.querySelector("img");
@@ -458,6 +463,7 @@ function startCardDragPreview(hand, event) {
         layer, cards, previews, pointerX: event.clientX, pointerY: event.clientY,
         sampledX: event.clientX, sampledY: event.clientY,
         pitch: 0, yaw: 0, targetPitch: 0, targetYaw: 0,
+        patterns: previews.map(() => ({ x: 50, y: 50 })),
         frame: null, lastFrameTime: null, returning: false
     };
 }
@@ -484,19 +490,36 @@ function animateCardDragTilt(drag, time) {
         Math.abs(drag.targetPitch) < 0.02 && Math.abs(drag.targetYaw) < 0.02 &&
         targetPitch == 0 && targetYaw == 0;
     if (settled) { drag.pitch = drag.yaw = drag.targetPitch = drag.targetYaw = 0; }
+    var patternBlend = reducedMotion ? 1 : 1 - Math.exp(-elapsed / CARD_DRAG_FOIL_PATTERN_MS);
+    var patternsSettled = true;
     drag.previews.forEach((preview, index) => {
         var pitchScale = drag.cards.length == 1 ? 1 : 0.9 + 0.2 * index / (drag.cards.length - 1);
         var pitch = Math.max(-18, Math.min(18, drag.pitch * pitchScale));
+        var pointerX = 50 + drag.yaw / 18 * 45;
+        var pointerY = 50 + pitch / 18 * 45;
+        var pattern = drag.patterns[index] || (drag.patterns[index] = { x: 50, y: 50 });
+        var patternX = 50 + (pointerX - 50) * .8;
+        var patternY = 50 + (pointerY - 50) * .8;
+        pattern.x += (patternX - pattern.x) * patternBlend;
+        pattern.y += (patternY - pattern.y) * patternBlend;
+        if (Math.abs(pattern.x - patternX) < 0.02 && Math.abs(pattern.y - patternY) < 0.02) {
+            pattern.x = patternX;
+            pattern.y = patternY;
+        } else {
+            patternsSettled = false;
+        }
         preview.style.setProperty("--tilt-x", pitch == 0 ? "0deg" : `${pitch.toFixed(2)}deg`);
         preview.style.setProperty("--tilt-y", drag.yaw == 0 ? "0deg" : `${drag.yaw.toFixed(2)}deg`);
-        preview.style.setProperty("--pointer-x", `${(50 + drag.yaw / 18 * 45).toFixed(2)}%`);
-        preview.style.setProperty("--pointer-y", `${(50 + pitch / 18 * 45).toFixed(2)}%`);
+        preview.style.setProperty("--pointer-x", `${pointerX.toFixed(2)}%`);
+        preview.style.setProperty("--pointer-y", `${pointerY.toFixed(2)}%`);
+        preview.style.setProperty("--foil-pattern-x", `${pattern.x.toFixed(2)}%`);
+        preview.style.setProperty("--foil-pattern-y", `${pattern.y.toFixed(2)}%`);
         preview.classList.toggle("is-tilting", !settled && !reducedMotion);
         if (typeof CardDepth != "undefined") {
             CardDepth.update(preview, { pitch, yaw: drag.yaw, lift: reducedMotion ? 0 : 18 });
         }
     });
-    if (!settled) {
+    if (!settled || !patternsSettled) {
         drag.frame = requestAnimationFrame(nextTime => animateCardDragTilt(drag, nextTime));
     } else {
         drag.lastFrameTime = null;
@@ -630,6 +653,7 @@ function returnCardDragPreview(hand) {
     }));
     drag.releasePitch = drag.pitch;
     drag.releaseYaw = drag.yaw;
+    drag.releasePatterns = (drag.patterns || []).map(pattern => ({ ...pattern }));
     drag.previews.forEach(preview => preview.getBoundingClientRect());
     drag.previews.forEach(preview => {
         preview.classList.add("is-returning");
@@ -640,6 +664,8 @@ function returnCardDragPreview(hand) {
         preview.style.setProperty("--tilt-y", "0deg");
         preview.style.setProperty("--pointer-x", "50%");
         preview.style.setProperty("--pointer-y", "50%");
+        preview.style.setProperty("--foil-pattern-x", "50%");
+        preview.style.setProperty("--foil-pattern-y", "50%");
         preview.classList.remove("is-tilting");
         if (typeof CardDepth != "undefined") { CardDepth.returnToHand(preview); }
     });
@@ -716,6 +742,13 @@ function catchReturningCardDrag(hand, target, event) {
     });
     drag.pitch = drag.targetPitch = (drag.releasePitch || 0) * remaining;
     drag.yaw = drag.targetYaw = (drag.releaseYaw || 0) * remaining;
+    drag.patterns = drag.previews.map((preview, index) => {
+        var release = drag.releasePatterns && drag.releasePatterns[index] || { x: 50, y: 50 };
+        var pattern = { x: 50 + (release.x - 50) * remaining, y: 50 + (release.y - 50) * remaining };
+        preview.style.setProperty("--foil-pattern-x", `${pattern.x.toFixed(2)}%`);
+        preview.style.setProperty("--foil-pattern-y", `${pattern.y.toFixed(2)}%`);
+        return pattern;
+    });
     drag.pointerX = drag.sampledX = event.clientX;
     drag.pointerY = drag.sampledY = event.clientY;
     drag.lastFrameTime = null;

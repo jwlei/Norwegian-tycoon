@@ -113,11 +113,15 @@ class CardDepth {
         }
     }
 
+    static isFoilIdleAnimation(animation) {
+        return animation.animationName === "foil-idle-color" || animation.animationName === "foil-idle-glare";
+    }
+
     static syncFoilPhase(elements) {
         if (!document.timeline) { return; }
         // Collect every animation before changing clocks, avoiding a style flush per card.
         const animations = elements.flatMap(element => typeof element.getAnimations === "function"
-            ? element.getAnimations({ subtree: true }).filter(animation => animation.animationName === "foil-idle-color") : []);
+            ? element.getAnimations({ subtree: true }).filter(animation => CardDepth.isFoilIdleAnimation(animation)) : []);
         const phase = (document.timeline.currentTime || 0) % 6000;
         animations.forEach(animation => { animation.currentTime = phase; });
     }
@@ -149,7 +153,7 @@ class CardDepth {
                 } else if (!paused.has(element)) {
                     const animations = typeof element.getAnimations === "function"
                         ? element.getAnimations({ subtree: true }).filter(animation =>
-                            animation.animationName === "foil-idle-color") : [];
+                            CardDepth.isFoilIdleAnimation(animation)) : [];
                     updates.push({ element, visible: false, saved: { time: now,
                         animations: animations.map(animation => ({ animation, time: animation.currentTime,
                             running: animation.playState === "running" })) } });

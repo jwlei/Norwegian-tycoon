@@ -205,15 +205,17 @@ test("recreated cards keep the document's six-second foil phase without changing
     const f = fixture();
     f.context.document.timeline = { currentTime: 8123 };
     const color = { animationName: "foil-idle-color", currentTime: 0 };
+    const idleGlare = { animationName: "foil-idle-glare", currentTime: 0 };
     const glare = { animationName: "required-card-pulse", currentTime: 0 };
     const other = { animationName: "required-card-pulse", currentTime: 77 };
     f.element.getAnimations = options => {
         assert.equal(options.subtree, true, "Include pseudo-element animations");
-        return [color, glare, other];
+        return [color, idleGlare, glare, other];
     };
     f.Depth.attach(f.element);
     assert.equal(color.currentTime, 2123);
-    assert.equal(glare.currentTime, 0, "The static glare layer has no animation clock");
+    assert.equal(idleGlare.currentTime, 2123, "Glare drift shares the color pulse phase");
+    assert.equal(glare.currentTime, 0, "Unrelated animations keep their clocks");
     assert.equal(other.currentTime, 77);
     color.currentTime = 2300;
     f.Depth.attach(f.element);
@@ -256,12 +258,13 @@ test("offscreen foils alone pause and resume at the phase they would have reache
         disconnect() { this.disconnected = true; }
     };
     const color = { animationName: "foil-idle-color", currentTime: 1234, playState: "running" };
+    const idleGlare = { animationName: "foil-idle-glare", currentTime: 1234, playState: "running" };
     const glare = { animationName: "required-card-pulse", currentTime: 2500, playState: "running" };
     const paused = { animationName: "foil-idle-color", currentTime: 77, playState: "paused" };
     const unrelated = { animationName: "required-card-pulse", currentTime: 99, playState: "running" };
     const card = f.card(200);
     const cards = [card];
-    card.getAnimations = () => [color, glare, paused, unrelated];
+    card.getAnimations = () => [color, idleGlare, glare, paused, unrelated];
     const root = { querySelectorAll(selector) {
         assert.equal(selector, '[data-foil]:not([data-foil="none"])');
         return cards;
@@ -281,7 +284,8 @@ test("offscreen foils alone pause and resume at the phase they would have reache
     callback([{ target: card, isIntersecting: true }]);
     assert.equal(card.classes.has("is-foil-offscreen"), false);
     assert.equal(color.currentTime, 4234);
-    assert.equal(glare.currentTime, 2500, "Only the moving color layer pauses and resumes");
+    assert.equal(idleGlare.currentTime, 4234, "Both idle foil layers resume together");
+    assert.equal(glare.currentTime, 2500, "Only idle foil layers pause and resume");
     assert.equal(paused.currentTime, 77);
     assert.equal(unrelated.currentTime, 99);
     const appended = f.card(230);

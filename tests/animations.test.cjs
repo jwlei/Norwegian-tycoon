@@ -28,23 +28,29 @@ test("card flights use the unrotated card size centred on a rotated card's bound
 
 test("foil sampling predicts the idle reveal phase without changing running or paused clocks", () => {
     const running = { animationName: "foil-idle-color", currentTime: 1234, playState: "running" };
+    const glareClock = { animationName: "foil-idle-glare", currentTime: 1234, playState: "running" };
     const paused = { animationName: "required-card-pulse", currentTime: 2500, playState: "paused" };
     const context = load({
         getComputedStyle: (element, pseudo) => ({
             opacity: pseudo === "::before" ? .7 * (.46 + running.currentTime / 100000) : .7 * .29,
+            translate: pseudo === "::after" ? `${glareClock.currentTime / 1000}% -4px` : "none",
+            width: "100px", height: "160px",
             backgroundPosition: "50% 50%, 0% 45%, 42% 45%, 50% 50%",
             getPropertyValue: name => name === "--foil-strength" ? ".7" :
                 name === "--pointer-x" ? `${running.currentTime / 100}%` : "48%"
         })
     });
-    context.element = { getAnimations: () => [running, paused] };
+    context.element = { getAnimations: () => [running, glareClock, paused] };
     const sampled = vm.runInContext("GameLayout.foilState(element, 700)", context);
     assert.equal(sampled.pointerX, "19.34%");
     assert.ok(Math.abs(sampled.foilColor - .47934) < 1e-10);
     assert.ok(Math.abs(sampled.foilGlare - .29) < 1e-10);
     assert.equal(sampled.patternX, 42);
     assert.equal(sampled.patternY, 45);
+    assert.ok(Math.abs(sampled.glareX - 1.934) < 1e-10, "Glare drift is sampled at the reveal phase");
+    assert.equal(sampled.glareY, -2.5, "Pixel translations are converted to the glare layer's percentage");
     assert.equal(running.currentTime, 1234);
+    assert.equal(glareClock.currentTime, 1234);
     assert.equal(paused.currentTime, 2500);
 });
 
@@ -237,14 +243,14 @@ test("depth flights render rotation internally, preserve foil rendering, and rel
     vm.runInContext(`
         GameLayout.foilStates = (elements, advance) => {
             if (advance !== 520) { throw new Error("Predict the foil at the reveal time"); }
-            return elements.map(() => ({ pointerX:"54%", pointerY:"52%", patternX:53.2,patternY:51.6,foilColor:.49,foilGlare:.32 }));
+            return elements.map(() => ({ pointerX:"54%", pointerY:"52%", patternX:53.2,patternY:51.6,glareX:2.4,glareY:-1.2,foilColor:.49,foilGlare:.32 }));
         };
         var pile = new CardPile("Owner", new PresidentCard(1,7));
         pile.motion = {x:0,y:0,power:1,spin:10,pitch:12,yaw:-10};
         GameLayout.animatePlayedCards({querySelector:()=>target}, pile, {
             playerOrigins:new Map(), cardOrigins:new Map([["1:7",{
                 left:0,top:500,width:120,height:180,rotation:0,pitch:12,yaw:-10,
-                pointerX:"0%",pointerY:"0%",patternX:44,patternY:45,foilColor:.57,foilGlare:.28
+                pointerX:"0%",pointerY:"0%",patternX:44,patternY:45,glareX:-1,glareY:.5,foilColor:.57,foilGlare:.28
             }]])
         });
     `, context);
@@ -268,6 +274,10 @@ test("depth flights render rotation internally, preserve foil rendering, and rel
     assert.equal(animations[0].frames.at(-1)["--foil-glare-opacity"], .32);
     assert.equal(animations[0].frames.at(-1)["--foil-pattern-x"], "53.2%");
     assert.equal(animations[0].frames.at(-1)["--foil-pattern-y"], "51.6%");
+    assert.equal(animations[0].frames[0]["--foil-glare-x"], "-1%");
+    assert.equal(animations[0].frames[0]["--foil-glare-y"], "0.5%");
+    assert.equal(animations[0].frames.at(-1)["--foil-glare-x"], "2.4%");
+    assert.equal(animations[0].frames.at(-1)["--foil-glare-y"], "-1.2%");
     for (const frame of animations[0].frames) {
         const progress = frame.offset, blend = progress * progress * (3 - 2 * progress);
         const expectedY = (poseAtProgress(progress).pitch - 12) * 2.5 + (52 + 12 * 2.5) * blend;
