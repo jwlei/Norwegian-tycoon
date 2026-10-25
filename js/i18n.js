@@ -139,6 +139,8 @@
         "Skjuler meldinger på spillbrettet for deg. Hendelser vises fortsatt i spilloggen.": "Hides board messages for you. Events still appear in the game log.",
         "Animasjonshastighet": "Animation speed",
         "Kortskygger": "Card shadows",
+        "Folieanimasjon i hvile": "Idle foil animation",
+        "Slå av for bedre ytelse. Folie vises fortsatt på kortene.": "Turn off for better performance. Foil remains visible on cards.",
         "Detaljerte": "Fancy",
         "Enkle": "Simple",
         "Enkle skygger gir bedre ytelse. Kortutseende og bevegelser er uendret.": "Simple shadows improve performance. Card artwork and motion are unchanged.",

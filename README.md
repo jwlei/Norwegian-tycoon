@@ -130,6 +130,8 @@ scrolls still update every flight immediately, with one table measurement before
 
 Idle foils use one six-second light drift and gentle intensity pulse, without moving the card or changing its tuned colors. The glare layer stays static at rest, reducing each foil from two animated layers to one; dragging, flights, hidden drag sources and reduced-motion preferences disable idle motion. The foil palette and full-resolution artwork remain unchanged.
 
+The saved **Idle foil animation** switch under Appearance defaults to on. Turning it off stops idle motion across hand, table and settings-preview cards while keeping static foil visible and retaining drag/flight reflections. It applies immediately, synchronizes across tabs and still respects reduced-motion preferences.
+
 Played cards carry their visible foil light position, eased pattern position and intensity from the hand or drag preview into flight. The light follows the same tilt/settling poses as the card face and blends into the destination's idle phase at the whole play's reveal, including staggered groups. Recreated native table cards share the document's six-second phase so a table refresh does not restart their shimmer. Flight foil keyframes are computed once; no additional frame loop is introduced.
 
 The seven laminated depth sheets derive their color from the card artwork's border, retaining subtle darker layers instead of using the same beige edge for every style.
