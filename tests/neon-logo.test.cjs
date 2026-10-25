@@ -144,6 +144,8 @@ test("neon pulse, flicker, flash and splash intro animate only opacity and trans
     assert.match(motion, /\.neon-logo__flicker \{ animation: neon-logo-flicker 7s/);
     assert.match(motion, /#mainMenu\.is-intro \.neon-logo \{\s*animation: neon-logo-flash 11s steps\(1, end\) -505ms infinite;/);
     assert.match(motion, /#mainMenu\.is-intro \.neon-logo__flicker \{\s*animation: neon-logo-flicker 7s steps\(1, end\) -545ms infinite;/);
+    assert.match(motion, /#mainMenu\.is-intro :is\(\.neon-logo__glow, \.neon-logo__halo\) \{\s*animation: neon-logo-pulse 3\.2s ease-in-out 2500ms infinite backwards;/,
+        "Startup glow holds the pulse's initial brightness so the handoff has no jump");
     for (const part of ["back-card", "front-card", "main", "sub"]) {
         assert.ok(neonLogo().markup().includes(`class="neon-logo__${part}"`));
         assert.ok(motion.includes(`animation: neon-intro-${part} 2500ms steps(1, end);`));

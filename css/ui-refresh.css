@@ -86,7 +86,7 @@
         animation: neon-logo-flash 11s steps(1, end) -505ms infinite;
     }
     #mainMenu.is-intro :is(.neon-logo__glow, .neon-logo__halo) {
-        animation: neon-logo-pulse 3.2s ease-in-out 2500ms infinite;
+        animation: neon-logo-pulse 3.2s ease-in-out 2500ms infinite backwards;
     }
     #mainMenu.is-intro .neon-logo__flicker {
         animation: neon-logo-flicker 7s steps(1, end) -545ms infinite;
