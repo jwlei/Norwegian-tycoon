@@ -140,10 +140,11 @@ test("neon pulse, flicker, flash and splash intro animate only opacity and trans
     const motion = css.slice(css.indexOf("@media (prefers-reduced-motion: no-preference)"));
     assert.match(motion, /\.neon-logo \{ animation: neon-logo-flash 11s steps\(1, end\) 4s infinite; \}/, "The sign keeps flashing occasionally");
     assert.match(motion, /\.neon-logo__flicker \{ animation: neon-logo-flicker 7s/);
-    const ignite = Number(motion.match(/neon-logo-ignite 520ms steps\(1, end\) (\d+)ms/)[1]);
-    const glow = Number(motion.match(/neon-logo-glow-on 380ms ease-out (\d+)ms/)[1]);
-    const menu = Number(motion.match(/splash-rise 380ms cubic-bezier\([^)]*\) calc\((\d+)ms/)[1]);
-    assert.ok(ignite < glow && menu > ignite && menu < glow + 380, "The menu rises soon after the sign starts to light");
+    assert.match(motion, /#mainMenu\.is-intro \.neon-logo \{\s*animation: neon-logo-ignite 2600ms steps\(1, end\) 150ms both,/);
+    assert.match(motion, /#mainMenu\.is-intro > :not\(\.game-logo, script\),[\s\S]*?#mainMenu\.is-intro #splashPlayerName,[\s\S]*?#gameShell:has\([^{}]+\{\s*animation: splash-fade-in 380ms ease-out 420ms both;/);
+    assert.doesNotMatch(css, /--intro-index/);
+    assert.ok((keyframes(css, "neon-logo-ignite").match(/opacity: \.(?:05|15);/g) || []).length >= 2,
+        "Startup includes repeated near-off flickers");
     assert.match(css, /:root\[data-theme="light"\] \.neon-logo__tubes \* \{ stroke-width: 2\.1; \}/);
 });
 

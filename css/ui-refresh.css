@@ -36,22 +36,15 @@
 }
 @keyframes neon-logo-ignite {
     0% { opacity: 0; }
-    14% { opacity: .7; }
-    24% { opacity: .1; }
-    38% { opacity: .9; }
-    48% { opacity: .3; }
-    60%, 100% { opacity: 1; }
+    8%, 24%, 46%, 68%, 84%, 100% { opacity: 1; }
+    12%, 29%, 50%, 73% { opacity: .05; }
+    17%, 35%, 57%, 78%, 90% { opacity: .65; }
+    39%, 61%, 93% { opacity: .15; }
+    96% { opacity: 1; }
 }
 @keyframes neon-logo-glow-on { from { opacity: 0; } to { opacity: .78; } }
 @keyframes splash-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes splash-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-
-#mainMenu > :nth-child(3) { --intro-index: 0; }
-#mainMenu > :nth-child(4) { --intro-index: 1; }
-#mainMenu > :nth-child(5) { --intro-index: 2; }
-#mainMenu > :nth-child(6) { --intro-index: 3; }
-#mainMenu > :nth-child(7) { --intro-index: 4; }
-#mainMenu > :nth-child(8) { --intro-index: 5; }
 
 @media (prefers-reduced-motion: no-preference) {
     .neon-logo { animation: neon-logo-flash 11s steps(1, end) 4s infinite; }
@@ -59,18 +52,20 @@
     .neon-logo__halo { animation: neon-logo-pulse 3.2s ease-in-out infinite; }
     .neon-logo__flicker { animation: neon-logo-flicker 7s steps(1, end) infinite; }
 
-    /* First visit: the sign powers on, then the menu rises in quickly behind it. */
-    #mainMenu.is-intro .neon-logo__shadow { animation: splash-fade-in 320ms ease-out both; }
-    #mainMenu.is-intro :is(.neon-logo__tubes, .neon-logo__core) {
-        animation: neon-logo-ignite 520ms steps(1, end) 150ms both;
+    /* First visit: the UI fades in together while the sign keeps flickering. */
+    #mainMenu.is-intro .neon-logo {
+        animation: neon-logo-ignite 2600ms steps(1, end) 150ms both,
+            neon-logo-flash 11s steps(1, end) 4s infinite;
     }
+    #mainMenu.is-intro .neon-logo__shadow { animation: splash-fade-in 320ms ease-out both; }
     #mainMenu.is-intro :is(.neon-logo__glow, .neon-logo__halo) {
         animation: neon-logo-glow-on 380ms ease-out 380ms both, neon-logo-pulse 3.2s ease-in-out 760ms infinite;
     }
-    #mainMenu.is-intro > :not(.game-logo, .splash-footer, script) {
-        animation: splash-rise 380ms cubic-bezier(.2, .8, .25, 1) calc(420ms + var(--intro-index, 0) * 45ms) both;
+    #mainMenu.is-intro > :not(.game-logo, script),
+    #mainMenu.is-intro #splashPlayerName,
+    #gameShell:has(> #mainMenu.is-intro:not(.is-hidden)) > :is(#settingsButton, .topbar-actions) {
+        animation: splash-fade-in 380ms ease-out 420ms both;
     }
-    #mainMenu.is-intro > .splash-footer { animation: splash-fade-in 380ms ease-out 700ms both; }
     #mainMenu:not(.is-intro, .is-hidden) > :not(.splash-footer, script) {
         animation: splash-rise 260ms cubic-bezier(.2, .8, .25, 1) both;
     }
