@@ -111,4 +111,8 @@ if (typeof document !== "undefined") {
         savedLanguage = /^(nb|nn|no)(-|$)/.test(String(navigator.language || "").toLowerCase()) ? "no" : "en";
     }
     NeonLogo.render(savedLanguage);
+    const splash = document.getElementById("mainMenu");
+    if (splash && splash.hasAttribute("data-splash-pending")) {
+        requestAnimationFrame(() => splash.removeAttribute("data-splash-pending"));
+    }
 }

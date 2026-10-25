@@ -1,6 +1,28 @@
 /* UI refresh: neon splash logo, layered surfaces, felt table, segmented controls and theme-aware focus. */
 
 /* Neon logo: no backing board, only a soft shadow behind the tubes. */
+#mainMenu {
+    align-content: start;
+    padding-top: max(clamp(18px, 5vw, 56px), calc((100svh - 720px) / 2));
+}
+#mainMenu .game-logo {
+    position: relative;
+    padding-bottom: 3.2em;
+}
+#mainMenu #splashPlayerName {
+    position: absolute;
+    top: calc(100% - 3em);
+    left: 5%;
+    width: 90%;
+}
+#mainMenu[data-splash-pending],
+#gameShell:has(> #mainMenu[data-splash-pending]) > :is(#settingsButton, .topbar-actions) {
+    visibility: hidden;
+}
+#mainMenu[data-splash-pending] *,
+#gameShell:has(> #mainMenu[data-splash-pending]) > :is(#settingsButton, .topbar-actions) {
+    animation-play-state: paused !important;
+}
 .game-logo__neon {
     position: relative;
     width: min(92%, var(--neon-width, 620px), calc(28vh * var(--neon-scale, 4.4286)));

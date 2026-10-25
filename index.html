@@ -53,7 +53,7 @@
     <link rel="stylesheet" href="css/mobile.css">
     <link rel="stylesheet" href="css/theme.css?v=1.1.2&amp;rev=11">
     <link rel="stylesheet" href="css/color-themes.css?v=1.1.2&amp;rev=2">
-    <link rel="stylesheet" href="css/ui-refresh.css?v=1.1.2&amp;rev=13">
+    <link rel="stylesheet" href="css/ui-refresh.css?v=1.1.2&amp;rev=14">
     <link rel="stylesheet" href="css/foil.css?v=1.1.2&amp;rev=4">
     <link rel="stylesheet" href="css/card-depth.css?v=1.1.2&amp;rev=2">
     <script id="applySavedColorTheme">
@@ -98,9 +98,8 @@
             aria-label="Åpne spillmeny" aria-controls="gameMenu" aria-expanded="false" title="Åpne spillmeny">
             <span class="game-menu-toggle__icon" aria-hidden="true"></span>
         </button>
-        <div id="mainMenu" class="is-intro" role="group" aria-label="Hovedmeny">
+        <div id="mainMenu" class="is-intro" data-splash-pending role="group" aria-label="Hovedmeny">
             <div class="game-logo"><div class="game-logo__neon" data-neon-logo="splash-logo"></div><small id="splashPlayerName" data-i18n-skip role="button" tabindex="0" aria-haspopup="dialog" aria-controls="dialogSaveProfile" hidden></small></div>
-            <script src="js/neon-logo.js?v=1.1.2&amp;rev=3"></script>
             <button type="button" id="newGameButton" title="Lag nytt spill" style="grid-row: 2 / 3; grid-column: 2 / -2;">Lag nytt spill</button>
             <button type="button" id="resumeGameButton" hidden>Fortsett spillet</button>
             <button type="button" id="joinGameButton" title="Koble til spill med kode" style="grid-row: 3 / 4; grid-column: 2 / -2;">Koble til med kode</button>
@@ -829,6 +828,7 @@
     </div>
 
     <!-- The core Firebase JS SDK is always required and must be listed first -->
+    <script src="js/neon-logo.js?v=1.1.2&amp;rev=4"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>

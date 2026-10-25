@@ -54,12 +54,24 @@ test("the neon logo renders before blocking scripts and follows the selected lan
     const menu = html.slice(html.indexOf('<div id="mainMenu"'), html.indexOf('<button type="button" id="newGameButton"'));
     assert.match(menu, /<div id="mainMenu" class="is-intro"/);
     assert.match(menu, /data-neon-logo="splash-logo"/);
-    assert.match(menu, /<script src="js\/neon-logo\.js[^"]*"><\/script>/);
+    assert.doesNotMatch(menu, /<script src="js\/neon-logo/);
+    assert.ok(html.indexOf("js/neon-logo.js") > html.indexOf('id="dialogResults"'),
+        "Logo initializes only after the complete menu and page markup");
+    assert.match(menu, /data-splash-pending/);
     assert.ok(html.indexOf("js/neon-logo.js") < html.indexOf("firebase-app.js"), "Logo script runs before Firebase loads");
     assert.match(read("js/i18n.js"), /if \(window\.NeonLogo\) \{ window\.NeonLogo\.render\(language\); \}/);
     const layout = read("js/layout.js");
     assert.match(layout, /setClass\(mainMenu, "is-hidden", true\);\s*\/\/[^\n]*\n\s*setClass\(mainMenu, "is-intro", false\);/,
         "The intro plays once per visit");
+});
+
+test("splash reserves profile space and does not recenter for asynchronous content", () => {
+    const css = read("css/ui-refresh.css");
+    assert.match(css, /#mainMenu \{\s*align-content: start;/);
+    assert.match(css, /#mainMenu \.game-logo \{[^}]*padding-bottom: 3\.2em;/);
+    assert.match(css, /#mainMenu #splashPlayerName \{\s*position: absolute;/);
+    assert.match(css, /animation-play-state: paused !important;/);
+    assert.match(read("js/neon-logo.js"), /NeonLogo\.render\(savedLanguage\);[\s\S]*requestAnimationFrame\(\(\) => splash\.removeAttribute\("data-splash-pending"\)\)/);
 });
 
 test("render centres every SVG layer on the actual artwork and refits when language changes", () => {
