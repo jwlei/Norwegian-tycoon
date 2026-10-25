@@ -1,0 +1,54 @@
+{
+  "measuredAt": "2026-10-25",
+  "environment": {
+    "browser": "VS Code integrated browser, Chromium 150.0.7871.250, Electron 43.7.7",
+    "os": "Windows",
+    "viewport": [655, 1036],
+    "devicePixelRatio": 1,
+    "logicalCores": 16,
+    "cpuThrottling": "none"
+  },
+  "workload": {
+    "cards": 26,
+    "foil": "rainbow",
+    "styles": ["normal", "cosmic"],
+    "cardCssPixels": [100, 150],
+    "warmupMs": 600,
+    "measuredSweepMs": 3000,
+    "sweep": "Two cosine-shaped out-and-back cycles across the overflowing hand",
+    "idle": "on except baked and static-css",
+    "offscreenAnimations": "Paused with IntersectionObserver and 128px root margin",
+    "comparisonSamples": "Hidden and animations paused during each run",
+    "assets": "Decoded before timing; image generation excluded",
+    "trials": "Two per renderer, second trial reverses renderer order"
+  },
+  "metrics": {
+    "taskMs": "Delta of CDP Performance TaskDuration, in milliseconds, around the complete run including warm-up and test UI. Main-thread task time, not GPU time.",
+    "styleMs": "Delta of CDP Performance RecalcStyleDuration in milliseconds; subset of taskMs.",
+    "mean": "Mean requestAnimationFrame interval in milliseconds during the measured sweep.",
+    "p95": "Nearest-rank 95th percentile requestAnimationFrame interval in milliseconds.",
+    "worst": "Longest requestAnimationFrame interval in milliseconds.",
+    "slow": "Number of frame intervals over 25ms.",
+    "frames": "Number of recorded frame intervals."
+  },
+  "runs": [
+    {"trial": 1, "renderer": "baked", "mean": 7.043793911007026, "p95": 7, "worst": 20.8, "slow": 0, "frames": 427, "taskMs": 157, "styleMs": 25},
+    {"trial": 1, "renderer": "cached", "mean": 7.14394299287411, "p95": 7, "worst": 14, "slow": 0, "frames": 421, "taskMs": 284, "styleMs": 75},
+    {"trial": 1, "renderer": "simple", "mean": 7.14394299287411, "p95": 7.1, "worst": 14, "slow": 0, "frames": 421, "taskMs": 407, "styleMs": 137},
+    {"trial": 1, "renderer": "static-css", "mean": 7.010955710955713, "p95": 7, "worst": 13.9, "slow": 0, "frames": 429, "taskMs": 169, "styleMs": 26},
+    {"trial": 1, "renderer": "current", "mean": 7.143942992874106, "p95": 7, "worst": 14, "slow": 0, "frames": 421, "taskMs": 819, "styleMs": 471},
+    {"trial": 2, "renderer": "current", "mean": 7.144180522565322, "p95": 7.1, "worst": 14, "slow": 0, "frames": 421, "taskMs": 807, "styleMs": 469},
+    {"trial": 2, "renderer": "static-css", "mean": 7.027102803738323, "p95": 7, "worst": 13.9, "slow": 0, "frames": 428, "taskMs": 163, "styleMs": 26},
+    {"trial": 2, "renderer": "simple", "mean": 7.144180522565314, "p95": 7, "worst": 14, "slow": 0, "frames": 421, "taskMs": 413, "styleMs": 140},
+    {"trial": 2, "renderer": "cached", "mean": 7.143942992874106, "p95": 7, "worst": 14, "slow": 0, "frames": 421, "taskMs": 286, "styleMs": 74},
+    {"trial": 2, "renderer": "baked", "mean": 7.010722610722607, "p95": 7, "worst": 13.9, "slow": 0, "frames": 429, "taskMs": 144, "styleMs": 25}
+  ],
+  "limitations": [
+    "This is a preview benchmark of a scrolling hand, not the entire game, SVG depth renderer or landing physics.",
+    "No GPU raster/compositing time, energy use or phone performance was measured.",
+    "All variants met this desktop's frame budget; no frame-rate improvement is established.",
+    "Baked variants use a self-contained static SVG image with foreignObject for browser raster caching, not a generated PNG.",
+    "Baked variants retain only a fixed foil pattern and add an approximate normal-blend reflection, not the original independently moving layers.",
+    "Rankings can change with viewport, display refresh rate, foil, card count, browser and hardware."
+  ]
+}

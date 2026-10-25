@@ -276,7 +276,7 @@ test("toast expiry fades quickly at fast speed and cancels safely when a new mes
     assert.equal(visible, false);
 });
 
-test("hiding toasts persists locally, clears the stack and hides only message speed settings", () => {
+test("messages default off, persist locally and hide only message speed settings", () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const saved = new Map();
     const button = {
@@ -304,26 +304,33 @@ test("hiding toasts persists locally, clears the stack and hides only message sp
     const listener = source.indexOf('        document.getElementById("hideToastsToggleButton").addEventListener');
     vm.runInContext(source.slice(listener, source.indexOf('        document.querySelectorAll(".speed-option[data-speed]")', listener)), context);
     assert.equal(button["aria-pressed"], "false");
-    assert.equal(speed.hidden, false);
-    assert.equal(region.hidden, false);
-    assert.equal(clears, 0);
-    saved.set("gameSpeed", "slow");
-    button.click();
-    assert.equal(saved.get("HideGameToasts"), "true");
-    assert.equal(button["aria-pressed"], "true");
     assert.equal(speed.hidden, true);
     assert.equal(region.hidden, true);
     assert.equal(clears, 1);
     assert.equal(context.spectatorJoinToastTimer, null);
     assert.equal(spectator.classList.removed, "is-visible");
-    context.updateToastVisibility();
-    assert.equal(speed.hidden, true, "Reopening settings restores the saved visibility");
+    saved.set("gameSpeed", "slow");
     button.click();
     assert.equal(saved.get("HideGameToasts"), "false");
-    assert.equal(button["aria-pressed"], "false");
+    assert.equal(button["aria-pressed"], "true");
     assert.equal(speed.hidden, false);
     assert.equal(region.hidden, false);
+    assert.equal(clears, 1);
+    context.updateToastVisibility();
+    assert.equal(speed.hidden, false, "Reopening settings restores the saved visibility");
+    button.click();
+    assert.equal(saved.get("HideGameToasts"), "true");
+    assert.equal(button["aria-pressed"], "false");
+    assert.equal(speed.hidden, true);
+    assert.equal(region.hidden, true);
+    assert.equal(clears, 2);
     assert.equal(saved.get("gameSpeed"), "slow", "Hiding must not overwrite the saved message speed");
+    saved.delete("HideGameToasts");
+    context.updateToastVisibility();
+    assert.equal(region.hidden, true, "Cleared preferences restore the off default");
+    const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    assert.match(html, /id="hideToastsToggleButton" class="setting-row" aria-pressed="false">[\s\S]*?<strong>Meldinger<\/strong>/);
+    assert.doesNotMatch(html, /Skjul toast-meldinger/);
 });
 
 function exchangeSummaryFixture(speed = "fast") {

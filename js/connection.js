@@ -677,7 +677,7 @@
         }
 
         function gameToastsHidden() {
-            return getCookie("HideGameToasts") == "true";
+            return getCookie("HideGameToasts") != "false";
         }
 
         function maxVisibleMessages() {
@@ -686,7 +686,7 @@
 
         function updateToastVisibility() {
             var hidden = gameToastsHidden();
-            document.getElementById("hideToastsToggleButton").setAttribute("aria-pressed", String(hidden));
+            document.getElementById("hideToastsToggleButton").setAttribute("aria-pressed", String(!hidden));
             document.querySelector(".setting-speed").hidden = hidden;
             document.getElementById("gameToastRegion").hidden = hidden;
             if (hidden) {

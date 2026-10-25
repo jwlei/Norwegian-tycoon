@@ -56,7 +56,7 @@
     <link rel="stylesheet" href="css/card-depth.css?v=1.0.0&amp;rev=2">
 </head>
 
-<body>
+<body data-idle-foil-animation="on">
     <div id="gameShell" class="spectator-mode">
         <noscript>
             <h1>Boms og President – kortspill på nett</h1>
@@ -160,7 +160,7 @@
                     <span>Auto-pass</span>
                 </button>
             </div>
-            <div id="gameToastRegion" data-animation-speed="normal" data-max-visible="1">
+            <div id="gameToastRegion" data-animation-speed="normal" data-max-visible="1" hidden>
                 <div id="GameToast" class="game-toast" role="status" aria-live="polite" aria-atomic="true" data-i18n-skip></div>
             </div>
             <div id="spectatorJoinToast" class="game-toast" role="status" aria-live="polite" data-i18n-skip></div>
@@ -259,10 +259,10 @@
                 </div>
                 <h3 class="settings-category">Spill og styring</h3>
                 <button type="button" id="hideToastsToggleButton" class="setting-row" aria-pressed="false">
-                    <span class="setting-row__text"><strong>Skjul toast-meldinger</strong><small>Skjuler meldinger på spillbrettet for deg. Hendelser vises fortsatt i spilloggen.</small></span>
+                    <span class="setting-row__text"><strong>Meldinger</strong><small>Viser meldinger på spillbrettet for deg. Hendelser vises alltid i spilloggen.</small></span>
                     <span class="setting-row__switch" aria-hidden="true"><span></span></span>
                 </button>
-                <div class="setting-row setting-speed" role="group" aria-label="Meldinger">
+                <div class="setting-row setting-speed" role="group" aria-label="Meldinger" hidden>
                     <span class="setting-row__text"><strong>Meldinger</strong><small>Varighet på meldinger om spillhendelser</small></span>
                     <span class="speed-options">
                         <button type="button" class="speed-option" data-speed="fast" aria-pressed="false">Rask</button>
@@ -774,9 +774,9 @@
     <script src="js/layout.js?v=1.0.0&amp;rev=5"></script>
     <script src="js/engine.js?v=1.0.0&amp;rev=2"></script>
     <script src="js/bot-turn.js?v=1.0.0"></script>
-    <script src="js/connection.js?v=1.0.0&amp;rev=5"></script>
+    <script src="js/connection.js?v=1.0.0&amp;rev=7"></script>
     <script src="js/leaderboard.js?v=1.0.0"></script>
-    <script src="js/i18n.js?v=1.0.0&amp;rev=2"></script>
+    <script src="js/i18n.js?v=1.0.0&amp;rev=3"></script>
 </body>
 
 </html>

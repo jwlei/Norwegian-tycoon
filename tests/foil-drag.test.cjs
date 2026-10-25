@@ -663,11 +663,11 @@ test("foil reduces light and pattern movement by twenty percent with 400ms easin
     assert.match(css, /\.is-tilting::before,[\s\S]*?opacity: calc\(\.72 \* var\(--foil-strength\)\);/);
 });
 
-test("idle foil animation toggle defaults on, persists and synchronizes across tabs", () => {
+test("idle foil animation toggle defaults on, preserves opt-out, persists and synchronizes across tabs", () => {
     const connection = source("connection.js");
     const start = connection.indexOf("        function updateIdleFoilAnimation(");
     const block = connection.slice(start, connection.indexOf("        function updateCardShadowButtons(", start));
-    for (const saved of [undefined, "true", "false", "invalid"]) {
+    for (const saved of [undefined, null, "true", "false", "invalid"]) {
         const button = new Element();
         button.getAttribute = name => button.attributes[name];
         const body = new Element();
@@ -702,8 +702,14 @@ test("idle foil animation toggle defaults on, persists and synchronizes across t
         listeners[0]({ key: "norwegian-tycoon-cookie-IdleFoilAnimation", newValue: null });
         assert.equal(body.dataset.idleFoilAnimation, "on");
         assert.equal(button.attributes["aria-pressed"], "true");
+        assert.deepEqual(writes.pop(), ["IdleFoilAnimation", true, 1000]);
+        listeners[0]({ key: "norwegian-tycoon-cookie-IdleFoilAnimation", newValue: "true" });
+        assert.equal(body.dataset.idleFoilAnimation, "on");
+        assert.equal(button.attributes["aria-pressed"], "true");
+        assert.deepEqual(writes.pop(), ["IdleFoilAnimation", true, 1000]);
     }
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    assert.match(html, /<body data-idle-foil-animation="on">/);
     assert.match(html, /id="idleFoilAnimationToggleButton" class="setting-row" aria-pressed="true"/);
     const translations = source("i18n.js");
     assert.match(translations, /"Folieanimasjon i hvile": "Idle foil animation"/);

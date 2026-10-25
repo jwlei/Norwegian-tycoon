@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Foil renderer comparison</title>
+    <link rel="stylesheet" href="../css/foil.css">
+    <link rel="stylesheet" href="foil-performance-preview.css">
+</head>
+<body>
+<main>
+    <h1>Five foil renderers: cheapest to costliest measured CPU work</h1>
+    <p>Preview only: production rendering and saved settings are unchanged. Compare the same foil
+        on light and dark cards, then run each renderer alone in the scrolling test.
+        Ranked by main-thread work measured in the shared desktop browser, not universal GPU cost.
+        Use the scrolling test to compare on your device.</p>
+    <div class="controls">
+        <label>Foil <select id="foil"></select></label>
+        <label><input id="idle" type="checkbox" checked> Idle animation</label>
+        <label><input id="active" type="checkbox"> Active reflection strength</label>
+        <label>Scroll-test cards <select id="count"><option>26</option><option>52</option><option>104</option></select></label>
+    </div>
+    <output id="status" role="status" aria-live="polite"></output>
+    <section class="recorded">
+        <h2>Recorded desktop measurements</h2>
+        <p>26 cards, rainbow foil, light/dark styles, 100 &times; 150 CSS pixels per card.
+            Idle enabled except in the two static variants. Two runs per version in opposite orders;
+            each run has 0.6 seconds of warm-up and a three-second scrolling sweep.
+            Mean results below were measured on October 25, 2026 in VS Code's integrated browser:
+            Chromium 150 / Electron 43, Windows, 655 &times; 1036 viewport, DPR 1, 16 logical cores.</p>
+        <div class="results-wrap">
+            <table>
+                <caption>Main-thread time from Chrome DevTools Protocol Performance metrics, not GPU render time</caption>
+                <thead><tr><th>Rank / renderer</th><th>Task time / run</th><th>Style time / run</th><th>Task reduction</th><th>Mean frame</th></tr></thead>
+                <tbody>
+                    <tr><td>1. Fully cached static card</td><td>150.5 ms</td><td>25 ms</td><td>81.5%</td><td>7.03 ms</td></tr>
+                    <tr><td>2. Full CSS, no idle animation</td><td>166 ms</td><td>26 ms</td><td>79.6%</td><td>7.02 ms</td></tr>
+                    <tr><td>3. Cached card + light reflection</td><td>285 ms</td><td>74.5 ms</td><td>64.9%</td><td>7.14 ms</td></tr>
+                    <tr><td>4. Simpler CSS</td><td>410 ms</td><td>138.5 ms</td><td>49.6%</td><td>7.14 ms</td></tr>
+                    <tr><td>5. Current animated production CSS</td><td>813 ms</td><td>470 ms</td><td>Baseline</td><td>7.14 ms</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p><strong>No measurable stutter in this desktop test:</strong> p95 was about 7 ms for every
+            renderer, with zero frames over 25 ms. Lower CPU work is not proof of a faster GPU or a
+            particular phone's frame rate. Task time includes the warm-up, animation callbacks, style
+            work and test UI; style time is a subset. Assets were decoded before each timed run.
+            <a href="foil-performance-results.json">Raw measurements and methodology</a>.</p>
+    </section>
+    <section class="recorded">
+        <h2>iPhone 13-sized stress test (not real iPhone hardware)</h2>
+        <p>390 &times; 844 CSS pixels, DPR 3, mobile viewport emulation and 4&times; CPU slowdown
+            in the same desktop Chromium browser. Two opposite-order runs with the same workload.
+            The slowdown is <strong>not calibrated to A15</strong>: desktop GPU and approximately
+            144 Hz host scheduling remain, rather than iPhone Safari and its 60 Hz display.</p>
+        <div class="results-wrap">
+            <table>
+                <caption>Average CPU time per complete run; intervals over 16.67 ms summed across both runs</caption>
+                <thead><tr><th>Renderer</th><th>Task time</th><th>Style time</th><th>Task reduction</th><th>Intervals &gt; 16.67 ms</th></tr></thead>
+                <tbody>
+                    <tr><td>1. Fully cached static card</td><td>888.5 ms</td><td>116 ms</td><td>73.2%</td><td>0 / 852</td></tr>
+                    <tr><td>2. Full CSS, no idle animation</td><td>906.5 ms</td><td>116.5 ms</td><td>72.6%</td><td>0 / 852</td></tr>
+                    <tr><td>3. Cached card + light reflection</td><td>1472 ms</td><td>313.5 ms</td><td>55.5%</td><td>0 / 840</td></tr>
+                    <tr><td>4. Simpler CSS</td><td>1999.5 ms</td><td>681.5 ms</td><td>39.6%</td><td>1 / 842</td></tr>
+                    <tr><td>5. Current animated production CSS</td><td>3310 ms</td><td>1601.5 ms</td><td>Baseline</td><td>0 / 830</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p>p95 intervals remained 7.0&ndash;7.1 ms; no interval exceeded 25 ms. These results show
+            less CPU work, <strong>not an established iPhone frame-rate improvement</strong>.
+            The near-tie between the static methods is not a statistically established ranking.
+            GPU time, touch/momentum scrolling, memory, initial image generation and the full game
+            were not measured. Physical iPhone Safari testing is still required, including support
+            and visual fidelity of cached SVG images with foreignObject.
+            <a href="foil-performance-mobile-results.json">Raw mobile-profile measurements and limitations</a>.</p>
+    </section>
+    <div id="comparisons" class="comparisons"></div>
+    <section class="stress">
+        <h2>Isolated scrolling test</h2>
+        <p>Only the chosen renderer is drawn while this test runs. Drag the scrollbar, swipe sideways,
+            or run the repeatable three-second sweep. Compare on the device that stutters.</p>
+        <div class="controls">
+            <label>Renderer <select id="renderer"></select></label>
+            <button id="run" type="button">Run scrolling test</button>
+            <button id="run-all" type="button">Compare all five</button>
+        </div>
+        <div id="stress-hand" class="stress-hand" tabindex="0" aria-label="Scrollable test hand"></div>
+        <output id="metrics" role="status" aria-live="polite">No measurement yet.</output>
+        <div class="results-wrap">
+            <table>
+                <caption>Latest measured runs, sorted by p95 frame interval (lower is better)</caption>
+                <thead><tr><th>Renderer</th><th>Mean frame</th><th>p95 frame</th><th>Worst frame</th><th>Frames &gt; 25 ms</th></tr></thead>
+                <tbody id="results"><tr><td colspan="5">Run a comparison to measure this device.</td></tr></tbody>
+            </table>
+        </div>
+        <p><small>Reports requestAnimationFrame intervals, not GPU paint timings or a guaranteed FPS gain.
+            Browser scheduling, screen refresh rate and other tabs affect results. Reduced motion disables
+            idle effects and the automatic sweep; manual scrolling still works.</small></p>
+    </section>
+    <p><strong>What changes:</strong> the cached version flattens the card artwork, foil gradients,
+        filters and blend modes into one self-contained SVG image, which the browser can rasterize and reuse.
+        Only a small reflection transform animates outside the image. Its texture no longer
+        shifts independently with the light. The simpler CSS version replaces the elaborate texture with
+        a rainbow wash and repeating lines; it is intentionally less faithful.</p>
+    <p>All versions keep foil visible while scrolling. No canvases, WebGL contexts, remote assets,
+        production changes or saved preference changes are introduced by this preview.</p>
+</main>
+<script src="../js/cards.js"></script>
+<script src="foil-performance-preview.js"></script>
+</body>
+</html>

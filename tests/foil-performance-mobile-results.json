@@ -1,0 +1,60 @@
+{
+  "measuredAt": "2026-10-25",
+  "profile": "iPhone 13 screen geometry with uncalibrated desktop CPU stress",
+  "environment": {
+    "browser": "VS Code integrated browser, Chromium 150.0.7871.250, Electron 43.7.7",
+    "os": "Windows",
+    "viewport": [390, 844],
+    "devicePixelRatio": 3,
+    "logicalCores": 16,
+    "cpuSlowdown": 4,
+    "mobileEmulation": true,
+    "refreshRate": "Host scheduling retained, approximately 144 Hz; not iPhone 13 60 Hz"
+  },
+  "workload": {
+    "cards": 26,
+    "foil": "rainbow",
+    "styles": ["normal", "cosmic"],
+    "cardCssPixels": [100, 150],
+    "warmupMs": 600,
+    "measuredSweepMs": 3000,
+    "sweep": "Two cosine-shaped out-and-back cycles across the overflowing hand",
+    "idle": "on except baked and static-css",
+    "offscreenAnimations": "Paused with IntersectionObserver and 128px root margin",
+    "comparisonSamples": "Hidden and animations paused during each run",
+    "assets": "Decoded before timing; image generation excluded",
+    "trials": "Two per renderer, second trial reverses renderer order",
+    "trigger": "Programmatic button click; no touch-input latency measured"
+  },
+  "metrics": {
+    "taskMs": "CDP Performance TaskDuration delta in milliseconds around the complete run, including warm-up and test UI; not GPU time.",
+    "styleMs": "CDP Performance RecalcStyleDuration delta in milliseconds; subset of taskMs.",
+    "mean": "Mean requestAnimationFrame interval in milliseconds during the sweep.",
+    "p95": "Nearest-rank 95th percentile requestAnimationFrame interval in milliseconds.",
+    "worst": "Longest requestAnimationFrame interval in milliseconds.",
+    "over60HzBudget": "Count of intervals strictly greater than 1000/60 ms; not measured dropped frames on an actual 60 Hz display.",
+    "slow": "Count of intervals over 25 ms.",
+    "frames": "Number of recorded intervals."
+  },
+  "runs": [
+    {"trial":1,"renderer":"baked","mean":7.060093896713615,"p95":7,"worst":13.900000000000546,"over60HzBudget":0,"slow":0,"frames":426,"taskMs":944,"styleMs":115},
+    {"trial":1,"renderer":"static-css","mean":7.060328638497652,"p95":7,"worst":13.900000000000546,"over60HzBudget":0,"slow":0,"frames":426,"taskMs":938,"styleMs":114},
+    {"trial":1,"renderer":"cached","mean":7.178281622911697,"p95":7,"worst":14,"over60HzBudget":0,"slow":0,"frames":419,"taskMs":1550,"styleMs":317},
+    {"trial":1,"renderer":"simple","mean":7.144180522565322,"p95":7,"worst":14,"over60HzBudget":0,"slow":0,"frames":421,"taskMs":2045,"styleMs":683},
+    {"trial":1,"renderer":"current","mean":7.282324455205816,"p95":7.100000000002183,"worst":14,"over60HzBudget":0,"slow":0,"frames":413,"taskMs":3333,"styleMs":1603},
+    {"trial":2,"renderer":"current","mean":7.212470023980812,"p95":7.099999999998545,"worst":14,"over60HzBudget":0,"slow":0,"frames":417,"taskMs":3287,"styleMs":1600},
+    {"trial":2,"renderer":"simple","mean":7.144180522565322,"p95":7,"worst":20.799999999999272,"over60HzBudget":1,"slow":0,"frames":421,"taskMs":1954,"styleMs":680},
+    {"trial":2,"renderer":"cached","mean":7.144180522565322,"p95":7,"worst":14,"over60HzBudget":0,"slow":0,"frames":421,"taskMs":1394,"styleMs":310},
+    {"trial":2,"renderer":"static-css","mean":7.060328638497646,"p95":7,"worst":14,"over60HzBudget":0,"slow":0,"frames":426,"taskMs":875,"styleMs":119},
+    {"trial":2,"renderer":"baked","mean":7.060093896713629,"p95":7,"worst":14,"over60HzBudget":0,"slow":0,"frames":426,"taskMs":833,"styleMs":117}
+  ],
+  "limitations": [
+    "Screen geometry and density match iPhone 13, but 4x CPU throttling is arbitrary and not calibrated to A15.",
+    "Desktop Chromium, GPU, memory bandwidth and refresh scheduling remain; this does not emulate iPhone Safari or establish phone FPS.",
+    "No GPU raster/compositing time, energy, memory, touch input, momentum scrolling or real-device performance measured.",
+    "Only two runs per renderer; these are observed averages, not statistically established rankings.",
+    "This isolated preview excludes the rest of the game and image generation/initial rasterization cost.",
+    "Baked SVG foreignObject raster caching requires separate compatibility and fidelity validation in physical iPhone Safari.",
+    "DevTools tracing was unavailable due to a tracing-session conflict; only Performance-domain CPU metrics and rAF intervals are reported."
+  ]
+}
