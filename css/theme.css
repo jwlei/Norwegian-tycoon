@@ -2309,17 +2309,21 @@ select:focus-visible {
     padding: 36px 8px 44px;
 }
 
+.table-card-pile,
+.table-play {
+    --pile-fan-step: min(max(30px, min(48px, calc(var(--table-card-width) * 0.38))),
+        max(0px, calc((var(--board-width, 100vw) - var(--table-card-width) - var(--pile-depth, 0px) - var(--pile-edge-space)) / max(1, var(--pile-fan-count, 0)))));
+    --pile-fan-width: calc(var(--pile-fan-count, 0) * var(--pile-fan-step));
+    --landing-space-x: clamp(0px, calc((var(--board-width, 0px) - var(--table-card-width) - var(--pile-fan-width) - var(--pile-depth) - 64px) / 2), var(--landing-limit-x));
+    --landing-space-y: clamp(0px, calc((var(--board-height, 0px) - var(--table-card-height) - var(--pile-depth) - 64px) / 2), var(--landing-limit-y));
+}
+
 .table-card-pile {
     --table-card-height: clamp(96px, 25vh, 190px);
     --table-card-width: calc(var(--table-card-height) * 2 / 3);
     --pile-edge-space: max(128px, calc(var(--table-card-height) * 0.75));
     --landing-limit-x: 180px;
     --landing-limit-y: 120px;
-    --pile-fan-step: min(max(30px, min(48px, calc(var(--table-card-width) * 0.38))),
-        max(0px, calc((var(--board-width, 100vw) - var(--table-card-width) - var(--pile-depth, 0px) - var(--pile-edge-space)) / max(1, var(--pile-fan-count, 0)))));
-    --pile-fan-width: calc(var(--pile-fan-count, 0) * var(--pile-fan-step));
-    --landing-space-x: clamp(0px, calc((var(--board-width, 0px) - var(--table-card-width) - var(--pile-fan-width) - var(--pile-depth) - 64px) / 2), var(--landing-limit-x));
-    --landing-space-y: clamp(0px, calc((var(--board-height, 0px) - var(--table-card-height) - var(--pile-depth) - 64px) / 2), var(--landing-limit-y));
     position: relative;
     flex: 0 0 auto;
     width: calc(var(--table-card-width) + var(--pile-fan-width) + var(--pile-depth) + 10px);
@@ -2373,7 +2377,11 @@ select:focus-visible {
 
 .table-play {
     position: absolute;
-    inset: 0;
+    left: 50%;
+    top: 50%;
+    width: calc(var(--table-card-width) + var(--pile-fan-width) + var(--pile-depth) + 10px);
+    height: calc(var(--table-card-height) + var(--pile-depth) + 10px);
+    transform: translate(-50%, -50%);
     z-index: var(--play-index);
 }
 

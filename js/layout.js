@@ -1249,6 +1249,8 @@ class GameLayout {
             playElement.dataset.topPlay = String(playIndex == piles.length - 1);
             playElement.dataset.playSignature = signature;
             playElement.style.setProperty("--play-index", String(playIndex));
+            playElement.style.setProperty("--pile-fan-count", String(Math.max(0, pile.length - 1)));
+            playElement.style.setProperty("--pile-depth", `${Math.min((cardsOnTable + pile.length) * 2.5, compactStack ? 18 : 44)}px`);
             if (pile.motion) {
                 playElement.style.setProperty("--landing-x", `calc(${pile.motion.x} * var(--landing-space-x))`);
                 playElement.style.setProperty("--landing-y", `calc(${pile.motion.y} * var(--landing-space-y))`);
