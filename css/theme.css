@@ -368,13 +368,10 @@ button {
 
 button:hover {
     background: var(--accent-hover);
-    box-shadow: 0 8px 18px rgb(0 0 0 / 22%);
-    transform: translateY(-1px);
 }
 
 button:active {
     padding: 1vmin;
-    transform: translateY(1px);
 }
 
 button:disabled {

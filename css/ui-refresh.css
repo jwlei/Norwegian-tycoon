@@ -76,7 +76,13 @@
     }
 }
 
-/* Top bar: the existing settings, log, rules and home buttons as raised tonal buttons. */
+/* Solid controls in every theme; card artwork retains its own rendering effects. */
+button:not(.game-card) {
+    background-image: none !important;
+    box-shadow: none !important;
+}
+
+/* Top bar: the existing settings, log, rules and home buttons as flat tonal buttons. */
 #settingsButton,
 #homeButton,
 #gameLogButton,
@@ -84,10 +90,9 @@
 .game-menu-toggle {
     border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
     border-radius: 14px;
-    background: linear-gradient(180deg, color-mix(in srgb, var(--surface-soft) 88%, var(--ink)), var(--surface));
+    background: var(--surface-soft);
     color: var(--ink);
-    box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 10%, transparent), 0 1px 2px rgb(0 0 0 / 20%), 0 6px 16px rgb(0 0 0 / 16%);
-    transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
 }
 #settingsButton:hover,
 #homeButton:hover,
@@ -95,24 +100,16 @@
 #rulesButton:hover,
 .game-menu-toggle:hover {
     border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-    background: linear-gradient(180deg, color-mix(in srgb, var(--surface-soft) 80%, var(--accent)), var(--surface));
+    background: var(--surface-hover);
     color: var(--ink);
-    transform: translateY(-1px);
+    transform: none;
 }
 #settingsButton:active,
 #homeButton:active,
 #gameLogButton:active,
-#rulesButton:active { transform: translateY(0); }
+#rulesButton:active { transform: none; }
 
-/* Button hierarchy: filled primary actions with a soft highlight, tonal secondary actions. */
-#mainMenu > button,
-#mainMenu #quickPlayButton:not(:disabled),
-#gameMenu button,
-#playerActions button,
-.dialog-footer > button {
-    background-image: linear-gradient(180deg, rgb(255 255 255 / 14%), rgb(255 255 255 / 0%) 60%);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 22%), 0 1px 2px rgb(0 0 0 / 18%), 0 6px 16px color-mix(in srgb, var(--accent) 28%, transparent);
-}
+/* Button hierarchy: solid primary actions and quieter theme-coloured secondary actions. */
 #mainMenu > #joinGameButton,
 #gameMenu #inviteButton,
 #gameMenu #lobbyMainMenuButton,
@@ -122,7 +119,6 @@
     border-color: color-mix(in srgb, var(--accent) 35%, transparent);
     background-color: color-mix(in srgb, var(--accent) 16%, var(--surface));
     color: var(--ink);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%), 0 1px 2px rgb(0 0 0 / 16%);
 }
 #mainMenu > #joinGameButton:hover,
 #gameMenu #inviteButton:hover,
@@ -148,7 +144,7 @@
 .setting-row:hover,
 .setting-row:active,
 .setting-row:focus {
-    box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 7%, transparent), 0 1px 2px rgb(0 0 0 / 16%);
+    box-shadow: none;
 }
 .settings-category {
     color: var(--muted);
@@ -186,7 +182,7 @@
     border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
     border-radius: 12px;
     background: var(--felt-deep);
-    box-shadow: inset 0 1px 3px rgb(0 0 0 / 28%);
+    box-shadow: none;
 }
 .speed-option + .speed-option,
 .animation-speed-option + .animation-speed-option,
@@ -222,7 +218,7 @@
 .language-option[aria-pressed="true"]:hover {
     background: var(--accent);
     color: var(--on-accent);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 20%), 0 2px 6px rgb(0 0 0 / 20%);
+    box-shadow: none;
     opacity: 1;
 }
 
@@ -258,7 +254,7 @@ button:focus-visible {
 }
 .color-theme-preview > span + span {
     background: linear-gradient(90deg, var(--neon-a) 0 48%, transparent 48% 52%, var(--neon-b) 52% 100%);
-    box-shadow: 0 0 8px color-mix(in srgb, var(--neon-a) 50%, transparent);
+    box-shadow: none;
 }
 
 /* Flat AMOLED surfaces; keep neon, card depth and foil effects intact. */

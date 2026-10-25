@@ -149,8 +149,9 @@ test("neon pulse, flicker, flash and splash intro animate only opacity and trans
 
 test("top bar buttons, segmented controls and switches use the refreshed theme styling", () => {
     const css = read("css/ui-refresh.css");
-    assert.match(css, /#settingsButton,\s*#homeButton,\s*#gameLogButton,\s*#rulesButton,\s*\.game-menu-toggle \{[^}]*inset 0 1px 0/);
-    assert.match(css, /\.quick-play-options,\s*\.language-options \{[^}]*border-radius: 12px;[^}]*inset 0 1px 3px/);
+    assert.match(css, /button:not\(\.game-card\) \{\s*background-image: none !important;\s*box-shadow: none !important;/);
+    assert.match(css, /#settingsButton,\s*#homeButton,\s*#gameLogButton,\s*#rulesButton,\s*\.game-menu-toggle \{[^}]*background: var\(--surface-soft\);/);
+    assert.match(css, /\.quick-play-options,\s*\.language-options \{[^}]*border-radius: 12px;[^}]*box-shadow: none;/);
     assert.match(css, /#mainMenu \.quick-play-option\[aria-pressed="true"\],[\s\S]*?background: var\(--accent\);\s*color: var\(--on-accent\);/);
     assert.match(css, /\.setting-row\[aria-pressed="true"\] \.setting-row__switch \{[^}]*background: var\(--accent\);/);
     assert.match(css, /:focus-visible,\s*button:focus-visible \{\s*outline: 3px solid var\(--focus\);/);
@@ -158,4 +159,14 @@ test("top bar buttons, segmented controls and switches use the refreshed theme s
     assert.doesNotMatch(css, /\.avatar|avatar\s*\{/, "Player seats have no avatars");
     const theme = read("css/theme.css");
     assert.doesNotMatch(theme, /background: var\(--accent\);\s*color: #fff;/, "Accent fills use the theme's readable text colour");
+});
+
+test("secondary buttons keep their colours and utility toggles retain their original discreet styling", () => {
+    const css = read("css/ui-refresh.css");
+    assert.match(css, /#mainMenu > #joinGameButton,[\s\S]*?background-color: color-mix\(in srgb, var\(--accent\) 16%, var\(--surface\)\);/);
+    assert.doesNotMatch(css, /#playerActions button\s*[, {]/, "No broad action rule may restyle the nested utility controls");
+    const theme = read("css/theme.css");
+    assert.match(theme, /#fastForwardButton,\s*#autoSuggestionToggleButton,\s*#autoPassToggleButton \{[^}]*border: 0;[^}]*background: transparent;[^}]*box-shadow: none;[^}]*opacity: 0\.65;/);
+    assert.match(theme, /#autoPassToggleButton:active \{\s*background: transparent;\s*box-shadow: none;\s*transform: none;[^}]*opacity: 1;/);
+    assert.match(theme, /#autoPassToggleButton\[aria-pressed="true"\] > \.auto-pass-on \{\s*color: var\(--success\);/);
 });
