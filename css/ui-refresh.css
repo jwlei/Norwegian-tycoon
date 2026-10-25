@@ -382,7 +382,7 @@ button:focus-visible {
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
     gap: 12px;
-    padding: 0 16px 12px;
+    padding: 18px 16px 12px;
 }
 .leaderboard-toolbar .dialog-title { grid-column: 2; padding: 0; }
 .leaderboard-toolbar #leaderboardBotsToggleButton { justify-self: end; }

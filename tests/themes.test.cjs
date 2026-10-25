@@ -409,6 +409,9 @@ test("splash profile text wraps so long names cannot hide the logged-in player I
 });
 
 test("leaderboard uses a centered title and no visible hint text", () => {
+    const refresh = fs.readFileSync(path.join(__dirname, "..", "css", "ui-refresh.css"), "utf8");
+    assert.match(css, /\.dialog-title \{[^}]*padding-top: 18px;/);
+    assert.match(refresh, /\.leaderboard-toolbar \{[^}]*align-items: center;[^}]*padding: 18px 16px 12px;/);
     const dialog = html.slice(html.indexOf('id="dialogLeaderboard"'), html.indexOf('id="dialogResults"'));
     assert.match(dialog, /class="dialog-title">Leaderboard<\/div>/);
     assert.match(css, /#dialogLeaderboard \.dialog-title\s*\{[^}]*text-align:\s*center;/);
