@@ -34,15 +34,44 @@
     91% { opacity: .45; }
     93.5% { opacity: .7; }
 }
-@keyframes neon-logo-ignite {
-    0% { opacity: 0; }
-    8%, 24%, 46%, 68%, 84%, 100% { opacity: 1; }
-    12%, 29%, 50%, 73% { opacity: .05; }
-    17%, 35%, 57%, 78%, 90% { opacity: .65; }
-    39%, 61%, 93% { opacity: .15; }
-    96% { opacity: 1; }
+@keyframes neon-intro-back-card {
+    0% { opacity: .12; }
+    5%, 16% { opacity: .74; }
+    9%, 22% { opacity: .59; }
+    25%, 47% { opacity: .88; }
+    42%, 63% { opacity: .7; }
+    68%, 82%, 100% { opacity: 1; }
+    78% { opacity: .825; }
 }
-@keyframes neon-logo-glow-on { from { opacity: 0; } to { opacity: .78; } }
+@keyframes neon-intro-front-card {
+    0% { opacity: .08; }
+    11%, 26% { opacity: .79; }
+    18%, 32% { opacity: .59; }
+    38%, 64% { opacity: .925; }
+    58% { opacity: .71; }
+    69%, 90%, 100% { opacity: 1; }
+    87% { opacity: .85; }
+}
+@keyframes neon-intro-main {
+    0% { opacity: .15; }
+    8% { opacity: .8; }
+    17% { opacity: .71; }
+    30% { opacity: .89; }
+    46% { opacity: .79; }
+    59% { opacity: .95; }
+    74% { opacity: .875; }
+    86%, 100% { opacity: 1; }
+}
+@keyframes neon-intro-sub {
+    0% { opacity: .13; }
+    11% { opacity: .78; }
+    20% { opacity: .72; }
+    33% { opacity: .88; }
+    49% { opacity: .8; }
+    62% { opacity: .94; }
+    77% { opacity: .885; }
+    89%, 100% { opacity: 1; }
+}
 @keyframes splash-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes splash-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
@@ -54,12 +83,25 @@
 
     /* First visit: the UI fades in together while the sign keeps flickering. */
     #mainMenu.is-intro .neon-logo {
-        animation: neon-logo-ignite 2600ms steps(1, end) 150ms both,
-            neon-logo-flash 11s steps(1, end) 4s infinite;
+        animation: neon-logo-flash 11s steps(1, end) -505ms infinite;
     }
-    #mainMenu.is-intro .neon-logo__shadow { animation: splash-fade-in 320ms ease-out both; }
     #mainMenu.is-intro :is(.neon-logo__glow, .neon-logo__halo) {
-        animation: neon-logo-glow-on 380ms ease-out 380ms both, neon-logo-pulse 3.2s ease-in-out 760ms infinite;
+        animation: neon-logo-pulse 3.2s ease-in-out 2500ms infinite;
+    }
+    #mainMenu.is-intro .neon-logo__flicker {
+        animation: neon-logo-flicker 7s steps(1, end) -545ms infinite;
+    }
+    #mainMenu.is-intro svg:not(.neon-logo__shadow) .neon-logo__back-card {
+        animation: neon-intro-back-card 2500ms steps(1, end);
+    }
+    #mainMenu.is-intro svg:not(.neon-logo__shadow) .neon-logo__front-card {
+        animation: neon-intro-front-card 2500ms steps(1, end);
+    }
+    #mainMenu.is-intro svg:not(.neon-logo__shadow) .neon-logo__main {
+        animation: neon-intro-main 2500ms steps(1, end);
+    }
+    #mainMenu.is-intro svg:not(.neon-logo__shadow) .neon-logo__sub {
+        animation: neon-intro-sub 2500ms steps(1, end);
     }
     #mainMenu.is-intro > :not(.game-logo, script),
     #mainMenu.is-intro #splashPlayerName,

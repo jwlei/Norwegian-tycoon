@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="nb" data-theme="dark" data-color-theme="nattugle">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <title>Neonintro - tre varianter</title>
+    <link rel="stylesheet" href="../css/theme.css">
+    <link rel="stylesheet" href="../css/color-themes.css">
+    <link rel="stylesheet" href="../css/ui-refresh.css">
+    <style>
+        body { display: block; margin: 0; padding: 24px; min-height: 100dvh; overflow: auto; }
+        main { max-width: 1100px; margin: auto; }
+        h1 { font-size: 1.5rem; }
+        p { color: var(--muted); line-height: 1.5; }
+        .examples { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 20px; }
+        article { min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+        h2 { font-size: 1.1rem; }
+        .sign { position: relative; width: 100%; margin: 32px 0; aspect-ratio: var(--neon-ratio, 620 / 140); }
+        .demo-ui { display: grid; gap: 10px; }
+        .demo-ui button { margin: 0; width: 100%; pointer-events: none; }
+        .example .neon-logo, .example .neon-logo__glow,
+        .example .neon-logo__halo, .example .neon-logo__flicker { animation: none; }
+        .phase { font-variant-numeric: tabular-nums; }
+        @keyframes intro-cards {
+            0% { opacity: .12; }
+            5%, 16% { opacity: calc(1 - .52 * var(--flicker)); }
+            9%, 22% { opacity: calc(1 - .82 * var(--flicker)); }
+            25%, 47% { opacity: calc(1 - .24 * var(--flicker)); }
+            42%, 63% { opacity: calc(1 - .6 * var(--flicker)); }
+            68%, 82%, 100% { opacity: 1; }
+            78% { opacity: calc(1 - .35 * var(--flicker)); }
+        }
+        @keyframes intro-front-card {
+            0% { opacity: .08; }
+            11%, 26% { opacity: calc(1 - .42 * var(--flicker)); }
+            18%, 32% { opacity: calc(1 - .82 * var(--flicker)); }
+            38%, 64% { opacity: calc(1 - .15 * var(--flicker)); }
+            58% { opacity: calc(1 - .58 * var(--flicker)); }
+            69%, 90%, 100% { opacity: 1; }
+            87% { opacity: calc(1 - .3 * var(--flicker)); }
+        }
+        @keyframes intro-main {
+            0% { opacity: .15; }
+            8% { opacity: calc(1 - .4 * var(--flicker)); }
+            17% { opacity: calc(1 - .58 * var(--flicker)); }
+            30% { opacity: calc(1 - .22 * var(--flicker)); }
+            46% { opacity: calc(1 - .42 * var(--flicker)); }
+            59% { opacity: calc(1 - .1 * var(--flicker)); }
+            74% { opacity: calc(1 - .25 * var(--flicker)); }
+            86%, 100% { opacity: 1; }
+        }
+        @keyframes intro-sub {
+            0% { opacity: .13; }
+            11% { opacity: calc(1 - .44 * var(--flicker)); }
+            20% { opacity: calc(1 - .56 * var(--flicker)); }
+            33% { opacity: calc(1 - .24 * var(--flicker)); }
+            49% { opacity: calc(1 - .4 * var(--flicker)); }
+            62% { opacity: calc(1 - .12 * var(--flicker)); }
+            77% { opacity: calc(1 - .23 * var(--flicker)); }
+            89%, 100% { opacity: 1; }
+        }
+        @media (prefers-reduced-motion: no-preference) {
+            .example.playing .neon-logo {
+                animation: neon-logo-flash 11s steps(1, end) -505ms infinite;
+            }
+            .example.playing .intro-part { animation: var(--part) 2500ms steps(1, end); }
+            .example.playing .neon-logo__glow,
+            .example.playing .neon-logo__halo {
+                animation: neon-logo-pulse 3.2s ease-in-out 2500ms infinite;
+            }
+            .example.playing .neon-logo__flicker {
+                animation: neon-logo-flicker 7s steps(1, end) -545ms infinite;
+            }
+            .example.playing .demo-ui { animation: splash-fade-in 380ms ease-out 420ms both; }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Mer diskret neonintro</h1>
+    <p>Tre forslag: 2,5 sekunder oppstart, deretter den vanlige pulsen, flimringen og de sporadiske blinkene.
+        Uregelmessige lysfall hopper frem og tilbake mellom de to kortene, BOMS og OG PRESIDENT.
+        Delene starter svakt og tenner gradvis opp til full lysstyrke.
+        UI-et toner inn samlet etter 420 ms, som n&aring;.</p>
+    <p>Redusert bevegelse respekteres: da vises skiltene uten animasjon.</p>
+    <button type="button" id="replay">Spill alle p&aring; nytt</button>
+    <p id="phase" class="phase" role="status" aria-live="polite"></p>
+    <div class="examples">
+        <article class="example" style="--flicker: .7">
+            <h2>B &middot; 30 % mindre flimring</h2>
+            <p>Samme rytme som B, med 30 % svakere lysfall etter den f&oslash;rste tenningen.</p>
+            <div class="sign" data-neon-logo="intro-soft"></div>
+            <div class="demo-ui"><button type="button" tabindex="-1">Lag nytt spill</button><button type="button" tabindex="-1">Koble til med kode</button></div>
+        </article>
+        <article class="example" style="--flicker: .5">
+            <h2>B &middot; 50 % mindre flimring</h2>
+            <p>Samme oppstartssekvens, med halvparten s&aring; dype lysfall.</p>
+            <div class="sign" data-neon-logo="intro-balanced"></div>
+            <div class="demo-ui"><button type="button" tabindex="-1">Lag nytt spill</button><button type="button" tabindex="-1">Koble til med kode</button></div>
+        </article>
+        <article class="example" style="--flicker: .3">
+            <h2>B &middot; 70 % mindre flimring</h2>
+            <p>Den mest diskrete varianten: bare 30 % av de opprinnelige lysfallene.</p>
+            <div class="sign" data-neon-logo="intro-contact"></div>
+            <div class="demo-ui"><button type="button" tabindex="-1">Lag nytt spill</button><button type="button" tabindex="-1">Koble til med kode</button></div>
+        </article>
+    </div>
+</main>
+<script src="../js/neon-logo.js"></script>
+<script>
+    NeonLogo.render("no");
+    document.querySelectorAll(".neon-logo > svg:not(.neon-logo__shadow) > g").forEach(layer => {
+        Array.from(layer.children).forEach((part, index) => {
+            part.classList.add("intro-part");
+            part.style.setProperty("--part", ["intro-cards", "intro-front-card", "intro-main", "intro-sub"][index]);
+            if (part.classList.contains("neon-logo__flicker")) {
+                const wrapper = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                wrapper.classList.add("neon-logo__flicker");
+                part.classList.remove("neon-logo__flicker");
+                part.replaceWith(wrapper);
+                wrapper.append(part);
+            }
+        });
+    });
+    const examples = Array.from(document.querySelectorAll(".example"));
+    const phase = document.getElementById("phase");
+    let phaseTimer;
+    function replay() {
+        clearTimeout(phaseTimer);
+        examples.forEach(example => example.classList.remove("playing"));
+        void document.body.offsetWidth;
+        examples.forEach(example => example.classList.add("playing"));
+        const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        phase.textContent = reduced ? "Redusert bevegelse: ingen animasjon." : "Intro: 2,5 sekunder";
+        if (!reduced) {
+            phaseTimer = setTimeout(() => { phase.textContent = "Vanlig sekvens: puls, flimring og sporadiske blink"; }, 2500);
+        }
+    }
+    document.getElementById("replay").addEventListener("click", replay);
+    replay();
+</script>
+</body>
+</html>

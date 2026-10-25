@@ -121,7 +121,8 @@ test("logo measurement works while the splash is hidden and cleans up its tempor
 
 test("AMOLED flattens UI surfaces without disabling neon, cards or focus outlines", () => {
     const css = read("css/ui-refresh.css");
-    const flat = css.slice(css.indexOf("/* Flat AMOLED surfaces"), css.indexOf("#splashPlayerName"));
+    const start = css.indexOf("/* Flat AMOLED surfaces");
+    const flat = css.slice(start, css.indexOf("#splashPlayerName", start));
     assert.match(flat, /:root\[data-color-theme="amoled"\] \{ --shadow: none; \}/);
     assert.match(flat, /:is\(#gameShell, #mainMenu, #gameTable\) \{\s*background: #000;/);
     assert.match(flat, /button, \.dialog-window,[\s\S]*?background-image: none !important;\s*box-shadow: none !important;/);
@@ -132,7 +133,8 @@ test("AMOLED flattens UI surfaces without disabling neon, cards or focus outline
 
 test("neon pulse, flicker, flash and splash intro animate only opacity and transforms and respect reduced motion", () => {
     const css = read("css/ui-refresh.css");
-    for (const name of ["neon-logo-pulse", "neon-logo-flicker", "neon-logo-flash", "neon-logo-ignite", "neon-logo-glow-on",
+    for (const name of ["neon-logo-pulse", "neon-logo-flicker", "neon-logo-flash",
+        "neon-intro-back-card", "neon-intro-front-card", "neon-intro-main", "neon-intro-sub",
         "splash-fade-in", "splash-rise"]) {
         const frames = keyframes(css, name).replace(/(opacity|transform):[^;]+;/g, "");
         assert.doesNotMatch(frames, /[a-z-]+\s*:/, `${name} animates only opacity and transform`);
@@ -140,11 +142,18 @@ test("neon pulse, flicker, flash and splash intro animate only opacity and trans
     const motion = css.slice(css.indexOf("@media (prefers-reduced-motion: no-preference)"));
     assert.match(motion, /\.neon-logo \{ animation: neon-logo-flash 11s steps\(1, end\) 4s infinite; \}/, "The sign keeps flashing occasionally");
     assert.match(motion, /\.neon-logo__flicker \{ animation: neon-logo-flicker 7s/);
-    assert.match(motion, /#mainMenu\.is-intro \.neon-logo \{\s*animation: neon-logo-ignite 2600ms steps\(1, end\) 150ms both,/);
+    assert.match(motion, /#mainMenu\.is-intro \.neon-logo \{\s*animation: neon-logo-flash 11s steps\(1, end\) -505ms infinite;/);
+    assert.match(motion, /#mainMenu\.is-intro \.neon-logo__flicker \{\s*animation: neon-logo-flicker 7s steps\(1, end\) -545ms infinite;/);
+    for (const part of ["back-card", "front-card", "main", "sub"]) {
+        assert.ok(neonLogo().markup().includes(`class="neon-logo__${part}"`));
+        assert.ok(motion.includes(`animation: neon-intro-${part} 2500ms steps(1, end);`));
+    }
     assert.match(motion, /#mainMenu\.is-intro > :not\(\.game-logo, script\),[\s\S]*?#mainMenu\.is-intro #splashPlayerName,[\s\S]*?#gameShell:has\([^{}]+\{\s*animation: splash-fade-in 380ms ease-out 420ms both;/);
     assert.doesNotMatch(css, /--intro-index/);
-    assert.ok((keyframes(css, "neon-logo-ignite").match(/opacity: \.(?:05|15);/g) || []).length >= 2,
-        "Startup includes repeated near-off flickers");
+    assert.match(keyframes(css, "neon-intro-back-card"), /9%, 22% \{ opacity: \.59; \}/,
+        "The deepest card flicker is reduced by 50 percent from .18");
+    assert.equal(7000 * .87 - 545 - 2500, (7000 * .87) / 2,
+        "The first regular flicker follows the intro after half the previous wait");
     assert.match(css, /:root\[data-theme="light"\] \.neon-logo__tubes \* \{ stroke-width: 2\.1; \}/);
 });
 

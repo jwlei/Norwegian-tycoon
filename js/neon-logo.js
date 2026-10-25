@@ -14,24 +14,28 @@ const NeonLogo = {
     geometry(id, words, a, b) {
         const text = `font-family="'Segoe UI','Arial Black',Arial,sans-serif"`;
         return `
-            <g mask="url(#${id}-behind)">
+            <g class="neon-logo__back-card" mask="url(#${id}-behind)">
                 <g transform="rotate(-9 66 72)" ${b}>
                     <rect x="28" y="20" width="76" height="104" rx="12"/>
                     <text x="48" y="50" font-size="18" font-weight="700" text-anchor="middle" ${text} ${a}>A</text>
                     <path transform="translate(47 76) scale(1.15)" d="${this.heart}" ${a}/>
                 </g>
             </g>
-            <g transform="rotate(8 99 67)" ${b}>
+            <g class="neon-logo__front-card" transform="rotate(8 99 67)" ${b}>
                 <rect x="61" y="15" width="76" height="104" rx="12"/>
                 <text x="116" y="46" font-size="18" font-weight="700" text-anchor="middle" ${text}>K</text>
                 <path transform="translate(115 73) scale(1.05)" d="${this.spade}"/>
             </g>
-            <text x="168" y="${words.mainY}" font-size="${words.mainSize}" font-weight="800"
-                letter-spacing="${words.mainSpacing}" ${text} ${a}>${this.escape(words.main)}</text>
+            <g class="neon-logo__main">
+                <text x="168" y="${words.mainY}" font-size="${words.mainSize}" font-weight="800"
+                    letter-spacing="${words.mainSpacing}" ${text} ${a}>${this.escape(words.main)}</text>
+            </g>
             <g class="neon-logo__flicker" ${b}>
+                <g class="neon-logo__sub">
                 <text x="172" y="108" font-size="${words.subSize}" font-weight="700"
                     letter-spacing="${words.subSpacing}" ${text}>${this.escape(words.sub)}</text>
                 <path d="M171.5 120.5H396.5" stroke="url(#${id}-line)"/>
+                </g>
             </g>`;
     },
     // The front card hides the outline of the card behind it, as in the printed logo.
