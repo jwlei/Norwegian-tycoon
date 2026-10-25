@@ -1370,7 +1370,7 @@ select:focus-visible {
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
     padding: 22px 14px 6px;
-    touch-action: none;
+    touch-action: pan-x;
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
