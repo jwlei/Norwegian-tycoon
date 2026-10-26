@@ -114,6 +114,8 @@ receivers before calculating exposed samples, without changing the remaining vis
 
 Unchanged table updates keep their connected card DOM, depth state and foil clocks. Appending a play
 retains the existing cards while recalculating support-aware placement for the complete pile.
+Each play keeps its own centered fan and landing bounds, so adding cards does not shift
+cards already resting on the table.
 Changes to the game/round, seating, artwork, foil, motion or layout-size class invalidate reuse.
 Resizing still remeasures the pile; translated base bounds avoid accumulating subpixel offset errors.
 New table cards collect animation references in one read batch before synchronizing their idle phase.

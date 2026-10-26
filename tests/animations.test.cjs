@@ -15,6 +15,67 @@ function load(globals = {}) {
     return context;
 }
 
+test("appending plays keeps each existing play's centering, fan and landing geometry unchanged", () => {
+    const snapshot = style => JSON.parse(JSON.stringify(style));
+    const element = () => ({
+        dataset: {}, children: [], style: { opacity: "", setProperty(key, value) { this[key] = value; } },
+        setAttribute() {},
+        appendChild(child) { child.parentElement = this; this.children.push(child); },
+        querySelectorAll(selector) {
+            return this.children.flatMap(child => [
+                ...(selector === ".table-play__card" && child.className?.includes("table-play__card") ? [child] : []),
+                ...child.querySelectorAll(selector)
+            ]);
+        }
+    });
+    for (const compact of [false, true]) {
+        const board = element();
+        board.getBoundingClientRect = () => ({ width: compact ? 560 : 1000, height: compact ? 300 : 800 });
+        const context = load({
+            document: { getElementById: () => board, createElement: element },
+            window: { matchMedia: () => ({ matches: compact }) }
+        });
+        vm.runInContext(`
+            GameLayout.createCardImage = () => document.createElement("img");
+            GameLayout.styleForPlayer = () => "normal";
+            GameLayout.foilForPlayer = () => "none";
+            getRepeatedSinglePlay = () => null;
+            var game = {id:"test",round:1,shuffleStartedAt:123,players:[{name:"Owner"}]};
+            var single = new CardPile("Owner",new PresidentCard(1,7));
+            single.motion = {x:.8,y:-.7,power:.6,spin:2};
+            var piles = [single];
+            var first = GameLayout.createTablePile(game,piles,new Set());
+            document.getElementById("gameTable").appendChild(first.element);
+        `, context);
+        const firstPlay = board._tablePileView.plays[0].element;
+        const firstStyle = snapshot(firstPlay.style);
+        const firstCard = firstPlay.children[0];
+        const firstCardStyle = snapshot(firstCard.style);
+        vm.runInContext(`
+            var group = new CardPile("Owner",...[1,2,3,4].map(suit=>new PresidentCard(suit,8)));
+            piles.push(group);
+            var appended = GameLayout.createTablePile(game,piles,new Set([first.element.children[0].dataset.playSignature]));
+        `, context);
+        assert.equal(board._tablePileView.plays[0].element, firstPlay);
+        assert.deepEqual(snapshot(firstPlay.style), firstStyle);
+        assert.deepEqual(snapshot(firstCard.style), firstCardStyle);
+        assert.equal(firstPlay.style["--pile-fan-count"], "0");
+        assert.equal(firstPlay.style["--pile-depth"], "2.5px");
+        assert.equal(board._tablePileView.plays[1].element.style["--pile-fan-count"], "3");
+        assert.equal(board._tablePileView.plays[1].element.style["--pile-depth"], "12.5px");
+        vm.runInContext(`
+            delete document.getElementById("gameTable")._tablePileView;
+            GameLayout.createTablePile(game,piles,new Set());
+        `, context);
+        const rebuilt = board._tablePileView.plays[0].element;
+        assert.deepEqual(snapshot(rebuilt.style), firstStyle, "A full redraw preserves the same per-play geometry");
+        assert.deepEqual(snapshot(rebuilt.children[0].style), firstCardStyle);
+    }
+    const css = fs.readFileSync(path.join(__dirname, "..", "css", "theme.css"), "utf8");
+    assert.match(css, /\.table-card-pile,\s*\.table-play\s*\{[^}]*--pile-fan-step:[^}]*--landing-space-y:/);
+    assert.match(css, /\.table-play\s*\{[^}]*left: 50%;[^}]*top: 50%;[^}]*width: calc\([^;]*var\(--pile-fan-width\)[^}]*height: calc\([^;]*var\(--pile-depth\)[^}]*transform: translate\(-50%, -50%\)/);
+});
+
 test("card flights use the unrotated card size centred on a rotated card's bounds", () => {
     const context = load();
     context.card = {
