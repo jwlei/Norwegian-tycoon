@@ -383,12 +383,12 @@ test("PIN toggle aligns with the full-width name field without horizontal button
     assert.match(css, /#playerUsePin\s*\{\s*margin:\s*8px 0;\s*\}/);
 });
 
-test("visible release and versioned local assets use version 1.1.2", () => {
-    assert.ok(html.includes('aria-label="Spillversjon 1.1.2">v1.1.2</span>'));
-    const versions = Array.from(html.matchAll(/(?:src|href)="(?:js|css)\/[^"]+\?v=([^"&]+)/g),
-        match => match[1]);
-    assert.ok(versions.length > 0);
-    assert.ok(versions.every(version => version === "1.1.2"));
+test("visible release version comes from one metadata value", () => {
+    const version = html.match(/<meta name="app-version" content="([^"]+)">/)[1];
+    assert.equal(html.split(version).length - 1, 1);
+    assert.match(html, /versionElement\.textContent = "v" \+ version;/);
+    assert.match(html, /versionElement\.setAttribute\("aria-label", "Spillversjon " \+ version\);/);
+    assert.doesNotMatch(html, /(?:src|href)="(?:js|css)\/[^"]+\?v=/);
 });
 
 test("neutral-round vote uses compact single-line choices in both languages", () => {

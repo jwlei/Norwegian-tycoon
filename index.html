@@ -10,6 +10,8 @@
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#1e1e1e" />
+    <!-- App version -->
+    <meta name="app-version" content="1.1.3"> 
     <base href="/" />
     <link rel="icon" type="image/svg+xml" href="icons/clover-four.svg" />
     <title>Boms og President – gratis kortspill på nett for 2–4 spillere | Norwegian Tycoon</title>
@@ -49,13 +51,13 @@
     }
     </script>
     <link rel="stylesheet" href="css/common.css">
-    <link rel="stylesheet" href="css/game.css?v=1.1.2">
+    <link rel="stylesheet" href="css/game.css">
     <link rel="stylesheet" href="css/mobile.css">
-    <link rel="stylesheet" href="css/theme.css?v=1.1.2&amp;rev=11">
-    <link rel="stylesheet" href="css/color-themes.css?v=1.1.2&amp;rev=2">
-    <link rel="stylesheet" href="css/ui-refresh.css?v=1.1.2&amp;rev=15">
-    <link rel="stylesheet" href="css/foil.css?v=1.1.2&amp;rev=4">
-    <link rel="stylesheet" href="css/card-depth.css?v=1.1.2&amp;rev=2">
+    <link rel="stylesheet" href="css/theme.css?rev=11">
+    <link rel="stylesheet" href="css/color-themes.css?rev=2">
+    <link rel="stylesheet" href="css/ui-refresh.css?rev=15">
+    <link rel="stylesheet" href="css/foil.css?rev=4">
+    <link rel="stylesheet" href="css/card-depth.css?rev=2">
     <script id="applySavedColorTheme">
         // Applies the saved theme before first paint so the splash never flashes the default colours.
         (function () {
@@ -116,7 +118,7 @@
             <div id="publicLobbyError" class="public-lobby-error" role="alert"></div>
             <div class="splash-footer">
                 <a href="#leaderboard" id="leaderboardOpenButton" class="leaderboard-link" aria-haspopup="dialog">Leaderboard</a>
-                <small class="app-version"><span aria-label="Spillversjon 1.1.2">v1.1.2</span> · <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://jleiros.com" target="_blank" rel="noopener noreferrer">jleiros.com</a></small>
+                <small class="app-version"><span></span> · <a href="https://github.com/jwlei" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://jleiros.com" target="_blank" rel="noopener noreferrer">jleiros.com</a></small>
             </div>
         </div>
         <div id="gameMenu" role="group" aria-label="Spillkontroller" style="text-align: center; vertical-align: middle;">
@@ -828,7 +830,15 @@
     </div>
 
     <!-- The core Firebase JS SDK is always required and must be listed first -->
-    <script src="js/neon-logo.js?v=1.1.2&amp;rev=4"></script>
+    <script>
+        (function () {
+            var version = document.querySelector('meta[name="app-version"]').content;
+            var versionElement = document.querySelector(".app-version span");
+            versionElement.textContent = "v" + version;
+            versionElement.setAttribute("aria-label", "Spillversjon " + version);
+        })();
+    </script>
+    <script src="js/neon-logo.js?rev=4"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -850,21 +860,21 @@
     </script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js"></script>
-    <script src="js/cards.js?v=1.1.2"></script>
-    <script src="js/landing-geometry.js?v=1.1.2&amp;rev=4"></script>
-    <script src="js/card-depth.js?v=1.1.2&amp;rev=8"></script>
-    <script src="js/player.js?v=1.1.2"></script>
-    <script src="js/shared.js?v=1.1.2&amp;rev=3"></script>
-    <script src="js/identity.js?v=1.1.2"></script>
-    <script src="js/bot.js?v=1.1.2&amp;rev=2"></script>
-    <script src="js/presence.js?v=1.1.2"></script>
-    <script src="js/game.js?v=1.1.2&amp;rev=6"></script>
-    <script src="js/layout.js?v=1.1.2&amp;rev=8"></script>
-    <script src="js/engine.js?v=1.1.2&amp;rev=5"></script>
-    <script src="js/bot-turn.js?v=1.1.2"></script>
-    <script src="js/connection.js?v=1.1.2&amp;rev=12"></script>
-    <script src="js/leaderboard.js?v=1.1.2&amp;rev=2"></script>
-    <script src="js/i18n.js?v=1.1.2&amp;rev=9"></script>
+    <script src="js/cards.js"></script>
+    <script src="js/landing-geometry.js?rev=4"></script>
+    <script src="js/card-depth.js?rev=8"></script>
+    <script src="js/player.js"></script>
+    <script src="js/shared.js?rev=3"></script>
+    <script src="js/identity.js"></script>
+    <script src="js/bot.js?rev=2"></script>
+    <script src="js/presence.js"></script>
+    <script src="js/game.js?rev=6"></script>
+    <script src="js/layout.js?rev=8"></script>
+    <script src="js/engine.js?rev=5"></script>
+    <script src="js/bot-turn.js"></script>
+    <script src="js/connection.js?rev=12"></script>
+    <script src="js/leaderboard.js?rev=2"></script>
+    <script src="js/i18n.js?rev=9"></script>
 </body>
 
 </html>
