@@ -200,13 +200,7 @@ function assignPlayerColors(game) {
         });
 }
 
-const BOT_NAMES = [
-    "Knurt", "Boten Anna", "Turbo-Tore", "Haakon VIII", "Bomsen",
-    "Onkel Pass", "Severin Suveren", "H4cker-man", "Kurt-Josef", "Kjell-Bjarne",
-    "Steinar Storspiller", "Mathias (CEO)", "xXLegolasXx", "J21Oslo", "Guest_839201",
-    "Fetter Anton", "DeepSeek", "GPT6", "Jompa", "Sjefen_Over_Alle_Sjefer",
-    "Mysil Bergsprekken", "RNGesus", "Tante_Pose", "BobRoss", "IlIllIlIIl", "ギフテッド"
-];
+const BOT_NAMES = BotAI.skills.flatMap(skill => BotAI.buckets[skill]);
 
 function gameTurnSeconds(value) {
     return [1, 2, 3].includes(Number(value)) ? Number(value) : TURN_ACTION_PAUSE_MS / 1000;
@@ -586,8 +580,7 @@ function isUpwardFlick(x, y, coneDegrees = CARD_TOUCH_PICKUP_CONE) {
         Math.tan((180 - coneDegrees) * Math.PI / 360);
 }
 
-// Input timestamps reflect when the finger actually moved, unlike handler time,
-// which jank (e.g. building the drag preview) can delay and distort.
+
 function pointerEventTime(event) {
     var now = performance.now();
     var stamp = event ? event.timeStamp : null;
