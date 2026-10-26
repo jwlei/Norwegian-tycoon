@@ -14,8 +14,8 @@ const CARD_DRAG_TABLE_HIGHLIGHT_ENABLED = false;
 // Input tuning: degrees, pixels, pixels per millisecond, then milliseconds.
 const CARD_TOUCH_PICKUP_CONE = 140;
 const CARD_FLICK_MIN_DISTANCE = 2;
-const CARD_FLICK_MIN_VELOCITY = 0.10;
-const CARD_FLICK_RELEASE_GRACE_MS = 50;
+const CARD_FLICK_MIN_VELOCITY = 0.15;
+const CARD_FLICK_RELEASE_GRACE_MS = 200;
 const CARD_FLICK_RECOIL_TOLERANCE = 3;
 
 var selectedCardKeys = new Set();
