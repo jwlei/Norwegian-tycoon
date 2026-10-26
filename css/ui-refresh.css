@@ -1,6 +1,3 @@
-/* UI refresh: neon splash logo, layered surfaces, felt table, segmented controls and theme-aware focus. */
-
-/* Neon logo: no backing board, only a soft shadow behind the tubes. */
 #mainMenu {
     align-content: start;
     padding-top: max(clamp(18px, 5vw, 56px), calc((100svh - 590px) / 2));

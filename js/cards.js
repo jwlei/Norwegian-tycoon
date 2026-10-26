@@ -25,10 +25,20 @@ class CardDeck extends Array {
 
 class Card {
     static foilConfigNames = {
-        holo: "stripes", galaxy: "stardust", v: "prism", vmax: "waves", vstar: "facets",
-        "full-art": "rings", "trainer-full-art": "weave", rainbow: "rainbow",
-        "rainbow-alt": "contrast", gold: "gold-sheen", radiant: "grid",
-        "gallery-holo": "iridescent", "gallery-v": "pearlescent", "gallery-vmax": "rays"
+        holo: "stripes", 
+        galaxy: "stardust", 
+        v: "prism", 
+        vmax: "waves", 
+        vstar: "facets",
+        "full-art": "rings", 
+        "trainer-full-art": "weave", 
+        rainbow: "rainbow",
+        "rainbow-alt": "contrast", 
+        gold: "gold-sheen", 
+        radiant: "grid",
+        "gallery-holo": "iridescent", 
+        "gallery-v": "pearlescent", 
+        "gallery-vmax": "rays"
     };
     static foilTreatments = {
         stripes: { opacityReduction: 30, saturation: 75, blend: "soft-light", printedFoil: true, fullReflection: false },
@@ -138,7 +148,11 @@ class Card {
             return Card.hasAllAppearanceUnlocks(playerName, playerKey) || ["mrhotbox", "tåkefyrsten", "bjørn"].includes(
                 playerName.trim().toLocaleLowerCase()) ? style : "normal";
         }
-        return ["normal", "holo", "gold", "pixel", "parallax", "neon",
+        return [
+            "normal", 
+            "holo", 
+            "gold", 
+            "pixel", "parallax", "neon",
             "monochrome", "minimalist", "cyberpunk", "glitched", "cosmic", "origami", "gothic",
             "silver", "crystal", "onyx-gold", "love-notes", "cherry-blossom", "solar-eclipse",
             "marble-noir", "stained-glass", "spellbook", "space-explorer", "tarot-moon",

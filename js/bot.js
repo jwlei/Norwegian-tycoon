@@ -3,12 +3,38 @@ class BotAI {
     static skills = ["good", "pro", "god"];
 
     static buckets = {
-        good: ["Bomsen", "Onkel Pass", "Guest_839201", "Knurt", "Turbo-Tore",
-            "Boten Anna", "Haakon VIII", "Kurt-Josef", "Kjell-Bjarne", "Mathias (CEO)",
-            "J21Oslo", "Tante_Pose", "IlIllIlIIl"],
-        pro: ["Severin Suveren", "H4cker-man", "Steinar Storspiller", "xXLegolasXx",
-            "DeepSeek", "Sjefen_Over_Alle_Sjefer", "Fetter Anton"],
-        god: ["GPT6", "RNGesus", "ギフテッド", "Mysil Bergsprekken", "BobRoss", "Jompa"]
+        good: [
+            "Bomsen", 
+            "Onkel Pass", 
+            "Guest_839201", 
+            "Knurt", 
+            "Turbo-Tore",
+            "Boten Anna", 
+            "Haakon VIII", 
+            "Kurt-Josef", 
+            "Kjell-Bjarne", 
+            "Mathias (CEO)",
+            "J21Oslo", 
+            "Tante_Pose", 
+            "IlIllIlIIl"
+        ],
+        pro: [
+            "Severin Suveren", 
+            "H4cker-man", 
+            "Steinar Storspiller", 
+            "xXLegolasXx",
+            "DeepSeek", 
+            "Sjefen_Over_Alle_Sjefer", 
+            "Fetter Anton"
+        ],
+        god: [
+            "GPT6", 
+            "RNGesus", 
+            "ギフテッド", 
+            "Mysil Bergsprekken", 
+            "BobRoss", 
+            "Jompa"
+        ]
     };
 
     static skillForName(name) {
