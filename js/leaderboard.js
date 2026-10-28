@@ -4,7 +4,7 @@ const PlayerLeaderboard = {
             (record.id.startsWith("bot-") || record.id == "PC"));
     },
     async load(includeBots = false) {
-        // Add .indexOn: ["lastActiveAt"] at /playerStats in the existing database rules.
+        // Indexed by .indexOn: ["lastActiveAt"] at /playerStats in database.rules.json.
         const ref = firebase.database().ref("playerStats");
         const rows = [];
         let cursor = null;

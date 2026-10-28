@@ -654,7 +654,7 @@ function loadGame(cardStyle = null, globals = {}) {
         console, getCookie: () => null, getPlayerKey: () => "human-key", setTimeout: () => 0,
         localStorage: { getItem: () => cardStyle }, ...globals
     });
-    for (const file of ["cards.js", "player.js", "bot.js", "presence.js", "game.js", "layout.js", "engine.js"]) {
+    for (const file of ["cards.js", "player.js", "bot.js", "presence.js", "game.js", "layout.js", "layout-animations.js", "layout-table.js", "layout-hand.js", "engine.js"]) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(source, context);
     }
@@ -2034,10 +2034,10 @@ test("normal exchange rendering fades illegal cards while sneaky exchanges allow
         console, getCookie: () => null, getPlayerKey: () => "human-key",
         setTimeout: () => 0, localStorage: { getItem: () => null }
     });
-    for (const file of ["cards.js", "player.js", "game.js", "engine.js"]) {
+    for (const file of ["cards.js", "player.js", "bot.js", "game.js", "engine.js"]) {
         vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context);
     }
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "layout-hand.js"), "utf8");
     const start = source.indexOf("                                var isSelectedForExchange");
     const end = source.indexOf("                                if (!cardButton.disabled)", start);
     for (const sneaky of [false, true]) {
@@ -2079,7 +2079,7 @@ function playButtonContext(options = {}) {
         clearCardSelection: () => selectedCardKeys.clear(),
         showInvalidCardWarning: () => { warnings++; }
     });
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "layout-hand.js"), "utf8");
     const start = source.indexOf("        var playSelectedCards = function (");
     const end = source.indexOf("        var selectCardsForSwipe", start);
     vm.runInContext(source.slice(start, end), context);
@@ -2128,7 +2128,7 @@ test("the play button plays exactly the selected cards and clears the selection"
 });
 
 test("tapping a selected group keeps only the tapped card, then allows adding cards individually", () => {
-    const source = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "layout-hand.js"), "utf8");
     const start = source.indexOf("                                    if (!playableStrengths.has(k.strengthRank))");
     const end = source.indexOf("                                    GameLayout.updateHand(", start);
     const { PresidentCard } = loadGame();
@@ -2218,7 +2218,7 @@ test("the max-visible selector persists independently and updates across tabs", 
     vm.runInContext(source.slice(source.indexOf("        function maxVisibleMessages()"),
         source.indexOf("        function updateToastVisibility()")) +
         source.slice(source.indexOf("        function updateMaxMessageButtons()"),
-            source.indexOf("        function updatePlayInputButtons()")), context);
+            source.indexOf("        function updateIdleFoilAnimation(")), context);
     assert.equal(context.maxVisibleMessages(), 1);
     assert.equal(buttons[0]["aria-pressed"], "true");
     buttons[1].click();
@@ -2533,6 +2533,65 @@ test("fast-forward transactions recheck eligibility, reschedule pauses and prese
     game.connectionOnline = false;
     await game.setFastForward(true);
     assert.equal(transactions, 3);
+});
+
+test("the fast-forward button is shown only to the host once only bots remain", () => {
+    const { game, players, types } = setupGame();
+    players[0].placement = 1;
+    players.push(new types.PresidentPlayer("Guest", "guest-key"));
+    players[3].placement = 2;
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const start = source.indexOf("        function updateFastForwardButton()");
+    const button = { hidden: false, disabled: false, setAttribute() {} };
+    const context = vm.createContext({
+        currentGame: game, currentPlayerName: null, GamePresence: types.GamePresence,
+        isLobbyHost: types.isLobbyHost, localizedMessage: text => text,
+        updateSpeedButtons() {}, updateTurnSpeedButtons() {},
+        document: { getElementById: () => button }
+    });
+    vm.runInContext(source.slice(start, source.indexOf("        document.getElementById(\"fastForwardButton\")", start)), context);
+    assert.equal(types.GamePresence.onlyBotsRemain(game), true);
+    for (const [viewer, hostKey, hidden] of [
+        ["Human", "human-key", false], ["Human", "guest-key", true], [null, "guest-key", true]
+    ]) {
+        game.hostKey = hostKey;
+        game.localPlayerName = viewer;
+        context.currentPlayerName = viewer;
+        context.updateFastForwardButton();
+        assert.equal(button.hidden, hidden, `${viewer}/${hostKey}`);
+    }
+});
+
+test("only the host can fast forward once only bots remain", async () => {
+    const { game, players } = setupGame();
+    players[0].placement = 1;
+    game.localPlayerName = players[0].name;
+    let record = {
+        status: "S", spillere: players.map(player => player.toRecord()),
+        hostKey: "human-key", fastForward: false
+    };
+    let transactions = 0;
+    game.databaseRef = { transaction: async update => {
+        transactions++;
+        const next = update(record);
+        if (next) { record = next; }
+    } };
+    game.hostKey = "other-host";
+    await game.setFastForward(true);
+    assert.equal(transactions, 0, "A finished non-host player cannot start a fast-forward write");
+    assert.equal(record.fastForward, false);
+    game.hostKey = "human-key";
+    record.hostKey = "other-host";
+    await game.setFastForward(true);
+    assert.equal(transactions, 1);
+    assert.equal(record.fastForward, false, "The stored host is rechecked when the client is stale");
+    record.hostKey = "human-key";
+    record.hostName = "Someone else";
+    await game.setFastForward(true);
+    assert.equal(record.fastForward, false, "A host key reused under another name is not the host");
+    delete record.hostName;
+    await game.setFastForward(true);
+    assert.equal(record.fastForward, true);
 });
 
 test("fast forward shortens bot actions and final pauses, then resets when the game finishes", () => {
@@ -3611,18 +3670,19 @@ test("public lobby rows remain clickable join buttons before and after refresh",
     assert.deepEqual(state.joins, ["123", "123"]);
 });
 
-test("public lobby rows describe personal animation speed instead of a shared pause", () => {
+test("public lobby rows show whether the lobby is waiting or already playing", () => {
     const { list, state } = publicLobbyContext();
     const lobby = { id: "123", host: "Host", players: 2, waiting: true, ts: Date.now() };
     state.update([lobby]);
     const button = list.querySelector(".public-lobby-entry");
-    assert.equal(button.children[1].textContent, "Personlig animasjonshastighet");
-    assert.equal(button.children[1].className, "public-lobby-entry__speed");
-    state.update([{ ...lobby, turnSeconds: 1 }]);
+    assert.equal(button.children[0].textContent, "Host · 2/4");
+    assert.equal(button.children[1].textContent, "Venter i lobby");
+    assert.equal(button.children[1].className, "public-lobby-entry__status");
+    assert.equal(button.className.split(" ").includes("is-running"), false);
+    state.update([{ ...lobby, waiting: false, turnSeconds: 1 }]);
     assert.equal(list.querySelector(".public-lobby-entry"), button);
-    assert.equal(button.children[1].textContent, "Personlig animasjonshastighet");
-    state.update([{ ...lobby, turnSeconds: 3 }]);
-    assert.equal(button.children[1].textContent, "Personlig animasjonshastighet");
+    assert.equal(button.children[1].textContent, "Spill pågår");
+    assert.equal(button.className.split(" ").includes("is-running"), true);
 });
 
 test("public lobby refresh keeps existing buttons, order and scroll position", () => {
@@ -3887,7 +3947,7 @@ test("lobby slots follow player order for every viewer and reuse faded empty sea
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8")
         .replace(/\r\n/g, "\n");
     const start = source.indexOf("        var placeElement =");
-    const end = source.indexOf("\n    }\n    static capturePlayOrigins", start);
+    const end = source.indexOf("\n    }\n    static exchangeStatus", start);
     function element() {
         return {
             children: [], className: "", dataset: {},
@@ -4073,11 +4133,12 @@ test("card style menu groups related styles and keeps secret styles first", () =
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
     const styles = Array.from(html.matchAll(/class="card-style-option" data-card-style="([^"]+)"/g),
         match => match[1]);
-    assert.deepEqual(styles, [
-        "botanical", "normal", "monochrome", "minimalist", "origami", "gothic",
-        "silver", "gold", "crystal", "holo", "parallax", "cosmic", "pixel", "neon", "cyberpunk", "glitched"
-    ]);
     const { PresidentCard } = loadGame();
+    assert.equal(styles[0], "botanical", "The secret style comes first");
+    const unlockOrder = styles.slice(1).map(style => PresidentCard.styleUnlockRounds(style));
+    assert.ok(unlockOrder.every(rounds => rounds != null), "Every listed style has an unlock milestone");
+    assert.deepEqual(unlockOrder, [...unlockOrder].sort((a, b) => a - b), "Styles are listed in unlock order");
+    assert.equal(new Set(styles).size, styles.length);
     const monochrome = decodeURIComponent(new PresidentCard(2, 12).toImageDataUri("monochrome").split(",")[1]);
     for (const hex of monochrome.match(/#[0-9a-f]{6}/gi)) {
         assert.equal(hex.slice(1, 3), hex.slice(3, 5));
@@ -5112,7 +5173,9 @@ test("auto pass preference defaults off and toggles persist with accessible stat
             document: { getElementById: () => button },
             currentGame: null
         });
-        vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "game.js"), "utf8"), context);
+        for (const file of ["bot.js", "game.js"]) {
+            vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context);
+        }
         const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
         const start = source.indexOf("        function toggleAutoPass()");
         vm.runInContext(source.slice(start, source.indexOf("        var lastShuffleStartedAt", start)), context);

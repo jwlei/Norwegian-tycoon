@@ -687,7 +687,7 @@
 
         function showConnectGameDialog() {
             document.getElementById("dialogJoinGameId").value = null;
-            document.getElementById("joinGameError").innerHTML = "";
+            document.getElementById("joinGameError").textContent = "";
             showDialog("JoinGame", true);
         }
 
@@ -1892,7 +1892,7 @@
 
         document.getElementById('dialogJoinGameOk').addEventListener('click', function () {
             joinGameById(document.getElementById("dialogJoinGameId").value, function (text) {
-                document.getElementById('joinGameError').innerHTML = text;
+                document.getElementById('joinGameError').textContent = text;
                 document.getElementById('dialogJoinGameId').focus();
             });
         });
@@ -2756,7 +2756,8 @@
             updateTurnSpeedButtons();
             var button = document.getElementById("fastForwardButton");
             if (!button) { return; }
-            button.hidden = !GamePresence.onlyBotsRemain(currentGame);
+            // Only the host controls playback speed once only bots remain.
+            button.hidden = !GamePresence.onlyBotsRemain(currentGame) || !isLobbyHost(currentGame);
             var player = currentGame && currentGame.getPlayer(currentPlayerName);
             button.disabled = !player || currentGame.connectionOnline === false ||
                 GamePresence.isBot(currentGame, player);
@@ -3112,10 +3113,10 @@
                 return `${hours}:${((remainingMinutes < 10) ? "0" : "")}${remainingMinutes}`;
             }
             if (currentGame && currentGame.round > 0) {
-                document.getElementById("gameStatusText").innerHTML =
+                document.getElementById("gameStatusText").textContent =
                     `Runde ${currentGame.round} - ${formatTime(currentGame.elapsedMinutes())}`;
             } else {
-                document.getElementById("gameStatusText").innerHTML = "";
+                document.getElementById("gameStatusText").textContent = "";
             }
         }, 1000);
     }

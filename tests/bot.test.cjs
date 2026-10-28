@@ -19,7 +19,7 @@ function loadBots() {
         CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } }
     });
     for (const file of [
-        "cards.js", "player.js", "bot.js", "presence.js", "game.js", "layout.js", "engine.js", "bot-turn.js"
+        "cards.js", "player.js", "bot.js", "presence.js", "game.js", "layout.js", "layout-animations.js", "layout-table.js", "layout-hand.js", "engine.js", "bot-turn.js"
     ]) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(source, context);

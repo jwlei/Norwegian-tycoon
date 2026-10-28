@@ -936,7 +936,7 @@ test("invalid artwork logs an explicit warning and retains the original image", 
 });
 
 test("production and interaction sandboxes load shared geometry before the native renderer", () => {
-    for (const file of ["index.html", "tests/card-tilt-sandbox.html", "tests/mouse-drag-sandbox.html"]) {
+    for (const file of ["index.html", "sandbox/card-tilt-sandbox.html", "sandbox/mouse-drag-sandbox.html"]) {
         const html = fs.readFileSync(path.join(__dirname, "..", file), "utf8");
         assert.match(html, /card-depth\.css/);
         assert.ok(html.indexOf("landing-geometry.js") < html.indexOf("card-depth.js"));

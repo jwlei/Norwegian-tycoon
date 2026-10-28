@@ -50,14 +50,14 @@
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "NOK" }
     }
     </script>
-    <link rel="stylesheet" href="css/common.css">
-    <link rel="stylesheet" href="css/game.css">
-    <link rel="stylesheet" href="css/mobile.css">
-    <link rel="stylesheet" href="css/theme.css?rev=11">
-    <link rel="stylesheet" href="css/color-themes.css?rev=2">
-    <link rel="stylesheet" href="css/ui-refresh.css?rev=15">
-    <link rel="stylesheet" href="css/foil.css?rev=4">
-    <link rel="stylesheet" href="css/card-depth.css?rev=2">
+    <link rel="stylesheet" href="css/common.css?rev=ab06da32">
+    <link rel="stylesheet" href="css/game.css?rev=6a126a50">
+    <link rel="stylesheet" href="css/mobile.css?rev=6217c4bf">
+    <link rel="stylesheet" href="css/theme.css?rev=5520450f">
+    <link rel="stylesheet" href="css/color-themes.css?rev=be696cdb">
+    <link rel="stylesheet" href="css/ui-refresh.css?rev=fd031dfe">
+    <link rel="stylesheet" href="css/foil.css?rev=59ac85c5">
+    <link rel="stylesheet" href="css/card-depth.css?rev=dd07a03f">
     <script id="applySavedColorTheme">
         // Applies the saved theme before first paint so the splash never flashes the default colours.
         (function () {
@@ -829,7 +829,6 @@
         </div>
     </div>
 
-    <!-- The core Firebase JS SDK is always required and must be listed first -->
     <script>
         (function () {
             var version = document.querySelector('meta[name="app-version"]').content;
@@ -838,43 +837,31 @@
             versionElement.setAttribute("aria-label", "Spillversjon " + version);
         })();
     </script>
-    <script src="js/neon-logo.js?rev=4"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
-    <script>
-        // Your web app's Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyAPzwDQP5O-Ki042JQ8H8M_82ujk30rKI8",
-            authDomain: "tycoon-240ff.firebaseapp.com",
-            databaseURL: "https://tycoon-240ff-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "tycoon-240ff",
-            storageBucket: "tycoon-240ff.firebasestorage.app",
-            messagingSenderId: "384963652157",
-            appId: "1:384963652157:web:705add99ad053d94669854",
-            measurementId: "G-5TP1MPNW8Q"
-        };
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-    </script>
+    <script src="js/neon-logo.js?rev=1035d3f7"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-database-compat.js"></script>
+    <script src="js/firebase-init.js?rev=f2e62f8b"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js"></script>
-    <script src="js/cards.js"></script>
-    <script src="js/landing-geometry.js?rev=4"></script>
-    <script src="js/card-depth.js?rev=8"></script>
-    <script src="js/player.js"></script>
-    <script src="js/shared.js?rev=3"></script>
-    <script src="js/identity.js"></script>
-    <script src="js/bot.js?rev=2"></script>
-    <script src="js/presence.js"></script>
-    <script src="js/game.js?rev=6"></script>
-    <script src="js/layout.js?rev=8"></script>
-    <script src="js/engine.js?rev=5"></script>
-    <script src="js/bot-turn.js"></script>
-    <script src="js/connection.js?rev=12"></script>
-    <script src="js/leaderboard.js?rev=2"></script>
-    <script src="js/i18n.js?rev=9"></script>
+    <script src="js/cards.js?rev=65932e45"></script>
+    <script src="js/landing-geometry.js?rev=0f1d2c92"></script>
+    <script src="js/card-depth.js?rev=66c1a509"></script>
+    <script src="js/player.js?rev=02c291d5"></script>
+    <script src="js/shared.js?rev=6609e2a5"></script>
+    <script src="js/identity.js?rev=1d5df15b"></script>
+    <script src="js/bot.js?rev=a9e266d1"></script>
+    <script src="js/presence.js?rev=c28bb1a2"></script>
+    <script src="js/game.js?rev=47dab9e2"></script>
+    <script src="js/layout.js?rev=d35d52ac"></script>
+    <script src="js/layout-animations.js?rev=0314b885"></script>
+    <script src="js/layout-table.js?rev=3063c284"></script>
+    <script src="js/layout-hand.js?rev=576167b5"></script>
+    <script src="js/engine.js?rev=fc5bcbf8"></script>
+    <script src="js/bot-turn.js?rev=8a5ffc1d"></script>
+    <script src="js/connection.js?rev=9411366a"></script>
+    <script src="js/leaderboard.js?rev=98194434"></script>
+    <script src="js/i18n.js?rev=8a85962f"></script>
 </body>
 
 </html>

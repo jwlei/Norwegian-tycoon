@@ -1,0 +1,14 @@
+{
+  "name": "norwegian-tycoon",
+  "private": true,
+  "description": "Boms og President – a browser card game for 2–4 players.",
+  "homepage": "https://playboms.eu/",
+  "scripts": {
+    "test": "node --test",
+    "stamp": "node scripts/stamp-revs.cjs",
+    "serve": "python -m http.server 8000"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

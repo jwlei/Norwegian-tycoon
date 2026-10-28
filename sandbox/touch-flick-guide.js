@@ -9,7 +9,7 @@ function touchFlickExample(angle, stage, distance, speed, hold = 0) {
         lastFlickX: x, lastFlickY: -y,
         lastFlickDistance: distance, lastFlickVelocity: speed,
         lastFlickMoveTime: null
-    }, {}) && hold <= 120;
+    }, {}) && hold <= CARD_FLICK_RELEASE_GRACE_MS;
     let verdict;
     if (axis == "horizontal") {
         verdict = "Horizontal scroll. This touch will not play a card.";
@@ -18,11 +18,11 @@ function touchFlickExample(angle, stage, distance, speed, hold = 0) {
     } else if (!isUpwardFlick(x, -y)) {
         verdict = "Drag only. This direction cannot finish as an upward flick.";
     } else if (distance < CARD_FLICK_MIN_DISTANCE) {
-        verdict = "Too short. A flick needs at least 10 px of recent movement.";
+        verdict = `Too short. A flick needs at least ${CARD_FLICK_MIN_DISTANCE} px of recent movement.`;
     } else if (speed < CARD_FLICK_MIN_VELOCITY) {
         verdict = `Too slow. Finish at ${CARD_FLICK_MIN_VELOCITY * 1000} px/s or faster to flick.`;
-    } else if (hold > 120) {
-        verdict = "Released too late. The recognized flick is more than 120 ms old.";
+    } else if (hold > CARD_FLICK_RELEASE_GRACE_MS) {
+        verdict = `Released too late. The recognized flick is more than ${CARD_FLICK_RELEASE_GRACE_MS} ms old.`;
     } else {
         verdict = "Valid flick. Release now to play the card.";
     }

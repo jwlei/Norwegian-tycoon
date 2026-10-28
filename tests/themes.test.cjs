@@ -7,6 +7,9 @@ const vm = require("node:vm");
 const css = fs.readFileSync(path.join(__dirname, "..", "css", "theme.css"), "utf8");
 const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 const themeCss = fs.readFileSync(path.join(__dirname, "..", "css", "color-themes.css"), "utf8");
+// GameLayout is split across layout.js and its layout-*.js extensions.
+const readLayout = () => ["layout.js", "layout-animations.js", "layout-table.js", "layout-hand.js"]
+    .map(file => fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8")).join("\n");
 const themes = ["classic", "darcula", "skumring", "hostlov", "kobolt", "monokai", "furu", "solarisert", "fjord", "modern", "atom",
     "nattugle", "vampyr", "mokka", "synthwave", "rose", "glod", "amoled", "sandstein", "salvie", "skifer", "lavendel", "sol", "papir", "vs-bla", "kontrast"];
 const lightThemes = ["sandstein", "salvie", "skifer", "lavendel", "sol", "papir", "vs-bla"];
@@ -121,7 +124,7 @@ test("rules separate player counts, keep voting on the voting screen, and transl
     assert.match(translations, /"Viseboms": "Vice Bum"/);
     const connection = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     assert.doesNotMatch(connection, /querySelectorAll\("\.speed-option"\)/);
-    const layout = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    const layout = readLayout();
     assert.match(layout, /round-start-vote__hint/);
     assert.match(layout, /Flertallet bestemmer\. Verten avgjør ved uavgjort\./);
 });
@@ -270,8 +273,8 @@ test("board toast uses one opacity animation owner and survives table redraws", 
     assert.ok(rule);
     assert.match(rule[1], /transition:\s*visibility 120ms ease;/);
     assert.doesNotMatch(rule[1], /transition:[^;]*opacity/);
-    const layout = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
-    assert.match(layout, /static clearTableContent\(table\)[\s\S]*?var persistent = new Set\(\[this\.toastRegion/);
+    const layout = readLayout();
+    assert.match(layout, /static clearTableContent\(table\b[^)]*\)[\s\S]*?var persistent = new Set\(\[this\.toastRegion/);
     assert.match(layout, /static setTableContent\(table, html\)[\s\S]*?table\.insertAdjacentHTML\("afterbegin", html\)/);
 });
 
@@ -281,7 +284,7 @@ test("table guidance is text-only and fades in after one second", () => {
     assert.match(css, /#gameTable:not\(:has\(#gameToastRegion:not\(\[hidden\]\) > \.game-toast\.is-visible\)\) > :is\(\.table-pile-summary, #tableTurnHint\)\s*\{[^}]*table-guidance-fade-in 240ms ease 1s both;/);
     assert.match(css, /#gameTable:has\(#gameToastRegion:not\(\[hidden\]\) > \.game-toast\.is-visible\) > :is\(\.table-pile-summary, #tableTurnHint\)\s*\{[^}]*opacity:\s*0;[^}]*animation:\s*none;/);
     assert.match(css, /#gameToastRegion\s*\{[^}]*z-index:\s*65;/);
-    const layout = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    const layout = readLayout();
     assert.ok(layout.includes('`På bordet ligger: ${describeRequiredPlay(game)}`'));
     assert.ok(layout.includes('`Du må slå: ${describeRequiredPlay(game)}`'));
     assert.match(layout, /tableSummary\.title = tableSummary\.textContent;/);
@@ -298,7 +301,7 @@ test("shuffle overlay uses a slower card animation, readable label and three-sec
 test("fast-forward controls live outside the board at the top-right of the actions area", () => {
     assert.match(html, /id="playerActions"[^>]*>\s*<div id="playbackControls">\s*<button[^>]*id="fastForwardButton"/);
     assert.match(css, /#playbackControls\s*\{[^}]*position:\s*absolute;[^}]*top:\s*4px;[^}]*right:\s*8px;/);
-    const layout = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    const layout = readLayout();
     assert.ok(!layout.includes("fastForwardElement"), "Table redraws must not reparent playback controls");
 });
 
@@ -348,7 +351,7 @@ test("mobile tables reclaim seventy percent of a pass button from action spacing
 });
 
 test("Norwegian passed-player badges use Pass", () => {
-    const layout = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    const layout = readLayout();
     assert.match(layout, /else if \(isPassed\) \{\s*turnText = "Pass";/);
     assert.doesNotMatch(layout, /"Passet"/);
 });
@@ -392,7 +395,7 @@ test("visible release version comes from one metadata value", () => {
 });
 
 test("neutral-round vote uses compact single-line choices in both languages", () => {
-    const layout = fs.readFileSync(path.join(__dirname, "..", "js", "layout.js"), "utf8");
+    const layout = readLayout();
     const translations = fs.readFileSync(path.join(__dirname, "..", "js", "i18n.js"), "utf8");
     assert.match(layout, /normalVote\.textContent = "Fortsett";/);
     assert.match(layout, /neutralVote\.textContent = "Alle nøytrale";/);

@@ -2026,7 +2026,7 @@ class PresidentGame extends Game {
     setFastForward(enabled) {
         var player = this.getPlayer(this.localPlayerName);
         if (this.connectionOnline === false || !player || player.playerKey != getPlayerKey() ||
-            GamePresence.isBot(this, player) || !GamePresence.onlyBotsRemain(this)) {
+            GamePresence.isBot(this, player) || !GamePresence.onlyBotsRemain(this) || !isLobbyHost(this)) {
             return Promise.resolve();
         }
         return this.databaseRef.transaction(record => {
@@ -2036,6 +2036,10 @@ class PresidentGame extends Game {
             );
             if (!member || member.spillerKey == "PC" ||
                 (record.controllers || {})[GamePresence.playerId(member)]) { return; }
+            // Only the host may change playback speed; recheck against the stored host.
+            var hostKey = record.hostKey ||
+                (record.spillere || []).find(candidate => candidate.spillerKey != "PC")?.spillerKey;
+            if (member.spillerKey != hostKey || (record.hostName && record.hostName != member.nick)) { return; }
             var update = { fastForward: enabled === true };
             if (record.turnPause && record.turnPause.until > Date.now()) {
                 update.turnPause = Object.assign({}, record.turnPause, {

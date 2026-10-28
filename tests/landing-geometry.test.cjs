@@ -310,8 +310,8 @@ test("a wide edge-constrained fan tightens only as needed, retaining readable sp
 });
 
 test("sandbox loads only native card assets, never the production WebGL renderer", () => {
-    const html = fs.readFileSync(path.join(__dirname, "landing-sandbox.html"), "utf8");
-    const js = fs.readFileSync(path.join(__dirname, "landing-sandbox.js"), "utf8");
+    const html = fs.readFileSync(path.join(__dirname, "..", "sandbox", "landing-sandbox.html"), "utf8");
+    const js = fs.readFileSync(path.join(__dirname, "..", "sandbox", "landing-sandbox.js"), "utf8");
     assert.doesNotMatch(html, /card-depth|depth-renderer|firebase|src=".*game\.js/);
     assert.doesNotMatch(js, /getContext|createElement\("canvas"\)|setInterval/);
     assert.match(html, /landing-geometry\.js/);

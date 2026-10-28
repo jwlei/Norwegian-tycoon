@@ -58,7 +58,7 @@ test("the neon logo renders before blocking scripts and follows the selected lan
     assert.ok(html.indexOf("js/neon-logo.js") > html.indexOf('id="dialogResults"'),
         "Logo initializes only after the complete menu and page markup");
     assert.match(menu, /data-splash-pending/);
-    assert.ok(html.indexOf("js/neon-logo.js") < html.indexOf("firebase-app.js"), "Logo script runs before Firebase loads");
+    assert.ok(html.indexOf("js/neon-logo.js") < html.indexOf("firebase-app-compat.js"), "Logo script runs before Firebase loads");
     assert.match(read("js/i18n.js"), /if \(window\.NeonLogo\) \{ window\.NeonLogo\.render\(language\); \}/);
     const layout = read("js/layout.js");
     assert.match(layout, /setClass\(mainMenu, "is-hidden", true\);\s*\/\/[^\n]*\n\s*setClass\(mainMenu, "is-intro", false\);/,

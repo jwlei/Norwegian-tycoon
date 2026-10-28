@@ -7,6 +7,17 @@ const vm = require("node:vm");
 const source = name => fs.readFileSync(path.join(__dirname, "..", "js", name), "utf8");
 const bounds = { left: 0, top: 0, right: 400, bottom: 300, width: 400, height: 300 };
 
+// Flick thresholds are tuned in game.js; derive test boundaries from them instead of copying values.
+const tuning = Object.fromEntries(Array.from(
+    source("game.js").matchAll(/^const (CARD_TOUCH_PICKUP_CONE|CARD_FLICK_\w+) = ([\d.]+);/gm),
+    ([, name, value]) => [name, Number(value)]));
+const HALF_CONE = tuning.CARD_TOUCH_PICKUP_CONE / 2;
+const MIN_DISTANCE = tuning.CARD_FLICK_MIN_DISTANCE;
+const MIN_VELOCITY = tuning.CARD_FLICK_MIN_VELOCITY;
+const GRACE_MS = tuning.CARD_FLICK_RELEASE_GRACE_MS;
+// Touch strokes within 15 degrees of horizontal scroll the hand (cardTouchDragAxis).
+const HORIZONTAL_ANGLE = 75;
+
 class Element {
     constructor() {
         this.dataset = {};
@@ -99,7 +110,7 @@ function fixture({ tableHighlight = false } = {}) {
             querySelectorAll: () => []
         }
     });
-    for (const name of ["cards.js", "player.js", "bot.js", "presence.js", "game.js", "layout.js", "engine.js"]) {
+    for (const name of ["cards.js", "player.js", "bot.js", "presence.js", "game.js", "layout.js", "layout-animations.js", "layout-table.js", "layout-hand.js", "engine.js"]) {
         const code = name == "game.js" && tableHighlight
             ? source(name).replace("const CARD_DRAG_TABLE_HIGHLIGHT_ENABLED = false;",
                 "const CARD_DRAG_TABLE_HIGHLIGHT_ENABLED = true;")
@@ -996,7 +1007,7 @@ test("idle preparation prioritizes selected cards and yields completely to activ
 });
 
 test("four-card movement performs one read before writes per frame and flushes the final position on return", () => {
-    const f = fixture();
+    const f = fixture({ tableHighlight: true });
     const hand = new Element();
     for (let suit = 1; suit <= 4; suit++) {
         const card = new Element();
@@ -1156,7 +1167,7 @@ test("releasing a dragged hand outside the board animates the preview back", () 
     assert.equal(f.card.classList.contains("is-drag-source"), false);
 });
 
-test("slow drops play only on the board and flicks require 10 pixels at 0.35 pixels per millisecond", () => {
+test("slow drops play only on the board and flicks require the minimum distance and speed", () => {
     const f = fixture();
     f.context.document.getElementById("gameTable");
     const drag = { canDragToPlay: true, canSwipeToPlay: false, didPlayDrag: true,
@@ -1166,15 +1177,15 @@ test("slow drops play only on the board and flicks require 10 pixels at 0.35 pix
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 400 }), false);
     drag.canSwipeToPlay = true;
     drag.lastFlickDistance = 100;
-    drag.lastFlickVelocity = 0.1;
+    drag.lastFlickVelocity = MIN_VELOCITY * 0.6;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 400 }), false);
-    drag.lastFlickDistance = 9;
-    drag.lastFlickVelocity = 0.4;
+    drag.lastFlickDistance = MIN_DISTANCE - 0.5;
+    drag.lastFlickVelocity = MIN_VELOCITY * 2;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), false);
-    drag.lastFlickDistance = 10;
-    drag.lastFlickVelocity = 0.34;
+    drag.lastFlickDistance = MIN_DISTANCE;
+    drag.lastFlickVelocity = MIN_VELOCITY - 0.01;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), false);
-    drag.lastFlickVelocity = 0.35;
+    drag.lastFlickVelocity = MIN_VELOCITY;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), true);
     drag.lastFlickDistance = -16;
     assert.equal(f.context.shouldPlayCardDrag(drag, { clientX: 100, clientY: 476 }), false);
@@ -1223,7 +1234,7 @@ function pointerFixture({ desktop = false, valid = true, mode = "flick", blocked
         state.releaseVelocity = velocity;
     };
     context.clearDragStyles = () => {};
-    const layout = source("layout.js");
+    const layout = source("layout-hand.js");
     const start = layout.indexOf("        var handScrollDrag = null;");
     vm.runInContext(layout.slice(start, layout.indexOf("        var selectableExchanges", start)), context);
     function event(x, y, pointerId = 1) {
@@ -1352,7 +1363,7 @@ test("slow long drags outside the board never play, but fresh upward flicks do o
     for (const desktop of [false, true]) {
         const slow = pointerFixture({ desktop });
         slow.hand.onpointerdown(slow.event(100, 500));
-        slow.advance(2000);
+        slow.advance(1000 + 150 / (MIN_VELOCITY / 2));
         slow.hand.onpointermove(slow.event(100, 350));
         slow.hand.onpointerup(slow.event(100, 350));
         assert.equal(slow.state.plays, 0);
@@ -1366,15 +1377,15 @@ test("slow long drags outside the board never play, but fresh upward flicks do o
         held.hand.onpointerdown(held.event(100, 500));
         held.advance(1030);
         held.hand.onpointermove(held.event(100, 470));
-        held.advance(1200);
+        held.advance(1030 + GRACE_MS + 50);
         held.hand.onpointerup(held.event(100, 470));
         assert.equal(held.state.plays, 0, "A held card is no longer a flick");
     }
 });
 
-test("short flicks work throughout the upward 130 degree cone on mouse and touch", () => {
+test("short flicks work throughout the upward pickup cone on mouse and touch", () => {
     for (const desktop of [false, true]) {
-        for (const angle of [-65, -64, -60, -45, 0, 45, 60, 64, 65]) {
+        for (const angle of [-HALF_CONE, 1 - HALF_CONE, -45, 0, 45, HALF_CONE - 1, HALF_CONE]) {
             const f = pointerFixture({ desktop });
             const radians = angle * Math.PI / 180;
             const x = 100 + Math.sin(radians) * 13;
@@ -1397,7 +1408,7 @@ test("short flicks work throughout the upward 130 degree cone on mouse and touch
     }
 });
 
-test("mouse and touch accept a gentler flick but reject release strokes outside 130 degrees", () => {
+test("mouse and touch accept a gentler flick but reject release strokes outside the pickup cone", () => {
     for (const desktop of [false, true]) {
         const gentle = pointerFixture({ desktop });
         gentle.hand.onpointerdown(gentle.event(100, 500));
@@ -1405,7 +1416,8 @@ test("mouse and touch accept a gentler flick but reject release strokes outside 
         gentle.hand.onpointermove(gentle.event(100, 482));
         gentle.hand.onpointerup(gentle.event(100, 482));
         assert.equal(gentle.state.plays, 1, "360 px/s is above the reduced speed threshold");
-        for (const angle of [-80, -70, -65.1, 65.1, 70, 80]) {
+        for (const angle of [-(HALF_CONE + 15), -(HALF_CONE + 5), -(HALF_CONE + 0.1),
+            HALF_CONE + 0.1, HALF_CONE + 5, HALF_CONE + 15]) {
             const f = pointerFixture({ desktop });
             f.hand.onpointerdown(f.event(100, 500));
             f.advance(1100);
@@ -1423,9 +1435,9 @@ test("mouse and touch accept a gentler flick but reject release strokes outside 
     }
 });
 
-test("touch pickup accepts the full initial 130-degree cone from the contact point", () => {
+test("touch pickup accepts the full initial pickup cone from the contact point", () => {
     for (const selected of [false, true]) {
-        for (const angle of [-65, -64, -60, -45, 0, 45, 60, 64, 65]) {
+        for (const angle of [-HALF_CONE, 1 - HALF_CONE, -45, 0, 45, HALF_CONE - 1, HALF_CONE]) {
             const f = pointerFixture();
             if (selected) { vm.runInContext('selectedCardKeys.add("1:5")', f.context); }
             const radians = angle * Math.PI / 180;
@@ -1444,7 +1456,10 @@ test("touch pickup accepts the full initial 130-degree cone from the contact poi
 });
 
 test("touch strokes in the gap between pickup and horizontal scrolling remain undecided", () => {
-    for (const angle of [-74.5, -70, -65.1, 65.1, 70, 74.5]) {
+    const middle = (HALF_CONE + HORIZONTAL_ANGLE) / 2;
+    const gap = HALF_CONE + 0.1 < HORIZONTAL_ANGLE - 0.5
+        ? [HALF_CONE + 0.1, middle, HORIZONTAL_ANGLE - 0.5] : [];
+    for (const angle of gap.flatMap(angle => [-angle, angle])) {
         const f = pointerFixture();
         const radians = angle * Math.PI / 180;
         f.hand.onpointerdown(f.event(200, 500));
@@ -1495,10 +1510,10 @@ test("initial touch jitter stays undecided and slow diagonal pickup does not aut
 test("flicks outside the cone, too short, too slow, held or in button mode never play off-board", () => {
     for (const desktop of [false, true]) {
         for (const [angle, distance, duration, mode, hold] of [
-            [-81, 40, 30, "flick", 0], [81, 40, 30, "flick", 0],
+            [-(HALF_CONE + 11), 40, 30, "flick", 0], [HALF_CONE + 11, 40, 30, "flick", 0],
             [-90, 40, 30, "flick", 0], [90, 40, 30, "flick", 0],
-            [180, 40, 30, "flick", 0], [0, 9, 16, "flick", 0],
-            [60, 30, 200, "flick", 0], [60, 30, 20, "flick", 150],
+            [180, 40, 30, "flick", 0], [0, MIN_DISTANCE - 0.5, 16, "flick", 0],
+            [60, 30, 30 / (MIN_VELOCITY / 2), "flick", 0], [60, 30, 20, "flick", GRACE_MS + 30],
             [-60, 30, 20, "button", 0], [60, 30, 20, "button", 0]
         ]) {
             const f = pointerFixture({ desktop, mode });
@@ -1878,7 +1893,8 @@ test("direct touch flicks tolerate jitter before the minimum stroke has been rec
 });
 
 test("direct flick recognition keeps the same minimum speed despite early jitter", () => {
-    for (const speed of [0.2, 0.3, 0.45, 0.8]) {
+    for (const ratio of [0.5, 0.75, 1.125, 2]) {
+        const speed = MIN_VELOCITY * ratio;
         const f = pointerFixture();
         f.hand.onpointerdown(f.event(200, 500));
         for (const [distance, jitter] of [[6, 0], [6, 1], [14, 0]]) {
@@ -1886,7 +1902,7 @@ test("direct flick recognition keeps the same minimum speed despite early jitter
             f.hand.onpointermove(f.event(200, 500 - distance + jitter));
         }
         f.hand.onpointerup(f.event(200, 486));
-        assert.equal(f.state.plays, speed >= 0.4 ? 1 : 0, `${speed}px/ms`);
+        assert.equal(f.state.plays, speed >= MIN_VELOCITY ? 1 : 0, `${speed}px/ms`);
     }
 });
 
@@ -1921,7 +1937,7 @@ test("lift-off recoil tolerance works across touch flick angles and selected car
 });
 
 test("a recent flick is cancelled by deliberate downward or sideways movement, or holding", () => {
-    for (const [dx, dy, releaseTime] of [[0, 6, 1060], [20, 0, 1060], [0, 0, 1161]]) {
+    for (const [dx, dy, releaseTime] of [[0, 6, 1060], [20, 0, 1060], [0, 0, 1040 + GRACE_MS + 1]]) {
         const f = pointerFixture();
         f.hand.onpointerdown(f.event(200, 500));
         f.advance(1020);
@@ -1941,7 +1957,8 @@ test("small successive movements cannot renew or accumulate past the flick recoi
         f.advance(1030);
         f.hand.onpointermove(f.event(200, 476));
         let y = 476;
-        const times = finish == "reverse" ? [1040, 1050, 1060, 1070] : [1080, 1130, 1180];
+        const expiry = 1030 + GRACE_MS + 30;
+        const times = finish == "reverse" ? [1040, 1050, 1060, 1070] : [expiry - 100, expiry - 50, expiry];
         for (const time of times) {
             y += finish == "reverse" ? 1 : 0.5;
             f.advance(time);
@@ -2016,7 +2033,7 @@ test("resuming movement after a long hold needs no new pickup or drag deadline r
 });
 test("recent flick detection is consistent across pointer sampling rates at the new speed threshold", () => {
     for (const interval of [4, 8, 16, 32]) {
-        for (const speed of [0.3, 0.45, 0.75]) {
+        for (const speed of [0.75, 1.125, 1.875].map(ratio => MIN_VELOCITY * ratio)) {
             const f = pointerFixture();
             f.hand.onpointerdown(f.event(100, 500));
             f.advance(1400);
@@ -2028,7 +2045,7 @@ test("recent flick detection is consistent across pointer sampling rates at the 
                 f.hand.onpointermove(f.event(100, y));
             }
             f.hand.onpointerup(f.event(100, y));
-            assert.equal(f.state.plays, speed >= 0.4 ? 1 : 0, `${interval}ms/${speed}px/ms`);
+            assert.equal(f.state.plays, speed >= MIN_VELOCITY ? 1 : 0, `${interval}ms/${speed}px/ms`);
         }
     }
 });
@@ -2097,7 +2114,7 @@ test("flick intent follows the final vertical stroke, not earlier stronger movem
     weakFinal.hand.onpointermove(weakFinal.event(100, 470));
     weakFinal.advance(1050);
     weakFinal.hand.onpointermove(weakFinal.event(100, 490));
-    weakFinal.advance(1120);
+    weakFinal.advance(1050 + 24 / (MIN_VELOCITY / 2));
     weakFinal.hand.onpointermove(weakFinal.event(100, 466));
     weakFinal.hand.onpointerup(weakFinal.event(100, 466));
     assert.equal(weakFinal.state.plays, 0);

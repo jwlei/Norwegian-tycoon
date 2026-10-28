@@ -9,7 +9,7 @@ function load(globals = {}) {
         console, getCookie: () => null, getPlayerKey: () => "owner-key",
         localStorage: { getItem: () => null }, setTimeout: () => 0, ...globals
     });
-    for (const file of ["cards.js", "player.js", "bot.js", "presence.js", "game.js", "layout.js", "engine.js", "bot-turn.js"]) {
+    for (const file of ["cards.js", "player.js", "bot.js", "presence.js", "game.js", "layout.js", "layout-animations.js", "layout-table.js", "layout-hand.js", "engine.js", "bot-turn.js"]) {
         vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context);
     }
     return context;

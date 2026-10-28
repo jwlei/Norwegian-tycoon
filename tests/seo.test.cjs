@@ -35,7 +35,7 @@ for (const page of pages) {
         assert.equal(schema.inLanguage, page.language);
         assert.equal(schema.url, page.url);
         assert.equal(schema.about["@id"], "https://playboms.eu/#game");
-        const stylesheet = html.match(/<link rel="stylesheet" href="\/([^"]+)" \/>/)[1];
+        const stylesheet = html.match(/<link rel="stylesheet" href="\/([^"?]+)(?:\?rev=\w+)?" \/>/)[1];
         assert.ok(fs.existsSync(path.join(root, ...stylesheet.split("/"))));
     });
 }

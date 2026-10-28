@@ -6,13 +6,13 @@ const vm = require("node:vm");
 
 function preview() {
     const context = vm.createContext({});
-    vm.runInContext(fs.readFileSync(path.join(__dirname, "foil-performance-preview.js"), "utf8"), context);
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "sandbox", "foil-performance-preview.js"), "utf8"), context);
     return vm.runInContext("FoilPerformancePreview", context);
 }
 
 test("foil comparison has five distinct renderers ordered by recorded main-thread cost", () => {
     const api = preview();
-    const recorded = JSON.parse(fs.readFileSync(path.join(__dirname, "foil-performance-results.json"), "utf8"));
+    const recorded = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "sandbox", "foil-performance-results.json"), "utf8"));
     assert.deepEqual(Array.from(api.versions, version => version.id), ["baked", "static-css", "cached", "simple", "current"]);
     const averages = api.versions.map(version => {
         const runs = recorded.runs.filter(run => run.renderer === version.id);
@@ -40,7 +40,7 @@ test("baked foil image contains self-contained artwork and resolved static layer
 });
 
 test("mobile profile records two runs per renderer and discloses hardware limitations", () => {
-    const recorded = JSON.parse(fs.readFileSync(path.join(__dirname, "foil-performance-mobile-results.json"), "utf8"));
+    const recorded = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "sandbox", "foil-performance-mobile-results.json"), "utf8"));
     assert.deepEqual(recorded.environment.viewport, [390, 844]);
     assert.equal(recorded.environment.devicePixelRatio, 3);
     assert.equal(recorded.environment.cpuSlowdown, 4);
@@ -55,15 +55,15 @@ test("mobile profile records two runs per renderer and discloses hardware limita
             assert.ok(run.over60HzBudget >= run.slow && run.over60HzBudget <= run.frames);
         }
     }
-    const html = fs.readFileSync(path.join(__dirname, "foil-performance-preview.html"), "utf8");
+    const html = fs.readFileSync(path.join(__dirname, "..", "sandbox", "foil-performance-preview.html"), "utf8");
     assert.match(html, /href="foil-performance-mobile-results.json"/);
     assert.match(html, /not real iPhone hardware/);
 });
 
 test("preview keeps production CSS as reference and discloses benchmark limitations", () => {
-    const html = fs.readFileSync(path.join(__dirname, "foil-performance-preview.html"), "utf8");
-    const css = fs.readFileSync(path.join(__dirname, "foil-performance-preview.css"), "utf8");
-    const script = fs.readFileSync(path.join(__dirname, "foil-performance-preview.js"), "utf8");
+    const html = fs.readFileSync(path.join(__dirname, "..", "sandbox", "foil-performance-preview.html"), "utf8");
+    const css = fs.readFileSync(path.join(__dirname, "..", "sandbox", "foil-performance-preview.css"), "utf8");
+    const script = fs.readFileSync(path.join(__dirname, "..", "sandbox", "foil-performance-preview.js"), "utf8");
     assert.match(html, /href="\.\.\/css\/foil.css"/);
     assert.match(html, /id="run-all"/);
     assert.match(html, /not GPU render time/);

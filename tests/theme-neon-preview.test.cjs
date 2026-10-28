@@ -6,7 +6,7 @@ const vm = require("node:vm");
 
 function preview() {
     const context = vm.createContext({});
-    vm.runInContext(fs.readFileSync(path.join(__dirname, "theme-neon-preview.js"), "utf8"), context);
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "sandbox", "theme-neon-preview.js"), "utf8"), context);
     return vm.runInContext("ThemeNeonPreview", context);
 }
 
@@ -49,7 +49,7 @@ test("neon sign is layered, theme-coloured and animates only opacity", () => {
     assert.match(markup, /BOMS[\s\S]*og PRESIDENT/);
     assert.equal(new Set(markup.match(/id="[^"]+"/g)).size, (markup.match(/id="[^"]+"/g) || []).length);
     assert.doesNotMatch(markup, /(?:src|href)="https?:/);
-    const css = fs.readFileSync(path.join(__dirname, "theme-neon-preview.css"), "utf8");
+    const css = fs.readFileSync(path.join(__dirname, "..", "sandbox", "theme-neon-preview.css"), "utf8");
     for (const name of ["neon-pulse", "neon-flicker"]) {
         const start = css.indexOf(`@keyframes ${name}`);
         const frames = css.slice(start, css.indexOf("\n}", start));
@@ -70,7 +70,7 @@ test("neon sign is layered, theme-coloured and animates only opacity", () => {
     const motion = css.slice(css.indexOf("@media (prefers-reduced-motion: no-preference)"), css.indexOf("@keyframes intro-panel"));
     assert.match(motion, /\.mock-menu\.is-intro \{ animation: intro-panel/, "The intro is skipped with reduced motion");
     assert.match(motion, /neon-glow-on 520ms ease-out 560ms both, neon-pulse 3\.2s ease-in-out 1080ms infinite/);
-    const html = fs.readFileSync(path.join(__dirname, "theme-neon-preview.html"), "utf8");
+    const html = fs.readFileSync(path.join(__dirname, "..", "sandbox", "theme-neon-preview.html"), "utf8");
     assert.match(html, /class="mock-menu is-intro"/);
     assert.match(html, /id="replayIntro"/);
 });

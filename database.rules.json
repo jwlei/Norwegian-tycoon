@@ -1,0 +1,86 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "boms_1": {
+      "$gameId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        ".validate": "$gameId.matches(/^[1-9][0-9]{0,5}$/) && newData.hasChildren()"
+      }
+    },
+
+    "boms_public": {
+      ".read": "auth != null",
+      "$gameId": {
+        ".write": "auth != null",
+        ".validate": "$gameId.matches(/^[1-9][0-9]{0,5}$/) && newData.hasChildren(['id', 'host', 'players', 'waiting', 'ts'])",
+        "id": { ".validate": "newData.isString() && newData.val() == $gameId" },
+        "host": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100" },
+        "players": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 4" },
+        "bots": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 4" },
+        "turnSeconds": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 60" },
+        "waiting": { ".validate": "newData.isBoolean()" },
+        "ts": { ".validate": "newData.isNumber()" },
+        "$other": { ".validate": false }
+      }
+    },
+
+    "playerStats": {
+      ".read": "auth != null",
+      ".indexOn": ["lastActiveAt"],
+      "$playerKey": {
+        ".write": "auth != null && newData.exists()",
+        ".validate": "$playerKey.length <= 200 && newData.hasChildren()",
+        "name": { ".validate": "newData.isString() && newData.val().length <= 100" },
+        "names": {
+          "$index": { ".validate": "newData.isString() && newData.val().length <= 100" }
+        },
+        "isBot": { ".validate": "newData.isBoolean()" },
+        "nameUpdatedAt": { ".validate": "newData.isNumber()" },
+        "lastActiveAt": { ".validate": "newData.isNumber()" },
+        "presidentWins": { ".validate": "newData.isNumber() && newData.val() >= 0 && (data.isNumber() ? newData.val() >= data.val() && newData.val() <= data.val() + 1 : newData.val() <= 1)" },
+        "roundsPlayed": { ".validate": "newData.isNumber() && newData.val() >= 0 && (data.isNumber() ? newData.val() >= data.val() && newData.val() <= data.val() + 1 : newData.val() <= 1)" },
+        "bomsCount": { ".validate": "newData.isNumber() && newData.val() >= 0 && (data.isNumber() ? newData.val() >= data.val() && newData.val() <= data.val() + 1 : newData.val() <= 1)" }
+      }
+    },
+
+    "playerIds": {
+      "$playerKey": {
+        ".read": "auth != null",
+        ".write": "auth != null && newData.exists() && (!data.exists() || data.val() == newData.val())",
+        ".validate": "$playerKey.matches(/^[A-Za-z0-9]{6}$/) && newData.isString() && newData.val().matches(/^[a-f0-9]{32}$/)"
+      }
+    },
+
+    "playerNames": {
+      "$nameKey": {
+        ".read": "auth != null",
+        ".write": "auth != null && newData.exists()",
+        ".validate": "$nameKey.matches(/^[a-f0-9]{64}$/) && newData.hasChildren() && (!data.child('pinHash').exists() || newData.child('pinHash').val() == data.child('pinHash').val()) && (!data.child('pinSalt').exists() || newData.child('pinSalt').val() == data.child('pinSalt').val()) && (!data.child('playerKey').exists() || newData.child('playerKey').val() == data.child('playerKey').val()) && (!data.child('noPinPlayerKey').exists() || newData.child('noPinPlayerKey').val() == data.child('noPinPlayerKey').val())",
+        "name": { ".validate": "newData.isString() && newData.val().length <= 100" },
+        "pinProfiles": {
+          "$credential": {
+            ".validate": "$credential.matches(/^[a-f0-9]{64}$/) && newData.hasChildren(['playerKey'])",
+            "playerKey": { ".validate": "newData.isString() && newData.val().length <= 200 && (!data.exists() || data.val() == newData.val())" },
+            "pinVersion": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        }
+      }
+    },
+
+    "playerAppearance": {
+      "$playerKey": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        ".validate": "$playerKey.length <= 200 && newData.hasChildren(['updatedAt'])",
+        "style": { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "foil": { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "updatedAt": { ".validate": "newData.isNumber()" },
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}
