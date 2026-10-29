@@ -436,7 +436,7 @@ class GameLayout {
         if (!rules.length) { panel.replaceChildren(edit); return; }
         var head = make("div", "custom-rules-panel__head");
         var heading = make("span", "custom-rules-panel__heading");
-        heading.appendChild(make("span", "custom-rules-panel__title", `Egne regler · ${rules.length}`));
+        heading.appendChild(make("span", "custom-rules-panel__title", "Regler"));
         head.appendChild(heading);
         if (host) { head.appendChild(edit); }
         panel.replaceChildren(head);
