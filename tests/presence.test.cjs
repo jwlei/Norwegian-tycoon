@@ -909,8 +909,7 @@ test("optional exchanges refresh activity only for human offers, skips and sneak
         for (const bot of [false, true]) {
             const fixture = lifecycleGame();
             const { game } = fixture;
-            game.players[2].name = "ekrem";
-            game.players[2].playerKey = "eligible-human";
+            game.rules = { sevenJackTrade: true, sneakyTrade: true };
             if (bot) { game.players[0].playerKey = "PC"; }
             game.players.forEach((player, index) => { player.lastPlacement = index + 1; });
             const offer = {

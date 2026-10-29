@@ -247,7 +247,9 @@ class PresidentGame extends Game {
             this.id = Math.floor(Math.random() * 999999 + 1).toString();
             this.databaseRef = firebase.database().ref(`boms_1/${this.id}`);
             this.rules = {
-                showCardsOnly: false
+                showCardsOnly: false,
+                sevenJackTrade: false, // Custom rule: optional one-card 7–J trades after the card exchange.
+                sneakyTrade: false // Custom rule: mutual consent lifts the 7–J limit; needs sevenJackTrade.
             };
             this.status = 'O'; // O = waiting, G = exchanging cards, S = playing, F = finished, V = void.
             this.lastHumanActionAt = GamePresence.now();
@@ -347,7 +349,11 @@ class PresidentGame extends Game {
         var update = {
             status: this.status,
             lastHumanActionAt: this.lastHumanActionAt,
-            "regler": { "VisKunKort": this.rules.showCardsOnly },
+            "regler": {
+                "VisKunKort": this.rules.showCardsOnly,
+                "Bytte7Knekt": this.rules.sevenJackTrade === true,
+                "UreglementertBytte": this.rules.sneakyTrade === true
+            },
             "runde": this.round,
             "spillere": PresidentPlayer.serializePlayers(this.players),
             "spillBunke": this.status == "V" ? [] : this.serializePiles(),
@@ -1538,7 +1544,7 @@ class PresidentGame extends Game {
                     count: this.players.length == 2 ? 1 : 2,
                     mode: "Best"
                 }];
-                if (this.players.length == 3 && neutralIndex >= 0) {
+                if (this.players.length == 3 && neutralIndex >= 0 && isSevenJackTradeEnabled(this)) {
                     this.piles.push({
                         id: `offer:${this.round}:${presidentIndex}:${neutralIndex}`,
                         tradeId: `trade:${this.round}:${presidentIndex}:${neutralIndex}`,

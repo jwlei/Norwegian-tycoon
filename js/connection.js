@@ -1990,7 +1990,11 @@
                         connectingGame.hostName = hostRecord ? hostRecord.nick : null;
                     }
                     var storedRules = snapshotRecord["regler"] || {};
-                    connectingGame.rules = { showCardsOnly: storedRules["VisKunKort"] };
+                    connectingGame.rules = {
+                        showCardsOnly: storedRules["VisKunKort"],
+                        sevenJackTrade: storedRules["Bytte7Knekt"] === true,
+                        sneakyTrade: storedRules["UreglementertBytte"] === true
+                    };
                     connectingGame.round = snapshotRecord["runde"];
                     connectingGame.shuffleStartedAt = snapshotRecord["shuffleStartedAt"] || null;
                     ensureGameLog(connectingGame);

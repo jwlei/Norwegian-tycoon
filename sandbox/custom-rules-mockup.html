@@ -1,0 +1,1185 @@
+<!doctype html>
+<html lang="nb">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <!-- Resolve every relative URL (css/, js/, icons/, index.html) exactly as index.html does. -->
+    <base href="../">
+    <title>Egne regler – mockup</title>
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/game.css">
+    <link rel="stylesheet" href="css/mobile.css">
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/color-themes.css">
+    <link rel="stylesheet" href="css/ui-refresh.css">
+    <link rel="stylesheet" href="css/foil.css">
+    <link rel="stylesheet" href="css/card-depth.css">
+    <script>
+        // Same pre-paint theme application as index.html.
+        (function () {
+            var root = document.documentElement;
+            var saved = null;
+            try { saved = localStorage.getItem("norwegian-tycoon-cookie-ColorTheme"); } catch (error) { }
+            if (!saved) {
+                var match = document.cookie.match(/(?:^|;\s*)ColorTheme=([^;]*)/);
+                saved = match ? decodeURIComponent(match[1]) : null;
+            }
+            var light = { "vs-bla": true, sol: true, papir: true, sandstein: true, salvie: true, skifer: true, lavendel: true };
+            if (saved && /^[a-z-]+$/.test(saved)) { root.dataset.colorTheme = saved; }
+            root.dataset.theme = light[saved] ? "light" : "dark";
+        })();
+    </script>
+    <style>
+        /* ---------- Proposed production components (theme tokens only) ---------- */
+
+        /* Lobby: extra grid row between the seat grid and the action buttons. */
+        #gameShell.game-active.Lobby.has-custom-rules-row {
+            grid-template-rows: 60px auto minmax(180px, min(42dvh, 360px)) auto auto auto;
+        }
+        #gameShell.game-active.Lobby.has-custom-rules-row > #gameMenu > .lobby-primary-actions {
+            grid-row: 6 / 7;
+        }
+        .custom-rules-lobby { display: none; }
+        #gameShell.game-active.Lobby > .custom-rules-lobby:not([hidden]) {
+            display: grid;
+            grid-column: 1 / -1;
+            grid-row: 5 / 6;
+            justify-self: center;
+            width: min(calc(100% - 24px), 760px);
+        }
+
+        /* Lobby panel matching the seat grid surface. */
+        .custom-rules-panel {
+            gap: 8px;
+            padding: 10px 12px 12px;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: var(--surface);
+            box-shadow: var(--shadow);
+            color: var(--ink);
+        }
+        /* Title centred; the host's Edit button sits in the right column without pushing it off-centre. */
+        .custom-rules-panel__head {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+            align-items: center;
+            gap: 8px;
+            min-height: 32px;
+        }
+        .custom-rules-panel__heading {
+            grid-column: 2;
+            display: grid;
+            justify-items: center;
+            text-align: center;
+        }
+        #gameShell .custom-rules-panel__head > button.custom-rules-link { grid-column: 3; justify-self: end; }
+        .custom-rules-panel__title { font-weight: 800; }
+        .custom-rules-panel__count {
+            color: var(--muted);
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        #gameShell button.custom-rules-link,
+        #gameShell button.custom-rules-link:hover,
+        #gameShell button.custom-rules-link:active {
+            width: auto;
+            min-width: 0;
+            min-height: 32px;
+            margin: 0;
+            padding: 4px 12px;
+            border: 1px solid var(--control-border);
+            border-radius: 9px;
+            background: transparent;
+            box-shadow: none;
+            color: var(--ink);
+            font-size: 0.85rem;
+            transform: none;
+        }
+        #gameShell button.custom-rules-link:hover { background: var(--surface-hover); }
+        .custom-rules-chips {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 6px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+        #gameShell button.custom-rule-chip,
+        #gameShell button.custom-rule-chip:hover,
+        #gameShell button.custom-rule-chip:active {
+            display: inline-flex;
+            width: auto;
+            min-width: 0;
+            min-height: 32px;
+            margin: 0;
+            padding: 3px 12px;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line));
+            border-radius: 12px;
+            text-align: center;
+            background: color-mix(in srgb, var(--accent) 14%, var(--surface-soft));
+            box-shadow: none;
+            color: var(--ink);
+            font-size: 0.8rem;
+            font-weight: 650;
+            white-space: nowrap;
+            transform: none;
+        }
+        #gameShell button.custom-rule-chip:hover { background: color-mix(in srgb, var(--accent) 26%, var(--surface-soft)); }
+        #gameShell button.custom-rule-chip[aria-expanded="true"] {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: var(--on-accent);
+        }
+        #gameShell button.custom-rule-chip.is-inactive {
+            border-style: dashed;
+            border-color: var(--line);
+            background: transparent;
+            color: var(--muted);
+        }
+        .custom-rules-explain {
+            padding: 10px 12px;
+            border: 1px solid var(--control-border);
+            border-radius: 12px;
+            background: var(--surface-soft);
+        }
+        .custom-rules-explain > strong { display: block; margin-bottom: 4px; }
+        .custom-rules-explain > p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.85rem;
+            line-height: 1.45;
+        }
+        .custom-rules-hint {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.75rem;
+            text-align: center;
+        }
+
+        /* In-game pill in the table status dock. */
+        #gameShell button.custom-rules-pill,
+        #gameShell button.custom-rules-pill:hover,
+        #gameShell button.custom-rules-pill:active {
+            display: inline-flex;
+            width: auto;
+            min-width: 0;
+            min-height: 26px;
+            margin: 0;
+            padding: 2px 10px;
+            align-items: center;
+            border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line));
+            border-radius: 999px;
+            background: color-mix(in srgb, var(--accent) 14%, var(--surface-soft));
+            box-shadow: none;
+            color: var(--ink);
+            font-size: 0.75rem;
+            font-weight: 700;
+            white-space: nowrap;
+            transform: none;
+        }
+
+        /* Rules button badge (in game). */
+        #rulesButton { position: relative; }
+        .custom-rules-badge {
+            position: absolute;
+            top: 2px;
+            right: 0;
+            display: grid;
+            min-width: 16px;
+            height: 16px;
+            padding: 0 4px;
+            place-items: center;
+            border-radius: 8px;
+            background: var(--accent);
+            color: var(--on-accent);
+            font-size: 10px;
+            font-weight: 800;
+            line-height: 1;
+            pointer-events: none;
+        }
+
+        /* Public lobby list. */
+        .public-lobby-entry__name {
+            display: inline-flex;
+            min-width: 0;
+            align-items: center;
+            gap: 8px;
+        }
+        .public-lobby-entry__rules {
+            padding: 1px 8px;
+            border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line));
+            border-radius: 999px;
+            background: color-mix(in srgb, var(--accent) 14%, transparent);
+            font-size: 0.72rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        /* Long-dialog layout, as #dialogSettings (production adds the id to those selector lists). */
+        #dialogCustomRules .dialog-window {
+            display: flex;
+            flex-direction: column;
+            max-height: min(88dvh, 740px);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+        #dialogCustomRules .dialog-title { flex: 0 0 auto; padding-bottom: 12px; }
+        #dialogCustomRules .dialogBody {
+            flex: 1 0 auto;
+            min-height: auto;
+            max-height: none;
+            overflow: visible;
+            padding: 8px 16px 16px;
+            align-content: start;
+        }
+        #dialogCustomRules .message-settings { display: grid; gap: 0; }
+        #dialogCustomRules .dialog-footer {
+            float: none;
+            flex: 0 0 auto;
+            position: sticky;
+            bottom: 0;
+            z-index: 2;
+            border-top: 1px solid var(--line);
+            background: var(--surface);
+            align-items: center;
+        }
+        #dialogCustomRules .dialog-footer > button { flex: 0 1 auto; white-space: nowrap; }
+        #dialogCustomRules .speed-option { flex: 1 1 0; min-width: 0; padding-inline: 4px; font-size: 0.85rem; white-space: nowrap; }
+
+        /* Editor dialog rows. Dependent rules reuse the .message-settings group from Settings. */
+        .custom-rules-scope {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 0 6px;
+            border-radius: 6px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            overflow-wrap: normal;
+            vertical-align: 1px;
+            white-space: nowrap;
+        }
+        .custom-rules-scope { background: var(--felt-deep); color: var(--muted); }
+        #dialogCustomRules .settings-list > .setting-row.is-changed {
+            border-color: color-mix(in srgb, var(--accent) 60%, var(--control-border));
+        }
+        #dialogCustomRules .setting-row.is-inactive { opacity: 0.6; }
+        #dialogCustomRules .custom-rules-intro {
+            margin: 0 0 4px;
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+        #dialogCustomRules .custom-rules-preset-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 32px;
+        }
+        #dialogCustomRules button.custom-rules-save-preset,
+        #dialogCustomRules button.custom-rules-save-preset:hover,
+        #dialogCustomRules button.custom-rules-save-preset:active {
+            width: auto;
+            min-width: 0;
+            min-height: 32px;
+            margin: 0;
+            padding: 4px 12px;
+            border: 1px solid var(--control-border);
+            border-radius: 9px;
+            background: transparent;
+            box-shadow: none;
+            color: var(--ink);
+            font-size: 0.85rem;
+            font-weight: 700;
+            transform: none;
+        }
+        #dialogCustomRules button.custom-rules-save-preset:hover:not(:disabled) { background: var(--surface-hover); }
+        #dialogCustomRules button.custom-rules-save-preset:disabled { opacity: 0.5; cursor: default; }
+        .custom-rules-preset-status {
+            color: var(--muted);
+            font-size: 0.8rem;
+        }
+        .custom-rules-editor__count {
+            margin-right: auto;
+            color: var(--muted);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        /* Read-only lists (join confirmation, rules dialog). */
+        .custom-rules-list {
+            display: grid;
+            gap: 6px;
+            margin: 8px 0;
+            padding: 0;
+            list-style: none;
+        }
+        .custom-rules-list > li {
+            display: grid;
+            gap: 4px;
+            padding: 10px 12px;
+            border: 1px solid var(--control-border);
+            border-radius: 12px;
+            background: var(--surface-soft);
+            text-align: left;
+        }
+        .custom-rules-list > li.is-inactive { border-style: dashed; opacity: 0.7; }
+        .custom-rules-list small { color: var(--muted); line-height: 1.4; }
+        #customRulesSection { margin-bottom: 8px; }
+
+        /* ---------- Sandbox-only controls (not part of the proposal) ---------- */
+        #mockPanel {
+            position: fixed;
+            z-index: 5000;
+            right: 12px;
+            bottom: 12px;
+            width: min(calc(100vw - 24px), 330px);
+            max-height: calc(100dvh - 24px);
+            overflow: auto;
+            border: 1px dashed var(--line);
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--felt-deep) 94%, transparent);
+            color: var(--ink);
+            font: 12px/1.35 system-ui, sans-serif;
+            box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
+        }
+        #mockPanel button {
+            all: unset;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+        #mockPanel button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+        #mockPanelToggle {
+            display: flex !important;
+            width: 100%;
+            justify-content: space-between;
+            padding: 8px 12px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        #mockPanel.is-collapsed { width: auto; }
+        #mockPanel.is-collapsed #mockPanelBody { display: none; }
+        #mockPanelBody { display: grid; gap: 8px; padding: 0 12px 12px; }
+        .mock-group { display: grid; gap: 4px; }
+        .mock-group > span { color: var(--muted); font-weight: 700; }
+        .mock-options { display: flex; flex-wrap: wrap; gap: 4px; }
+        .mock-options > button {
+            padding: 4px 8px;
+            border: 1px solid var(--line);
+            border-radius: 7px;
+        }
+        .mock-options > button[aria-pressed="true"] {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: var(--on-accent);
+            font-weight: 700;
+        }
+        .mock-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+        .mock-actions > button {
+            padding: 5px 9px;
+            border: 1px solid var(--accent);
+            border-radius: 7px;
+            color: var(--ink);
+            font-weight: 700;
+        }
+        .mock-note { margin: 0; color: var(--muted); }
+        #mockError {
+            position: fixed;
+            inset: 20px;
+            z-index: 6000;
+            padding: 20px;
+            border-radius: 12px;
+            background: #400;
+            color: #fff;
+            font: 14px system-ui, sans-serif;
+        }
+    </style>
+</head>
+<body data-idle-foil-animation="on">
+    <aside id="mockPanel" data-i18n-skip aria-label="Mockup controls">
+        <button type="button" id="mockPanelToggle" aria-expanded="true"><span>Custom rules mockup</span><span aria-hidden="true">▾</span></button>
+        <div id="mockPanelBody">
+            <div class="mock-group"><span>Screen</span>
+                <div class="mock-options" data-key="screen">
+                    <button type="button" data-v="menu">Main menu</button>
+                    <button type="button" data-v="host">Lobby · host</button>
+                    <button type="button" data-v="guest">Lobby · guest</button>
+                    <button type="button" data-v="game">In game</button>
+                </div>
+            </div>
+            <div class="mock-group"><span>Active custom rules</span>
+                <div class="mock-options" data-key="count">
+                    <button type="button" data-v="0">None</button>
+                    <button type="button" data-v="1">7–J trade</button>
+                    <button type="button" data-v="2">7–J + sneaky</button>
+                </div>
+            </div>
+            <div class="mock-group"><span>Host's saved preset</span>
+                <div class="mock-options" data-key="saved">
+                    <button type="button" data-v="none">None</button>
+                    <button type="button" data-v="1">7–J trade</button>
+                    <button type="button" data-v="2">7–J + sneaky</button>
+                </div>
+            </div>
+            <div class="mock-group"><span>Players in lobby</span>
+                <div class="mock-options" data-key="seats">
+                    <button type="button" data-v="2">2</button>
+                    <button type="button" data-v="3">3</button>
+                    <button type="button" data-v="4">4</button>
+                </div>
+            </div>
+            <div class="mock-group"><span>Language</span>
+                <div class="mock-options" data-key="lang">
+                    <button type="button" data-v="no">Norsk</button>
+                    <button type="button" data-v="en">English</button>
+                </div>
+            </div>
+            <div class="mock-actions">
+                <button type="button" id="mockOpenEditor">Open host editor</button>
+                <button type="button" id="mockOpenJoin">Join confirmation</button>
+            </div>
+            <p class="mock-note">Real index.html markup and stylesheets, mock data. The theme follows Settings → Colour theme. Tap a rule chip in the lobby, a public lobby, the in-game pill or the top-bar Rules button.</p>
+        </div>
+    </aside>
+
+    <script>
+    (async function () {
+        "use strict";
+
+        // ---------- Rule catalogue (proposal) ----------
+        // Every custom rule is off by default; the defaults together are "Standard".
+        // Categories without rules are not rendered until rules are added to them.
+        var CATEGORIES = {
+            play: { no: "Spill", en: "Play" },
+            trade: { no: "Bytte", en: "Trade" },
+            finish: { no: "Avslutning", en: "Finishing" },
+            rounds: { no: "Runder", en: "Rounds" }
+        };
+        var RULES = [
+            { id: "sevenJack", cat: "trade", def: false,
+                no: "Bytte 7–knekt", en: "7–J trade",
+                dno: "Etter kortbyttet kan hver rolle tvinge et ettkortsbytte med rollen under, med kort fra 7 til knekt.",
+                den: "After the card exchange, each role may force a one-card trade with the role below, using cards from 7 to J.",
+                long: {
+                    2: { no: "Etter det vanlige kortbyttet kan Presidenten tvinge et ettkortsbytte med Boms. Begge velger et kort fra 7 til knekt. Presidenten kan hoppe over byttet; Boms kan ikke avslå.",
+                        en: "After the regular card exchange, the President may force a one-card trade with the Bum. Both choose a card from 7 to J. The President may skip the trade; the Bum can't refuse." },
+                    3: { no: "Etter det vanlige kortbyttet kan Presidenten tvinge et ettkortsbytte med Nøytral, og deretter kan Nøytral tvinge et ettkortsbytte med Boms. Begge velger et kort fra 7 til knekt. Bare den som starter byttet kan hoppe over; mottakeren kan ikke avslå. Nøytral kan ikke gi kortet fra Presidenten videre til Boms.",
+                        en: "After the regular card exchange, the President may force a one-card trade with the Neutral, then the Neutral may force one with the Bum. Both choose a card from 7 to J. Only the player who starts a trade may skip it; the other player can't refuse. The Neutral can't pass the President's card on to the Bum." },
+                    4: { no: "Etter det vanlige kortbyttet kan Presidenten tvinge et ettkortsbytte med Visepresidenten, deretter Visepresidenten med Viseboms, og til slutt Viseboms med Boms. Begge velger et kort fra 7 til knekt. Bare den som starter byttet kan hoppe over; mottakeren kan ikke avslå. Et kort du nettopp fikk, kan ikke gis videre i neste bytte.",
+                        en: "After the regular card exchange, the President may force a one-card trade with the Vice President, then the Vice President with the Vice Bum, and finally the Vice Bum with the Bum. Both choose a card from 7 to J. Only the player who starts a trade may skip it; the other player can't refuse. A card you just received can't be passed on in the next trade." }
+                } },
+            { id: "sneaky", cat: "trade", def: false, parent: "sevenJack",
+                no: "Ureglementert bytte", en: "Sneaky trade",
+                dno: "Samtykker begge i et 7–knekt-bytte, kan alle kort byttes.",
+                den: "If both players in a 7–J trade agree, any card can be traded.",
+                long: { no: "Begge spillerne i et 7–knekt-bytte kan samtykke til et ureglementert bytte. Samtykker begge, kan alle kort byttes, ikke bare 7 til knekt. Samtykket kan ikke trekkes tilbake etter at kort er valgt. Botter ser motspillerens kort når de velger hva de gir.",
+                    en: "Both players in a 7–J trade can agree to a sneaky trade. If both agree, any card can be traded, not just 7 to J. Consent can't be withdrawn once cards are chosen. Bots see the other player's cards when choosing what to give." } }
+        ];
+        var COUNT_SETS = {
+            "0": {},
+            "1": { sevenJack: true },
+            "2": { sevenJack: true, sneaky: true }
+        };
+        var PLAYERS = [
+            { name: "Ola", hue: 205, host: true },
+            { name: "Kari", hue: 32 },
+            { name: "Boten Anna", hue: 128, bot: true },
+            { name: "Per", hue: 300 }
+        ];
+
+        var state = {
+            screen: "host", count: "2", seats: 3,
+            rules: Object.assign({}, COUNT_SETS["2"]),
+            ready: { Ola: true, Kari: true, Per: false },
+            notice: false, draft: null, joinLobby: null, openRule: null,
+            savedPreset: loadSavedPreset(), randomRoll: null, presetJustSaved: false
+        };
+
+        // The host's own preset follows the player, not the lobby (production: profile or local storage).
+        var PRESET_KEY = "norwegian-tycoon-custom-rules-preset";
+        function loadSavedPreset() {
+            try {
+                var saved = JSON.parse(localStorage.getItem("norwegian-tycoon-custom-rules-preset"));
+                return saved && typeof saved == "object" ? saved : null;
+            } catch (error) { return null; }
+        }
+        function storeSavedPreset(rules) {
+            state.savedPreset = rules;
+            try {
+                if (rules) { localStorage.setItem(PRESET_KEY, JSON.stringify(rules)); }
+                else { localStorage.removeItem(PRESET_KEY); }
+            } catch (error) { }
+        }
+        // Each rule is a coin flip; dependent rules only when the parent is on. Never Standard, and never a repeat when avoidable.
+        function rollRandom(current) {
+            for (var attempt = 0; attempt < 20; attempt++) {
+                var roll = {};
+                RULES.forEach(def => {
+                    if (def.parent && roll[def.parent] !== true) { return; }
+                    if (Math.random() < 0.5) { roll[def.id] = !def.def; }
+                });
+                if (Object.keys(roll).length && !sameRules(roll, current)) { return roll; }
+            }
+            return roll;
+        }
+
+        // ---------- Helpers ----------
+        var en = () => window.I18n != null && window.I18n.isEnglish();
+        var tr = (no, enText) => en() ? enText : no;
+        var L = item => tr(item.no, item.en);
+        var D = item => tr(item.dno, item.den);
+        var el = id => document.getElementById(id);
+        function make(tag, className, text) {
+            var node = document.createElement(tag);
+            if (className) { node.className = className; }
+            if (text != null) { node.textContent = text; }
+            return node;
+        }
+        function setVisible(id, visible) { el(id).style.display = visible ? "" : "none"; }
+        var ruleById = id => RULES.find(def => def.id == id);
+        function rawValue(rules, def) { return Object.prototype.hasOwnProperty.call(rules, def.id) ? rules[def.id] : def.def; }
+        // A dependent rule only counts while its parent rule is on.
+        function valueOf(rules, def) {
+            if (def.parent && valueOf(rules, ruleById(def.parent)) !== true) { return def.def; }
+            return rawValue(rules, def);
+        }
+        function normalized(rules) {
+            var result = {};
+            RULES.forEach(def => { if (valueOf(rules, def) !== def.def) { result[def.id] = rules[def.id]; } });
+            return result;
+        }
+        function sameRules(a, b) { return JSON.stringify(normalized(a)) == JSON.stringify(normalized(b)); }
+        function applies(def, seats) { return !def.players || def.players.includes(seats); }
+        function scopeLabel(def) {
+            if (!def.players) { return ""; }
+            var range = def.players.length > 1 ? `${def.players[0]}–${def.players[def.players.length - 1]}` : `${def.players[0]}`;
+            return tr(`${range} sp.`, `${range}p`);
+        }
+        function longText(def, seats) {
+            var text = def.long[seats] || def.long;
+            return L(text);
+        }
+        function changedList(rules, seats) {
+            return RULES.filter(def => valueOf(rules, def) !== def.def)
+                .map(def => ({ def, active: applies(def, seats) }))
+                .sort((a, b) => Number(b.active) - Number(a.active));
+        }
+        function activeCount(items) { return items.filter(item => item.active).length; }
+        function customLabel(count) { return tr(`Egne regler · ${count}`, `Custom rules · ${count}`); }
+        function countRules(count) {
+            return count == 1 ? tr("1 egen regel", "1 custom rule") : tr(`${count} egne regler`, `${count} custom rules`);
+        }
+        function countKey(rules) {
+            return Object.keys(COUNT_SETS).find(key => sameRules(rules, COUNT_SETS[key])) || null;
+        }
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                var script = document.createElement("script");
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = () => reject(new Error(`Could not load ${src}`));
+                document.body.appendChild(script);
+            });
+        }
+
+        // ---------- Import the real page ----------
+        try {
+            var response = await fetch("index.html", { cache: "no-store" });
+            if (!response.ok) { throw new Error(`index.html: HTTP ${response.status}`); }
+            var source = new DOMParser().parseFromString(await response.text(), "text/html");
+            source.querySelectorAll("script").forEach(script => script.remove());
+            var imported = Array.from(source.body.children).map(node => document.importNode(node, true));
+            document.body.prepend(...imported);
+        } catch (error) {
+            var message = make("div", null, `Serve the repository root over HTTP (npm run serve) and open /sandbox/custom-rules-mockup.html. ${error.message}`);
+            message.id = "mockError";
+            document.body.appendChild(message);
+            return;
+        }
+        var mainMenu = el("mainMenu");
+        mainMenu.classList.remove("is-intro");
+        el("splashPlayerName").hidden = true;
+
+        // New dialogs must exist before shared.js wires backdrop clicks.
+        var editor = make("div", "dialog-container");
+        editor.id = "dialogCustomRules";
+        editor.innerHTML = '<div class="dialog-window"><div class="dialog-title" data-i18n-skip></div>' +
+            '<div class="dialogBody settings-list" data-i18n-skip></div><div class="dialog-footer" data-i18n-skip></div></div>';
+        var joinDialog = make("div", "dialog-container");
+        joinDialog.id = "dialogJoinRules";
+        joinDialog.innerHTML = '<div class="dialog-window"><div class="dialog-title" data-i18n-skip></div>' +
+            '<div class="dialogBody" data-i18n-skip></div><div class="dialog-footer" data-i18n-skip></div></div>';
+        document.body.append(editor, joinDialog);
+
+        // Lobby rules container: a direct grid item of #gameShell.
+        var lobbyRules = make("section", "custom-rules-lobby custom-rules-panel");
+        lobbyRules.setAttribute("data-i18n-skip", "");
+        lobbyRules.setAttribute("aria-label", "Egne regler");
+        el("gameShell").insertBefore(lobbyRules, el("lobbyCapacity").nextSibling);
+
+        await loadScript("js/shared.js");
+        await loadScript("js/neon-logo.js");
+        await loadScript("js/i18n.js");
+
+        el("settingsButton").addEventListener("click", () => showDialog("Settings", true));
+        el("rulesButton").addEventListener("click", openRulesDialog);
+
+        // ---------- Shell state ----------
+        function renderShell() {
+            var shell = el("gameShell");
+            var inLobby = state.screen == "host" || state.screen == "guest";
+            var inGame = state.screen == "game";
+            shell.classList.toggle("game-active", inLobby || inGame);
+            shell.classList.toggle("Lobby", inLobby);
+            shell.classList.toggle("GameFinished", false);
+            shell.classList.toggle("spectator-mode", state.screen == "menu");
+            shell.classList.toggle("has-custom-rules-row", inLobby);
+            mainMenu.classList.toggle("is-hidden", state.screen != "menu");
+            mainMenu.setAttribute("aria-hidden", String(state.screen != "menu"));
+            document.querySelectorAll("#gameMenu, #playerList, #gameTable, #playerActions, #playerHand")
+                .forEach(node => { node.inert = state.screen == "menu"; });
+
+            var host = state.screen == "host";
+            var seated = PLAYERS.slice(0, state.seats);
+            var humans = seated.filter(player => !player.bot);
+            var allReady = humans.every(player => state.ready[player.name] === true);
+            var self = selfPlayer();
+
+            el("gameIdDisplay").textContent = "482913";
+            el("gameMenu").classList.toggle("waiting-for-players", inLobby && state.seats < 2);
+            setVisible("inviteButton", inLobby);
+            setVisible("lobbyMainMenuButton", false);
+            setVisible("addBotButton", inLobby && host);
+            el("addBotButton").disabled = state.seats >= 4;
+            el("addBotButton").textContent = state.seats >= 4 ? "Maks antall spillere nådd" : "Legg til bot";
+            setVisible("addBotButton_Off", false);
+            setVisible("startGameButton", inLobby && host);
+            setVisible("startGameButton_Off", false);
+            el("startGameButton").textContent = allReady ? "Start spill" : "Venter på spillere";
+            el("startGameButton").classList.toggle("is-waiting", !allReady);
+            el("startGameButton").disabled = !allReady;
+            el("readyButton").hidden = !inLobby;
+            var selfReady = state.ready[self.name] === true;
+            el("readyButton").textContent = selfReady ? "Fjern klar" : "Klar";
+            el("readyButton").setAttribute("aria-pressed", String(selfReady));
+            setVisible("joinAsPlayerButton", false);
+            setVisible("mainMenuButton", false);
+            setVisible("leaveGameButton", false);
+            setVisible("gameMetadata", inLobby);
+            el("gameLogButton").hidden = !inGame;
+
+            var capacity = el("lobbyCapacity");
+            capacity.setAttribute("data-i18n-skip", "");
+            capacity.hidden = !inLobby;
+            capacity.textContent = state.notice
+                ? tr("Reglene ble endret. Alle må trykke Klar på nytt.", "The rules changed. Everyone must press Ready again.")
+                : tr(`${state.seats}/4 plasser fylt`, `${state.seats}/4 seats filled`);
+
+            el("turnTimer").hidden = !inGame;
+            el("turnCountdown").textContent = "1:42";
+            el("turnCountdown").hidden = false;
+            setVisible("passButton", inGame);
+            setVisible("passButton_Off", false);
+            el("playButton").hidden = true;
+        }
+
+        function selfPlayer() { return state.screen == "guest" ? PLAYERS[1] : PLAYERS[0]; }
+
+        // ---------- Player seats (same markup as GameLayout.updatePlayers) ----------
+        function renderPlayers() {
+            var list = el("playerList");
+            list.replaceChildren();
+            list.dataset.playerCount = String(state.seats);
+            var seated = PLAYERS.slice(0, state.seats);
+            var self = selfPlayer();
+            var inGame = state.screen == "game";
+            var cardCounts = [9, 7, 4, 11];
+            var summary = (player, index) => {
+                var node = make("div", "player-summary");
+                node.dataset.playerName = player.name;
+                node.style.setProperty("--player-color", `hsl(${player.hue} 82% 70%)`);
+                node.classList.toggle("player-summary--self", player === self);
+                var name = make("span", "player-summary__name", player.name);
+                var details = make("span", "player-summary__details");
+                var ready = player.bot || state.ready[player.name] === true;
+                details.appendChild(make("span", "player-summary__details-text",
+                    inGame ? `${cardCounts[index]} kort` : (ready ? "Klar" : "Ikke klar")));
+                node.append(name, details);
+                if (!inGame) {
+                    node.classList.toggle("player-summary--ready", ready);
+                    if (player.host) { node.appendChild(make("small", "player-summary__host", "Vert")); }
+                    if (state.screen == "host" && player !== self) {
+                        var remove = make("button", null, "Fjern");
+                        remove.type = "button";
+                        node.appendChild(remove);
+                    }
+                } else {
+                    var isTurn = player === self;
+                    node.classList.toggle("is-current-turn", isTurn);
+                    node.classList.toggle("is-my-turn", isTurn);
+                    if (isTurn) { node.appendChild(make("span", "player-summary__turn", "Din tur")); }
+                }
+                return node;
+            };
+            if (!inGame) {
+                seated.forEach((player, index) => list.appendChild(summary(player, index)));
+                for (var index = seated.length; index < 4; index++) {
+                    list.appendChild(make("div", "lobby-empty-seat", "Ledig plass"));
+                }
+                return;
+            }
+            var selfIndex = seated.indexOf(self);
+            list.appendChild(summary(self, selfIndex));
+            var opponents = make("div", "opponent-list");
+            seated.slice(selfIndex + 1).concat(seated.slice(0, selfIndex)).forEach((player, index) => {
+                var node = summary(player, seated.indexOf(player));
+                node.classList.add(`opponent-seat-${index}`);
+                node.dataset.clockwiseSeat = String(index);
+                opponents.appendChild(node);
+            });
+            list.appendChild(opponents);
+        }
+
+        // ---------- Lobby rules panel: tap a chip to read the full rule ----------
+        function renderLobbyRules() {
+            var inLobby = state.screen == "host" || state.screen == "guest";
+            var host = state.screen == "host";
+            var items = changedList(state.rules, state.seats);
+            if (!items.some(item => item.def.id == state.openRule)) { state.openRule = null; }
+            lobbyRules.replaceChildren();
+            lobbyRules.hidden = !inLobby;
+            if (!inLobby) { return; }
+
+            var head = make("div", "custom-rules-panel__head");
+            var heading = make("span", "custom-rules-panel__heading");
+            heading.appendChild(make("span", "custom-rules-panel__title", items.length ? customLabel(activeCount(items)) : "Standard"));
+            if (!items.length) { heading.appendChild(make("span", "custom-rules-panel__count", tr("Ingen egne regler", "No custom rules"))); }
+            head.appendChild(heading);
+            if (host) {
+                var edit = make("button", "custom-rules-link", tr("Endre", "Edit"));
+                edit.type = "button";
+                edit.addEventListener("click", openEditor);
+                head.appendChild(edit);
+            }
+            lobbyRules.appendChild(head);
+            if (!items.length) { return; }
+
+            var chips = make("ul", "custom-rules-chips");
+            items.forEach(item => {
+                var open = state.openRule == item.def.id;
+                var chip = make("button", "custom-rule-chip" + (item.active ? "" : " is-inactive"));
+                chip.type = "button";
+                chip.setAttribute("aria-expanded", String(open));
+                chip.setAttribute("aria-controls", "customRulesExplain");
+                chip.textContent = L(item.def);
+                chip.addEventListener("click", () => {
+                    state.openRule = open ? null : item.def.id;
+                    renderLobbyRules();
+                    lobbyRules.querySelectorAll(".custom-rule-chip")[items.indexOf(item)].focus();
+                });
+                var row = make("li");
+                row.appendChild(chip);
+                chips.appendChild(row);
+            });
+            lobbyRules.appendChild(chips);
+
+            var openItem = items.find(item => item.def.id == state.openRule);
+            if (openItem) {
+                var explain = make("div", "custom-rules-explain");
+                explain.id = "customRulesExplain";
+                explain.append(make("strong", null, L(openItem.def)), make("p", null, longText(openItem.def, state.seats)
+                    + (openItem.active ? "" : ` ${tr(`Gjelder ikke med ${state.seats} spillere.`, `Not in effect with ${state.seats} players.`)}`)));
+                lobbyRules.appendChild(explain);
+            } else {
+                lobbyRules.appendChild(make("p", "custom-rules-hint", tr("Trykk på en regel for å lese mer.", "Tap a rule to read more.")));
+            }
+        }
+
+        // ---------- In-game indicators ----------
+        function renderGameIndicators() {
+            var inGame = state.screen == "game";
+            var count = activeCount(changedList(state.rules, state.seats));
+            el("tableStatusDock").querySelectorAll(".custom-rules-pill").forEach(node => node.remove());
+            el("rulesButton").querySelectorAll(".custom-rules-badge").forEach(node => node.remove());
+            if (!inGame || count == 0) { return; }
+            var pill = make("button", "custom-rules-pill", customLabel(count));
+            pill.type = "button";
+            pill.setAttribute("data-i18n-skip", "");
+            pill.addEventListener("click", openRulesDialog);
+            el("tableStatusDock").appendChild(pill);
+            var badge = make("span", "custom-rules-badge", String(count));
+            badge.setAttribute("aria-hidden", "true");
+            badge.setAttribute("data-i18n-skip", "");
+            el("rulesButton").appendChild(badge);
+        }
+
+        // ---------- Public lobby list (same markup as renderPublicLobbies) ----------
+        function mockLobbies() {
+            return [
+                { id: "482913", host: "Kari", players: 2, waiting: true, rules: state.rules },
+                { id: "100233", host: "Ola", players: 3, waiting: true, rules: {} },
+                { id: "771204", host: "Mona", players: 1, waiting: true, rules: COUNT_SETS["2"] },
+                { id: "530091", host: "Per", players: 4, waiting: false, rules: COUNT_SETS["1"] }
+            ];
+        }
+        function renderPublicList() {
+            var list = el("publicLobbyList");
+            list.replaceChildren();
+            var heading = make("div", "public-lobby-heading");
+            heading.appendChild(make("span", null, "Åpne lobbyer"));
+            var random = make("button", "public-lobby-random");
+            random.type = "button";
+            var icon = make("img");
+            icon.src = "icons/shuffle.svg";
+            icon.alt = "";
+            random.appendChild(icon);
+            random.title = "Bli med i en tilfeldig åpen lobby";
+            heading.appendChild(random);
+            list.appendChild(heading);
+            mockLobbies().forEach(lobby => {
+                var count = changedList(lobby.rules, 4).length;
+                var button = make("button", "public-lobby-entry");
+                button.type = "button";
+                button.dataset.lobbyId = lobby.id;
+                button.classList.toggle("is-running", !lobby.waiting);
+                var name = make("span", "public-lobby-entry__name");
+                name.appendChild(make("span", null, `${lobby.host} · ${lobby.players}/4`));
+                if (count) {
+                    var tag = make("span", "public-lobby-entry__rules", customLabel(count));
+                    tag.setAttribute("data-i18n-skip", "");
+                    name.appendChild(tag);
+                }
+                button.append(name, make("span", "public-lobby-entry__status", lobby.waiting ? "Venter i lobby" : "Spill pågår"));
+                button.addEventListener("click", () => joinLobby(lobby));
+                list.appendChild(button);
+            });
+        }
+        function joinLobby(lobby) {
+            if (changedList(lobby.rules, 4).length == 0) { enterLobby(lobby); return; }
+            state.joinLobby = lobby;
+            renderJoinDialog();
+            showDialog("JoinRules", true);
+        }
+        function enterLobby(lobby) {
+            state.screen = "guest";
+            state.rules = Object.assign({}, lobby.rules);
+            state.count = countKey(state.rules) || "0";
+            state.seats = Math.max(2, Math.min(lobby.players + 1, 4));
+            state.notice = false;
+            render();
+        }
+
+        // ---------- Read-only rule lists ----------
+        function ruleList(items, seats) {
+            var list = make("ul", "custom-rules-list");
+            items.forEach(item => {
+                var row = make("li", item.active ? "" : "is-inactive");
+                var title = make("strong", null, L(item.def));
+                if (!item.active) { title.appendChild(make("span", "custom-rules-scope", scopeLabel(item.def))); }
+                row.append(title, make("small", null, longText(item.def, seats)));
+                list.appendChild(row);
+            });
+            return list;
+        }
+        function renderJoinDialog() {
+            var lobby = state.joinLobby || mockLobbies()[2];
+            state.joinLobby = lobby;
+            var seats = Math.max(2, Math.min(lobby.players + 1, 4));
+            var items = changedList(lobby.rules, seats);
+            joinDialog.querySelector(".dialog-title").textContent = tr(`Bli med i spillet til ${lobby.host}?`, `Join ${lobby.host}'s game?`);
+            var body = joinDialog.querySelector(".dialogBody");
+            body.replaceChildren(
+                make("p", null, tr(`Denne lobbyen spiller med ${countRules(items.length)}:`, `This lobby plays with ${countRules(items.length)}:`)),
+                ruleList(items, seats),
+                make("p", "custom-rules-hint", tr("Alt annet følger standardreglene. Verten kan endre reglene før spillet starter.",
+                    "Everything else follows the standard rules. The host can change the rules before the game starts.")));
+            var footer = joinDialog.querySelector(".dialog-footer");
+            footer.replaceChildren();
+            var cancel = make("button", null, tr("Avbryt", "Cancel"));
+            cancel.type = "button";
+            cancel.addEventListener("click", () => showDialog("JoinRules", false));
+            var join = make("button", null, tr("Bli med", "Join"));
+            join.type = "button";
+            join.addEventListener("click", () => { showDialog("JoinRules", false); enterLobby(lobby); });
+            footer.append(cancel, join);
+        }
+
+        // Real rules dialog gains a "this lobby" section on top and opens on the current player count.
+        function renderRulesSection() {
+            var body = document.querySelector("#dialogRules .dialogBody");
+            var existing = el("customRulesSection");
+            if (existing) { existing.remove(); }
+            var items = changedList(state.rules, state.seats);
+            if (items.length == 0 || state.screen == "menu") { return; }
+            var section = make("section");
+            section.id = "customRulesSection";
+            section.setAttribute("data-i18n-skip", "");
+            section.appendChild(make("h3", null, tr("Egne regler i denne lobbyen", "Custom rules in this lobby")));
+            var list = make("ul");
+            items.forEach(item => {
+                var row = make("li");
+                row.append(make("strong", null, `${L(item.def)}:`), document.createTextNode(" "), make("span", null,
+                    longText(item.def, state.seats) + (item.active ? "" : ` (${tr("ikke i bruk med", "not in effect with")} ${state.seats} ${tr("spillere", "players")})`)));
+                list.appendChild(row);
+            });
+            section.appendChild(list);
+            var shortcut = body.querySelector(".play-guide-shortcut");
+            (shortcut || body.firstChild).after(section);
+        }
+        function openRulesDialog() {
+            renderRulesSection();
+            var tab = document.querySelector(`[data-rules-players="${state.seats}"]`);
+            if (tab) { tab.click(); }
+            showDialog("Rules", true);
+        }
+
+        // ---------- Host editor ----------
+        function openEditor() {
+            state.draft = Object.assign({}, state.rules);
+            state.presetJustSaved = false;
+            renderEditor();
+            showDialog("CustomRules", true);
+        }
+        function ruleRow(def, draft) {
+            var value = rawValue(draft, def);
+            var changed = valueOf(draft, def) !== def.def;
+            var active = applies(def, state.seats);
+            var text = make("span", "setting-row__text");
+            var title = make("strong", null, L(def));
+            if (def.players) { title.appendChild(make("span", "custom-rules-scope", scopeLabel(def))); }
+            text.appendChild(title);
+            text.appendChild(make("small", null, active ? D(def)
+                : `${D(def)} ${tr(`Ikke i bruk med ${state.seats} spillere.`, `Not in effect with ${state.seats} players.`)}`));
+            var row = make("button", "setting-row");
+            row.type = "button";
+            row.dataset.focusKey = def.id;
+            row.setAttribute("aria-pressed", String(value === true));
+            var track = make("span", "setting-row__switch");
+            track.setAttribute("aria-hidden", "true");
+            track.appendChild(make("span"));
+            row.append(text, track);
+            row.addEventListener("click", () => { state.draft[def.id] = !value; state.presetJustSaved = false; renderEditor(); });
+            row.classList.toggle("is-changed", changed);
+            row.classList.toggle("is-inactive", !active);
+            return row;
+        }
+        function draftPreset(draft) {
+            if (sameRules(draft, {})) { return "standard"; }
+            if (state.savedPreset && sameRules(draft, state.savedPreset)) { return "saved"; }
+            if (state.randomRoll && sameRules(draft, state.randomRoll)) { return "random"; }
+            return null;
+        }
+        function presetRow(draft) {
+            var current = draftPreset(draft);
+            var saved = state.savedPreset;
+            var row = make("div", "setting-row setting-speed");
+            row.setAttribute("role", "group");
+            var text = make("span", "setting-row__text");
+            text.appendChild(make("strong", null, tr("Forhåndsvalg", "Preset")));
+            var hints = {
+                standard: tr("Ingen egne regler.", "No custom rules."),
+                saved: tr("Ditt lagrede oppsett.", "Your saved preset."),
+                random: tr("Tilfeldig trukket. Trykk igjen for å trekke på nytt.", "Drawn at random. Tap again to redraw.")
+            };
+            text.appendChild(make("small", null, current ? hints[current]
+                : tr("Endret. Lagre som ditt oppsett for å bruke det senere.", "Edited. Save as your preset to use it later.")));
+            var options = make("span", "speed-options");
+            [
+                { key: "standard", no: "Standard", en: "Standard", rules: () => ({}) },
+                { key: "saved", no: "Mitt oppsett", en: "My preset", rules: () => Object.assign({}, saved) },
+                { key: "random", no: "Tilfeldig", en: "Random", rules: () => (state.randomRoll = rollRandom(state.draft)) }
+            ].forEach(preset => {
+                var option = make("button", "speed-option", L(preset));
+                option.type = "button";
+                option.dataset.focusKey = `preset-${preset.key}`;
+                option.setAttribute("aria-pressed", String(current == preset.key));
+                if (preset.key == "saved" && !saved) {
+                    option.disabled = true;
+                    option.title = tr("Du har ikke lagret et oppsett ennå.", "You haven't saved a preset yet.");
+                }
+                option.addEventListener("click", () => {
+                    state.draft = Object.assign({}, preset.rules());
+                    state.presetJustSaved = false;
+                    renderEditor();
+                });
+                options.appendChild(option);
+            });
+            var actions = make("span", "custom-rules-preset-actions");
+            var save = make("button", "custom-rules-save-preset", saved
+                ? tr("Erstatt mitt oppsett", "Replace my preset") : tr("Lagre som mitt oppsett", "Save as my preset"));
+            save.type = "button";
+            save.dataset.focusKey = "save-preset";
+            save.disabled = current == "standard" || current == "saved";
+            save.addEventListener("click", () => {
+                storeSavedPreset(normalized(state.draft));
+                state.presetJustSaved = true;
+                renderEditor();
+            });
+            actions.appendChild(save);
+            if (state.presetJustSaved) {
+                actions.appendChild(make("span", "custom-rules-preset-status", tr("Lagret. Brukes i alle lobbyer du lager.", "Saved. Available in every lobby you host.")));
+            }
+            row.append(text, options, actions);
+            return row;
+        }
+        function renderEditor() {
+            var draft = state.draft || {};
+            var window_ = editor.querySelector(".dialog-window");
+            var scroll = window_.scrollTop;
+            var focusKey = document.activeElement && editor.contains(document.activeElement) ? document.activeElement.dataset.focusKey : null;
+            editor.querySelector(".dialog-title").textContent = tr("Egne regler", "Custom rules");
+            var body = editor.querySelector(".dialogBody");
+            body.replaceChildren();
+            body.appendChild(make("p", "custom-rules-intro", tr(
+                "Uten egne regler spilles Standard. Reglene gjelder alle i lobbyen og vises i listen over åpne lobbyer. Lagring fjerner Klar for alle.",
+                "Without custom rules the game plays Standard. The rules apply to everyone in the lobby and show in the public lobby list. Saving clears everyone's Ready.")));
+            body.appendChild(presetRow(draft));
+
+            Object.keys(CATEGORIES).forEach(category => {
+                var rules = RULES.filter(def => def.cat == category && !def.parent);
+                if (!rules.length) { return; }
+                body.appendChild(make("h3", "settings-category", L(CATEGORIES[category])));
+                rules.forEach(def => {
+                    var children = RULES.filter(child => child.parent == def.id);
+                    if (!children.length) { body.appendChild(ruleRow(def, draft)); return; }
+                    // Same pattern as Settings → Messages: the extra options appear inside the toggle's group.
+                    var enabled = valueOf(draft, def) === true;
+                    var group = make("section", "message-settings");
+                    group.classList.toggle("is-enabled", enabled);
+                    group.setAttribute("aria-label", L(def));
+                    group.appendChild(ruleRow(def, draft));
+                    children.forEach(child => {
+                        var row = ruleRow(child, draft);
+                        row.hidden = !enabled;
+                        group.appendChild(row);
+                    });
+                    body.appendChild(group);
+                });
+            });
+
+            var count = activeCount(changedList(draft, state.seats));
+            var footer = editor.querySelector(".dialog-footer");
+            footer.replaceChildren();
+            footer.appendChild(make("span", "custom-rules-editor__count", count ? countRules(count) : "Standard"));
+            var cancel = make("button", null, tr("Avbryt", "Cancel"));
+            cancel.type = "button";
+            cancel.addEventListener("click", () => showDialog("CustomRules", false));
+            var save = make("button", null, tr("Lagre", "Save"));
+            save.type = "button";
+            save.addEventListener("click", saveEditor);
+            footer.append(cancel, save);
+
+            window_.scrollTop = scroll;
+            if (focusKey) {
+                var target = editor.querySelector(`[data-focus-key="${focusKey}"]`);
+                if (target) { target.focus(); }
+            }
+        }
+        function saveEditor() {
+            if (!sameRules(state.draft, state.rules)) {
+                state.rules = normalized(state.draft);
+                state.count = countKey(state.rules) || "0";
+                PLAYERS.forEach(player => { if (!player.bot) { state.ready[player.name] = false; } });
+                state.notice = true;
+            }
+            showDialog("CustomRules", false);
+            render();
+        }
+
+        // ---------- Mockup panel ----------
+        function syncPanel() {
+            var savedKey = state.savedPreset ? countKey(state.savedPreset) : "none";
+            var values = { screen: state.screen, count: state.count, seats: String(state.seats), lang: en() ? "en" : "no", saved: savedKey };
+            document.querySelectorAll("#mockPanel .mock-options").forEach(group => {
+                group.querySelectorAll("button").forEach(button => {
+                    button.setAttribute("aria-pressed", String(values[group.dataset.key] == button.dataset.v));
+                });
+            });
+        }
+        document.querySelectorAll("#mockPanel .mock-options").forEach(group => {
+            group.addEventListener("click", event => {
+                var button = event.target.closest("button");
+                if (!button) { return; }
+                var key = group.dataset.key;
+                var value = button.dataset.v;
+                if (key == "lang") { window.I18n.setLanguage(value); return; }
+                if (key == "count") {
+                    state.count = value;
+                    state.rules = Object.assign({}, COUNT_SETS[value]);
+                    state.notice = false;
+                } else if (key == "saved") {
+                    storeSavedPreset(value == "none" ? null : Object.assign({}, COUNT_SETS[value]));
+                    state.presetJustSaved = false;
+                } else if (key == "seats") {
+                    state.seats = Number(value);
+                } else {
+                    state[key] = value;
+                }
+                if (key == "screen") { state.notice = false; }
+                render();
+                if (editor.classList.contains("dialog-container--visible")) { renderEditor(); }
+            });
+        });
+        el("mockOpenEditor").addEventListener("click", () => {
+            if (state.screen != "host") { state.screen = "host"; render(); }
+            openEditor();
+        });
+        el("mockOpenJoin").addEventListener("click", () => {
+            state.joinLobby = mockLobbies().find(lobby => changedList(lobby.rules, 4).length > 0);
+            renderJoinDialog();
+            showDialog("JoinRules", true);
+        });
+        el("mockPanelToggle").addEventListener("click", () => {
+            var panel = el("mockPanel");
+            panel.classList.toggle("is-collapsed");
+            el("mockPanelToggle").setAttribute("aria-expanded", String(!panel.classList.contains("is-collapsed")));
+        });
+        if (window.matchMedia("(max-width: 700px)").matches) {
+            el("mockPanel").classList.add("is-collapsed");
+            el("mockPanelToggle").setAttribute("aria-expanded", "false");
+        }
+        el("readyButton").addEventListener("click", () => {
+            var self = selfPlayer();
+            state.ready[self.name] = !state.ready[self.name];
+            if (PLAYERS.every(player => player.bot || state.ready[player.name])) { state.notice = false; }
+            render();
+        });
+        el("startGameButton").addEventListener("click", () => { state.screen = "game"; state.notice = false; render(); });
+        document.addEventListener("languagechange", () => {
+            render();
+            if (editor.classList.contains("dialog-container--visible")) { renderEditor(); }
+            if (joinDialog.classList.contains("dialog-container--visible")) { renderJoinDialog(); }
+        });
+
+        function render() {
+            renderShell();
+            renderPlayers();
+            renderLobbyRules();
+            renderGameIndicators();
+            renderPublicList();
+            syncPanel();
+        }
+
+        // Optional starting state, e.g. ?screen=host&count=2&seats=4&rule=sevenJack&open=editor
+        var params = new URLSearchParams(location.search);
+        if (["menu", "host", "guest", "game"].includes(params.get("screen"))) { state.screen = params.get("screen"); }
+        if (COUNT_SETS[params.get("count")]) {
+            state.count = params.get("count");
+            state.rules = Object.assign({}, COUNT_SETS[state.count]);
+        }
+        if (["2", "3", "4"].includes(params.get("seats"))) { state.seats = Number(params.get("seats")); }
+        if (params.get("saved") == "none") { storeSavedPreset(null); }
+        if (["1", "2"].includes(params.get("saved"))) { storeSavedPreset(Object.assign({}, COUNT_SETS[params.get("saved")])); }
+        if (ruleById(params.get("rule") || "")) { state.openRule = params.get("rule"); }
+        if (["no", "en"].includes(params.get("lang"))) { window.I18n.setLanguage(params.get("lang")); }
+        if (params.get("panel") == "closed") { el("mockPanel").classList.add("is-collapsed"); }
+        render();
+        if (params.get("open") == "editor") { openEditor(); }
+        if (params.get("open") == "join") { el("mockOpenJoin").click(); }
+        if (params.get("open") == "rules") { openRulesDialog(); }
+    })();
+    </script>
+</body>
+</html>

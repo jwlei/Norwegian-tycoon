@@ -957,12 +957,11 @@ test("consent stays private and forcing waits for the receiver's explicit choice
         return player;
     });
     const game = Object.assign(Object.create(PresidentGame.prototype), {
-        id: "trade-ui", status: "G", round: 2, players,
+        id: "trade-ui", status: "G", round: 2, players, rules: { sevenJackTrade: true, sneakyTrade: true },
         piles: [{ id: "offer", tradeId: "trade", kind: "playerTrade", mode: "Tilbud",
             from: 0, to: 1, count: 1, cards: [], sneakyVotes: [0, 1] }]
     });
     game.save = () => {};
-    players[2].name = "ekrem";
     const flatten = node => [node, ...node.children.flatMap(flatten)];
     const render = player => {
         GameLayout.updateTable(game, player);
@@ -1000,11 +999,11 @@ test("consent stays private and forcing waits for the receiver's explicit choice
         }
     }
     game.piles = [originalOffer];
-    players[2].name = "Other";
+    game.rules.sneakyTrade = false;
     for (const player of players.slice(0, 2)) {
         assert.equal(render(player).some(node => node.className?.includes("exchange-sneaky-toggle")), false);
     }
-    players[2].name = "ekrem";
+    game.rules.sneakyTrade = true;
     const start = render(players[0]).find(node => node.textContent === "Tving bytte");
     assert.equal(start.disabled, false);
     start.onclick();
@@ -1256,14 +1255,14 @@ function forcedTradeUiFixture(eligible) {
     };
     const loaded = loadGame(null, { document, setClass() {} });
     const { GameLayout, PresidentGame, PresidentPlayer, PresidentCard } = loaded;
-    const players = ["Sender", "Recipient", eligible ? "ekrem" : "Other"].map((name, index) => {
+    const players = ["Sender", "Recipient", "Other"].map((name, index) => {
         const player = new PresidentPlayer(name, `key-${index}`);
         player.lastPlacement = index + 1;
         player.cards.push(new PresidentCard(1, 9), new PresidentCard(2, 14));
         return player;
     });
     const game = Object.assign(Object.create(PresidentGame.prototype), {
-        id: "trade-ui", status: "G", round: 2, players,
+        id: "trade-ui", status: "G", round: 2, players, rules: { sevenJackTrade: true, sneakyTrade: eligible },
         piles: [{ id: "offer", tradeId: "trade", kind: "playerTrade", mode: "Tilbud",
             from: 0, to: 1, count: 1, cards: [], sneakyVotes: [] }]
     });
@@ -1344,7 +1343,7 @@ test("the President can start a normal voluntary exchange without sneaky consent
         from: 0, to: 1, count: 1, mode: "Tilbud", cards: [], sneakyVotes: []
     };
     const game = Object.assign(Object.create(PresidentGame.prototype), {
-        status: "G", round: 2, players, piles: [offer]
+        status: "G", round: 2, players, piles: [offer], rules: { sevenJackTrade: true }
     });
     game.assertSessionActive = () => {};
     game.recordHumanAction = () => {};
@@ -1361,40 +1360,30 @@ test("the President can start a normal voluntary exchange without sneaky consent
     assert.ok(game.piles.every(exchange => isCardAllowedForExchange(exchange, new PresidentCard(1, 7))));
     assert.ok(game.piles.every(exchange => !isCardAllowedForExchange(exchange, new PresidentCard(1, 14))));
     assert.throws(() => game.toggleSneakyTrade(game.piles[0], 0), /ikke tilgjengelig/);
-    players[2].name = "joachim";
+    game.rules.sneakyTrade = true;
     assert.throws(() => game.toggleSneakyTrade(game.piles[0], 0), /kan ikke endres/);
     assert.ok(game.piles.every(exchange => !isCardAllowedForExchange(exchange, new PresidentCard(1, 14))));
 });
 
-test("sneaky requires exactly three players and a named human, including a non-participating third player", () => {
+test("sneaky trade is a custom rule that only applies while the 7–J trade rule is on", () => {
     const { isSneakyTradeAvailable, hasSneakyConsent, isCardAllowedForExchange, PresidentCard } = loadGame();
     const offer = { kind: "playerTrade", from: 0, to: 1, sneakyVotes: [0, 1] };
     const game = { players: [
-        { name: "Bot", playerKey: "PC" }, { name: "Guest", playerKey: "guest" },
+        { name: "ekrem", playerKey: "ekrem" }, { name: "Guest", playerKey: "guest" },
         { name: "Other", playerKey: "other" }
     ] };
-    for (const name of ["tåkefyrsten", "h4cker", "mrhotbox", "bjørn", "ekrem", "joachim",
-        " TÅKEFYRSTEN ", "Ta\u030akefyrsten", "H4CKER"]) {
-        game.players[2].name = name;
-        assert.equal(isSneakyTradeAvailable(game), true);
-        assert.equal(hasSneakyConsent(offer, game), true);
-        assert.equal(isCardAllowedForExchange(offer, new PresidentCard(1, 14), game), true);
-        game.players[2].playerKey = "PC";
-        assert.equal(isSneakyTradeAvailable(game), false, "Bot names cannot grant access");
-        assert.equal(hasSneakyConsent(offer, game), false, "Stale votes cannot bypass eligibility");
+    for (const rules of [undefined, {}, { sneakyTrade: true }, { sevenJackTrade: true },
+        { sevenJackTrade: true, sneakyTrade: false }, { sevenJackTrade: "true", sneakyTrade: true }]) {
+        game.rules = rules;
+        assert.equal(isSneakyTradeAvailable(game), false, "Former unlock names no longer grant access");
+        assert.equal(hasSneakyConsent(offer, game), false, "Stale votes cannot bypass the rule");
         assert.equal(isCardAllowedForExchange(offer, new PresidentCard(1, 14), game), false);
-        game.players[2].playerKey = "other";
     }
-    for (const name of ["hacker", "h4cker-1", "Guest", ""]) {
-        game.players[2].name = name;
-        assert.equal(isSneakyTradeAvailable(game), false);
-    }
-    game.players[2].name = "ekrem";
-    game.players.push({ name: "Fourth", playerKey: "fourth" });
-    assert.equal(isSneakyTradeAvailable(game), false);
-    game.players.splice(1, 2);
-    game.players[1].name = "ekrem";
-    assert.equal(isSneakyTradeAvailable(game), false);
+    game.rules = { sevenJackTrade: true, sneakyTrade: true };
+    assert.equal(isSneakyTradeAvailable(game), true);
+    assert.equal(hasSneakyConsent(offer, game), true);
+    assert.equal(isCardAllowedForExchange(offer, new PresidentCard(1, 14), game), true);
+    assert.equal(isSneakyTradeAvailable(null), false);
 });
 
 test("a playable club three is suggested to clear a single-card trick before the final card", () => {
@@ -2047,7 +2036,8 @@ test("normal exchange rendering fades illegal cards while sneaky exchanges allow
                 var player = { cards: [k] };
                 var activeExchange = { id: "trade", kind: "playerTrade", from: 0, to: 1,
                     cards: [], count: 1, mode: "Velg", sneakyVotes: ${sneaky ? "[0, 1]" : "[]"} };
-                var game = { players: [player,{name:"Other",playerKey:"other"},{name:"ekrem",playerKey:"eligible"}], piles: [activeExchange] };`, context);
+                var game = { players: [player,{name:"Other",playerKey:"other"},{name:"Third",playerKey:"third"}], piles: [activeExchange],
+                    rules: { sevenJackTrade: true, sneakyTrade: true } };`, context);
             context.cardButton = { classList: { add: name => classes.add(name) } };
             vm.runInContext(source.slice(start, end), context);
             const illegal = !sneaky && (rank < 7 || rank > 11);
@@ -5042,6 +5032,28 @@ test("two-player first rounds choose randomly even when the heart three is dealt
     assert.equal(differentStarter, true, "The heart-three holder does not force the starter");
 });
 
+test("standard three-player rounds have no 7–J trade offers; the custom rule adds them", () => {
+    for (const sevenJackTrade of [undefined, false, true]) {
+        const { PresidentGame, PresidentPlayer } = loadGame(null, {
+            clearTimeout() {},
+            document: { dispatchEvent() {}, querySelectorAll: () => [] },
+            CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } }
+        });
+        const players = Array.from({ length: 3 }, (_, index) => {
+            const player = new PresidentPlayer(`Seat ${index}`, "PC");
+            player.placement = index + 1;
+            return player;
+        });
+        const game = Object.assign(Object.create(PresidentGame.prototype), {
+            id: "exchange", players, status: "S", round: 2, piles: [], rules: { sevenJackTrade }
+        });
+        game.save = () => {};
+        game.prepareRound();
+        const offers = game.piles.filter(exchange => exchange.mode == "Tilbud");
+        assert.deepEqual(Array.from(offers, offer => [offer.from, offer.to]), sevenJackTrade ? [[0, 1], [1, 2]] : []);
+    }
+});
+
 test("mandatory exchanges use one card for two players, two for three, and vice-role pairs for four", () => {
     for (const count of [2, 3, 4]) {
         const { PresidentGame, PresidentPlayer } = loadGame(null, {
@@ -5055,7 +5067,7 @@ test("mandatory exchanges use one card for two players, two for three, and vice-
             return player;
         });
         const game = Object.assign(Object.create(PresidentGame.prototype), {
-            id: "exchange", players, status: "S", round: 2, piles: [], rules: {}
+            id: "exchange", players, status: "S", round: 2, piles: [], rules: { sevenJackTrade: true }
         });
         game.save = () => {};
         game.prepareRound();

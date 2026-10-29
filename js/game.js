@@ -57,10 +57,13 @@ function activeTradeOffer(game) {
     return (game.piles || []).find(exchange => exchange.mode == "Tilbud") || null;
 }
 
+function isSevenJackTradeEnabled(game) {
+    return game?.rules?.sevenJackTrade === true;
+}
+
+// The host's custom rule; it only applies while the 7–J trade is on.
 function isSneakyTradeAvailable(game) {
-    return game != null && game.players.length == 3 && game.players.some(player =>
-        player.playerKey != "PC" && ["tåkefyrsten", "h4cker", "mrhotbox", "bjørn", "ekrem", "joachim"]
-            .includes((player.name || "").trim().normalize("NFC").toLowerCase()));
+    return isSevenJackTradeEnabled(game) && game.rules.sneakyTrade === true;
 }
 
 function hasSneakyConsent(exchange, game = null) {

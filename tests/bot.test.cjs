@@ -58,8 +58,8 @@ function optionalTradeGame() {
         [card(5, 4), card(12, 4), card(15, 4)]
     ]);
     game.status = "G";
-    game.players[2].name = "ekrem";
-    game.players[2].playerKey = "eligible-human";
+    game.rules = { sevenJackTrade: true, sneakyTrade: true };
+    game.players[2].playerKey = "human";
     game.players.forEach((player, index) => { player.lastPlacement = index + 1; });
     game.piles = [{ id: "offer", tradeId: "trade", kind: "playerTrade", mode: "Tilbud",
         from: 0, to: 1, count: 1, cards: [], sneakyVotes: [] }];
@@ -110,9 +110,9 @@ test("forced exchanges wait for explicit receiver consent and lock that decision
     assert.throws(() => game.toggleSneakyTrade(incoming, 1), /kan ikke endres/);
 });
 
-test("bots cannot unlock sneaky by using an eligible name and fall back to normal trades", () => {
+test("without the sneaky trade rule bots fall back to normal trades", () => {
     const game = optionalTradeGame();
-    game.players[2].playerKey = "PC";
+    game.rules.sneakyTrade = false;
     const offer = game.piles[0];
     assert.throws(() => game.toggleSneakyTrade(offer, 0), /ikke tilgjengelig/);
     playBotTurn(game, game.players[0], () => 0);
