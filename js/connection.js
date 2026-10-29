@@ -2737,15 +2737,25 @@
             }
         }
 
+        // In the lobby the game ID opens the invite; elsewhere it copies the ID.
+        function activateGameId(element) {
+            if (element.id == "gameIdDisplay" && currentGame != null && currentGame.status == "O") {
+                document.getElementById("inviteButton").click();
+            } else {
+                copyGameId(element);
+            }
+        }
         document.querySelectorAll(".copyable-game-id").forEach(element => {
-            element.addEventListener("click", function () { copyGameId(element); });
+            element.addEventListener("click", function () { activateGameId(element); });
             element.addEventListener("keydown", function (event) {
                 if (event.key == "Enter" || event.key == " ") {
                     event.preventDefault();
-                    copyGameId(element);
+                    activateGameId(element);
                 }
             });
         });
+        document.getElementById("gameIdInviteHint").addEventListener("click", () =>
+            activateGameId(document.getElementById("gameIdDisplay")));
 
         document.getElementById("autoSuggestionToggleButton").addEventListener(
             "click",

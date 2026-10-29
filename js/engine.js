@@ -1021,7 +1021,8 @@ class PresidentGame extends Game {
             var from = players.findIndex(player => player.nick == sourceName);
             var to = players.findIndex(player => player.nick == targetName);
             if (from < 0 || to < 0 || from == to) { return; }
-            players.splice(to, 0, players.splice(from, 1)[0]);
+            // Dropping one seat on another swaps the two players.
+            [players[from], players[to]] = [players[to], players[from]];
             return Object.assign({}, record, {
                 spillere: players, preservePlayerOrderOnStart: true, shufflePlayerOrder: false, lobbyPlayerOrder: true
             });

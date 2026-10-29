@@ -69,12 +69,8 @@ const CUSTOM_RULES = [
     {
         id: "sevenJackTrade", record: "Bytte7Knekt", category: "trade",
         title: "Tilleggsbytte",
-        summary: "Etter kortbyttet kan hver rolle tvinge et ettkortsbytte med rollen under, med kort fra 7 til knekt.",
-        details: {
-            2: "Etter det vanlige kortbyttet kan Presidenten tvinge et ettkortsbytte med Boms. Begge velger et kort fra 7 til knekt. Presidenten kan hoppe over byttet; Boms kan ikke avslå.",
-            3: "Etter det vanlige kortbyttet kan Presidenten tvinge et ettkortsbytte med Nøytral, og deretter kan Nøytral tvinge et ettkortsbytte med Boms. Begge velger et kort fra 7 til knekt. Bare den som starter byttet kan hoppe over; mottakeren kan ikke avslå. Nøytral kan ikke gi kortet fra Presidenten videre til Boms.",
-            4: "Etter det vanlige kortbyttet kan Presidenten tvinge et ettkortsbytte med Visepresidenten, deretter Visepresidenten med Viseboms, og til slutt Viseboms med Boms. Begge velger et kort fra 7 til knekt. Bare den som starter byttet kan hoppe over; mottakeren kan ikke avslå. Et kort du nettopp fikk i et slikt bytte, kan ikke gis videre i neste."
-        }
+        summary: "Etter vanlig kortbytte kan hver rolle tvinge rollen rett under til å bytte ett kort fra 7 til knekt.",
+        details: "Etter vanlig kortbytte kan hver rolle, fra Presidenten og nedover, tvinge rollen rett under til å bytte ett kort fra 7 til knekt. Mottakeren kan ikke avslå."
     },
     {
         id: "sneakyTrade", record: "UreglementertBytte", category: "trade", requires: "sevenJackTrade",

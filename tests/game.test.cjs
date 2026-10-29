@@ -996,7 +996,7 @@ test("consent stays private and forcing waits for the receiver's explicit choice
             assert.equal(recipient.some(node => node.textContent == "Ureglementert samtykke"), false);
             const initiatorLabels = initiator.filter(node => ["Tving bytte", "Ureglementert samtykke", "Ingen bytte"]
                 .includes(node.textContent)).map(node => node.textContent);
-            assert.deepEqual(initiatorLabels, ["Tving bytte", "Ureglementert samtykke", "Ingen bytte"]);
+            assert.deepEqual(initiatorLabels, ["Ureglementert samtykke", "Tving bytte", "Ingen bytte"]);
             assert.ok(recipient.some(node => node.textContent.includes(`${players[from].name} som`) &&
                 node.textContent.includes("bestemmer om det blir bytte")));
             players[from].playerKey = `key-${from}`;
@@ -4287,13 +4287,14 @@ test("only the host can reorder an open lobby and the saved order survives trans
         return { committed: !!retry, snapshot: { val: () => record } };
     } };
     await game.reorderLobbyPlayers(players[0].name, players[2].name);
-    assert.deepEqual(Array.from(game.players, player => player.name), ["Bot 1", "Bot 2", "Human"]);
+    assert.deepEqual(Array.from(game.players, player => player.name), ["Bot 2", "Bot 1", "Human"],
+        "Dragging swaps the two seats");
     assert.equal(record.preservePlayerOrderOnStart, true);
     assert.equal(record.shufflePlayerOrder, false);
     assert.equal(game.shouldShufflePlayersOnStart(), false);
     record.spillere.push(new types.PresidentPlayer("New arrival", "new-key").toRecord());
     await game.reorderLobbyPlayers("Human", "Bot 1");
-    assert.deepEqual(Array.from(game.players, player => player.name), ["Human", "Bot 1", "Bot 2", "New arrival"]);
+    assert.deepEqual(Array.from(game.players, player => player.name), ["Bot 2", "Human", "Bot 1", "New arrival"]);
     assert.equal((await game.removeLobbyPlayer(game.getPlayer("New arrival"))).text, undefined);
     assert.equal(record.preservePlayerOrderOnStart, true, "Membership changes must not randomize the host's order");
     assert.equal(record.shufflePlayerOrder, false);

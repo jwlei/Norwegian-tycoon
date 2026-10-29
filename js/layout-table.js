@@ -399,7 +399,19 @@ GameLayout.extend(class {
                         var voters = exchange.sneakyVotes || [];
                         var canInitiate = isSender && exchange.forcedAt == null && !game.exchangeReady;
                         var participantIndex = currentPlayerIndex;
-                        // The initiator sees Force, the consent tick box and No exchange; the receiver answers once forced.
+                        // The initiator sees the consent tick box (own row), then Force and No exchange; the receiver answers once forced.
+                        if (canInitiate && isSneakyTradeAvailable(game)) {
+                            var sneakyCheck = document.createElement("button");
+                            sneakyCheck.type = "button";
+                            sneakyCheck.textContent = "Ureglementert samtykke";
+                            sneakyCheck.className = "exchange-sneaky-check";
+                            sneakyCheck.setAttribute("role", "checkbox");
+                            sneakyCheck.setAttribute("aria-checked", String(voters.includes(participantIndex)));
+                            sneakyCheck.onclick = function () {
+                                game.toggleSneakyTrade(exchange, participantIndex);
+                            };
+                            buttonSpan.appendChild(sneakyCheck);
+                        }
                         if (canInitiate) {
                             var startButton = document.createElement("button");
                             startButton.type = "button";
@@ -415,18 +427,6 @@ GameLayout.extend(class {
                                 game.startOptionalTrade(exchange);
                             };
                             buttonSpan.appendChild(startButton);
-                        }
-                        if (canInitiate && isSneakyTradeAvailable(game)) {
-                            var sneakyCheck = document.createElement("button");
-                            sneakyCheck.type = "button";
-                            sneakyCheck.textContent = "Ureglementert samtykke";
-                            sneakyCheck.className = "exchange-sneaky-check";
-                            sneakyCheck.setAttribute("role", "checkbox");
-                            sneakyCheck.setAttribute("aria-checked", String(voters.includes(participantIndex)));
-                            sneakyCheck.onclick = function () {
-                                game.toggleSneakyTrade(exchange, participantIndex);
-                            };
-                            buttonSpan.appendChild(sneakyCheck);
                         }
                         if (canInitiate) {
                             var skipButton = document.createElement("button");

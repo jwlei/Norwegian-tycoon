@@ -70,13 +70,13 @@ var CustomRulesUI = (function () {
         text.appendChild(make("strong", null, "Forhåndsvalg"));
         text.appendChild(make("small", null, {
             standard: "Ingen egne regler.",
-            saved: "Ditt lagrede oppsett.",
-            random: "Tilfeldig trukket. Trykk igjen for å trekke på nytt."
-        }[preset] || "Endret. Lagre som ditt oppsett for å bruke det senere."));
+            saved: "Dine lagrede regler.",
+            random: "Trykk igjen for nye regler."
+        }[preset] || "Endret. Lagre som Mine regler for å bruke dem senere."));
         var options = make("span", "speed-options");
         [
             { key: "standard", title: "Standard", rules: () => normalizeCustomRules({}) },
-            { key: "saved", title: "Mitt oppsett", rules: () => saved },
+            { key: "saved", title: "Mine regler", rules: () => saved },
             { key: "random", title: "Tilfeldig", rules: () => (randomDraw = drawRandom(draft)) }
         ].forEach(option => {
             var button = make("button", "speed-option", option.title);
@@ -85,7 +85,7 @@ var CustomRulesUI = (function () {
             button.setAttribute("aria-pressed", String(preset == option.key));
             if (option.key == "saved" && !saved) {
                 button.disabled = true;
-                button.title = "Du har ikke lagret et oppsett ennå.";
+                button.title = "Du har ikke lagret Mine regler ennå.";
             }
             button.addEventListener("click", () => {
                 draft = Object.assign({}, option.rules());
@@ -95,7 +95,7 @@ var CustomRulesUI = (function () {
             options.appendChild(button);
         });
         var actions = make("span", "custom-rules-preset-actions");
-        var save = make("button", "custom-rules-save-preset", saved ? "Erstatt mitt oppsett" : "Lagre som mitt oppsett");
+        var save = make("button", "custom-rules-save-preset", saved ? "Erstatt Mine regler" : "Lagre som Mine regler");
         save.type = "button";
         save.dataset.focusKey = "save-preset";
         save.disabled = preset == "standard" || preset == "saved";
@@ -138,9 +138,7 @@ var CustomRulesUI = (function () {
         var scroll = scroller.scrollTop;
         var focusKey = dialog.contains(document.activeElement) ? document.activeElement.dataset.focusKey : null;
         var body = document.getElementById("customRulesEditor");
-        body.replaceChildren(make("p", "custom-rules-intro",
-            "Uten egne regler spilles Standard. Reglene gjelder alle i lobbyen og vises i listen over åpne lobbyer. Lagring fjerner Klar for alle."));
-        body.appendChild(presetRow());
+        body.replaceChildren(presetRow());
         CUSTOM_RULE_CATEGORIES.forEach(category => {
             var rules = CUSTOM_RULES.filter(rule => rule.category == category.id && rule.requires == null);
             if (!rules.length) { return; }
@@ -241,6 +239,12 @@ var CustomRulesUI = (function () {
     document.getElementById("customRulesCancelButton").addEventListener("click", () => showDialog("CustomRules", false));
     document.getElementById("customRulesSaveButton").addEventListener("click", saveEditor);
     document.getElementById("joinRulesCancelButton").addEventListener("click", () => showDialog("JoinRules", false));
+    // An open rule explanation in the lobby closes on any click outside it.
+    document.addEventListener("click", event => {
+        if (GameLayout.openCustomRule == null || event.target.closest("#customRuleDetails, .custom-rule-chip")) { return; }
+        GameLayout.openCustomRule = null;
+        if (GameLayout.customRulesGame) { GameLayout.updateCustomRules(GameLayout.customRulesGame); }
+    }, true);
 
     return { openEditor, confirmJoin, showRules, prepareRulesDialog };
 })();

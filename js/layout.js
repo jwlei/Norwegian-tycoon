@@ -308,6 +308,7 @@ class GameLayout {
     static updateGameButtons(game) {
         this.updateCustomRules(game);
         this.el("gameIdDisplay").textContent = game.id;
+        this.el("gameIdDisplay").title = game.status == "O" ? "Inviter spiller" : "Trykk for å kopiere spill-ID";
         this.el("settingsGameIdValue").textContent = game.id;
         this.el("settingsGameId").hidden = false;
         this.el("settingsButton").title = `Innstillinger · Spill-ID ${game.id}`;
@@ -330,7 +331,8 @@ class GameLayout {
                 startButton.textContent = waitingForPlayers ? "Venter på flere spillere" :
                     (game.allHumansReady() ? "Start spill" : "Venter på spillere");
                 startButton.disabled = !isLobbyHost(game) || !game.allHumansReady() || waitingForPlayers;
-                this.setVisible("inviteButton", true);
+                // In the lobby the game ID at the top opens the invite.
+                this.setVisible("inviteButton", false);
                 this.setVisible("lobbyMainMenuButton", false);
                 var lobbyHost = isLobbyHost(game);
                 this.setVisible("addBotButton", lobbyHost);
@@ -399,7 +401,8 @@ class GameLayout {
         panel.hidden = game.status != "O" || (rules.length == 0 && !isLobbyHost(game));
         if (!panel.hidden) { this.renderCustomRulesPanel(panel, game, rules); }
         var pill = this.el("customRulesPill");
-        pill.hidden = game.status == "O" || rules.length == 0;
+        // Hidden during the card exchange, where it would cover the trade buttons.
+        pill.hidden = game.status == "O" || game.status == "G" || rules.length == 0;
         pill.textContent = `Egne regler · ${rules.length}`;
         pill.onclick = () => CustomRulesUI.showRules(game);
         var rulesButton = this.el("rulesButton");
@@ -425,7 +428,7 @@ class GameLayout {
             if (text != null) { node.textContent = text; }
             return node;
         };
-        var edit = make("button", "custom-rules-edit", rules.length ? "Endre" : "Legg til egne regler");
+        var edit = make("button", "custom-rules-edit", rules.length ? "Endre" : "Endre regler");
         edit.type = "button";
         edit.onclick = () => CustomRulesUI.openEditor(game);
         // Without custom rules only the host sees the panel, as a single button.
