@@ -1766,11 +1766,17 @@
                 button.className = "public-lobby-entry";
                 button.dataset.lobbyId = lobby.id;
                 var name = document.createElement("span");
+                name.className = "public-lobby-entry__name";
+                var nameText = document.createElement("span");
+                var rulesTag = document.createElement("span");
+                rulesTag.className = "public-lobby-entry__rules";
+                name.append(nameText, rulesTag);
                 var status = document.createElement("span");
                 status.className = "public-lobby-entry__status";
                 button.append(name, status);
                 button.addEventListener("click", function () {
-                    joinGameById(lobby.id, showPublicLobbyError);
+                    var latest = publicLobbies.find(candidate => candidate.id == lobby.id) || lobby;
+                    CustomRulesUI.confirmJoin(latest, () => joinGameById(latest.id, showPublicLobbyError));
                 });
                 list.appendChild(button);
                 buttons.set(lobby.id, button);
@@ -1780,7 +1786,11 @@
                 button.classList.toggle("is-running", !lobby.waiting);
                 var name = `${lobby.host} · ${lobby.players}/${MAX_PLAYERS}`;
                 var status = lobby.waiting ? "Venter i lobby" : "Spill pågår";
-                if (button.children[0].textContent != name) { button.children[0].textContent = name; }
+                var [nameText, rulesTag] = button.children[0].children;
+                if (nameText.textContent != name) { nameText.textContent = name; }
+                rulesTag.hidden = lobby.customRules == 0;
+                var rulesText = `Egne regler · ${lobby.customRules}`;
+                if (!rulesTag.hidden && rulesTag.textContent != rulesText) { rulesTag.textContent = rulesText; }
                 if (button.children[1].textContent != status) { button.children[1].textContent = status; }
             });
         }
@@ -1802,6 +1812,7 @@
                         bots: Number(lobby.bots) || 0,
                         waiting: lobby.waiting !== false,
                         turnSeconds: gameTurnSeconds(lobby.turnSeconds),
+                        customRules: Number(lobby.customRules) || 0,
                         ts: Number(lobby.ts) || 0
                     });
                 }
@@ -1839,7 +1850,7 @@
                 return;
             }
             var lobby = lobbies[Math.floor(Math.random() * lobbies.length)];
-            joinGameById(lobby.id, showPublicLobbyError);
+            CustomRulesUI.confirmJoin(lobby, () => joinGameById(lobby.id, showPublicLobbyError));
         }
 
         document.getElementById("gameTable").addEventListener("click", function (event) {
@@ -1990,11 +2001,8 @@
                         connectingGame.hostName = hostRecord ? hostRecord.nick : null;
                     }
                     var storedRules = snapshotRecord["regler"] || {};
-                    connectingGame.rules = {
-                        showCardsOnly: storedRules["VisKunKort"],
-                        sevenJackTrade: storedRules["Bytte7Knekt"] === true,
-                        sneakyTrade: storedRules["UreglementertBytte"] === true
-                    };
+                    connectingGame.rules = Object.assign({ showCardsOnly: storedRules["VisKunKort"] === true },
+                        customRulesFromRecord(storedRules));
                     connectingGame.round = snapshotRecord["runde"];
                     connectingGame.shuffleStartedAt = snapshotRecord["shuffleStartedAt"] || null;
                     ensureGameLog(connectingGame);
@@ -3104,7 +3112,7 @@
         GameLayout.updatePlayerView(null, null);
 
         document.getElementById('rulesButton').addEventListener('click', function () {
-            showDialog("Rules", true);
+            CustomRulesUI.showRules(currentGame);
         });
 
         document.getElementById('gameLogButton').addEventListener('click', showGameLog);

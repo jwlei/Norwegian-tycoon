@@ -999,3 +999,38 @@ test("expired and void games cannot start, rejoin or appear in public listings",
         assert.equal(fixture.listing.value, null);
     }
 });
+
+test("only the lobby host changes custom rules, which clears Ready and updates the public listing", () => {
+    const fixture = lifecycleGame();
+    const { game, types } = fixture;
+    game.status = "O";
+    game.isPublic = true;
+    const guest = new types.PresidentPlayer("Guest", "guest");
+    game.players = [game.players[0], guest, game.players[1]];
+    game.players.forEach(player => { player.ready = true; });
+    game.save();
+    assert.equal(fixture.listing.value.customRules, undefined, "Standard lobbies don't list a rule count");
+
+    assert.equal(game.setCustomRules({ sevenJackTrade: true, sneakyTrade: true }), true);
+    assert.deepEqual(fixture.stored.regler, { VisKunKort: false, Bytte7Knekt: true, UreglementertBytte: true });
+    assert.equal(fixture.listing.value.customRules, 2);
+    assert.deepEqual(fixture.stored.spillere.map(record => record.ready), [false, false, true],
+        "Humans confirm again; bots stay ready");
+    assert.equal(game.setCustomRules({ sevenJackTrade: true, sneakyTrade: true }), false, "Unchanged rules don't save");
+
+    assert.equal(game.setCustomRules({ sneakyTrade: true }), true);
+    assert.deepEqual(fixture.stored.regler, { VisKunKort: false, Bytte7Knekt: false, UreglementertBytte: false },
+        "Sneaky trade needs the 7–J trade");
+    assert.equal(fixture.listing.value.customRules, undefined);
+
+    game.setCustomRules({ sevenJackTrade: true });
+    game.hostKey = "someone-else";
+    assert.throws(() => game.setCustomRules({}), /Bare verten/);
+    game.rules = Object.assign({}, game.rules, { sevenJackTrade: false });
+    game.save();
+    assert.equal(fixture.stored.regler.Bytte7Knekt, true, "A guest's stale copy can't overwrite the host's rules");
+
+    game.hostKey = "owner";
+    game.status = "S";
+    assert.throws(() => game.setCustomRules({}), /bare endres i lobbyen/);
+});

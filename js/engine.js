@@ -246,11 +246,7 @@ class PresidentGame extends Game {
         if (id == null) {
             this.id = Math.floor(Math.random() * 999999 + 1).toString();
             this.databaseRef = firebase.database().ref(`boms_1/${this.id}`);
-            this.rules = {
-                showCardsOnly: false,
-                sevenJackTrade: false, // Custom rule: optional one-card 7–J trades after the card exchange.
-                sneakyTrade: false // Custom rule: mutual consent lifts the 7–J limit; needs sevenJackTrade.
-            };
+            this.rules = Object.assign({ showCardsOnly: false }, normalizeCustomRules({}));
             this.status = 'O'; // O = waiting, G = exchanging cards, S = playing, F = finished, V = void.
             this.lastHumanActionAt = GamePresence.now();
             this.round = 0;
@@ -310,6 +306,19 @@ class PresidentGame extends Game {
             humans.every(player => player.ready === true &&
                 GamePresence.disconnectedAt(this.presence, player) == null);
     }
+    setCustomRules(rules) {
+        this.assertSessionActive();
+        if (!isLobbyHost(this)) { throw ("Bare verten kan endre reglene."); }
+        if (this.status != "O") { throw ("Reglene kan bare endres i lobbyen."); }
+        var next = normalizeCustomRules(rules);
+        if (JSON.stringify(next) == JSON.stringify(normalizeCustomRules(this.rules))) { return false; }
+        this.rules = Object.assign({}, this.rules, next);
+        // Everyone confirms again under the new rules.
+        this.players.forEach(player => { if (player.playerKey != "PC") { player.ready = false; } });
+        this.lastHumanActionAt = GamePresence.now();
+        this.save();
+        return true;
+    }
     setReady(player, ready) {
         if (this.status != "O" || player == null || player.playerKey == "PC" ||
             player.playerKey != getPlayerKey() || !this.players.includes(player)) {
@@ -349,11 +358,8 @@ class PresidentGame extends Game {
         var update = {
             status: this.status,
             lastHumanActionAt: this.lastHumanActionAt,
-            "regler": {
-                "VisKunKort": this.rules.showCardsOnly,
-                "Bytte7Knekt": this.rules.sevenJackTrade === true,
-                "UreglementertBytte": this.rules.sneakyTrade === true
-            },
+            "regler": Object.assign({ "VisKunKort": this.rules.showCardsOnly === true },
+                customRulesToRecord(this.rules)),
             "runde": this.round,
             "spillere": PresidentPlayer.serializePlayers(this.players),
             "spillBunke": this.status == "V" ? [] : this.serializePiles(),
@@ -452,6 +458,8 @@ class PresidentGame extends Game {
                     ? (hasLastAction ? Math.max(Number(baseline), update.lastHumanActionAt) : Number(baseline))
                     : update.lastHumanActionAt;
                 var next = Object.assign({}, current, update, { lastHumanActionAt });
+                // Only the host changes the rules; other clients must not write back a stale copy.
+                if (!isLobbyHost(this) && current.regler != null) { next.regler = current.regler; }
                 if (current.shuffleStartedAt == update.shuffleStartedAt && current.runde == update.runde) {
                     if (current.status == "G" && update.status == "G" &&
                         (update.spillBunke || []).some(exchange => {
@@ -545,6 +553,7 @@ class PresidentGame extends Game {
             bots: this.players.filter(player => player.playerKey == "PC").length,
             turnSeconds: gameTurnSeconds(this.turnSeconds),
             waiting: this.status == "O",
+            ...(activeCustomRules(this.rules).length > 0 ? { customRules: activeCustomRules(this.rules).length } : {}),
             ts: Date.now()
         }).catch(error => {
             console.error("Kunne ikke oppdatere offentlig lobby.", error);
@@ -1480,9 +1489,6 @@ class PresidentGame extends Game {
             var viceBumIndex = this.players.findIndex(player =>
                 player.placement == this.players.length - 1
             );
-            var neutralIndex = this.players.findIndex(player =>
-                player.placement == 2
-            );
             if (presidentIndex < 0 || bumIndex < 0) {
                 throw ("Forrige rundes President eller Boms mangler.");
             }
@@ -1544,25 +1550,21 @@ class PresidentGame extends Game {
                     count: this.players.length == 2 ? 1 : 2,
                     mode: "Best"
                 }];
-                if (this.players.length == 3 && neutralIndex >= 0 && isSevenJackTradeEnabled(this)) {
+            }
+            if (isSevenJackTradeEnabled(this)) {
+                // Custom rule: from the top down, each role may force a one-card 7–J trade with the role below.
+                var ranked = this.players.map((player, index) => index)
+                    .sort((a, b) => this.players[a].lastPlacement - this.players[b].lastPlacement);
+                for (var step = 0; step + 1 < ranked.length; step++) {
+                    var from = ranked[step];
+                    var to = ranked[step + 1];
                     this.piles.push({
-                        id: `offer:${this.round}:${presidentIndex}:${neutralIndex}`,
-                        tradeId: `trade:${this.round}:${presidentIndex}:${neutralIndex}`,
+                        id: `offer:${this.round}:${from}:${to}`,
+                        tradeId: `trade:${this.round}:${from}:${to}`,
                         kind: "playerTrade",
-                        text: "Presidenten kan starte et tvunget bytte med Nøytral:",
-                        from: presidentIndex,
-                        to: neutralIndex,
-                        count: 1,
-                        mode: "Tilbud",
-                        cards: [],
-                        sneakyVotes: []
-                    }, {
-                        id: `offer:${this.round}:${neutralIndex}:${bumIndex}`,
-                        tradeId: `trade:${this.round}:${neutralIndex}:${bumIndex}`,
-                        kind: "playerTrade",
-                        text: "Nøytral kan starte et tvunget bytte med Boms:",
-                        from: neutralIndex,
-                        to: bumIndex,
+                        text: `${this.placementTitle(step + 1).title} kan starte et tvunget bytte med ${this.placementTitle(step + 2).title}:`,
+                        from: from,
+                        to: to,
                         count: 1,
                         mode: "Tilbud",
                         cards: [],
@@ -1622,11 +1624,8 @@ class PresidentGame extends Game {
         }
         var fromPlacement = this.players[currentOffer.from].lastPlacement;
         var toPlacement = this.players[currentOffer.to].lastPlacement;
-        var isAuthorizedPair =
-            (fromPlacement == 1 && toPlacement == 2) ||
-            (fromPlacement == 2 && toPlacement == 3);
-        if (this.players.length != 3 || !isAuthorizedPair) {
-            throw ("Denne bytteregelen gjelder bare President, Nøytral og Boms i et tre-spillers spill.");
+        if (!isSevenJackTradeEnabled(this) || fromPlacement < 1 || toPlacement != fromPlacement + 1) {
+            throw ("Tilleggsbytte gjelder bare mellom en rolle og rollen rett under, når regelen er på.");
         }
         var requestedSneaky = isSneakyTradeAvailable(this) &&
             (currentOffer.sneakyVotes || []).includes(currentOffer.from);
@@ -1767,6 +1766,10 @@ class PresidentGame extends Game {
         if (!isSneakyTradeAvailable(this)) { throw ("Ureglementert bytte er ikke tilgjengelig i dette spillet."); }
         if (playerIndex != current.from && playerIndex != current.to) {
             throw ("Bare deltakerne i byttet kan gi ureglementert samtykke.");
+        }
+        // Before forcing, only the initiator chooses; the receiver answers once the trade is forced.
+        if (current.mode == "Tilbud" && playerIndex != current.from) {
+            throw ("Mottakeren velger ureglementert bytte når byttet er tvunget.");
         }
         var relatedExchanges = this.piles.filter(candidate =>
             candidate.tradeId != null && candidate.tradeId == current.tradeId

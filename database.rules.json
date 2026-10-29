@@ -22,6 +22,7 @@
         "bots": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 4" },
         "turnSeconds": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 60" },
         "waiting": { ".validate": "newData.isBoolean()" },
+        "customRules": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 20" },
         "ts": { ".validate": "newData.isNumber()" },
         "$other": { ".validate": false }
       }

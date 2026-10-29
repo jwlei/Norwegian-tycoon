@@ -53,7 +53,7 @@
     <link rel="stylesheet" href="css/common.css?rev=ab06da32">
     <link rel="stylesheet" href="css/game.css?rev=6a126a50">
     <link rel="stylesheet" href="css/mobile.css?rev=6217c4bf">
-    <link rel="stylesheet" href="css/theme.css?rev=5520450f">
+    <link rel="stylesheet" href="css/theme.css?rev=4168e6e2">
     <link rel="stylesheet" href="css/color-themes.css?rev=be696cdb">
     <link rel="stylesheet" href="css/ui-refresh.css?rev=fd031dfe">
     <link rel="stylesheet" href="css/foil.css?rev=59ac85c5">
@@ -148,8 +148,10 @@
 
         </div>
         <small id="lobbyCapacity" role="status" aria-live="polite" hidden></small>
+        <section id="customRulesPanel" class="custom-rules-panel" aria-label="Egne regler" hidden></section>
         <div id="gameTable">
             <div id="tableStatusDock" class="table-status-dock">
+                <button type="button" id="customRulesPill" class="custom-rules-pill" hidden></button>
                 <div id="turnTimer" class="turn-timer" hidden>
                     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                         <circle cx="8" cy="8" r="6.5"></circle>
@@ -681,6 +683,10 @@
             <div class="dialog-title">Regler</div>
             <div class="dialogBody rules-content">
                 <button type="button" class="play-guide-shortcut" onclick="showDialog('Rules', false); showDialog('PlayGuide', true);">Visuell spillguide</button>
+                <section id="customRulesSection" hidden>
+                    <h3>Egne regler i dette spillet</h3>
+                    <ul id="customRulesSectionList"></ul>
+                </section>
                 <section>
                     <h3>Slik spiller du</h3>
                     <ul>
@@ -728,6 +734,31 @@
         </div>
     </div>
 
+    <div id="dialogCustomRules" class="dialog-container">
+        <div class="dialog-window">
+            <div class="dialog-title">Egne regler</div>
+            <div id="customRulesEditor" class="dialogBody settings-list"></div>
+            <div class="dialog-footer">
+                <span id="customRulesEditorCount" class="custom-rules-editor__count"></span>
+                <button type="button" id="customRulesCancelButton">Avbryt</button>
+                <button type="button" id="customRulesSaveButton">Lagre</button>
+            </div>
+        </div>
+    </div>
+    <div id="dialogJoinRules" class="dialog-container">
+        <div class="dialog-window">
+            <div id="joinRulesTitle" class="dialog-title"></div>
+            <div class="dialogBody">
+                <p id="joinRulesIntro"></p>
+                <ul id="joinRulesList" class="custom-rules-list"></ul>
+                <p class="custom-rules-hint">Alt annet følger standardreglene. Verten kan endre reglene før spillet starter.</p>
+            </div>
+            <div class="dialog-footer">
+                <button type="button" id="joinRulesCancelButton">Avbryt</button>
+                <button type="button" id="joinRulesOkButton">Bli med</button>
+            </div>
+        </div>
+    </div>
     <div id="dialogGameLog" class="dialog-container">
         <div class="dialog-window game-log-dialog">
             <div class="dialog-title">Spillogg</div>
@@ -849,18 +880,19 @@
     <script src="js/player.js?rev=02c291d5"></script>
     <script src="js/shared.js?rev=6609e2a5"></script>
     <script src="js/identity.js?rev=1d5df15b"></script>
-    <script src="js/bot.js?rev=a9e266d1"></script>
+    <script src="js/bot.js?rev=21eb76fa"></script>
     <script src="js/presence.js?rev=c28bb1a2"></script>
-    <script src="js/game.js?rev=3f4f4781"></script>
-    <script src="js/layout.js?rev=d35d52ac"></script>
+    <script src="js/game.js?rev=6718e7aa"></script>
+    <script src="js/layout.js?rev=ce2a23cc"></script>
     <script src="js/layout-animations.js?rev=0314b885"></script>
-    <script src="js/layout-table.js?rev=3063c284"></script>
+    <script src="js/layout-table.js?rev=caf4be66"></script>
     <script src="js/layout-hand.js?rev=576167b5"></script>
-    <script src="js/engine.js?rev=b5bb1cc5"></script>
+    <script src="js/engine.js?rev=db9c4b1a"></script>
     <script src="js/bot-turn.js?rev=8a5ffc1d"></script>
-    <script src="js/connection.js?rev=2c8a0166"></script>
+    <script src="js/connection.js?rev=e5444f78"></script>
+    <script src="js/custom-rules.js?rev=79abbcd1"></script>
     <script src="js/leaderboard.js?rev=98194434"></script>
-    <script src="js/i18n.js?rev=1416c887"></script>
+    <script src="js/i18n.js?rev=a8365e0c"></script>
 </body>
 
 </html>

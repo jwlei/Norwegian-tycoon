@@ -658,7 +658,7 @@ function loadGame(cardStyle = null, globals = {}) {
         const source = fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8");
         vm.runInContext(source, context);
     }
-    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, BotAI, GameLayout, GamePresence, exchangeSummaryDuration, activeTradeOffer, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, displayedPlayerPlacement, assignPlayerColors, isGiftPackage, isCardAllowedForExchange, chooseSuggestedPlayStrength, isSneakyTradeAvailable, hasSneakyConsent, tryAutoPass })", context);
+    return vm.runInContext("({ PresidentGame, PresidentPlayer, PresidentCard, CardPile, BotAI, GameLayout, GamePresence, exchangeSummaryDuration, activeTradeOffer, isLobbyHost, availablePlayerName, sanitizePlayerName, BOT_NAMES, resultIconForPlacement, displayedPlayerPlacement, assignPlayerColors, isGiftPackage, isCardAllowedForExchange, chooseSuggestedPlayStrength, isSneakyTradeAvailable, hasSneakyConsent, tryAutoPass, getAvailableExchangeCards })", context);
 }
 
 function independentExchangeFixture() {
@@ -970,16 +970,17 @@ test("consent stays private and forcing waits for the receiver's explicit choice
     for (const player of [null, players[2]]) {
         assert.equal(render(player).some(node => /samtykke|Sneaky/.test(node.textContent)), false);
     }
-    for (const player of players.slice(0, 2)) {
-        const nodes = render(player);
-        const consentButton = nodes.find(node => node.textContent == "Ureglementert bytte");
-        assert.ok(consentButton.className.includes("exchange-sneaky-toggle"));
-        assert.equal(consentButton.attributes["aria-pressed"], "true");
-        assert.equal(nodes.some(node => /samtykket|Sneaky-samtykke:/.test(node.textContent)), false);
-    }
-    game.piles[0].sneakyVotes = [0];
-    assert.equal(render(players[1]).find(node => node.textContent == "Ureglementert bytte")
-        .attributes["aria-pressed"], "false");
+    const senderNodes = render(players[0]);
+    const consentButton = senderNodes.find(node => node.textContent == "Ureglementert samtykke");
+    assert.ok(consentButton.className.includes("exchange-sneaky-check"));
+    assert.equal(consentButton.attributes.role, "checkbox");
+    assert.equal(consentButton.attributes["aria-checked"], "true");
+    assert.equal(senderNodes.some(node => /samtykket|Sneaky-samtykke:/.test(node.textContent)), false);
+    assert.equal(render(players[1]).some(node => /ureglementert/i.test(node.textContent) &&
+        node.attributes?.role == "checkbox"), false, "The receiver only chooses sneaky once the trade is forced");
+    game.piles[0].sneakyVotes = [];
+    assert.equal(render(players[0]).find(node => node.textContent == "Ureglementert samtykke")
+        .attributes["aria-checked"], "false");
     game.piles[0].sneakyVotes = [0, 1];
     const originalOffer = game.piles[0];
     for (const from of [0, 1]) {
@@ -992,7 +993,10 @@ test("consent stays private and forcing waits for the receiver's explicit choice
             const recipient = render(players[from + 1]);
             assert.equal(recipient.some(node => node.textContent == "Tving bytte" ||
                 node.textContent == "Ingen bytte"), false);
-            assert.ok(recipient.some(node => node.textContent == "Ureglementert bytte"));
+            assert.equal(recipient.some(node => node.textContent == "Ureglementert samtykke"), false);
+            const initiatorLabels = initiator.filter(node => ["Tving bytte", "Ureglementert samtykke", "Ingen bytte"]
+                .includes(node.textContent)).map(node => node.textContent);
+            assert.deepEqual(initiatorLabels, ["Tving bytte", "Ureglementert samtykke", "Ingen bytte"]);
             assert.ok(recipient.some(node => node.textContent.includes(`${players[from].name} som`) &&
                 node.textContent.includes("bestemmer om det blir bytte")));
             players[from].playerKey = `key-${from}`;
@@ -1001,7 +1005,7 @@ test("consent stays private and forcing waits for the receiver's explicit choice
     game.piles = [originalOffer];
     game.rules.sneakyTrade = false;
     for (const player of players.slice(0, 2)) {
-        assert.equal(render(player).some(node => node.className?.includes("exchange-sneaky-toggle")), false);
+        assert.equal(render(player).some(node => node.className?.includes("exchange-sneaky")), false);
     }
     game.rules.sneakyTrade = true;
     const start = render(players[0]).find(node => node.textContent === "Tving bytte");
@@ -1010,10 +1014,11 @@ test("consent stays private and forcing waits for the receiver's explicit choice
     assert.equal(game.piles[0].mode, "Tilbud");
     assert.ok(render(players[0]).some(node => /Venter på at Recipient/.test(node.textContent)));
     assert.ok(render(players[1]).some(node => /Sender har tvunget et bytte/.test(node.textContent)));
-    assert.equal(render(players[0]).some(node => node.textContent == "Vanlig bytte"), false);
+    assert.equal(render(players[0]).some(node => node.textContent == "Godta bytte"), false);
     const responses = render(players[1]);
-    assert.ok(responses.some(node => node.textContent == "Vanlig bytte"));
-    responses.find(node => node.textContent == "Ureglementert bytte").onclick();
+    assert.deepEqual(responses.filter(node => /^Godta/.test(node.textContent)).map(node => node.textContent),
+        ["Godta bytte", "Godta med ureglementert samtykke"]);
+    responses.find(node => node.textContent == "Godta med ureglementert samtykke").onclick();
     assert.ok(game.piles.every(exchange => exchange.mode == "Velg" && exchange.sneakyLocked));
     for (const player of players.slice(0, 2)) {
         assert.equal(render(player).some(node => node.className?.includes("exchange-sneaky-toggle")), false);
@@ -1294,12 +1299,12 @@ test("unavailable Sneaky is never mentioned or offered in any trade view", () =>
     for (const nodes of [sender, recipient, observer, render(null)]) {
         assert.equal(mentionsSneaky(nodes), false, "Forced offers stay normal-only");
     }
-    assert.ok(sender.some(node => node.textContent == "Venter på at Recipient bekrefter vanlig bytte."));
+    assert.ok(sender.some(node => node.textContent == "Venter på at Recipient godtar byttet."));
     assert.ok(recipient.some(node =>
-        node.textContent == "Sender har tvunget et bytte. Bekreft vanlig bytte med kort 7–J."));
+        node.textContent == "Sender har tvunget et bytte. Godta vanlig bytte med kort 7–J."));
     assert.ok(observer.some(node => node.textContent == "Sender har tvunget et bytte med Recipient."));
-    assert.equal(sender.some(node => node.textContent == "Vanlig bytte"), false);
-    const responses = recipient.filter(node => node.textContent == "Vanlig bytte");
+    assert.equal(sender.some(node => node.textContent == "Godta bytte"), false);
+    const responses = recipient.filter(node => node.textContent == "Godta bytte");
     assert.equal(responses.length, 1);
     assert.notEqual(responses[0].disabled, true);
     responses[0].onclick();
@@ -1316,13 +1321,13 @@ test("eligible games keep the forced Sneaky choice and wording", () => {
     assert.equal(isSneakyTradeAvailable(game), true);
     assert.ok(render(players[0]).some(node => node.textContent.includes("Om begge velger ureglementert bytte")));
     render(players[0]).find(node => node.textContent == "Tving bytte").onclick();
-    assert.ok(render(players[0]).some(node =>
-        node.textContent == "Venter på at Recipient velger ureglementert eller vanlig bytte."));
+    assert.ok(render(players[0]).some(node => node.textContent == "Venter på at Recipient godtar byttet."));
     const recipient = render(players[1]);
-    assert.ok(recipient.some(node => node.textContent == "Sender har tvunget et bytte. Ureglementert bytte?"));
-    const sneaky = recipient.find(node => node.textContent == "Ureglementert bytte");
+    assert.ok(recipient.some(node => node.textContent ==
+        "Sender har tvunget et bytte. Godta vanlig bytte, eller godta med ureglementert samtykke."));
+    const sneaky = recipient.find(node => node.textContent == "Godta med ureglementert samtykke");
     assert.notEqual(sneaky.disabled, true);
-    assert.ok(recipient.some(node => node.textContent == "Vanlig bytte"));
+    assert.ok(recipient.some(node => node.textContent == "Godta bytte"));
     sneaky.onclick();
     assert.ok(game.piles.every(exchange => exchange.mode == "Velg"));
     assert.deepEqual(Array.from(game.piles[0].sneakyVotes).sort(), [1]);
@@ -3623,7 +3628,7 @@ function publicLobbyContext() {
         return node;
     };
     const list = element();
-    const state = { fetches: 0, errors: [], joins: [], timer: null, listener: null, pending: null };
+    const state = { fetches: 0, errors: [], joins: [], confirms: [], timer: null, listener: null, pending: null };
     const snapshot = records => ({ forEach: callback => records.forEach(record => callback({ val: () => record })) });
     const context = vm.createContext({
         console: { error: (...args) => state.errors.push(args) }, currentGame: null,
@@ -3639,7 +3644,8 @@ function publicLobbyContext() {
             once() { state.fetches++; return state.pending || Promise.resolve(snapshot(state.records || [])); }
         }) }) },
         setInterval: (callback, delay) => { state.timer = callback; assert.equal(delay, 15000); },
-        joinGameById(id) { state.joins.push(id); }
+        joinGameById(id) { state.joins.push(id); },
+        CustomRulesUI: { confirmJoin(lobby, join) { state.confirms.push([lobby.id, lobby.customRules]); join(); } }
     });
     vm.runInContext(source.slice(source.indexOf("        var publicLobbies = [];"),
         source.indexOf('        document.getElementById("gameTable").addEventListener("click"', source.indexOf("        var publicLobbies = [];"))), context);
@@ -3658,6 +3664,9 @@ test("public lobby rows remain clickable join buttons before and after refresh",
     assert.equal(list.querySelector(".public-lobby-entry"), button);
     button.click();
     assert.deepEqual(state.joins, ["123", "123"]);
+    state.update([{ ...lobby, customRules: 2 }]);
+    button.click();
+    assert.deepEqual(state.confirms.at(-1), ["123", 2], "Joining checks the latest custom rule count first");
 });
 
 test("public lobby rows show whether the lobby is waiting or already playing", () => {
@@ -3665,7 +3674,8 @@ test("public lobby rows show whether the lobby is waiting or already playing", (
     const lobby = { id: "123", host: "Host", players: 2, waiting: true, ts: Date.now() };
     state.update([lobby]);
     const button = list.querySelector(".public-lobby-entry");
-    assert.equal(button.children[0].textContent, "Host · 2/4");
+    assert.equal(button.children[0].children[0].textContent, "Host · 2/4");
+    assert.equal(button.children[0].children[1].hidden, true, "Standard lobbies show no rules badge");
     assert.equal(button.children[1].textContent, "Venter i lobby");
     assert.equal(button.children[1].className, "public-lobby-entry__status");
     assert.equal(button.className.split(" ").includes("is-running"), false);
@@ -3673,6 +3683,9 @@ test("public lobby rows show whether the lobby is waiting or already playing", (
     assert.equal(list.querySelector(".public-lobby-entry"), button);
     assert.equal(button.children[1].textContent, "Spill pågår");
     assert.equal(button.className.split(" ").includes("is-running"), true);
+    state.update([{ ...lobby, customRules: 2 }]);
+    assert.equal(button.children[0].children[1].hidden, false);
+    assert.equal(button.children[0].children[1].textContent, "Egne regler · 2");
 });
 
 test("public lobby refresh keeps existing buttons, order and scroll position", () => {
@@ -3686,7 +3699,7 @@ test("public lobby refresh keeps existing buttons, order and scroll position", (
     assert.equal(list.scrollTop, 30);
     state.update([lobby("one", 3), lobby("two"), lobby("three")]);
     assert.deepEqual(list.querySelectorAll(".public-lobby-entry").slice(0, 2), buttons);
-    assert.equal(buttons.find(button => button.dataset.lobbyId === "one").children[0].textContent, "one · 3/4");
+    assert.equal(buttons.find(button => button.dataset.lobbyId === "one").children[0].children[0].textContent, "one · 3/4");
     assert.equal(list.querySelectorAll(".public-lobby-entry").length, 3);
     state.update([]);
     assert.equal(list.querySelectorAll(".public-lobby-entry").length, 0);
@@ -4837,6 +4850,7 @@ test("lobby start stays neutral until enough players are present and every human
     const { GameLayout, PresidentGame, PresidentPlayer, GamePresence } = loadGame(null, {
         document: { getElementById: getElement }
     });
+    GameLayout.updateCustomRules = () => {};
     const host = new PresidentPlayer("Host", "human-key");
     const guest = new PresidentPlayer("Guest", "guest-key");
     const bot = new PresidentPlayer("Bot", "PC");
@@ -5032,26 +5046,53 @@ test("two-player first rounds choose randomly even when the heart three is dealt
     assert.equal(differentStarter, true, "The heart-three holder does not force the starter");
 });
 
-test("standard three-player rounds have no 7–J trade offers; the custom rule adds them", () => {
-    for (const sevenJackTrade of [undefined, false, true]) {
-        const { PresidentGame, PresidentPlayer } = loadGame(null, {
-            clearTimeout() {},
-            document: { dispatchEvent() {}, querySelectorAll: () => [] },
-            CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } }
-        });
-        const players = Array.from({ length: 3 }, (_, index) => {
-            const player = new PresidentPlayer(`Seat ${index}`, "PC");
-            player.placement = index + 1;
-            return player;
-        });
-        const game = Object.assign(Object.create(PresidentGame.prototype), {
-            id: "exchange", players, status: "S", round: 2, piles: [], rules: { sevenJackTrade }
-        });
-        game.save = () => {};
-        game.prepareRound();
-        const offers = game.piles.filter(exchange => exchange.mode == "Tilbud");
-        assert.deepEqual(Array.from(offers, offer => [offer.from, offer.to]), sevenJackTrade ? [[0, 1], [1, 2]] : []);
+test("7–J trade offers run top-down for every player count only when the custom rule is on", () => {
+    for (const count of [2, 3, 4]) {
+        for (const sevenJackTrade of [undefined, false, true]) {
+            const { PresidentGame, PresidentPlayer } = loadGame(null, {
+                clearTimeout() {},
+                document: { dispatchEvent() {}, querySelectorAll: () => [] },
+                CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } }
+            });
+            const players = Array.from({ length: count }, (_, index) => {
+                const player = new PresidentPlayer(`Seat ${index}`, "PC");
+                player.placement = index + 1;
+                return player;
+            });
+            const game = Object.assign(Object.create(PresidentGame.prototype), {
+                id: "exchange", players, status: "S", round: 2, piles: [], rules: { sevenJackTrade }
+            });
+            game.save = () => {};
+            game.prepareRound();
+            const offers = game.piles.filter(exchange => exchange.mode == "Tilbud");
+            const expected = sevenJackTrade ? Array.from({ length: count - 1 }, (_, index) => [index, index + 1]) : [];
+            assert.deepEqual(Array.from(offers, offer => [offer.from, offer.to]), expected, `${count} players`);
+        }
     }
+});
+
+test("a card received in the 7–J trade above can't be passed down, but mandatory exchange cards can", () => {
+    const { getAvailableExchangeCards, PresidentCard } = loadGame();
+    const fromTrade = new PresidentCard(1, 8);
+    const fromMandatory = new PresidentCard(2, 9);
+    const players = ["President", "Vice President", "Vice Bum", "Bum"].map((name, index) =>
+        ({ name, lastPlacement: index + 1, cards: [] }));
+    players[2].cards = [fromTrade, fromMandatory];
+    const game = {
+        players, piles: [], rules: { sevenJackTrade: true },
+        exchangeReceipts: [
+            { id: "1:2:exchange:1:2", sender: "Vice President", recipient: "Vice Bum",
+                cards: [{ suit: fromMandatory.suit, rank: fromMandatory.rank }] },
+            { id: "1:2:trade:2:1:2:1:2", sender: "Vice President", recipient: "Vice Bum",
+                cards: [{ suit: fromTrade.suit, rank: fromTrade.rank }] }
+        ]
+    };
+    const trade = { kind: "playerTrade", from: 2, to: 3, sneakyVotes: [] };
+    assert.deepEqual(Array.from(getAvailableExchangeCards(game, 2, trade), card => card.rank), [9]);
+    trade.sneakyVotes = [2, 3];
+    game.rules.sneakyTrade = true;
+    assert.deepEqual(Array.from(getAvailableExchangeCards(game, 2, trade), card => card.rank), [8, 9],
+        "Mutual sneaky consent lifts the restriction");
 });
 
 test("mandatory exchanges use one card for two players, two for three, and vice-role pairs for four", () => {
@@ -5093,8 +5134,8 @@ test("mandatory exchanges use one card for two players, two for three, and vice-
             from: exchange.from, to: exchange.to, cards: Array.from(exchange.cards)
         }));
         for (const exchange of mandatory) { game.giveExchangeCards(exchange); }
-        if (count == 3) {
-            assert.equal(game.status, "G");
+        {
+            assert.equal(game.status, "G", "The 7–J trade offers follow the mandatory exchange");
             const gate = game.exchangeReady;
             game.exchangeReady = null;
             for (const offer of Array.from(game.piles)) { game.skipOptionalTrade(offer, offer.from); }

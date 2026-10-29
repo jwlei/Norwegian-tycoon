@@ -19,7 +19,7 @@ Before step 3, use the Rules Playground in the console to simulate a read of `/p
 | --- | --- |
 | everything | Denied unless listed below. Every listed path requires a signed-in (anonymous) user, which blocks scripted access that has not gone through Firebase Auth. |
 | `boms_1/$gameId` | Readable and writable by any signed-in user. IDs must be 1–999999. |
-| `boms_public/$gameId` | The public lobby listing. Fields and types are fixed; unknown fields are rejected. |
+| `boms_public/$gameId` | The public lobby listing. Fields and types are fixed; unknown fields are rejected. `customRules` (the number of custom rules on) is only written when it is at least 1, so publish these rules before deploying a client that writes it. |
 | `playerStats/$playerKey` | Readable for the leaderboard (indexed on `lastActiveAt`). Records cannot be deleted. `presidentWins`, `roundsPlayed` and `bomsCount` can only grow, and by at most 1 per write. |
 | `playerIds/$playerKey` | Write-once: a player ID's ownership token cannot be replaced. |
 | `playerNames/$nameKey` | PIN profiles cannot be moved to another player ID, and legacy PIN fields cannot be changed or removed. |

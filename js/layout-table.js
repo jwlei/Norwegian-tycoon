@@ -357,12 +357,10 @@ GameLayout.extend(class {
                             title.textContent = exchange.forcedAt != null
                                 ? (isRecipient
                                     ? (sneakyAvailable
-                                        ? `${fromPlayer.name} har tvunget et bytte. Ureglementert bytte?`
-                                        : `${fromPlayer.name} har tvunget et bytte. Bekreft vanlig bytte med kort 7–J.`)
+                                        ? `${fromPlayer.name} har tvunget et bytte. Godta vanlig bytte, eller godta med ureglementert samtykke.`
+                                        : `${fromPlayer.name} har tvunget et bytte. Godta vanlig bytte med kort 7–J.`)
                                     : isSender
-                                        ? (sneakyAvailable
-                                            ? `Venter på at ${toPlayer.name} velger ureglementert eller vanlig bytte.`
-                                            : `Venter på at ${toPlayer.name} bekrefter vanlig bytte.`)
+                                        ? `Venter på at ${toPlayer.name} godtar byttet.`
                                         : `${fromPlayer.name} har tvunget et bytte med ${toPlayer.name}.`)
                                 : isSender
                                 ? `Du som ${fromRole} kan tvinge bytte av kort mellom 7–J med ${toRole}.`
@@ -399,21 +397,9 @@ GameLayout.extend(class {
                         element.classList.add("exchange--offer");
                         buttonSpan.className = "exchange-offer__actions";
                         var voters = exchange.sneakyVotes || [];
-                        var isParticipant = isSender || isRecipient;
                         var canInitiate = isSender && exchange.forcedAt == null && !game.exchangeReady;
                         var participantIndex = currentPlayerIndex;
-                        if (isParticipant && isSneakyTradeAvailable(game) &&
-                            exchange.forcedAt == null && !game.exchangeReady) {
-                            var sneakyButton = document.createElement("button");
-                            sneakyButton.type = "button";
-                            sneakyButton.textContent = "Ureglementert bytte";
-                            sneakyButton.className = "exchange-offer__sneaky exchange-sneaky-toggle";
-                            sneakyButton.setAttribute("aria-pressed", String(voters.includes(participantIndex)));
-                            sneakyButton.onclick = function () {
-                                game.toggleSneakyTrade(exchange, participantIndex);
-                            };
-                            buttonSpan.appendChild(sneakyButton);
-                        }
+                        // The initiator sees Force, the consent tick box and No exchange; the receiver answers once forced.
                         if (canInitiate) {
                             var startButton = document.createElement("button");
                             startButton.type = "button";
@@ -430,6 +416,18 @@ GameLayout.extend(class {
                             };
                             buttonSpan.appendChild(startButton);
                         }
+                        if (canInitiate && isSneakyTradeAvailable(game)) {
+                            var sneakyCheck = document.createElement("button");
+                            sneakyCheck.type = "button";
+                            sneakyCheck.textContent = "Ureglementert samtykke";
+                            sneakyCheck.className = "exchange-sneaky-check";
+                            sneakyCheck.setAttribute("role", "checkbox");
+                            sneakyCheck.setAttribute("aria-checked", String(voters.includes(participantIndex)));
+                            sneakyCheck.onclick = function () {
+                                game.toggleSneakyTrade(exchange, participantIndex);
+                            };
+                            buttonSpan.appendChild(sneakyCheck);
+                        }
                         if (canInitiate) {
                             var skipButton = document.createElement("button");
                             skipButton.type = "button";
@@ -440,10 +438,10 @@ GameLayout.extend(class {
                             buttonSpan.appendChild(skipButton);
                         }
                         if (exchange.forcedAt != null && isRecipient && !game.exchangeReady) {
-                            for (const sneaky of isSneakyTradeAvailable(game) ? [true, false] : [false]) {
+                            for (const sneaky of isSneakyTradeAvailable(game) ? [false, true] : [false]) {
                                 var responseButton = document.createElement("button");
                                 responseButton.type = "button";
-                                responseButton.textContent = sneaky ? "Ureglementert bytte" : "Vanlig bytte";
+                                responseButton.textContent = sneaky ? "Godta med ureglementert samtykke" : "Godta bytte";
                                 responseButton.onclick = () => game.respondToForcedTrade(exchange, participantIndex, sneaky);
                                 buttonSpan.appendChild(responseButton);
                             }

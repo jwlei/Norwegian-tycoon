@@ -129,7 +129,7 @@ test("mutual consent at initiation allows cards outside 7–J without requiring 
     const offer = game.piles[0];
     assert.throws(() => game.startOptionalTrade(offer), /7 til J/);
     game.toggleSneakyTrade(offer, 0);
-    game.toggleSneakyTrade(offer, 1);
+    assert.throws(() => game.toggleSneakyTrade(offer, 1), /når byttet er tvunget/);
     assert.equal(game.piles.length, 1);
     game.startOptionalTrade(offer);
     game.respondToForcedTrade(offer, 1, true);
@@ -162,7 +162,7 @@ test("forced recipient consent survives handoff, rejects stale answers and respe
     const game = optionalTradeGame();
     const offer = game.piles[0];
     game.toggleSneakyTrade(offer, 0);
-    game.toggleSneakyTrade(offer, 1);
+    assert.throws(() => game.toggleSneakyTrade(offer, 1), /når byttet er tvunget/);
     game.startOptionalTrade(offer);
     assert.deepEqual(Array.from(offer.sneakyVotes), [0], "Pre-forcing votes cannot replace an explicit answer");
     const forcedAt = offer.forcedAt;
@@ -275,7 +275,7 @@ test("a Neutral bot cannot pass the President's received card on in a normal exc
     const received = card(7);
     game.players[1].cards = new CardDeck(received, card(9, 2));
     game.players[2].cards = new CardDeck(card(8, 4));
-    game.exchangeReceipts = [{ id: "prior", sender: game.players[0].name,
+    game.exchangeReceipts = [{ id: "1:2:trade:2:0:1:0:1", sender: game.players[0].name,
         recipient: game.players[1].name, cards: [{ suit: received.suit, rank: received.rank }] }];
     const offer = game.piles[0];
     offer.from = 1;
@@ -496,6 +496,7 @@ test("exchange choices preserve combinations, never mutate the hand, and honor a
 
 function optionalOffer(game, from = 0, to = 1) {
     game.status = "G";
+    game.rules = { sevenJackTrade: true, sneakyTrade: true };
     const offer = {
         id: "optional", tradeId: "optional-trade", kind: "playerTrade",
         from, to, count: 1, mode: "Tilbud", cards: [], sneakyVotes: []

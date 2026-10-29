@@ -57,13 +57,68 @@ function activeTradeOffer(game) {
     return (game.piles || []).find(exchange => exchange.mode == "Tilbud") || null;
 }
 
+// Custom rules the lobby host can turn on. With all of them off the game plays Standard.
+// `record` is the key under the game's "regler"; `requires` names a rule that must also be on.
+const CUSTOM_RULE_CATEGORIES = [
+    { id: "play", title: "Spill" },
+    { id: "trade", title: "Bytte" },
+    { id: "finish", title: "Avslutning" },
+    { id: "rounds", title: "Runder" }
+];
+const CUSTOM_RULES = [
+    {
+        id: "sevenJackTrade", record: "Bytte7Knekt", category: "trade",
+        title: "Tilleggsbytte",
+        summary: "Etter kortbyttet kan hver rolle tvinge et ettkortsbytte med rollen under, med kort fra 7 til knekt.",
+        details: {
+            2: "Etter det vanlige kortbyttet kan Presidenten tvinge et ettkortsbytte med Boms. Begge velger et kort fra 7 til knekt. Presidenten kan hoppe over byttet; Boms kan ikke avslå.",
+            3: "Etter det vanlige kortbyttet kan Presidenten tvinge et ettkortsbytte med Nøytral, og deretter kan Nøytral tvinge et ettkortsbytte med Boms. Begge velger et kort fra 7 til knekt. Bare den som starter byttet kan hoppe over; mottakeren kan ikke avslå. Nøytral kan ikke gi kortet fra Presidenten videre til Boms.",
+            4: "Etter det vanlige kortbyttet kan Presidenten tvinge et ettkortsbytte med Visepresidenten, deretter Visepresidenten med Viseboms, og til slutt Viseboms med Boms. Begge velger et kort fra 7 til knekt. Bare den som starter byttet kan hoppe over; mottakeren kan ikke avslå. Et kort du nettopp fikk i et slikt bytte, kan ikke gis videre i neste."
+        }
+    },
+    {
+        id: "sneakyTrade", record: "UreglementertBytte", category: "trade", requires: "sevenJackTrade",
+        title: "Ureglementert",
+        summary: "Samtykker begge i et tilleggsbytte, kan alle kort byttes.",
+        details: "Den som tvinger et tilleggsbytte, kan krysse av for ureglementert samtykke, og mottakeren kan godta med ureglementert samtykke. Samtykker begge, kan alle kort byttes, ikke bare 7 til knekt. Botter ser motspillerens kort når de velger hva de gir."
+    }
+];
+
+function isCustomRuleOn(rules, rule) {
+    if (rules?.[rule.id] !== true) { return false; }
+    return rule.requires == null || isCustomRuleOn(rules, CUSTOM_RULES.find(other => other.id == rule.requires));
+}
+
+// Every custom rule as a strict boolean; dependent rules are off while their requirement is off.
+function normalizeCustomRules(rules) {
+    return Object.fromEntries(CUSTOM_RULES.map(rule => [rule.id, isCustomRuleOn(rules, rule)]));
+}
+
+function activeCustomRules(rules) {
+    return CUSTOM_RULES.filter(rule => isCustomRuleOn(rules, rule));
+}
+
+function customRulesFromRecord(record) {
+    return Object.fromEntries(CUSTOM_RULES.map(rule => [rule.id, record?.[rule.record] === true]));
+}
+
+function customRulesToRecord(rules) {
+    var normalized = normalizeCustomRules(rules);
+    return Object.fromEntries(CUSTOM_RULES.map(rule => [rule.record, normalized[rule.id]]));
+}
+
+function customRuleDetails(rule, playerCount) {
+    return typeof rule.details == "string" ? rule.details
+        : rule.details[Math.min(4, Math.max(2, Number(playerCount) || 3))];
+}
+
 function isSevenJackTradeEnabled(game) {
-    return game?.rules?.sevenJackTrade === true;
+    return isCustomRuleOn(game?.rules, CUSTOM_RULES[0]);
 }
 
 // The host's custom rule; it only applies while the 7–J trade is on.
 function isSneakyTradeAvailable(game) {
-    return isSevenJackTradeEnabled(game) && game.rules.sneakyTrade === true;
+    return isCustomRuleOn(game?.rules, CUSTOM_RULES[1]);
 }
 
 function hasSneakyConsent(exchange, game = null) {
@@ -95,15 +150,16 @@ function getAvailableExchangeCards(game, playerIndex, excludedExchange = null) {
         .forEach(exchange => {
             (exchange.cards || []).forEach(card => reservedCards.add(exchangeCardKey(card)));
         });
-    if (game.players.length == 3 && excludedExchange?.kind == "playerTrade" &&
-        excludedExchange.from == playerIndex &&
-        game.players[playerIndex].lastPlacement == 2 &&
-        game.players[excludedExchange.to].lastPlacement == 3 &&
+    // In a 7–J trade chain, the card received in the trade from the role above can't be passed on down.
+    var placement = game.players[playerIndex].lastPlacement;
+    if (excludedExchange?.kind == "playerTrade" && excludedExchange.from == playerIndex && placement > 1 &&
+        game.players[excludedExchange.to].lastPlacement == placement + 1 &&
         !hasSneakyConsent(excludedExchange, game)) {
-        var president = game.players.find(player => player.lastPlacement == 1);
+        var above = game.players.find(player => player.lastPlacement == placement - 1);
         (game.exchangeReceipts || []).filter(receipt =>
-            receipt.sender == president?.name &&
-            receipt.recipient == game.players[playerIndex].name
+            receipt.sender == above?.name &&
+            receipt.recipient == game.players[playerIndex].name &&
+            String(receipt.id).includes(":trade:")
         ).forEach(receipt => {
             receipt.cards.forEach(card => reservedCards.add(exchangeCardKey(card)));
         });

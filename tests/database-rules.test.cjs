@@ -46,3 +46,15 @@ test("the leaderboard query is indexed", () => {
     assert.match(scripts, /orderByChild\("lastActiveAt"\)/);
     assert.deepEqual(rules.playerStats[".indexOn"], ["lastActiveAt"]);
 });
+
+test("the public listing accepts exactly the fields the game writes, including the custom rule count", () => {
+    const listing = rules.boms_public.$gameId;
+    const engine = fs.readFileSync(path.join(root, "js", "engine.js"), "utf8");
+    const written = engine.slice(engine.indexOf("listingRef.set({"), engine.indexOf("}).catch", engine.indexOf("listingRef.set({")));
+    for (const field of ["id", "host", "players", "bots", "turnSeconds", "waiting", "customRules", "ts"]) {
+        assert.ok(written.includes(field), `${field} is written`);
+        assert.ok(listing[field], `${field} is validated`);
+    }
+    assert.match(listing.customRules[".validate"], /isNumber\(\) && newData\.val\(\) >= 1/);
+    assert.deepEqual(listing.$other, { ".validate": false });
+});

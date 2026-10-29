@@ -401,7 +401,7 @@ class BotAI {
 
     static chooseOptionalTrade(game, player, offer, random = Math.random) {
         var seat = game.players.indexOf(player);
-        if (game.status != "G" || game.players.length != 3 ||
+        if (game.status != "G" || !isSevenJackTradeEnabled(game) ||
             offer.kind != "playerTrade" || offer.mode != "Tilbud" ||
             seat < 0 || (seat != offer.from && seat != offer.to)) { return "skip"; }
         var skill = BotAI.skill(player.botSkill || "good");

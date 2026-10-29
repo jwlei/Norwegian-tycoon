@@ -306,6 +306,7 @@ class GameLayout {
         this.setVisible("joinGameButton", true);
     }
     static updateGameButtons(game) {
+        this.updateCustomRules(game);
         this.el("gameIdDisplay").textContent = game.id;
         this.el("settingsGameIdValue").textContent = game.id;
         this.el("settingsGameId").hidden = false;
@@ -387,6 +388,80 @@ class GameLayout {
             default:
                 throw ('Ukjent spillstatus.');
                 break;
+        }
+    }
+    // Custom rules: the lobby panel (tap a rule to read it), the in-game pill and the Rules button badge.
+    static updateCustomRules(game) {
+        GameLayout.customRulesGame = game;
+        var rules = activeCustomRules(game.rules);
+        if (!rules.some(rule => rule.id == GameLayout.openCustomRule)) { GameLayout.openCustomRule = null; }
+        var panel = this.el("customRulesPanel");
+        panel.hidden = game.status != "O" || (rules.length == 0 && !isLobbyHost(game));
+        if (!panel.hidden) { this.renderCustomRulesPanel(panel, game, rules); }
+        var pill = this.el("customRulesPill");
+        pill.hidden = game.status == "O" || rules.length == 0;
+        pill.textContent = `Egne regler · ${rules.length}`;
+        pill.onclick = () => CustomRulesUI.showRules(game);
+        var rulesButton = this.el("rulesButton");
+        var badge = rulesButton.querySelector(".custom-rules-badge");
+        if (badge == null) {
+            badge = document.createElement("span");
+            badge.className = "custom-rules-badge";
+            badge.setAttribute("aria-hidden", "true");
+            rulesButton.appendChild(badge);
+        }
+        badge.hidden = rules.length == 0 || game.status == "O";
+        badge.textContent = String(rules.length);
+    }
+    static renderCustomRulesPanel(panel, game, rules) {
+        var host = isLobbyHost(game);
+        var seats = Math.max(2, game.players.length);
+        var signature = JSON.stringify([rules.map(rule => rule.id), host, seats, GameLayout.openCustomRule]);
+        if (panel.dataset.signature == signature) { return; }
+        panel.dataset.signature = signature;
+        var make = (tag, className, text) => {
+            var node = document.createElement(tag);
+            if (className) { node.className = className; }
+            if (text != null) { node.textContent = text; }
+            return node;
+        };
+        var edit = make("button", "custom-rules-edit", rules.length ? "Endre" : "Legg til egne regler");
+        edit.type = "button";
+        edit.onclick = () => CustomRulesUI.openEditor(game);
+        // Without custom rules only the host sees the panel, as a single button.
+        panel.classList.toggle("is-empty", rules.length == 0);
+        if (!rules.length) { panel.replaceChildren(edit); return; }
+        var head = make("div", "custom-rules-panel__head");
+        var heading = make("span", "custom-rules-panel__heading");
+        heading.appendChild(make("span", "custom-rules-panel__title", `Egne regler · ${rules.length}`));
+        head.appendChild(heading);
+        if (host) { head.appendChild(edit); }
+        panel.replaceChildren(head);
+        var chips = make("ul", "custom-rules-chips");
+        rules.forEach(rule => {
+            var open = GameLayout.openCustomRule == rule.id;
+            var chip = make("button", "custom-rule-chip", rule.title);
+            chip.type = "button";
+            chip.setAttribute("aria-expanded", String(open));
+            chip.setAttribute("aria-controls", "customRuleDetails");
+            chip.onclick = () => {
+                GameLayout.openCustomRule = open ? null : rule.id;
+                this.renderCustomRulesPanel(panel, game, rules);
+                Array.from(panel.querySelectorAll(".custom-rule-chip"))[rules.indexOf(rule)]?.focus();
+            };
+            var item = make("li");
+            item.appendChild(chip);
+            chips.appendChild(item);
+        });
+        panel.appendChild(chips);
+        var openRule = rules.find(rule => rule.id == GameLayout.openCustomRule);
+        if (openRule) {
+            var details = make("div", "custom-rules-explain");
+            details.id = "customRuleDetails";
+            details.append(make("strong", null, openRule.title), make("p", null, customRuleDetails(openRule, seats)));
+            panel.appendChild(details);
+        } else {
+            panel.appendChild(make("p", "custom-rules-hint", "Trykk på en regel for å lese mer."));
         }
     }
     static bindLobbyReorder(element, game, player) {

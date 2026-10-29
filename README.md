@@ -17,6 +17,7 @@ Boms og President (also known as Norwegian Tycoon) is a free card game for 2–4
 - Spectator mode and reconnection to an active game
 - Player profiles, optional PIN-based profile recovery, and a leaderboard
 - Game log, round results, turn timers, and configurable ready/start flow
+- Optional custom rules set by the lobby host (extra exchange, unregulated), with a saved personal preset
 - Norwegian and English interface
 - Customizable themes, card designs, foils, animation, and input controls
 - Responsive layout, keyboard controls, and support for reduced-motion preferences

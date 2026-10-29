@@ -703,11 +703,6 @@ select:focus-visible {
     gap: 6px;
 }
 
-.exchange-offer__sneaky {
-    flex: 0 0 70%;
-    margin: 0 15%;
-}
-
 .exchange-sneaky-toggle[aria-pressed="true"] {
     background: var(--success-fill);
     border-color: var(--success);
@@ -716,6 +711,38 @@ select:focus-visible {
 
 .exchange-sneaky-toggle[aria-pressed="true"]:hover {
     background: var(--success-hover);
+}
+
+/* Sneaky consent tick box beside Force exchange (initiator only). */
+.exchange-sneaky-check,
+.exchange-sneaky-check:hover {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-color: var(--control-border);
+    background: transparent;
+    color: var(--ink);
+}
+.exchange-sneaky-check:hover { background: var(--surface-hover); }
+.exchange-sneaky-check::before {
+    content: "";
+    display: grid;
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
+    place-items: center;
+    border: 2px solid var(--control-border);
+    border-radius: 5px;
+    background: var(--surface);
+    color: var(--on-success);
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1;
+}
+.exchange-sneaky-check[aria-checked="true"]::before {
+    content: "✓";
+    border-color: var(--success);
+    background: var(--success);
 }
 
 #exchangeActions {
@@ -3573,7 +3600,8 @@ body[data-message-timer-bar="off"] .game-toast::after {
 
 #gameShell.game-active.Lobby {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 60px auto minmax(180px, min(42dvh, 360px)) auto auto;
+    /* The seats keep their height; the lobby scrolls when the rules panel grows. */
+    grid-template-rows: 60px auto max(180px, min(42dvh, 360px)) auto auto auto;
     align-content: start;
     gap: 8px;
     padding-bottom: max(12px, env(safe-area-inset-bottom));
@@ -3780,7 +3808,7 @@ body[data-message-timer-bar="off"] .game-toast::after {
     grid-template-columns: minmax(0, 1fr);
     gap: 8px;
     grid-column: 1 / -1;
-    grid-row: 5 / 6;
+    grid-row: 6 / 7;
     width: min(calc(100% - 24px), 360px);
     margin: 4px 0 0;
     justify-self: center;
@@ -4423,3 +4451,274 @@ body[data-message-timer-bar="off"] .game-toast::after {
         right: 52%;
     }
 }
+
+/* Custom rules: lobby panel between the seats and the actions. */
+#customRulesPanel { display: none; }
+#gameShell.game-active.Lobby > #customRulesPanel:not([hidden]) {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-row: 5 / 6;
+    justify-self: center;
+    width: min(calc(100% - 24px), 760px);
+    gap: 8px;
+    padding: 10px 12px 12px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    color: var(--ink);
+}
+/* Title centred; the host's Edit button sits in the right column without pushing it off-centre. */
+.custom-rules-panel__head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+}
+.custom-rules-panel__heading {
+    grid-column: 2;
+    display: grid;
+    justify-items: center;
+    text-align: center;
+}
+.custom-rules-panel__title { font-weight: 800; }
+#gameShell.game-active.Lobby > #customRulesPanel.is-empty {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+#gameShell #customRulesPanel.is-empty > button.custom-rules-edit { grid-column: 1 / -1; justify-self: center; }
+#gameShell button.custom-rules-edit,
+#gameShell button.custom-rules-edit:hover,
+#gameShell button.custom-rules-edit:active {
+    grid-column: 3;
+    justify-self: end;
+    width: auto;
+    min-width: 0;
+    min-height: 32px;
+    margin: 0;
+    padding: 4px 12px;
+    border: 1px solid var(--control-border);
+    border-radius: 9px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--ink);
+    font-size: 0.85rem;
+    transform: none;
+}
+#gameShell button.custom-rules-edit:hover { background: var(--surface-hover); }
+.custom-rules-chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+#gameShell button.custom-rule-chip,
+#gameShell button.custom-rule-chip:hover,
+#gameShell button.custom-rule-chip:active {
+    display: inline-flex;
+    width: auto;
+    min-width: 0;
+    min-height: 32px;
+    margin: 0;
+    padding: 3px 12px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line));
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--accent) 14%, var(--surface-soft));
+    box-shadow: none;
+    color: var(--ink);
+    font-size: 0.8rem;
+    font-weight: 650;
+    text-align: center;
+    white-space: nowrap;
+    transform: none;
+}
+#gameShell button.custom-rule-chip:hover { background: color-mix(in srgb, var(--accent) 26%, var(--surface-soft)); }
+#gameShell button.custom-rule-chip[aria-expanded="true"] {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--on-accent);
+}
+.custom-rules-explain {
+    padding: 10px 12px;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    background: var(--surface-soft);
+    text-align: left;
+}
+.custom-rules-explain > strong { display: block; margin-bottom: 4px; }
+.custom-rules-explain > p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.45;
+}
+.custom-rules-hint {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.75rem;
+    text-align: center;
+}
+
+/* In game: pill in the table status dock and a count on the Rules button. */
+#gameShell button.custom-rules-pill,
+#gameShell button.custom-rules-pill:hover,
+#gameShell button.custom-rules-pill:active {
+    position: static;
+    order: 0;
+    display: inline-flex;
+    width: auto;
+    min-width: 0;
+    min-height: 26px;
+    margin: 0;
+    padding: 2px 10px;
+    align-items: center;
+    border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 14%, var(--surface-soft));
+    box-shadow: none;
+    color: var(--ink);
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+    transform: none;
+}
+#gameShell button.custom-rules-pill[hidden] { display: none; }
+#gameShell .topbar-actions > #rulesButton { position: relative; }
+.custom-rules-badge {
+    position: absolute;
+    top: 2px;
+    right: 0;
+    display: grid;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    place-items: center;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+    pointer-events: none;
+}
+.custom-rules-badge[hidden],
+#gameShell:not(.game-active) .custom-rules-badge { display: none; }
+
+/* Public lobby list: "Custom rules · N" beside the host. */
+.public-lobby-entry__name {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+}
+.public-lobby-entry__rules {
+    padding: 1px 8px;
+    border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.public-lobby-entry__rules[hidden] { display: none; }
+
+/* Host editor: long-dialog layout that shrinks to its content. */
+#dialogCustomRules .dialog-window {
+    display: flex;
+    flex-direction: column;
+    max-height: min(88dvh, 740px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+#dialogCustomRules .dialog-title { flex: 0 0 auto; padding-bottom: 12px; }
+#dialogCustomRules .dialogBody {
+    flex: 1 0 auto;
+    min-height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 8px 16px 16px;
+    align-content: start;
+}
+#dialogCustomRules .dialog-footer {
+    float: none;
+    flex: 0 0 auto;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    align-items: center;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+}
+#dialogCustomRules .dialog-footer > button { flex: 0 1 auto; white-space: nowrap; }
+#dialogCustomRules .speed-option { flex: 1 1 0; min-width: 0; padding-inline: 4px; font-size: 0.85rem; white-space: nowrap; }
+#dialogCustomRules .message-settings { display: grid; gap: 0; }
+.custom-rules-intro {
+    margin: 0 0 4px;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+.custom-rules-preset-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    min-height: 32px;
+}
+#dialogCustomRules button.custom-rules-save-preset,
+#dialogCustomRules button.custom-rules-save-preset:hover,
+#dialogCustomRules button.custom-rules-save-preset:active {
+    width: auto;
+    min-width: 0;
+    min-height: 32px;
+    margin: 0;
+    padding: 4px 12px;
+    border: 1px solid var(--control-border);
+    border-radius: 9px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--ink);
+    font-size: 0.85rem;
+    font-weight: 700;
+    white-space: nowrap;
+    transform: none;
+}
+#dialogCustomRules button.custom-rules-save-preset:hover:not(:disabled) { background: var(--surface-hover); }
+#dialogCustomRules button.custom-rules-save-preset:disabled { opacity: 0.5; cursor: default; }
+.custom-rules-preset-status {
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+.custom-rules-editor__count {
+    margin-right: auto;
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+/* Join confirmation list. */
+.custom-rules-list {
+    display: grid;
+    gap: 6px;
+    margin: 8px 0;
+    padding: 0;
+    list-style: none;
+}
+.custom-rules-list > li {
+    display: grid;
+    gap: 4px;
+    padding: 10px 12px;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    background: var(--surface-soft);
+    text-align: left;
+}
+.custom-rules-list small { color: var(--muted); line-height: 1.4; }
+#customRulesSection[hidden] { display: none; }
