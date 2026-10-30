@@ -136,7 +136,7 @@ GameLayout.extend(class {
                 if (moveTime - intent.time > CARD_FLICK_RELEASE_GRACE_MS ||
                     finishY > CARD_FLICK_RECOIL_TOLERANCE ||
                     reverseDistance > CARD_FLICK_RECOIL_TOLERANCE ||
-                    (Math.hypot(finishX, finishY) >= CARD_FLICK_MIN_DISTANCE &&
+                    (Math.hypot(finishX, finishY) > CARD_FLICK_RECOIL_TOLERANCE &&
                         !isUpwardFlick(finishX, -finishY))) {
                     drag.flickIntent = null;
                 }

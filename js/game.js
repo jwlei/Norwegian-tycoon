@@ -16,7 +16,7 @@ const CARD_TOUCH_PICKUP_CONE = 140;
 const CARD_FLICK_MIN_DISTANCE = 2;
 const CARD_FLICK_MIN_VELOCITY = 0.15;
 const CARD_FLICK_RELEASE_GRACE_MS = 200;
-const CARD_FLICK_RECOIL_TOLERANCE = 3;
+const CARD_FLICK_RECOIL_TOLERANCE = 8;
 
 var selectedCardKeys = new Set();
 var selectedCardStrength = null;

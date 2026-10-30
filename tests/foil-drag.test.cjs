@@ -15,6 +15,7 @@ const HALF_CONE = tuning.CARD_TOUCH_PICKUP_CONE / 2;
 const MIN_DISTANCE = tuning.CARD_FLICK_MIN_DISTANCE;
 const MIN_VELOCITY = tuning.CARD_FLICK_MIN_VELOCITY;
 const GRACE_MS = tuning.CARD_FLICK_RELEASE_GRACE_MS;
+const RECOIL = tuning.CARD_FLICK_RECOIL_TOLERANCE;
 // Touch strokes within 15 degrees of horizontal scroll the hand (cardTouchDragAxis).
 const HORIZONTAL_ANGLE = 75;
 
@@ -1909,11 +1910,13 @@ test("direct flick recognition keeps the same minimum speed despite early jitter
 test("small reverse steps before recognition accumulate and cancel the original stroke", () => {
     const f = pointerFixture();
     f.hand.onpointerdown(f.event(200, 500));
-    for (const [time, y] of [[1010, 492], [1020, 493], [1030, 494], [1040, 495], [1050, 496]]) {
-        f.advance(time);
-        f.hand.onpointermove(f.event(200, y));
+    f.advance(1010);
+    f.hand.onpointermove(f.event(200, 492));
+    for (let step = 1; step <= RECOIL + 1; step++) {
+        f.advance(1010 + step * 10);
+        f.hand.onpointermove(f.event(200, 492 + step));
     }
-    f.hand.onpointerup(f.event(200, 496));
+    f.hand.onpointerup(f.event(200, 492 + RECOIL + 1));
     assert.equal(f.state.plays, 0);
 });
 
@@ -1936,8 +1939,29 @@ test("lift-off recoil tolerance works across touch flick angles and selected car
     }
 });
 
+test("a fast flick survives lift-off drift up to the recoil tolerance in any direction", () => {
+    for (const [dx, dy] of [[0, 1], [1, 0], [-1, 0], [Math.SQRT1_2, Math.SQRT1_2], [-Math.SQRT1_2, Math.SQRT1_2]]) {
+        for (const viaMove of [false, true]) {
+            const f = pointerFixture();
+            f.hand.onpointerdown(f.event(200, 500));
+            for (const [time, y] of [[1017, 480], [1034, 440], [1051, 400], [1068, 370]]) {
+                f.advance(time);
+                f.hand.onpointermove(f.event(200, y));
+            }
+            const x = 200 + dx * RECOIL;
+            const y = 370 + dy * RECOIL;
+            f.advance(1076);
+            if (viaMove) { f.hand.onpointermove(f.event(x, y)); }
+            f.advance(1080);
+            f.hand.onpointerup(f.event(x, y));
+            assert.equal(f.state.plays, 1, `${dx}/${dy}/${viaMove}`);
+        }
+    }
+});
+
 test("a recent flick is cancelled by deliberate downward or sideways movement, or holding", () => {
-    for (const [dx, dy, releaseTime] of [[0, 6, 1060], [20, 0, 1060], [0, 0, 1040 + GRACE_MS + 1]]) {
+    for (const [dx, dy, releaseTime] of [[0, RECOIL + 1, 1060], [RECOIL + 1, 0, 1060], [-(RECOIL + 1), 0, 1060],
+        [0, 0, 1040 + GRACE_MS + 1]]) {
         const f = pointerFixture();
         f.hand.onpointerdown(f.event(200, 500));
         f.advance(1020);
@@ -1958,7 +1982,9 @@ test("small successive movements cannot renew or accumulate past the flick recoi
         f.hand.onpointermove(f.event(200, 476));
         let y = 476;
         const expiry = 1030 + GRACE_MS + 30;
-        const times = finish == "reverse" ? [1040, 1050, 1060, 1070] : [expiry - 100, expiry - 50, expiry];
+        const times = finish == "reverse"
+            ? Array.from({ length: RECOIL + 1 }, (_, step) => 1040 + step * 10)
+            : [expiry - 100, expiry - 50, expiry];
         for (const time of times) {
             y += finish == "reverse" ? 1 : 0.5;
             f.advance(time);
