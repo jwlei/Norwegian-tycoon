@@ -4585,52 +4585,6 @@ body[data-message-timer-bar="off"] .game-toast::after {
     text-align: center;
 }
 
-/* In game: pill in the table status dock and a count on the Rules button. */
-#gameShell button.custom-rules-pill,
-#gameShell button.custom-rules-pill:hover,
-#gameShell button.custom-rules-pill:active {
-    position: static;
-    order: 0;
-    display: inline-flex;
-    width: auto;
-    min-width: 0;
-    min-height: 26px;
-    margin: 0;
-    padding: 2px 10px;
-    align-items: center;
-    border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line));
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--accent) 14%, var(--surface-soft));
-    box-shadow: none;
-    color: var(--ink);
-    font-size: 0.75rem;
-    font-weight: 700;
-    white-space: nowrap;
-    transform: none;
-}
-#gameShell button.custom-rules-pill[hidden] { display: none; }
-/* Anchor for the badge; inset resets the fixed-position offsets every top-bar button inherits. */
-#gameShell .topbar-actions > #rulesButton { position: relative; inset: auto; }
-.custom-rules-badge {
-    position: absolute;
-    top: 2px;
-    right: 0;
-    display: grid;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    place-items: center;
-    border-radius: 8px;
-    background: var(--accent);
-    color: var(--on-accent);
-    font-size: 10px;
-    font-weight: 800;
-    line-height: 1;
-    pointer-events: none;
-}
-.custom-rules-badge[hidden],
-#gameShell:not(.game-active) .custom-rules-badge { display: none; }
-
 /* Public lobby list: "Custom rules · N" beside the host. */
 .public-lobby-entry__name {
     display: inline-flex;

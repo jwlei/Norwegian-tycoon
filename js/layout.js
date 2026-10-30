@@ -392,7 +392,7 @@ class GameLayout {
                 break;
         }
     }
-    // Custom rules: the lobby panel (tap a rule to read it), the in-game pill and the Rules button badge.
+    // Custom rules: the lobby panel (tap a rule to read it).
     static updateCustomRules(game) {
         GameLayout.customRulesGame = game;
         var rules = activeCustomRules(game.rules);
@@ -400,21 +400,6 @@ class GameLayout {
         var panel = this.el("customRulesPanel");
         panel.hidden = game.status != "O" || (rules.length == 0 && !isLobbyHost(game));
         if (!panel.hidden) { this.renderCustomRulesPanel(panel, game, rules); }
-        var pill = this.el("customRulesPill");
-        // Hidden during the card exchange, where it would cover the trade buttons.
-        pill.hidden = game.status == "O" || game.status == "G" || rules.length == 0;
-        pill.textContent = `Egne regler · ${rules.length}`;
-        pill.onclick = () => CustomRulesUI.showRules(game);
-        var rulesButton = this.el("rulesButton");
-        var badge = rulesButton.querySelector(".custom-rules-badge");
-        if (badge == null) {
-            badge = document.createElement("span");
-            badge.className = "custom-rules-badge";
-            badge.setAttribute("aria-hidden", "true");
-            rulesButton.appendChild(badge);
-        }
-        badge.hidden = rules.length == 0 || game.status == "O";
-        badge.textContent = String(rules.length);
     }
     static renderCustomRulesPanel(panel, game, rules) {
         var host = isLobbyHost(game);
