@@ -329,7 +329,8 @@ GameLayout.extend(class {
                                     : `${fromPlayer.name} velger ${countText} til ${toPlayer.name}.`);
                             break;
                         case "Best":
-                            var bestCardsText = exchange.count == 1 ? "ditt beste kort" : "dine to beste kort";
+                            var bestCardsText = exchange.count == 1 ? "ditt beste kort"
+                                : (exchange.count == 3 ? "dine tre beste kort" : "dine to beste kort");
                             title.textContent = fromPlayer.leaveAfterExchange === true
                                 ? `${fromPlayer.name} gir ${exchange.count == 1 ? "sitt beste kort" : "sine beste kort"} automatisk til ${toPlayer.name}.`
                                 : (isSender

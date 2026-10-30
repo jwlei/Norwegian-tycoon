@@ -125,7 +125,10 @@ var CustomRulesUI = (function () {
         track.appendChild(make("span"));
         row.append(text, track);
         row.addEventListener("click", () => {
-            draft = normalizeCustomRules(Object.assign({}, draft, { [rule.id]: !on }));
+            var next = Object.assign({}, draft, { [rule.id]: !on });
+            // The rule just turned on wins over the rules it conflicts with.
+            if (!on) { (rule.conflicts || []).forEach(id => { next[id] = false; }); }
+            draft = normalizeCustomRules(next);
             presetJustSaved = false;
             renderEditor();
         });
@@ -143,7 +146,22 @@ var CustomRulesUI = (function () {
             var rules = CUSTOM_RULES.filter(rule => rule.category == category.id && rule.requires == null);
             if (!rules.length) { return; }
             body.appendChild(make("h3", "settings-category", category.title));
+            var placed = new Set();
             rules.forEach(rule => {
+                if (placed.has(rule.id)) { return; }
+                // Rules that exclude each other share one box, wherever they sit in the catalogue.
+                var rivals = rules.filter(other => (rule.conflicts || []).includes(other.id));
+                if (rivals.length) {
+                    var box = make("section", "message-settings is-enabled custom-rules-pick-group");
+                    box.setAttribute("aria-label", "Velg én av disse");
+                    box.appendChild(make("div", "custom-rules-pick-one", "Velg én"));
+                    [rule, ...rivals].forEach(member => {
+                        placed.add(member.id);
+                        box.appendChild(ruleRow(member));
+                    });
+                    body.appendChild(box);
+                    return;
+                }
                 var dependents = CUSTOM_RULES.filter(other => other.requires == rule.id);
                 if (!dependents.length) { body.appendChild(ruleRow(rule)); return; }
                 // Same pattern as Settings → Messages: the extra options appear inside the toggle's group.

@@ -137,11 +137,14 @@ class CardPile extends Array {
         if (this[0].isClubThree()) { return "kløver 3" };
         return describeCards(this[0].rank, this.length);
     }
-    canBePlayedOn(topPile) {
+    canBePlayedOn(topPile, game = null) {
         return (
             (topPile == null) || // First card in a new pile.
-            (this.length == topPile.length && this.strengthRank >= topPile.strengthRank) || // Standard rules.
-            (topPile.length < 4 && this.length == 1 && this[0].isClubThree()) // Club three.
+            (this.length == topPile.length && (hasCustomRule(game, "higherOnly")
+                ? this.strengthRank > topPile.strengthRank
+                : this.strengthRank >= topPile.strengthRank)) || // Standard rules.
+            (topPile.length < 4 && this.length == 1 && this[0].isClubThree()) || // Club three.
+            (topPile.length < 4 && this.length == 1 && this.strengthRank == 15 && hasCustomRule(game, "twoClears"))
         )
     }
 }
@@ -368,6 +371,7 @@ class PresidentGame extends Game {
             "fastForward": this.fastForward === true,
             "turnSeconds": gameTurnSeconds(this.turnSeconds),
             "roundStarterName": this.roundStarterName,
+            "spillretning": this.turnDirection === -1 ? -1 : 1,
             "shuffleStartedAt": this.shuffleStartedAt,
             "playedCards": this.playedCards || [],
             "exchangeReceipts": this.exchangeReceipts || [],
@@ -1433,6 +1437,7 @@ class PresidentGame extends Game {
     prepareRound() {
         this.playedCards = [];
         this.exchangeReady = null;
+        this.turnDirection = 1;
         // Build a fresh deck.
         var deck = new CardDeck();
         for (let i = this.deckCount(); i > 0; i--) {
@@ -1493,7 +1498,10 @@ class PresidentGame extends Game {
             if (presidentIndex < 0 || bumIndex < 0) {
                 throw ("Forrige rundes President eller Boms mangler.");
             }
-            this.roundStarterName = this.players[bumIndex].name;
+            this.roundStarterName = this.players[hasCustomRule(this, "presidentStarts") ? presidentIndex : bumIndex].name;
+            var tradeCount = presidentExchangeCount(this);
+            var tradeWord = ["", "ett", "to", "tre"][tradeCount];
+            var bestCards = tradeCount == 1 ? "sitt beste kort" : `sine ${tradeWord} beste kort`;
             this.players.forEach(player => {
                 player.cards.sortCards();
                 player.lastPlacement = player.placement;
@@ -1508,15 +1516,15 @@ class PresidentGame extends Game {
                 if (vicePresidentIndex < 0 || viceBumIndex < 0) {
                     throw ("Forrige rundes visepresident eller viseboms mangler.");
                 }
-                this.players[presidentIndex].messages.push("Skal gi to kort til bomsen.");
+                this.players[presidentIndex].messages.push(`Skal gi ${tradeWord} kort til bomsen.`);
                 this.players[vicePresidentIndex].messages.push("Skal gi ett kort til visebomsen.");
                 this.players[viceBumIndex].messages.push("Gir sitt beste kort til visepresidenten.");
-                this.players[bumIndex].messages.push("Gir sine to beste kort til presidenten.");
+                this.players[bumIndex].messages.push(`Gir ${bestCards} til presidenten.`);
                 this.piles = [{
-                    text: "Presidenten skal gi bomsen to kort:",
+                    text: `Presidenten skal gi bomsen ${tradeWord} kort:`,
                     from: presidentIndex,
                     to: bumIndex,
-                    count: 2,
+                    count: tradeCount,
                     mode: "Velg"
                 }, {
                     text: "Visepresidenten skal gi visebomsen ett kort:",
@@ -1531,24 +1539,24 @@ class PresidentGame extends Game {
                     count: 1,
                     mode: "Best"
                 }, {
-                    text: "Bomsen skal gi presidenten sine to beste kort:",
+                    text: `Bomsen skal gi presidenten ${bestCards}:`,
                     from: bumIndex,
                     to: presidentIndex,
-                    count: 2,
+                    count: tradeCount,
                     mode: "Best"
                 }];
             } else {
                 this.piles = [{
-                    text: this.players.length == 2 ? "Presidenten skal velge ett kort til Boms:" : "Presidenten skal velge to kort til Boms:",
+                    text: `Presidenten skal velge ${tradeWord} kort til Boms:`,
                     from: presidentIndex,
                     to: bumIndex,
-                    count: this.players.length == 2 ? 1 : 2,
+                    count: tradeCount,
                     mode: "Velg"
                 }, {
-                    text: this.players.length == 2 ? "Boms må gi sitt beste kort til Presidenten:" : "Boms må gi sine to beste kort til Presidenten:",
+                    text: `Boms må gi ${bestCards} til Presidenten:`,
                     from: bumIndex,
                     to: presidentIndex,
-                    count: this.players.length == 2 ? 1 : 2,
+                    count: tradeCount,
                     mode: "Best"
                 }];
             }
@@ -1583,7 +1591,8 @@ class PresidentGame extends Game {
             });
             this.piles.filter(exchange => (exchange.mode == "Best")).forEach(exchange => {
                 exchange.cards = [];
-                var cards = this.players[exchange.from].cards.filter(k => (!k.isClubThree())); // The club three must not be exchanged.
+                // The club three must not be exchanged, unless the custom rule makes it the best card.
+                var cards = this.players[exchange.from].cards.filter(k => (hasCustomRule(this, "clubThreeGiven") || !k.isClubThree()));
                 for (var i = 1; i <= exchange.count; i++) {
                     exchange.cards.push(cards[cards.length - i]);
                 }
@@ -2097,7 +2106,8 @@ class PresidentGame extends Game {
         var topPile = this.topPile();
         var fourOfKindOnTop = hasFourOfKindOnTop(this);
         var isClubThree = strengthRank == PresidentCard.clubThreePower();
-        if (fourOfKindOnTop && isClubThree) {
+        var isClearingTwo = strengthRank == 15 && !fourOfKindOnTop && hasCustomRule(this, "twoClears");
+        if (fourOfKindOnTop && isClubThree && !hasCustomRule(this, "clubThreeBeatsFour")) {
             resultInfo.svar = false;
             resultInfo.text = "Kløver 3 kan ikke slå fire like.";
             return false;
@@ -2107,12 +2117,19 @@ class PresidentGame extends Game {
             resultInfo.text = "Fire like fra singler eller to par rydder bunken og kan ikke slås.";
             return false;
         }
-        if (!isClubThree && strengthRank < topPile.strengthRank) {
+        if (!isClubThree && !isClearingTwo && strengthRank < topPile.strengthRank) {
             resultInfo.svar = false;
             resultInfo.text = `Må legge på samme eller høyere enn ${topPile.strengthRank}.`;
             return false;
         };
+        if (!isClubThree && !isClearingTwo && strengthRank == topPile.strengthRank && hasCustomRule(this, "higherOnly")) {
+            resultInfo.svar = false;
+            resultInfo.text = `Må legge høyere enn ${topPile.strengthRank}.`;
+            return false;
+        };
         var cardCount = isClubThree ? 1 : (fourOfKindOnTop ? 4 : topPile.length);
+        // A lone two still clears when the hand can't match the pile's card count.
+        if (isClearingTwo && player.cards.filter(card => card.strengthRank == 15).length < cardCount) { cardCount = 1; }
         var pile = new CardPile(player.name);
         var n = 0;
         player.cards.forEach(k => {
@@ -2140,11 +2157,12 @@ class PresidentGame extends Game {
         var fourOfKindOnTop = hasFourOfKindOnTop(this);
         var canBeatCurrentPile = fourOfKindOnTop
             ? pile != null &&
-                topPile.length == 4 &&
+                ((topPile.length == 4 &&
                 pile.length == 4 &&
                 pile.every(card => card.strengthRank == pile[0].strengthRank) &&
-                pile.strengthRank >= topPile.strengthRank
-            : pile != null && pile.canBePlayedOn(topPile);
+                pile.strengthRank >= topPile.strengthRank) ||
+                (pile.length == 1 && pile[0].isClubThree() && hasCustomRule(this, "clubThreeBeatsFour")))
+            : pile != null && pile.canBePlayedOn(topPile, this);
         return player != null &&
             pile != null &&
             this.status == "S" &&
@@ -2161,14 +2179,23 @@ class PresidentGame extends Game {
             info.text = "Kløver 3";
             return true;
         }
+        if (topPile.length == 1 && topPile.strengthRank == 15 && hasCustomRule(this, "twoClears")) {
+            info.text = "Toer";
+            return true;
+        }
+        if (topPile.strengthRank == 10 && hasCustomRule(this, "tenClears")) {
+            info.text = "Tier";
+            return true;
+        }
         if (hasFourOfKindOnTop(this)) {
-            if (topPile.length < 4) {
+            if (topPile.length < 4 || hasCustomRule(this, "fourAlwaysClears")) {
                 info.text = "Fire like";
                 return true;
             }
             var canBeBeaten = this.players.some(player => {
                 if (player.placement != 0 || player.name == topPile.name ||
                     player.lastPlay == "Pass") { return false; }
+                if (hasCustomRule(this, "clubThreeBeatsFour") && player.cards.some(card => card.isClubThree())) { return true; }
                 var counts = new Map();
                 player.cards.forEach(card => {
                     if (card.strengthRank > topPile.strengthRank) {
@@ -2205,10 +2232,15 @@ class PresidentGame extends Game {
                 s.messages = [];
             })
         }
+        var previousTop = this.topPile();
         pile.forEach(playedCard => {
             var i = player.cards.findIndex(k => (k == playedCard));
             player.cards.splice(i, 1);
         });
+        if (hasCustomRule(this, "openPass")) {
+            // A pass only answers the cards it was made on.
+            this.players.forEach(other => { if (other.lastPlay === "Pass") { other.lastPlay = null; } });
+        }
         player.lastPlay = pile;
         this.playedCards = (this.playedCards || []).concat(pile.map(card => ({
             suit: card.suit, rank: card.rank
@@ -2229,6 +2261,12 @@ class PresidentGame extends Game {
         if (isGiftPackage(this.piles)) {
             this.turnPause.extraMessage = "Oi, oi.. gavepakke!";
         }
+        if (pile.strengthRank == 9 && hasCustomRule(this, "reversingNine")) {
+            this.turnDirection = this.turnDirection === -1 ? 1 : -1;
+            this.addPauseExtraMessage("Spillretningen snus!");
+        }
+        this.skipNextPlayer = previousTop != null && pile.strengthRank == previousTop.strengthRank &&
+            hasCustomRule(this, "sameRankSkip");
         if (player.cards.length == 0) {
             if (pile.strengthRank == PresidentCard.clubThreePower()) {
                 // Playing the club three as the final card is a loss.
@@ -2240,6 +2278,13 @@ class PresidentGame extends Game {
             if (player.placement == 1) {
                 this.turnPause.placementMessage = `${player.name} ble President!`;
                 this.turnPause.message = this.turnPause.placementMessage;
+                var fallenPresident = hasCustomRule(this, "downfall")
+                    ? this.players.find(other => other.placement == 0 && other.lastPlacement == 1)
+                    : null;
+                if (fallenPresident) {
+                    this.finishPlayer(fallenPresident, false);
+                    this.addPauseExtraMessage(`${fallenPresident.name} mister makten!`);
+                }
             } else if (player.placement > 1 && player.placement < this.players.length) {
                 this.turnPause.placementMessage = `${player.name} gikk ut som ${this.placementTitle(player.placement).title}.`;
                 this.turnPause.message = this.turnPause.placementMessage;
@@ -2247,6 +2292,11 @@ class PresidentGame extends Game {
         }
         this.recordHumanAction(player);
         this.advanceTurn();
+        this.skipNextPlayer = false;
+    }
+    addPauseExtraMessage(message) {
+        var existing = this.turnPause.extraMessage;
+        this.turnPause.extraMessage = existing ? [].concat(existing, message) : message;
     }
     canPass(player) {
         return !this.localWritePending && player != null &&
@@ -2272,7 +2322,9 @@ class PresidentGame extends Game {
     }
     nextTurnIndex(currentTurnPlayer) {
         var info = {};
+        var direction = this.turnDirection === -1 ? -1 : 1;
         if (this.pileCleared(info)) {
+            this.skipNextPlayer = false;
             var clearedPile = this.topPile();
             var previousPlayer = this.players[currentTurnPlayer];
             if (previousPlayer.lastPlay) {
@@ -2291,7 +2343,9 @@ class PresidentGame extends Game {
             // Find the last player who still has cards.
             var nextPlayerName = null;
             this.piles.forEach(pile => {
-                if (this.getPlayer(pile.name).cards.length > 0) {
+                var pilePlayer = this.getPlayer(pile.name);
+                // A fallen President is out of the round but keeps their cards.
+                if (pilePlayer.cards.length > 0 && pilePlayer.placement == 0) {
                     nextPlayerName = pile.name;
                 }
             });
@@ -2304,15 +2358,14 @@ class PresidentGame extends Game {
             if (lastPilePlayerFinished) {
                 nextPlayerIndex = this.players.indexOf(lastPilePlayer);
                 do {
-                    nextPlayerIndex = (nextPlayerIndex + 1) % this.players.length;
+                    nextPlayerIndex = (nextPlayerIndex + direction + this.players.length) % this.players.length;
                 } while (this.players[nextPlayerIndex].placement > 0);
             } else if (nextPlayerName == null) {
                 // If no player from this round remains, search backward from the last pile.
                 nextPlayerName = this.topPile().name;
                 var savedIndex = this.players.findIndex(player => (player.name == nextPlayerName));
                 do {
-                    savedIndex--;
-                    if (savedIndex < 0) { savedIndex += this.players.length };
+                    savedIndex = (savedIndex - direction + this.players.length) % this.players.length;
                 } while (this.players[savedIndex].placement > 0);
                 nextPlayerIndex = savedIndex;
             } else {
@@ -2347,10 +2400,17 @@ class PresidentGame extends Game {
             }
             return nextPlayerIndex;
         } else {
-            return currentTurnPlayer + 1;
+            return currentTurnPlayer + direction;
         }
     }
     shouldSkipTurn(turn) {
-        return (this.players[turn].lastPlay == "Pass");
+        var player = this.players[turn];
+        if (player.lastPlay == "Pass") { return true; }
+        if (this.skipNextPlayer && player.placement == 0) {
+            this.skipNextPlayer = false;
+            this.addPauseExtraMessage(`${player.name} står over.`);
+            return true;
+        }
+        return false;
     }
 }

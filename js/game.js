@@ -77,12 +77,105 @@ const CUSTOM_RULES = [
         title: "Ureglementert",
         summary: "Samtykker begge i et tilleggsbytte, kan alle kort byttes.",
         details: "Den som tvinger et tilleggsbytte, kan krysse av for ureglementert samtykke, og mottakeren kan godta med ureglementert samtykke. Samtykker begge, kan alle kort byttes, ikke bare 7 til knekt. Botter ser motspillerens kort når de velger hva de gir."
+    },
+    {
+        id: "sameRankSkip", record: "LikeKortHopperOver", category: "play", conflicts: ["higherOnly"],
+        title: "Like kort hopper over",
+        summary: "Legger du samme verdi som ligger øverst, må neste spiller stå over.",
+        details: "Legger du samme verdi som ligger øverst, må neste spiller stå over. Det hopper over én spiller uansett hvor mange kort du legger. Er dere bare to igjen, får du turen på nytt."
+    },
+    {
+        id: "higherOnly", record: "BareHoyereValor", category: "play", conflicts: ["sameRankSkip"],
+        title: "Bare høyere valør",
+        summary: "Du må legge høyere verdi enn det som ligger øverst.",
+        details: "Du må legge høyere verdi enn det som ligger øverst, så lik verdi er ikke lov. Fire like kan derfor ikke bygges opp på bordet."
+    },
+    {
+        id: "fourAlwaysClears", record: "FireLikeRydderAlltid", category: "play", conflicts: ["clubThreeBeatsFour"],
+        title: "Fire like rydder alltid",
+        summary: "Fire like fra hånden rydder bunken og kan ikke slås.",
+        details: "Fire like fra hånden rydder bunken med en gang og kan ikke slås, verken av høyere fire like eller av kløver 3."
+    },
+    {
+        id: "openPass", record: "AapentPass", category: "play",
+        title: "Åpent pass",
+        summary: "Når noen legger nye kort, kan de som har passet spille igjen.",
+        details: "Pass gjelder bare kortene som ligger øverst. Når noen legger nye kort, kan de som har passet spille igjen. Bunken ryddes når alle andre har passet på de samme kortene."
+    },
+    {
+        id: "twoClears", record: "ToerKuppkort", category: "play",
+        title: "Toer som kuppkort",
+        summary: "En enkelt toer kan legges på alt unntatt fire like, og rydder bunken.",
+        details: "En enkelt toer kan legges på alt unntatt fire like, og rydder bunken. Flere toere følger vanlige regler og rydder ikke."
+    },
+    {
+        id: "tenClears", record: "TierBrenner", category: "play",
+        title: "Tier brenner bunken",
+        summary: "Tiere legges etter vanlige regler og rydder bunken.",
+        details: "Tiere legges etter vanlige regler, med riktig antall og på lik eller lavere verdi. Da rydder de bunken."
+    },
+    {
+        id: "reversingNine", record: "NiereSnur", category: "play",
+        title: "Niere snur retningen",
+        summary: "Hver gang noen legger niere, snur spillretningen ut runden.",
+        details: "Hver gang noen legger en eller flere niere, snur spillretningen. Den gjelder ut runden eller til neste nier, og neste runde starter i vanlig retning."
+    },
+    {
+        id: "clubThreeBeatsFour", record: "Klover3SlarFireLike", category: "play", conflicts: ["fourAlwaysClears"],
+        title: "Kløver 3 slår fire like",
+        summary: "Kløver 3 kan også rydde fire like fra hånden.",
+        details: "Kløver 3 kan også legges på fire like fra hånden, og rydder bunken."
+    },
+    {
+        id: "clubThreeGiven", record: "Klover3MaGis", category: "trade",
+        title: "Kløver 3 må gis bort",
+        summary: "Har Boms eller Viseboms kløver 3, regnes den som beste kort og må gis oppover.",
+        details: "Kløver 3 er ikke unntatt fra kortbyttet. Har Boms eller Viseboms den, regnes den som beste kort og må gis til Presidenten eller Visepresidenten."
+    },
+    {
+        id: "tradeOne", record: "BytteEttKort", category: "trade", conflicts: ["tradeThree"],
+        title: "Bytt ett kort",
+        summary: "President og Boms bytter ett kort i stedet for to.",
+        details: "President og Boms bytter ett kort i stedet for to. Med to spillere er ett kort allerede standard. Visepresident og Viseboms bytter fortsatt ett kort."
+    },
+    {
+        id: "tradeThree", record: "BytteTreKort", category: "trade", conflicts: ["tradeOne"],
+        title: "Bytt tre kort",
+        summary: "President og Boms bytter tre kort i stedet for to.",
+        details: "President og Boms bytter tre kort. Visepresident og Viseboms bytter fortsatt ett kort."
+    },
+    {
+        id: "presidentStarts", record: "PresidentStarter", category: "rounds",
+        title: "Presidenten starter",
+        summary: "Presidenten åpner nye runder i stedet for Boms.",
+        details: "Etter kortbyttet er det Presidenten som åpner runden i stedet for Boms."
+    },
+    {
+        id: "downfall", record: "Maktfall", category: "finish",
+        title: "Maktfall",
+        summary: "Går en annen enn Presidenten ut først, er Presidenten straks ute og havner nederst.",
+        details: "Går en annen enn forrige rundes President ut først, er Presidenten straks ute og havner på den dårligste ledige plassen. Regelen har ingen virkning i første runde eller med to spillere."
     }
 ];
 
 function isCustomRuleOn(rules, rule) {
     if (rules?.[rule.id] !== true) { return false; }
-    return rule.requires == null || isCustomRuleOn(rules, CUSTOM_RULES.find(other => other.id == rule.requires));
+    if (rule.requires != null && !isCustomRuleOn(rules, CUSTOM_RULES.find(other => other.id == rule.requires))) { return false; }
+    // Of two conflicting rules, the one earlier in the catalogue wins.
+    return !(rule.conflicts || []).some(id => {
+        var other = CUSTOM_RULES.find(candidate => candidate.id == id);
+        return CUSTOM_RULES.indexOf(other) < CUSTOM_RULES.indexOf(rule) && isCustomRuleOn(rules, other);
+    });
+}
+
+function hasCustomRule(game, id) {
+    return isCustomRuleOn(game?.rules, CUSTOM_RULES.find(rule => rule.id == id));
+}
+
+function presidentExchangeCount(game) {
+    if (hasCustomRule(game, "tradeOne")) { return 1; }
+    if (hasCustomRule(game, "tradeThree")) { return 3; }
+    return game.players.length == 2 ? 1 : 2;
 }
 
 // Every custom rule as a strict boolean; dependent rules are off while their requirement is off.

@@ -1309,7 +1309,7 @@
                 if (pause.id != lastShownTurnPauseId) {
                     lastShownTurnPauseId = pause.id;
                     showGameToast(pause.message, game, undefined, pause.id, pause.kind == "clear");
-                    if (pause.extraMessage) { showGameToast(pause.extraMessage, game, undefined, pause.id); }
+                    [].concat(pause.extraMessage || []).forEach(message => showGameToast(message, game, undefined, pause.id));
                 }
                 completeLocalPresentation(game, pause);
                 return;
@@ -1328,9 +1328,7 @@
                         ? Math.min(delay, GAME_SPEED_MS.fast)
                         : GAME_SPEED_MS[currentGameSpeed()];
                     showGameToast(pause.message, game, duration, pause.id, pause.kind == "clear");
-                    if (pause.extraMessage) {
-                        showGameToast(pause.extraMessage, game, duration, pause.id);
-                    }
+                    [].concat(pause.extraMessage || []).forEach(message => showGameToast(message, game, duration, pause.id));
                     if (game.fastForward === true || currentGameSpeed() == "fast") {
                         gameToastExpiresAt = Math.min(gameToastExpiresAt, pause.until);
                     }
@@ -2007,6 +2005,7 @@
                     connectingGame.shuffleStartedAt = snapshotRecord["shuffleStartedAt"] || null;
                     ensureGameLog(connectingGame);
                     connectingGame.roundStarterName = snapshotRecord["roundStarterName"] || null;
+                    connectingGame.turnDirection = snapshotRecord["spillretning"] === -1 ? -1 : 1;
                     connectingGame.playedCards = snapshotRecord["playedCards"] || [];
                     connectingGame.dealTotal = snapshotRecord["dealTotal"] || 0;
                     connectingGame.dealStarterStep = snapshotRecord["dealStarterStep"] ?? null;

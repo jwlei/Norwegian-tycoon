@@ -1010,17 +1010,18 @@ test("only the lobby host changes custom rules, which clears Ready and updates t
     game.players.forEach(player => { player.ready = true; });
     game.save();
     assert.equal(fixture.listing.value.customRules, undefined, "Standard lobbies don't list a rule count");
+    const noCustomRules = structuredClone(fixture.stored.regler);
+    assert.equal(Object.values(noCustomRules).some(value => value !== false), false);
 
     assert.equal(game.setCustomRules({ sevenJackTrade: true, sneakyTrade: true }), true);
-    assert.deepEqual(fixture.stored.regler, { VisKunKort: false, Bytte7Knekt: true, UreglementertBytte: true });
+    assert.deepEqual(fixture.stored.regler, Object.assign({}, noCustomRules, { Bytte7Knekt: true, UreglementertBytte: true }));
     assert.equal(fixture.listing.value.customRules, 2);
     assert.deepEqual(fixture.stored.spillere.map(record => record.ready), [false, false, true],
         "Humans confirm again; bots stay ready");
     assert.equal(game.setCustomRules({ sevenJackTrade: true, sneakyTrade: true }), false, "Unchanged rules don't save");
 
     assert.equal(game.setCustomRules({ sneakyTrade: true }), true);
-    assert.deepEqual(fixture.stored.regler, { VisKunKort: false, Bytte7Knekt: false, UreglementertBytte: false },
-        "Sneaky trade needs the 7–J trade");
+    assert.deepEqual(fixture.stored.regler, noCustomRules, "Sneaky trade needs the 7–J trade");
     assert.equal(fixture.listing.value.customRules, undefined);
 
     game.setCustomRules({ sevenJackTrade: true });
@@ -1031,6 +1032,9 @@ test("only the lobby host changes custom rules, which clears Ready and updates t
     assert.equal(fixture.stored.regler.Bytte7Knekt, true, "A guest's stale copy can't overwrite the host's rules");
 
     game.hostKey = "owner";
+    game.turnDirection = -1;
+    game.save();
+    assert.equal(fixture.stored.spillretning, -1, "The direction of play is shared with the other clients");
     game.status = "S";
     assert.throws(() => game.setCustomRules({}), /bare endres i lobbyen/);
 });

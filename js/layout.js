@@ -769,7 +769,7 @@ class GameLayout {
             prompt = selectedExchange.mode == "Best"
                 ? (selectedExchange.count == 1
                     ? `Du må gi ditt beste kort til ${recipient.name}`
-                    : `Du må gi dine to beste kort til ${recipient.name}`)
+                    : `Du må gi dine ${selectedExchange.count == 3 ? "tre" : "to"} beste kort til ${recipient.name}`)
                 : `Kort til ${recipient.name} (${selectedExchange.cards.length}/${selectedExchange.count})`;
         } else if (selectableOutgoing.length > 1) {
             prompt = "Velg hvilket bytte du vil gjøre";

@@ -56,6 +56,7 @@ class BotAI {
         var seat = game.players.indexOf(player);
         if (seat < 0) { throw new Error("Botspilleren finnes ikke i spillet."); }
         var clockwise = game.players.slice(seat + 1).concat(game.players.slice(0, seat));
+        if (game.turnDirection === -1) { clockwise.reverse(); }
         var omniscient = player.playerKey == "PC" && BotAI.skill(player.botSkill) == "god";
         // Only the explicitly cheating God level may read opponents' card identities.
         return {
@@ -75,7 +76,8 @@ class BotAI {
             tableCards: game.piles.flatMap(pile => pile.map(card => ({ suit: card.suit, rank: card.rank }))),
             tableOwners: game.piles.map(pile => pile.name),
             playedCards: (game.playedCards || []).map(card => ({ suit: card.suit, rank: card.rank })),
-            playerCount: game.players.length
+            playerCount: game.players.length,
+            rules: normalizeCustomRules(game.rules)
         };
     }
 
@@ -90,10 +92,17 @@ class BotAI {
 
     static moves(view) {
         var moves = [];
+        var rules = view.rules || {};
         BotAI.groups(view.cards).forEach(group => {
             var rank = group[0].strengthRank;
-            if (view.top != null && view.top.count >= 4 && rank == 16) { return; }
+            // A single clearing two is legal on anything but four of a kind, whatever else the rules say.
+            if (rules.twoClears && rank == 15 && view.top != null && view.top.count < 4) {
+                moves.push(group.slice(0, 1));
+                if (view.top.count == 1) { return; }
+            }
+            if (view.top != null && view.top.count >= 4 && rank == 16 && !rules.clubThreeBeatsFour) { return; }
             if (view.top != null && rank != 16 && rank < view.top.rank) { return; }
+            if (view.top != null && rank != 16 && rank == view.top.rank && rules.higherOnly) { return; }
             var min = view.top == null ? 1 : (rank == 16 ? 1 : view.top.count);
             var max = view.top == null ? group.length : min;
             for (var count = min; count <= Math.min(max, group.length); count++) {
@@ -126,7 +135,10 @@ class BotAI {
     }
 
     static clears(view, move) {
-        if (move[0].strengthRank == 16) { return true; }
+        var rules = view.rules || {};
+        var rank = move[0].strengthRank;
+        if (rank == 16 || (rank == 10 && rules.tenClears) || (rank == 15 && move.length == 1 && rules.twoClears) ||
+            (move.length == 4 && rules.fourAlwaysClears)) { return true; }
         var naturalThrees = new Set();
         for (var index = view.tableCards.length - 1; index >= 0; index--) {
             var card = view.tableCards[index];
@@ -182,6 +194,7 @@ class BotAI {
 
     static responseRisk(view, move, samples) {
         if (BotAI.clears(view, move)) { return { control: 1, finish: 0 }; }
+        var rules = view.rules || {};
         var rank = move[0].strengthRank;
         var trailing = 0;
         for (var index = view.tableCards.length - 1; index >= 0; index--) {
@@ -196,7 +209,8 @@ class BotAI {
             var overtaken = false;
             var finishing = false;
             var fourCanBeBeaten = required != 4 || hands.some(hand =>
-                BotAI.groups(hand).some(group => group.length >= 4 && group[0].strengthRank > rank));
+                BotAI.groups(hand).some(group => (group.length >= 4 && group[0].strengthRank > rank) ||
+                    (group[0].strengthRank == 16 && rules.clubThreeBeatsFour)));
             if (!fourCanBeBeaten) {
                 control++;
                 return;
@@ -204,7 +218,10 @@ class BotAI {
             hands.forEach((hand, index) => {
                 var responses = BotAI.groups(hand).filter(group =>
                     group[0].strengthRank == 16 ||
-                    (group.length >= required && group[0].strengthRank >= rank));
+                    (group[0].strengthRank == 15 && required < 4 && rules.twoClears) ||
+                    (group.length >= required && (rules.higherOnly
+                        ? group[0].strengthRank > rank
+                        : group[0].strengthRank >= rank)));
                 var hasResponse = responses.some(group =>
                     group[0].strengthRank != 16 || hand.length > 1);
                 // A voluntary pass is evidence, not proof that the player cannot respond.
@@ -236,6 +253,7 @@ class BotAI {
     }
 
     static rollout(view, firstMove, hands) {
+        var rules = view.rules || {};
         var players = [{ cards: view.cards.slice(), passed: false }].concat(hands.map((hand, index) => ({
             cards: hand.slice(), passed: view.opponents[index].passed
         })));
@@ -255,7 +273,7 @@ class BotAI {
             opponents: players.filter((other, seat) => seat != index && !other.finished)
                 .map(other => ({ count: other.cards.length, passed: other.passed })),
             top: top == null ? null : { rank: top.rank, count: top.count, own: top.owner == index },
-            tableCards: table, playedCards: [], playerCount: view.playerCount
+            tableCards: table, playedCards: [], playerCount: view.playerCount, rules
         });
         for (var step = 0; step < 100; step++) {
             var current = players[turn];
@@ -294,8 +312,9 @@ class BotAI {
                 }
                 if (trailing >= 4) {
                     top.count = 4;
-                    clear = !players.some((other, seat) => seat != top.owner && !other.finished && !other.passed &&
-                        BotAI.groups(other.cards).some(group => group.length >= 4 && group[0].strengthRank > top.rank));
+                    clear = rules.fourAlwaysClears === true || !players.some((other, seat) => seat != top.owner && !other.finished && !other.passed &&
+                        BotAI.groups(other.cards).some(group => (group.length >= 4 && group[0].strengthRank > top.rank) ||
+                            (group[0].strengthRank == 16 && rules.clubThreeBeatsFour)));
                 }
                 if (players.every((other, seat) => seat == top.owner || other.finished || other.passed)) {
                     clear = true;
@@ -334,7 +353,8 @@ class BotAI {
         if (moves.length == 0) { return null; }
         var winning = moves.find(move => move.length == view.cards.length && move[0].strengthRank != 16);
         if (winning != null) { return winning; }
-        if (view.top != null && view.top.own) { return null; }
+        // Skipping the only opponent hands the turn back on your own cards; only then is it a free play.
+        if (view.top != null && view.top.own && !(view.rules || {}).sameRankSkip) { return null; }
         if (skill == "god") {
             if (view.opponents.some(other => !Array.isArray(other.cards) || other.cards.length != other.count)) {
                 throw new Error("Gud-nivået krever motspillernes faktiske kort.");

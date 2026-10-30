@@ -4636,6 +4636,19 @@ body[data-message-timer-bar="off"] .game-toast::after {
 #dialogCustomRules .dialog-footer > button { flex: 0 1 auto; white-space: nowrap; }
 #dialogCustomRules .speed-option { flex: 1 1 0; min-width: 0; padding-inline: 4px; font-size: 0.85rem; white-space: nowrap; }
 #dialogCustomRules .message-settings { display: grid; gap: 0; }
+#dialogCustomRules .custom-rules-pick-group { gap: 6px; }
+#dialogCustomRules .custom-rules-pick-group > .setting-row {
+    border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+    background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+.custom-rules-pick-one {
+    padding: 4px 12px 2px;
+    color: var(--muted);
+    font-size: .72rem;
+    font-weight: 750;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
 .custom-rules-preset-actions {
     display: flex;
     flex-wrap: wrap;

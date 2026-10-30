@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="nb" data-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Regeloppsett – demo</title>
+    <link rel="stylesheet" href="../css/common.css">
+    <link rel="stylesheet" href="../css/game.css">
+    <link rel="stylesheet" href="../css/mobile.css">
+    <link rel="stylesheet" href="../css/theme.css?v=3">
+    <link rel="stylesheet" href="../css/color-themes.css">
+    <link rel="stylesheet" href="../css/ui-refresh.css">
+    <style>
+        #demoBar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 2000;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 8px 14px;
+            min-height: 56px;
+            padding: 8px 12px;
+            background: var(--surface, #222);
+            border-bottom: 1px solid var(--line, #444);
+            color: var(--text, #eee);
+            font-size: .9rem;
+        }
+        #demoSaved { color: var(--muted, #aaa); font-size: .8rem; }
+        #dialogCustomRules { padding-top: calc(var(--demo-bar, 72px) + 12px); }
+        #dialogCustomRules .dialog-window { max-height: calc(100dvh - var(--demo-bar, 72px) - 24px); }
+    </style>
+</head>
+<body>
+    <div id="gameShell"></div>
+    <div id="demoBar">
+        <strong>Regeloppsett</strong>
+        <span id="demoSaved">Ingenting lagret ennå.</span>
+    </div>
+
+    <div id="dialogCustomRules" class="dialog-container">
+        <div class="dialog-window">
+            <div class="dialog-title">Egne regler</div>
+            <div id="customRulesEditor" class="dialogBody settings-list"></div>
+            <div class="dialog-footer">
+                <span id="customRulesEditorCount" class="custom-rules-editor__count"></span>
+                <button type="button" id="customRulesCancelButton">Avbryt</button>
+                <button type="button" id="customRulesSaveButton">Lagre</button>
+            </div>
+        </div>
+    </div>
+    <button type="button" id="joinRulesCancelButton" hidden></button>
+
+    <script>window.firebase = { database: () => ({ ref: () => ({}) }), auth: () => ({}) };</script>
+    <script src="../js/cards.js"></script>
+    <script src="../js/player.js"></script>
+    <script src="../js/shared.js"></script>
+    <script>
+        // shared.js themes the page from the settings menu; this page only has the default theme's stub.
+        document.body.insertAdjacentHTML("beforeend", `<div hidden>
+            <button class="color-theme-option" data-color-theme="${COLOR_THEME_DEFAULT}" data-theme-mode="dark"><span class="color-theme-preview"></span><strong></strong></button>
+            <span id="colorThemeCurrent"></span><span id="colorThemeCurrentName"></span>
+            <button id="colorThemeOpenButton"></button><button id="colorThemeCloseButton"></button>
+        </div>`);
+    </script>
+    <script src="../js/bot.js"></script>
+    <script src="../js/presence.js"></script>
+    <script src="../js/game.js?v=2"></script>
+    <script src="../js/layout.js"></script>
+    <script src="../js/custom-rules.js?v=3"></script>
+    <script>
+        window.isLobbyHost = () => true;
+        // The bar wraps on narrow screens; the dialog always starts below it.
+        var demoBar = document.getElementById("demoBar");
+        new ResizeObserver(() => {
+            document.documentElement.style.setProperty("--demo-bar", `${demoBar.offsetHeight}px`);
+        }).observe(demoBar);
+        var demoGame = {
+            status: "O",
+            rules: normalizeCustomRules({}),
+            setCustomRules(rules) {
+                this.rules = normalizeCustomRules(rules);
+                var titles = activeCustomRules(this.rules).map(rule => rule.title);
+                document.getElementById("demoSaved").textContent =
+                    titles.length ? `Lagret: ${titles.join(", ")}` : "Lagret: Standard";
+            }
+        };
+        var open = () => CustomRulesUI.openEditor(demoGame);
+        // The real buttons close the dialog; here it reopens so the demo stays usable.
+        ["customRulesCancelButton", "customRulesSaveButton"].forEach(id => {
+            document.getElementById(id).addEventListener("click", () => setTimeout(open, 0));
+        });
+        open();
+    </script>
+</body>
+</html>
