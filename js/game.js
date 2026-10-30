@@ -145,10 +145,16 @@ const CUSTOM_RULES = [
         details: "President og Boms bytter tre kort, uansett antall spillere. Visepresident og Viseboms bytter alltid ett kort færre, så med fire spillere bytter de to."
     },
     {
-        id: "presidentStarts", record: "PresidentStarter", category: "rounds",
+        id: "presidentStarts", record: "PresidentStarter", category: "rounds", conflicts: ["randomStarter"],
         title: "Presidenten starter",
         summary: "Presidenten åpner nye runder i stedet for Boms.",
         details: "Etter kortbyttet er det Presidenten som åpner runden i stedet for Boms."
+    },
+    {
+        id: "randomStarter", record: "TilfeldigStarter", category: "rounds", conflicts: ["presidentStarts"],
+        title: "Tilfeldig starter",
+        summary: "En tilfeldig spiller åpner hver runde, også den første.",
+        details: "En tilfeldig spiller åpner hver runde, også den første. Verken Hjerter 3 eller rollene avgjør hvem som starter, og kortbyttet skjer som vanlig."
     },
     {
         id: "downfall", record: "Maktfall", category: "finish",

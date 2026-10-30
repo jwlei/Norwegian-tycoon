@@ -408,6 +408,39 @@ test("the President can open the round instead of the Bum", () => {
     assert.equal(exchangeGame(4, { presidentStarts: true }).roundStarterName, "P0");
 });
 
+test("a random player opens every round, also the first, and the turn follows the draw", () => {
+    const original = Math.random;
+    try {
+        [[0, 0], [0.3, 1], [0.6, 2], [0.9, 3]].forEach(([sample, seat]) => {
+            Math.random = () => sample;
+            const first = makeGame(Array.from({ length: 4 }, () => []), { randomStarter: true });
+            first.prepareRound();
+            assert.equal(first.turn, seat, "The three of hearts doesn't decide the first round");
+            assert.equal(first.dealStarterStep, null);
+
+            const later = exchangeGame(4, { randomStarter: true });
+            assert.equal(later.roundStarterName, `P${seat}`);
+            Math.random = original;
+            later.players.forEach(player => { player.botSkill = "good"; });
+            for (let step = 0; step < 100 && later.status == "G"; step++) {
+                later.players.forEach(player => {
+                    if (later.status == "G") { later.turnPause = null; playBotTurn(later, player); }
+                });
+            }
+            assert.equal(later.status, "S");
+            assert.equal(later.turn, seat, "The drawn player leads after the exchange");
+        });
+    } finally {
+        Math.random = original;
+    }
+});
+
+test("the President starts and the random starter exclude each other", () => {
+    const both = { presidentStarts: true, randomStarter: true };
+    assert.deepEqual(Array.from(activeCustomRules(both), rule => rule.id), ["presidentStarts"]);
+    assert.equal(exchangeGame(4, both).roundStarterName, "P0");
+});
+
 test("downfall drops the sitting President to the worst free place when someone else goes out first", () => {
     const hands = () => [[card(4), card(5)], [card(13)], [card(6), card(7)], [card(8), card(9)]];
     const seat = game => { game.players.forEach((player, index) => { player.lastPlacement = index + 1; }); game.setTurn(1); };

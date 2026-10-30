@@ -1487,7 +1487,8 @@ class PresidentGame extends Game {
         }
         this.dealTotal = dealStep;
         var hasPreviousPlacements = this.players.some(player => player.placement != 0);
-        if (hasPreviousPlacements || this.players.length == 2) { this.dealStarterStep = null; }
+        var randomStarter = hasCustomRule(this, "randomStarter");
+        if (hasPreviousPlacements || this.players.length == 2 || randomStarter) { this.dealStarterStep = null; }
         if (hasPreviousPlacements) {
             var presidentIndex = this.players.findIndex(player => player.placement == 1);
             var bumIndex = this.players.findIndex(player => player.placement == this.players.length);
@@ -1498,7 +1499,9 @@ class PresidentGame extends Game {
             if (presidentIndex < 0 || bumIndex < 0) {
                 throw ("Forrige rundes President eller Boms mangler.");
             }
-            this.roundStarterName = this.players[hasCustomRule(this, "presidentStarts") ? presidentIndex : bumIndex].name;
+            var starterIndex = randomStarter ? Math.floor(Math.random() * this.players.length)
+                : (hasCustomRule(this, "presidentStarts") ? presidentIndex : bumIndex);
+            this.roundStarterName = this.players[starterIndex].name;
             var tradeCount = presidentExchangeCount(this);
             var tradeWord = ["", "ett", "to", "tre"][tradeCount];
             var bestCards = tradeCount == 1 ? "sitt beste kort" : `sine ${tradeWord} beste kort`;
@@ -1616,7 +1619,7 @@ class PresidentGame extends Game {
             var heartThreePlayerIndex = this.players.findIndex(player =>
                 player.cards.some(card => (card.suit == 2 && card.rank == 3))
             );
-            if (this.players.length != 2 && heartThreePlayerIndex >= 0) {
+            if (!randomStarter && this.players.length != 2 && heartThreePlayerIndex >= 0) {
                 this.setTurn(heartThreePlayerIndex);
             } else {
                 this.setTurn(Math.floor(Math.random() * this.players.length));
