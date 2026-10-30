@@ -2,6 +2,7 @@
 // and the "this game" section of the rules dialog. The rule catalogue lives in game.js.
 var CustomRulesUI = (function () {
     var PRESET_COOKIE = "CustomRulesPreset";
+    var QUICK_PLAY_COOKIE = "QuickPlayUsesMyRules";
     var editorGame = null;
     var draft = {};
     var randomDraw = null;
@@ -34,6 +35,21 @@ var CustomRulesUI = (function () {
 
     function storePreset(rules) {
         setCookie(PRESET_COOKIE, activeCustomRules(rules).map(rule => rule.id).join("."), 1000);
+    }
+
+    // Standard unless the player opted in and has a preset to use.
+    function quickPlayRules() {
+        return getCookie(QUICK_PLAY_COOKIE) == "true" && savedPreset() || {};
+    }
+
+    function updateQuickPlaySetting() {
+        var hasPreset = savedPreset() != null;
+        var button = document.getElementById("quickPlayMyRulesToggleButton");
+        button.disabled = !hasPreset;
+        button.setAttribute("aria-pressed", String(hasPreset && getCookie(QUICK_PLAY_COOKIE) == "true"));
+        document.getElementById("quickPlayMyRulesHint").textContent = hasPreset
+            ? "Hurtigspill bruker ellers standardreglene."
+            : "Lagre Mine regler i en lobby først. Hurtigspill bruker standardreglene.";
     }
 
     // Each rule is a coin flip (dependent rules only when their requirement is on). Never Standard,
@@ -257,6 +273,10 @@ var CustomRulesUI = (function () {
     document.getElementById("customRulesCancelButton").addEventListener("click", () => showDialog("CustomRules", false));
     document.getElementById("customRulesSaveButton").addEventListener("click", saveEditor);
     document.getElementById("joinRulesCancelButton").addEventListener("click", () => showDialog("JoinRules", false));
+    document.getElementById("quickPlayMyRulesToggleButton")?.addEventListener("click", function () {
+        setCookie(QUICK_PLAY_COOKIE, this.getAttribute("aria-pressed") != "true", 1000);
+        updateQuickPlaySetting();
+    });
     // An open rule explanation in the lobby closes on any click outside it.
     document.addEventListener("click", event => {
         if (GameLayout.openCustomRule == null || event.target.closest("#customRuleDetails, .custom-rule-chip")) { return; }
@@ -264,5 +284,5 @@ var CustomRulesUI = (function () {
         if (GameLayout.customRulesGame) { GameLayout.updateCustomRules(GameLayout.customRulesGame); }
     }, true);
 
-    return { openEditor, confirmJoin, showRules, prepareRulesDialog };
+    return { openEditor, confirmJoin, showRules, prepareRulesDialog, quickPlayRules, updateQuickPlaySetting };
 })();

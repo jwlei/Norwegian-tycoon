@@ -135,14 +135,14 @@ const CUSTOM_RULES = [
     {
         id: "tradeOne", record: "BytteEttKort", category: "trade", conflicts: ["tradeThree"],
         title: "Bytt ett kort",
-        summary: "President og Boms bytter ett kort i stedet for to.",
-        details: "President og Boms bytter ett kort i stedet for to. Med to spillere er ett kort allerede standard. Visepresident og Viseboms bytter fortsatt ett kort."
+        summary: "President og Boms bytter ett kort. Visepresident og Viseboms bytter ikke.",
+        details: "President og Boms bytter ett kort, uansett antall spillere. Visepresident og Viseboms bytter alltid ett kort færre, så med fire spillere bytter de ikke."
     },
     {
         id: "tradeThree", record: "BytteTreKort", category: "trade", conflicts: ["tradeOne"],
         title: "Bytt tre kort",
-        summary: "President og Boms bytter tre kort i stedet for to.",
-        details: "President og Boms bytter tre kort. Visepresident og Viseboms bytter fortsatt ett kort."
+        summary: "President og Boms bytter tre kort. Visepresident og Viseboms bytter to.",
+        details: "President og Boms bytter tre kort, uansett antall spillere. Visepresident og Viseboms bytter alltid ett kort færre, så med fire spillere bytter de to."
     },
     {
         id: "presidentStarts", record: "PresidentStarter", category: "rounds",

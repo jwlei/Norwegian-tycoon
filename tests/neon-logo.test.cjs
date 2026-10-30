@@ -67,7 +67,9 @@ test("the neon logo renders before blocking scripts and follows the selected lan
 
 test("splash reserves profile space and does not recenter for asynchronous content", () => {
     const css = read("css/ui-refresh.css");
-    assert.match(css, /#mainMenu \{\s*align-content: start;/);
+    assert.match(css, /#mainMenu \{\s*display: flex;\s*flex-direction: column;/);
+    assert.match(css, /#mainMenu > \* \{\s*flex: none;/);
+    assert.match(css, /#mainMenu > \.splash-footer \{\s*position: static;\s*margin-top: auto;/);
     assert.match(css, /padding-top: max\(clamp\(18px, 5vw, 56px\), calc\(\(100svh - 590px\) \/ 2\)\);/);
     assert.match(css, /#mainMenu \.game-logo \{[^}]*padding-bottom: 2\.4rem;/);
     assert.match(css, /#mainMenu #splashPlayerName \{\s*position: absolute;/);

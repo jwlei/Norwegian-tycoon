@@ -299,26 +299,108 @@ test("the three of clubs is handed up as the best card only when the rule is on"
     assert.equal(given.cards.length, 2);
 });
 
-test("the trade-count rules set the President and Bum exchange, while the Vice pair keeps one card", () => {
+test("the trade-count rules set the top exchange at every player count, and the Vice pair trades one fewer", () => {
     const counts = (players, rules) => exchangeGame(players, rules).piles.map(exchange => exchange.count);
     assert.deepEqual(Array.from(counts(4, {})), [2, 1, 1, 2]);
-    assert.deepEqual(Array.from(counts(4, { tradeOne: true })), [1, 1, 1, 1]);
-    assert.deepEqual(Array.from(counts(4, { tradeThree: true })), [3, 1, 1, 3]);
+    assert.deepEqual(Array.from(counts(4, { tradeOne: true })), [1, 1]);
+    assert.deepEqual(Array.from(counts(4, { tradeThree: true })), [3, 2, 2, 3]);
     assert.deepEqual(Array.from(counts(3, {})), [2, 2]);
+    assert.deepEqual(Array.from(counts(3, { tradeOne: true })), [1, 1]);
     assert.deepEqual(Array.from(counts(3, { tradeThree: true })), [3, 3]);
     assert.deepEqual(Array.from(counts(2, {})), [1, 1]);
+    assert.deepEqual(Array.from(counts(2, { tradeOne: true })), [1, 1]);
     assert.deepEqual(Array.from(counts(2, { tradeThree: true })), [3, 3]);
 
     const three = exchangeGame(4, { tradeThree: true });
     assert.equal(three.piles[0].text, "Presidenten skal gi bomsen tre kort:");
+    assert.equal(three.piles[1].text, "Visepresidenten skal gi visebomsen to kort:");
+    assert.equal(three.piles[2].text, "Visebomsen skal gi visepresidenten sine to beste kort:");
+    assert.equal(three.piles[2].cards.length, 2);
     assert.equal(three.piles[3].text, "Bomsen skal gi presidenten sine tre beste kort:");
     assert.equal(three.piles[3].cards.length, 3);
+    const one = exchangeGame(4, { tradeOne: true });
+    assert.equal(one.piles.some(exchange => [exchange.from, exchange.to].includes(1)), false,
+        "The Vice President sits out when the top pair trades one card");
     const standard = exchangeGame(4, {});
     assert.equal(standard.piles[0].text, "Presidenten skal gi bomsen to kort:");
     assert.equal(standard.piles[3].text, "Bomsen skal gi presidenten sine to beste kort:");
     assert.equal(exchangeGame(3, {}).piles[1].text, "Boms må gi sine to beste kort til Presidenten:");
     assert.equal(exchangeGame(2, {}).piles[1].text, "Boms må gi sitt beste kort til Presidenten:");
     assert.equal(exchangeGame(3, { tradeOne: true }).piles[0].text, "Presidenten skal velge ett kort til Boms:");
+});
+
+test("quick play uses the saved preset only when the player opted in", () => {
+    const cookies = new Map();
+    const elements = new Map();
+    const element = id => {
+        if (!elements.has(id)) {
+            const attributes = {};
+            elements.set(id, {
+                id, listeners: {}, disabled: false, textContent: "",
+                setAttribute(name, value) { attributes[name] = value; },
+                getAttribute: name => attributes[name],
+                addEventListener(type, handler) { this.listeners[type] = handler; }
+            });
+        }
+        return elements.get(id);
+    };
+    const context = vm.createContext({
+        getCookie: name => cookies.get(name) ?? "",
+        setCookie: (name, value) => cookies.set(name, String(value)),
+        normalizeCustomRules, activeCustomRules, CUSTOM_RULES, showDialog() {}, GameLayout: {},
+        document: { getElementById: element, addEventListener() {} }
+    });
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "custom-rules.js"), "utf8"), context);
+    const ui = vm.runInContext("CustomRulesUI", context);
+    const toggle = element("quickPlayMyRulesToggleButton");
+    const quickRules = () => Array.from(activeCustomRules(ui.quickPlayRules()), rule => rule.id);
+
+    ui.updateQuickPlaySetting();
+    assert.equal(toggle.disabled, true, "There is nothing to use before a preset is saved");
+    assert.equal(toggle.getAttribute("aria-pressed"), "false");
+    cookies.set("QuickPlayUsesMyRules", "true");
+    assert.deepEqual(quickRules(), [], "No preset falls back to Standard");
+
+    cookies.clear();
+    cookies.set("CustomRulesPreset", "openPass.downfall");
+    ui.updateQuickPlaySetting();
+    assert.equal(toggle.disabled, false);
+    assert.equal(toggle.getAttribute("aria-pressed"), "false");
+    assert.deepEqual(quickRules(), [], "A saved preset alone keeps Standard");
+
+    toggle.listeners.click.call(toggle);
+    assert.equal(cookies.get("QuickPlayUsesMyRules"), "true");
+    assert.equal(toggle.getAttribute("aria-pressed"), "true");
+    assert.deepEqual(quickRules().sort(), ["downfall", "openPass"]);
+
+    toggle.listeners.click.call(toggle);
+    assert.equal(cookies.get("QuickPlayUsesMyRules"), "false");
+    assert.deepEqual(quickRules(), []);
+});
+
+test("a new game is created with the rules it is given", () => {
+    const records = [];
+    const database = () => ({
+        ref: gamePath => gamePath.startsWith("boms_1/")
+            ? { transaction(transform) { records.push(transform(null)); return Promise.resolve(); } }
+            : { remove: () => Promise.resolve() }
+    });
+    const context = vm.createContext({
+        console, Math, getCookie: () => null, getPlayerKey: () => "host", firebase: { database },
+        localStorage: { getItem: () => null }, setTimeout: () => 0, clearTimeout() {},
+        document: { dispatchEvent() {} },
+        CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } }
+    });
+    for (const file of ["cards.js", "player.js", "bot.js", "presence.js", "game.js", "layout.js", "layout-animations.js", "layout-table.js", "layout-hand.js", "engine.js", "bot-turn.js"]) {
+        vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context);
+    }
+    const Game = vm.runInContext("PresidentGame", context);
+    const standard = new Game(null, true);
+    assert.equal(records[0].regler.BytteTreKort, false);
+    assert.equal(activeCustomRules(standard.rules).length, 0);
+    const custom = new Game(null, true, { tradeThree: true });
+    assert.equal(records[1].regler.BytteTreKort, true, "The rules are in the room from its first write");
+    assert.deepEqual(Array.from(activeCustomRules(custom.rules), rule => rule.id), ["tradeThree"]);
 });
 
 test("the President can open the round instead of the Bum", () => {

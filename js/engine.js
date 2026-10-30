@@ -226,7 +226,7 @@ class PresidentPlayer extends Player {
 }
 
 class PresidentGame extends Game {
-    constructor(id = null, isPublic = false) {
+    constructor(id = null, isPublic = false, rules = {}) {
         super(id);
         this.debug = true;
         this.isPublic = isPublic === true;
@@ -249,7 +249,7 @@ class PresidentGame extends Game {
         if (id == null) {
             this.id = Math.floor(Math.random() * 999999 + 1).toString();
             this.databaseRef = firebase.database().ref(`boms_1/${this.id}`);
-            this.rules = Object.assign({ showCardsOnly: false }, normalizeCustomRules({}));
+            this.rules = Object.assign({ showCardsOnly: false }, normalizeCustomRules(rules));
             this.status = 'O'; // O = waiting, G = exchanging cards, S = playing, F = finished, V = void.
             this.lastHumanActionAt = GamePresence.now();
             this.round = 0;
@@ -1502,6 +1502,10 @@ class PresidentGame extends Game {
             var tradeCount = presidentExchangeCount(this);
             var tradeWord = ["", "ett", "to", "tre"][tradeCount];
             var bestCards = tradeCount == 1 ? "sitt beste kort" : `sine ${tradeWord} beste kort`;
+            // The Vice pair always trades one card fewer than the President and Bum.
+            var viceCount = tradeCount - 1;
+            var viceWord = ["", "ett", "to"][viceCount];
+            var viceBestCards = viceCount == 1 ? "sitt beste kort" : `sine ${viceWord} beste kort`;
             this.players.forEach(player => {
                 player.cards.sortCards();
                 player.lastPlacement = player.placement;
@@ -1517,8 +1521,10 @@ class PresidentGame extends Game {
                     throw ("Forrige rundes visepresident eller viseboms mangler.");
                 }
                 this.players[presidentIndex].messages.push(`Skal gi ${tradeWord} kort til bomsen.`);
-                this.players[vicePresidentIndex].messages.push("Skal gi ett kort til visebomsen.");
-                this.players[viceBumIndex].messages.push("Gir sitt beste kort til visepresidenten.");
+                if (viceCount > 0) {
+                    this.players[vicePresidentIndex].messages.push(`Skal gi ${viceWord} kort til visebomsen.`);
+                    this.players[viceBumIndex].messages.push(`Gir ${viceBestCards} til visepresidenten.`);
+                }
                 this.players[bumIndex].messages.push(`Gir ${bestCards} til presidenten.`);
                 this.piles = [{
                     text: `Presidenten skal gi bomsen ${tradeWord} kort:`,
@@ -1526,19 +1532,19 @@ class PresidentGame extends Game {
                     to: bumIndex,
                     count: tradeCount,
                     mode: "Velg"
-                }, {
-                    text: "Visepresidenten skal gi visebomsen ett kort:",
+                }, ...(viceCount > 0 ? [{
+                    text: `Visepresidenten skal gi visebomsen ${viceWord} kort:`,
                     from: vicePresidentIndex,
                     to: viceBumIndex,
-                    count: 1,
+                    count: viceCount,
                     mode: "Velg"
                 }, {
-                    text: "Visebomsen skal gi visepresidenten sitt beste kort:",
+                    text: `Visebomsen skal gi visepresidenten ${viceBestCards}:`,
                     from: viceBumIndex,
                     to: vicePresidentIndex,
-                    count: 1,
+                    count: viceCount,
                     mode: "Best"
-                }, {
+                }] : []), {
                     text: `Bomsen skal gi presidenten ${bestCards}:`,
                     from: bumIndex,
                     to: presidentIndex,

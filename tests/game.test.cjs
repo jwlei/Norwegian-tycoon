@@ -1901,11 +1901,12 @@ test("quick play requires a count, uses the saved or localized name and starts a
                 querySelectorAll: () => options
             },
             PresidentGame: class extends PresidentGame {
-                constructor(id, isPublic) {
-                    super(id, isPublic);
+                constructor(id, isPublic, rules) {
+                    super(id, isPublic, rules);
                     games.push(this);
                 }
             },
+            CustomRulesUI: { quickPlayRules: () => ({ openPass: true }) },
             PresidentPlayer,
             BOT_NAMES: ["Ada", "Bot A", "Bot B", "Bot C"],
             getPlayerKey: preferences.getPlayerKey,
@@ -1935,6 +1936,8 @@ test("quick play requires a count, uses the saved or localized name and starts a
         assert.equal(games.length, 1);
         assert.equal(games[0].isPublic, true);
         assert.equal(stored.isPublic, true);
+        assert.equal(games[0].rules.openPass, true, "Quick play starts with the rules the setting picks");
+        assert.equal(stored.regler.AapentPass, true);
         const listing = Array.from(listings.values()).find(value => value.id === games[0].id);
         assert.ok(listing, "Quick play appears in the public lobby list");
         assert.equal(listing.players, count);
@@ -1974,6 +1977,7 @@ test("quick play releases its setup listener after creation, subscription or sta
             currentGame: null, currentPlayerName: null,
             console: { error() {} },
             document: { getElementById: id => id === "mainMenu" ? menu : button, querySelectorAll: () => [] },
+            CustomRulesUI: { quickPlayRules: () => ({}) },
             PresidentGame: class {
                 constructor() {
                     this.players = [];
@@ -5947,7 +5951,8 @@ test("settings expose animation speed and enable Flick on desktop and mobile", (
             updateSavedPlayerName() {}, updateCardStyleButtons() {}, updateCardFoilButtons() {},
             refreshPlayerPresidentWins() {},
             updateAutoSuggestionButton() {}, updateSpeedButtons() {},
-            updateTurnSpeedButtons() {}, showDialog() {}
+            updateTurnSpeedButtons() {}, showDialog() {},
+            CustomRulesUI: { updateQuickPlaySetting() {} }
         });
         GameLayout.setVisible = () => {};
         const begin = source.indexOf("        function updatePlayInputButtons()");

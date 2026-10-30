@@ -1,6 +1,19 @@
 #mainMenu {
-    align-content: start;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     padding-top: max(clamp(18px, 5vw, 56px), calc((100svh - 590px) / 2));
+    padding-bottom: calc(env(safe-area-inset-bottom) + 10px);
+}
+/* Nothing shrinks, so a taller menu scrolls instead of moving the logo and name. */
+#mainMenu > * {
+    flex: none;
+}
+#mainMenu > .splash-footer {
+    position: static;
+    margin-top: auto;
+    padding-top: 16px;
+    transform: none;
 }
 #mainMenu .game-logo {
     position: relative;

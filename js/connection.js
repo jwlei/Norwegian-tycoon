@@ -1656,7 +1656,7 @@
             var game = null;
             var setupListener = null;
             try {
-                game = new PresidentGame(null, true);
+                game = new PresidentGame(null, true, CustomRulesUI.quickPlayRules());
                 // Keep Firebase's room cache alive until connectGame attaches its listener.
                 var setupReady = new Promise((resolve, reject) => {
                     setupListener = resolve;
@@ -2671,6 +2671,7 @@
             updateSpeedButtons();
             updateTurnSpeedButtons();
             updatePlayInputButtons();
+            CustomRulesUI.updateQuickPlaySetting();
             showDialog("Settings", true);
         }
 
