@@ -13,7 +13,7 @@ const CARD_DRAG_TABLE_HIGHLIGHT_ENABLED = false;
 
 // Input tuning: degrees, pixels, pixels per millisecond, then milliseconds.
 const CARD_TOUCH_PICKUP_CONE = 140; //Degrees of cone around the pointer that counts as a touch pickup.
-const CARD_FLICK_MIN_DISTANCE = 8; //Pixels the pointer must move to count as a flick.
+const CARD_FLICK_MIN_DISTANCE = 30; //Pixels the pointer must move to count as a flick.
 const CARD_FLICK_MIN_VELOCITY = 0.4; //Pixels per millisecond the pointer must move to count as a flick.
 const CARD_FLICK_RELEASE_GRACE_MS = 200; //Milliseconds after a flick where releasing still counts as a flick.
 const CARD_FLICK_RECOIL_TOLERANCE = 8; //Pixels the pointer can move back toward the start of a flick without canceling it.
