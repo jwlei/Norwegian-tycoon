@@ -3782,27 +3782,36 @@ test("invites generate gameid links and accept both new and legacy links", () =>
     }
 });
 
-test("Messenger sharing uses the invitation URL and explains unsupported desktop sharing", async () => {
+test("chat sharing opens the system share menu, and copies the link where there is none", async () => {
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-    const start = html.indexOf("            async function shareInviteMessenger()");
+    const start = html.indexOf("            async function shareInviteChat()");
     const end = html.indexOf("            function sendInviteSms()", start);
     const status = {};
     const inviteUrl = "https://playboms.eu/?gameid=123";
+    let copies = 0, copyWorks = true;
     const context = vm.createContext({
-        navigator: { userAgent: "Android" }, window: { location: {} },
+        navigator: {},
+        copyInviteLink: async () => { copies++; return copyWorks; },
         document: { getElementById: id => id == "dialogShareLinkStatus" ? status : { value: inviteUrl } }
     });
     vm.runInContext(html.slice(start, end), context);
-    await context.shareInviteMessenger();
-    assert.equal(context.window.location.href, "fb-messenger://share/?link=" + encodeURIComponent(inviteUrl));
-    context.navigator.userAgent = "Desktop";
-    await context.shareInviteMessenger();
-    assert.match(status.textContent, /støttes ikke/);
+    await context.shareInviteChat();
+    assert.equal(copies, 1);
+    assert.match(status.textContent, /chat-appen/);
+    status.textContent = "Kunne ikke kopiere";
+    copyWorks = false;
+    await context.shareInviteChat();
+    assert.equal(status.textContent, "Kunne ikke kopiere", "a failed copy keeps its own message");
     let shared;
     context.navigator.share = async data => { shared = data; };
-    await context.shareInviteMessenger();
+    await context.shareInviteChat();
     assert.equal(shared.url, inviteUrl);
     assert.equal(status.textContent, "Invitasjonen er delt.");
+    context.navigator.share = async () => { throw Object.assign(new Error("cancelled"), { name: "AbortError" }); };
+    await context.shareInviteChat();
+    assert.equal(status.textContent, "", "cancelling the menu is not an error");
+    assert.equal(copies, 2);
+    assert.doesNotMatch(html, /fb-messenger|Messenger/);
 });
 
 test("new bot names are available and Japanese player names survive input and cookie sanitization", () => {
@@ -3824,7 +3833,7 @@ test("new bot names are available and Japanese player names survive input and co
     assert.equal(context.readLastUsedPlayerName(), "ギフテッド");
 });
 
-test("an empty new-game name is marked invalid without registering a profile", async () => {
+test("an empty name becomes the default for a new player, and stays invalid when renaming or with bad characters", async () => {
     const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
     const elements = new Map();
     let addedPlayer;
@@ -3842,7 +3851,8 @@ test("an empty new-game name is marked invalid without registering a profile", a
         PresidentPlayer: class { constructor(name, key) { this.name = name; this.playerKey = key; } },
         GameLayout: { updateSharedView() {}, updatePlayerView() {} },
         clearWaitingSpectator() {}, saveLastUsedPlayerName() {}, showDialog() {},
-        applyPlayerIdentity: async () => {},
+        applyPlayerIdentity: async () => {}, localizedMessage: message => message, watchCardAppearance() {},
+        sanitizePlayerName: name => name.replace(/[^\p{L}\p{N} ]/gu, ""),
         document: {
             getElementById(id) {
                 if (!elements.has(id)) {
@@ -3852,6 +3862,7 @@ test("an empty new-game name is marked invalid without registering a profile", a
                         attributes: {},
                         classList: { toggle(name, value) { this[name] = value; } },
                         setAttribute(name, value) { this.attributes[name] = value; },
+                        getAttribute(name) { return this.attributes[name]; },
                         addEventListener(type, callback) { this.click = callback; }
                     });
                 }
@@ -3862,6 +3873,8 @@ test("an empty new-game name is marked invalid without registering a profile", a
     const start = source.indexOf("        document.getElementById('dialogPlayerNameOk').addEventListener");
     const end = source.indexOf("        document.getElementById('leaveGameButton')", start);
     vm.runInContext(source.slice(start, end), context);
+    // Renaming hides the default name hint, so an empty name is refused.
+    context.document.getElementById("playerDefaultNameHint").hidden = true;
     await context.document.getElementById("dialogPlayerNameOk").click();
     assert.equal(addedPlayer, undefined);
     assert.equal(context.currentPlayerName, null);
@@ -3869,6 +3882,17 @@ test("an empty new-game name is marked invalid without registering a profile", a
     const name = context.document.getElementById("dialogPlayerNameTxt");
     assert.equal(name.classList["input-soft-error"], true);
     assert.equal(name.attributes["aria-invalid"], "true");
+    // Bad characters are refused even where an empty name is allowed.
+    context.document.getElementById("playerDefaultNameHint").hidden = false;
+    name.value = "<script>";
+    await context.document.getElementById("dialogPlayerNameOk").click();
+    assert.equal(addedPlayer, undefined);
+    assert.equal(name.attributes["aria-invalid"], "true");
+    // Left empty when creating a lobby, the hinted default name is used.
+    name.value = "";
+    await context.document.getElementById("dialogPlayerNameOk").click();
+    assert.equal(addedPlayer.name, "Spiller");
+    assert.equal(name.attributes["aria-invalid"], "false");
 });
 
 test("canceling a new-game name prompt voids the empty lobby after creation and returns to the menu", async () => {

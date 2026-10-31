@@ -57,6 +57,16 @@ const EMOTE_EXTRAS = [
 const EMOTE_ALL = [...EMOTES, ...EMOTE_EXTRAS];
 const EMOTE_LAST_UNLOCK_ROUND = 50;
 const EMOTE_DEFAULT_LOADOUT = EMOTES.map(emote => emote.id);
+// How the list is sorted in the settings, by mood. Every emote belongs to exactly one.
+const EMOTE_GROUPS = [
+    { title: "Vennlig", ids: ["hi", "gg", "ty", "goodgame"] },
+    { title: "Imponert", ids: ["wow", "strike", "galaxy", "flawless", "lucky", "brilliant"] },
+    { title: "Skryt", ids: ["excellent", "fatal", "dominance", "value", "lethal", "calculated", "doomed", "denied", "countered", "punished", "inevitable", "overkill"] },
+    { title: "Erting", ids: ["foolish", "wasted", "badtrade", "questionable", "salt", "blunder", "greed"] },
+    { title: "Lur", ids: ["ghost", "alien", "motives", "predicted", "trapped", "bait"] },
+    { title: "Oppgitt", ids: ["omg", "defeat", "rage", "garbage", "mercy", "unlucky", "panicking", "misclick"] },
+    { title: "Rolig", ids: ["waiting", "thinking", "observing", "patience"] }
+];
 const EMOTE_COOLDOWN_MS = 3000;
 const EMOTE_MAX_AGE_MS = 5000;
 const EMOTE_BOT_GAP_MS = 8000;
@@ -296,6 +306,7 @@ class GameEmotes {
             this.closeMenu();
             return;
         }
+        if (game.status != "F" && document.getElementById("dialogEmotes").classList.contains("dialog-container--visible")) { showDialog("Emotes", false); }
         this.syncMutes();
         var events = readEmoteEvents(this.memory, game, GamePresence.now());
         if (game.fastForward !== true && GamePresence.canDrive(game)) {
@@ -352,7 +363,6 @@ class GameEmotes {
     }
 
     static player(name) { return this.game?.players.find(player => player.name == name) || null; }
-    static isRealBot(name) { return this.player(name)?.playerKey == "PC"; }
     static reducedMotion() { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; }
     static msg(text) { return window.I18n ? window.I18n.msg(text) : text; }
     static canSend() {
@@ -488,9 +498,15 @@ class GameEmotes {
             this.botSpeak(plan[0], key, settle + 500 + Math.random() * 1000);
         }
     }
+    static othersAreWatching() {
+        return this.game.players.some(player => player.playerKey != "PC" && player.name != this.me?.name) ||
+            Object.keys(this.game.waitingSpectators || {}).length > 0;
+    }
     static botSpeak(entry, key, delay, together = false, isReply = false) {
         var now = Date.now();
         var { speaker, emote, to } = entry;
+        // Muting only hides things on this device. Nothing is written only when no other person is here to see it.
+        if (this.isMuted(speaker) && !this.othersAreWatching()) { return; }
         if (!isReply && !together && (now < this.tableNext || now < (this.botNext.get(speaker) || 0))) { return; }
         if (now + delay < (this.botSpoke.get(speaker) || 0) + EMOTE_COOLDOWN_MS) { return; }
         var taunt = to != null && (emote == "excellent" || emote == "omg");
@@ -525,29 +541,30 @@ class GameEmotes {
         try { sessionStorage.setItem(this.muteKey(), JSON.stringify([...this.muted])); } catch (error) { }
         this.syncMutes();
     }
+    static botEmotesOn() { return getCookie("BotEmotes") == "true"; }
+    // Bot emotes are turned on in the settings only. With them on, a single bot can still be muted.
     static isMuted(name) {
         var player = this.player(name);
         if (player == null) { return false; }
-        var seat = GamePresence.playerId(player);
-        return this.muted.has(seat) ? this.muted.get(seat) : player.playerKey == "PC" && getCookie("MuteBotEmotes") == "true";
+        if (player.playerKey == "PC" && !this.botEmotesOn()) { return true; }
+        return this.muted.get(GamePresence.playerId(player)) === true;
     }
     static syncMutes() {
         if (this.game == null) { return; }
         this.game.players.forEach(player => {
             var seat = this.seatElement(player.name);
-            if (seat) { seat.toggleAttribute("data-emote-muted", this.isMuted(player.name)); }
+            if (seat) { seat.toggleAttribute("data-emote-muted", this.muted.get(GamePresence.playerId(player)) === true && this.isMuted(player.name)); }
         });
     }
 
-    // Output. A muted speaker is not shown, and an emote aimed at a muted player loses its aim.
+    // Output. A muted speaker is not shown. The flying emoji alone shows who an emote is aimed at.
     static deliver(name, id, targetName) {
         var emote = emoteById(id);
         if (!emote || this.isMuted(name)) { return; }
-        var target = targetName && !this.isMuted(targetName) ? targetName : null;
-        this.showBubble(name, emote, target);
-        if (target && !(this.isRealBot(name) && this.isRealBot(target))) { this.throwEmoji(name, target, emote); }
+        this.showBubble(name, emote);
+        if (targetName) { this.throwEmoji(name, targetName, emote); }
     }
-    static showBubble(name, emote, targetName) {
+    static showBubble(name, emote) {
         var seat = this.seatOf(name);
         if (!seat) { return; }
         var layer = this.layer;
@@ -565,13 +582,6 @@ class GameEmotes {
         var text = document.createElement("span");
         text.textContent = emote.label;
         bubble.append(symbol, text);
-        if (targetName) {
-            var target = document.createElement("span");
-            target.className = "emote-bubble__target";
-            target.setAttribute("data-i18n-skip", "");
-            target.textContent = `→ ${targetName}`;
-            bubble.appendChild(target);
-        }
         layer.appendChild(bubble);
         var seatBounds = seat.getBoundingClientRect();
         var width = bubble.offsetWidth, height = bubble.offsetHeight;
@@ -599,16 +609,23 @@ class GameEmotes {
     }
     static throwEmoji(fromName, targetName, emote) {
         var from = this.seatOf(fromName), to = this.seatOf(targetName);
-        if (!from || !to || this.reducedMotion()) { return; }
+        if (!from || !to) { return; }
         var start = from.getBoundingClientRect(), end = to.getBoundingClientRect();
         var startX = start.left + start.width / 2, startY = start.top + start.height / 2;
         var dx = end.left + end.width / 2 - startX, dy = end.top + end.height / 2 - startY;
         var token = document.createElement("div");
         token.className = "emote-throw";
         token.textContent = emote.emoji;
-        token.style.left = `${startX}px`;
-        token.style.top = `${startY}px`;
+        var still = this.reducedMotion();
+        token.style.left = `${still ? startX + dx : startX}px`;
+        token.style.top = `${still ? startY + dy : startY}px`;
         this.layer.appendChild(token);
+        // Without motion, the emoji simply appears on the target.
+        if (still) {
+            token.animate([{ opacity: 1 }, { opacity: 1, offset: .7 }, { opacity: 0 }], { duration: 1200, fill: "forwards" }).finished
+                .then(() => token.remove()).catch(() => token.remove());
+            return;
+        }
         var dip = Math.max(70, Math.abs(dx) * .28);
         var flight = token.animate([
             { translate: "0 0", scale: ".6", rotate: "0deg" },
@@ -691,6 +708,8 @@ class GameEmotes {
     static openStrip(name) {
         var seat = this.seatOf(name);
         if (!seat) { return; }
+        var canMute = this.player(name).playerKey != "PC" || this.botEmotesOn();
+        if (!canMute && !this.canSend()) { return; }
         var strip = document.createElement("div");
         strip.className = "emote-panel emote-strip";
         strip.setAttribute("role", "group");
@@ -711,7 +730,8 @@ class GameEmotes {
             this.toggleMute(name);
             this.closeMenu();
         });
-        head.append(title, mute);
+        head.appendChild(title);
+        if (canMute) { head.appendChild(mute); }
         strip.appendChild(head);
         if (this.canSend()) { strip.appendChild(this.chipGrid(name)); }
         this.openMenu(strip);
@@ -727,7 +747,7 @@ class GameEmotes {
 class EmoteSettings {
     static rounds = 0;
     static needsOwnName = false;
-    static view = { mode: "list" };
+    static view = { arranging: false, emote: null, slot: null, placed: null };
 
     static loadout() { return normalizeEmoteLoadout(getCookie("EmoteLoadout")); }
     static updatedAt() { return Number(getCookie("EmoteLoadoutUpdatedAt")) || 0; }
@@ -757,7 +777,7 @@ class EmoteSettings {
             var remoteAt = Number(remote?.updatedAt) || 0;
             if (remote && remoteAt > this.updatedAt()) {
                 this.store(normalizeEmoteLoadout(remote.set), remoteAt);
-                if (this.view.mode == "list") { this.render(); }
+                this.render();
             } else if (this.updatedAt() > remoteAt) {
                 this.upload();
             }
@@ -769,7 +789,7 @@ class EmoteSettings {
     }
 
     static open() {
-        this.view = { mode: "list" };
+        this.view = { arranging: false, emote: null, slot: null, placed: null };
         this.sync();
         this.render();
     }
@@ -779,60 +799,103 @@ class EmoteSettings {
         this.render();
     }
     static isUnlocked(id) { return this.rounds >= emoteUnlockRound(id); }
-    static show(mode, details = {}) {
-        this.view = { mode, ...details };
+    static choose(details) {
+        Object.assign(this.view, details);
         this.render();
-        document.getElementById("emoteSettingsBody").closest(".dialog-window").scrollTop = 0;
     }
     static place(slot, id) {
         this.save(placeEmoteInLoadout(this.loadout(), slot, id));
+        this.choose({ emote: null, slot: null, placed: slot });
+    }
+    // An emote and a box make a pair, and either can be picked first. Picking the same one again cancels it.
+    static pickEmote(id) {
+        if (this.view.slot != null) { this.place(this.view.slot, id); }
+        else { this.choose({ emote: this.view.emote == id ? null : id, arranging: false }); }
+    }
+    static pickSlot(slot) {
+        if (this.view.emote != null) { this.place(slot, this.view.emote); }
+        else { this.choose({ slot: this.view.slot == slot ? null : slot }); }
     }
     static render() {
         var body = document.getElementById("emoteSettingsBody");
         if (!body) { return; }
+        // Everything is redrawn, so the scroll position and keyboard focus are carried across.
+        var dialog = body.closest(".dialog-window");
+        var scroll = dialog.scrollTop;
+        var focused = body.contains(document.activeElement) ? document.activeElement : null;
+        var refocus = focused == null ? null : focused.id ? `#${focused.id}`
+            : focused.dataset.emoteOption ? `[data-emote-option="${focused.dataset.emoteOption}"]`
+            : focused.dataset.slot != null ? `.emote-slot[data-slot="${focused.dataset.slot}"]` : null;
+        body.replaceChildren(this.topPanel(), this.botToggle(), this.progress(),
+            ...EMOTE_GROUPS.map(group => this.emoteGroup(group)));
+        this.view.placed = null;
+        dialog.scrollTop = scroll;
+        if (refocus) { body.querySelector(refocus)?.focus(); }
+    }
+    // Stays in view while the list scrolls, so a chosen emote always has its boxes on screen.
+    static topPanel() {
         var view = this.view;
-        body.replaceChildren();
-        var text = message => {
-            var line = document.createElement("p");
-            line.className = "emote-settings__hint";
-            line.textContent = message;
-            return line;
-        };
-        var action = (label, onClick) => {
-            var button = document.createElement("button");
-            button.type = "button";
-            button.className = "emote-settings__action";
-            button.textContent = label;
-            button.addEventListener("click", onClick);
-            return button;
-        };
-        if (view.mode == "arrange") {
-            body.append(action("Ferdig", () => this.show("list")),
-                text("Dra en emote for å bytte plass. Trykk på en boks for å velge en annen."),
-                this.slotGrid(slot => this.show("pick", { slot })));
-        } else if (view.mode == "replace") {
-            var preview = document.createElement("div");
-            preview.className = "emote-settings__pending";
-            preview.append(this.face(emoteById(view.id)));
-            body.append(action("Tilbake", () => this.show("list")), preview, text("Velg hvilken emote som skal byttes ut."),
-                this.slotGrid(slot => {
-                    this.place(slot, view.id);
-                    this.show("list");
-                }));
-        } else if (view.mode == "pick") {
-            body.append(action("Tilbake", () => this.show("arrange")), text(`Velg emote til plass ${view.slot + 1}.`),
-                this.emoteList(id => {
-                    this.place(view.slot, id);
-                    this.show("arrange");
-                }));
-        } else {
-            var unlocked = EMOTE_ALL.filter(emote => this.isUnlocked(emote.id)).length;
-            body.append(action("Bytt rekkefølge", () => this.show("arrange")),
-                text(`Runder spilt: ${this.rounds}`), text(`Låst opp: ${unlocked} av ${EMOTE_ALL.length}`),
-                ...(this.needsOwnName ? [text("Velg et eget spillernavn for at rundene dine skal telle.")] : []),
-                text("Trykk på en emote for å legge den til."), text("Boter bruker alltid standardlisten."),
-                this.emoteList(id => this.show("replace", { id })));
-        }
+        var panel = document.createElement("div");
+        panel.className = "emote-settings__top";
+        var head = document.createElement("div");
+        head.className = "emote-settings__head";
+        var title = document.createElement("strong");
+        title.textContent = "Dine emotes";
+        var rearrange = document.createElement("button");
+        rearrange.type = "button";
+        rearrange.id = "emoteRearrangeButton";
+        rearrange.className = "emote-settings__rearrange";
+        rearrange.setAttribute("aria-pressed", String(view.arranging));
+        rearrange.textContent = view.arranging ? "Ferdig" : "Bytt rekkefølge";
+        rearrange.addEventListener("click", () => this.choose({ arranging: !view.arranging, emote: null, slot: null }));
+        head.append(title, rearrange);
+        var hint = document.createElement("p");
+        hint.className = "emote-settings__hint";
+        hint.setAttribute("role", "status");
+        hint.textContent = view.emote != null ? "Trykk på boksen du vil bytte ut."
+            : view.slot != null ? "Velg en emote fra listen til denne boksen."
+            : view.arranging ? "Dra en boks for å bytte plass."
+            : "Trykk på en emote i listen for å ta den i bruk.";
+        panel.append(head, this.slotGrid(), hint);
+        return panel;
+    }
+    static botToggle() {
+        var enabled = GameEmotes.botEmotesOn();
+        var button = document.createElement("button");
+        button.type = "button";
+        button.id = "botEmotesToggleButton";
+        button.className = "setting-row";
+        button.setAttribute("aria-pressed", String(enabled));
+        var text = document.createElement("span");
+        text.className = "setting-row__text";
+        var title = document.createElement("strong");
+        title.textContent = "Bot-emotes";
+        var detail = document.createElement("small");
+        detail.textContent = "Vis emotes fra boter.";
+        text.append(title, detail);
+        var toggle = document.createElement("span");
+        toggle.className = "setting-row__switch";
+        toggle.setAttribute("aria-hidden", "true");
+        toggle.appendChild(document.createElement("span"));
+        button.append(text, toggle);
+        button.addEventListener("click", () => {
+            setCookie("BotEmotes", !enabled, 1000);
+            GameEmotes.syncMutes();
+            this.render();
+        });
+        return button;
+    }
+    static progress() {
+        var line = document.createElement("p");
+        line.className = "emote-settings__hint emote-settings__progress";
+        var unlocked = EMOTE_ALL.filter(emote => this.isUnlocked(emote.id)).length;
+        [`Runder spilt: ${this.rounds}`, `Låst opp: ${unlocked} av ${EMOTE_ALL.length}`,
+            ...(this.needsOwnName ? ["Velg et eget spillernavn for at rundene dine skal telle."] : [])].forEach(message => {
+            var part = document.createElement("span");
+            part.textContent = message;
+            line.appendChild(part);
+        });
+        return line;
     }
     static face(emote) {
         var fragment = document.createDocumentFragment();
@@ -846,15 +909,21 @@ class EmoteSettings {
         fragment.append(symbol, label);
         return fragment;
     }
-    static emoteList(onPick) {
+    static emoteGroup(group) {
+        var section = document.createDocumentFragment();
+        var title = document.createElement("h3");
+        title.className = "settings-category";
+        title.textContent = group.title;
         var list = document.createElement("div");
         list.className = "emote-settings__list";
         var loadout = this.loadout();
-        EMOTE_ALL.forEach(emote => {
+        EMOTE_ALL.filter(emote => group.ids.includes(emote.id)).forEach(emote => {
             var unlocked = this.isUnlocked(emote.id);
             var button = document.createElement("button");
             button.type = "button";
             button.className = "emote-option";
+            button.classList.toggle("is-selected", this.view.emote == emote.id);
+            button.setAttribute("aria-pressed", String(this.view.emote == emote.id));
             button.dataset.emoteOption = emote.id;
             button.disabled = !unlocked;
             button.append(this.face(emote));
@@ -863,29 +932,35 @@ class EmoteSettings {
             status.textContent = !unlocked ? (round == 1 ? "Låses opp etter 1 runde" : `Låses opp etter ${round} runder`)
                 : loadout.includes(emote.id) ? "I bruk" : "";
             button.append(status);
-            button.addEventListener("click", () => onPick(emote.id));
+            button.addEventListener("click", () => this.pickEmote(emote.id));
             list.appendChild(button);
         });
-        return list;
+        section.append(title, list);
+        return section;
     }
-    // Two rows of three, as in the game. A press without movement is a click; moving it drags the emote onto another box.
-    static slotGrid(onClick) {
+    // Two rows of three, as in the game. In rearrange mode a press that moves drags the emote onto another box.
+    static slotGrid() {
+        var view = this.view;
         var grid = document.createElement("div");
         grid.className = "emote-settings__grid";
+        grid.classList.toggle("is-arranging", view.arranging);
         this.loadout().forEach((id, slot) => {
             var box = document.createElement("button");
             box.type = "button";
             box.className = "emote-slot";
+            box.classList.toggle("is-choosing", view.emote != null);
+            box.classList.toggle("is-selected", view.slot == slot);
+            box.classList.toggle("is-placed", view.placed == slot);
             box.dataset.slot = slot;
             box.append(this.face(emoteById(id)));
-            box.addEventListener("click", () => onClick(slot));
+            box.addEventListener("click", () => this.pickSlot(slot));
             box.addEventListener("pointerdown", event => this.trackDrag(box, event));
             grid.appendChild(box);
         });
         return grid;
     }
     static trackDrag(box, start) {
-        if (start.button != 0) { return; }
+        if (start.button != 0 || !this.view.arranging) { return; }
         var dragging = false, target = null;
         var cleanup = () => {
             box.removeEventListener("pointermove", move);

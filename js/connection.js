@@ -277,6 +277,9 @@
                     ? currentPlayerName
                     : readLastUsedPlayerName();
             document.getElementById("playerNameError").textContent = errorMessage;
+            // Only a new player has a default name; renaming needs a name to change to.
+            document.getElementById("dialogPlayerNameTxt").placeholder = isRename ? "" : localizedMessage("Spiller");
+            document.getElementById("playerDefaultNameHint").hidden = isRename;
             document.getElementById("dialogPlayerNameTxt").classList.remove("input-soft-error");
             document.getElementById("dialogPlayerNameTxt").setAttribute("aria-invalid", "false");
             document.getElementById("playerRecoveryPin").value = "";
@@ -2663,7 +2666,9 @@
             var appearanceLocked = inGame && !["O", "F"].includes(currentGame.status);
             document.getElementById("cardStyleOpenButton").disabled = appearanceLocked;
             document.getElementById("cardFoilOpenButton").disabled = appearanceLocked;
+            document.getElementById("emoteSettingsOpenButton").disabled = appearanceLocked;
             document.getElementById("cardAppearanceLocked").hidden = !appearanceLocked;
+            document.getElementById("emoteAppearanceLocked").hidden = !appearanceLocked;
             refreshPlayerPresidentWins();
             GameLayout.setVisible("changeNameButton", !inGame || currentGame.status == "O");
             document.querySelector(".setting-turn-speed").hidden = false;
@@ -2774,13 +2779,6 @@
             currentGame.setReady(player, !player.ready);
         });
 
-        document.getElementById("muteBotEmotesToggleButton").addEventListener("click", function () {
-            var enabled = this.getAttribute("aria-pressed") != "true";
-            setCookie("MuteBotEmotes", enabled, 1000);
-            this.setAttribute("aria-pressed", String(enabled));
-            GameEmotes.syncMutes();
-        });
-        document.getElementById("muteBotEmotesToggleButton").setAttribute("aria-pressed", String(getCookie("MuteBotEmotes") == "true"));
         EmoteSettings.updateSummary();
         document.getElementById("emoteSettingsOpenButton").addEventListener("click", function () {
             showDialog("Settings", false);
@@ -3019,6 +3017,7 @@
 
         document.getElementById('dialogPlayerNameOk').addEventListener('click', async function () {
             var requestedName = document.getElementById('dialogPlayerNameTxt').value.trim();
+            if (requestedName == "" && !document.getElementById("playerDefaultNameHint").hidden) { requestedName = localizedMessage("Spiller"); }
             var invalidName = requestedName == "" || Array.from(requestedName).length > 24 ||
                 sanitizePlayerName(requestedName) != requestedName;
             document.getElementById("dialogPlayerNameTxt").classList.toggle("input-soft-error", invalidName);

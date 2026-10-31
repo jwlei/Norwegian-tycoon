@@ -15,7 +15,7 @@
                     '<script src="sandbox/firebase-memory.js"><\/script>')
                 .replace(/<script src="https:\/\/www\.gstatic\.com\/firebasejs\/[^"]*"><\/script>/g, "")
                 .replace(/<script src="https:\/\/cdnjs\.cloudflare\.com\/[^"]*seedrandom[^"]*"><\/script>/, "")
-                .replace("</body>", `<script>window.addEventListener("load", () => setTimeout(() => {
+                .replace("</body>", `<script>if (!location.search.includes("menu")) window.addEventListener("load", () => setTimeout(() => {
                     document.querySelector('.quick-play-option[data-players="4"]')?.click();
                     document.getElementById("quickPlayButton")?.click();
                 }, 200));<\/script></body>`);

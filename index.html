@@ -11,7 +11,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#1e1e1e" />
     <!-- App version -->
-    <meta name="app-version" content="1.3.0">
+    <meta name="app-version" content="1.3.1">
     <base href="/" />
     <link rel="icon" type="image/svg+xml" href="icons/clover-four.svg" />
     <title>Boms og President – gratis kortspill på nett for 2–4 spillere | Norwegian Tycoon</title>
@@ -53,12 +53,12 @@
     <link rel="stylesheet" href="css/common.css?rev=ab06da32">
     <link rel="stylesheet" href="css/game.css?rev=6a126a50">
     <link rel="stylesheet" href="css/mobile.css?rev=6217c4bf">
-    <link rel="stylesheet" href="css/theme.css?rev=792f9a69">
+    <link rel="stylesheet" href="css/theme.css?rev=4c8be1e4">
     <link rel="stylesheet" href="css/color-themes.css?rev=be696cdb">
-    <link rel="stylesheet" href="css/ui-refresh.css?rev=9e15aef9">
+    <link rel="stylesheet" href="css/ui-refresh.css?rev=7bcef4d3">
     <link rel="stylesheet" href="css/foil.css?rev=dc1f87c5">
     <link rel="stylesheet" href="css/card-depth.css?rev=dd07a03f">
-    <link rel="stylesheet" href="css/emotes.css?rev=8b62d5de">
+    <link rel="stylesheet" href="css/emotes.css?rev=50952818">
     <script id="applySavedColorTheme">
         // Applies the saved theme before first paint so the splash never flashes the default colours.
         (function () {
@@ -269,11 +269,12 @@
                         </button>
                     </div>
                     <div id="cardAppearancePreview" class="card-appearance-preview" aria-hidden="true"></div>
+                    <small id="cardAppearanceLocked" hidden>Kortutseende kan bare endres mellom spill.</small>
                 </div>
-                <small id="cardAppearanceLocked" hidden>Kortutseende kan bare endres mellom spill.</small>
                 <button type="button" id="emoteSettingsOpenButton" class="setting-row" aria-haspopup="dialog">
-                    <span class="setting-row__text"><strong>Emotes</strong><small>Dine emotes og opplåsinger</small></span>
+                    <span class="setting-row__text"><strong>Emotes</strong><small>Tilpass emotes</small></span>
                     <span id="emoteSettingsSummary" aria-hidden="true" data-i18n-skip></span>
+                    <small id="emoteAppearanceLocked" hidden>Emotes kan bare endres mellom spill.</small>
                 </button>
                 <h3 class="settings-category">Spill og styring</h3>
                 <section id="messageSettings" class="message-settings" aria-label="Meldinger">
@@ -307,10 +308,6 @@
                         <button type="button" class="animation-speed-option" data-animation-speed="slow" aria-pressed="false">Sakte</button>
                     </span>
                 </div>
-                <button type="button" id="muteBotEmotesToggleButton" class="setting-row" aria-pressed="false">
-                    <span class="setting-row__text"><strong>Demp bot-emotes</strong><small>Skjuler emotes fra boter som standard. Trykk på en bot under spillet for å slå dem på igjen.</small></span>
-                    <span class="setting-row__switch" aria-hidden="true"><span></span></span>
-                </button>
                 <div class="setting-row setting-play-input" role="group" aria-label="Kortstyring">
                     <span class="setting-row__text"><strong>Kortstyring</strong></span>
                     <span class="play-input-options">
@@ -495,7 +492,8 @@
             <div class="dialog-title">Hva vil du hete?</div>
             <div class="dialogBody">
                 <div><label for="dialogPlayerNameTxt">Skriv inn navnet ditt, maks 24 tegn</label></div>
-                <div><input class="autofocus" type="text" id="dialogPlayerNameTxt" maxlength="60" /></div>
+                <div><input class="autofocus" type="text" id="dialogPlayerNameTxt" maxlength="60" placeholder="Spiller" /></div>
+                <small id="playerDefaultNameHint">Lar du feltet stå tomt, heter du Spiller.</small>
                 <div class="player-pin-row">
                 <button type="button" id="playerUsePin" class="setting-row" aria-pressed="false" aria-controls="playerPinFields">
                     <span class="setting-row__text"><strong>Bruk PIN</strong></span>
@@ -549,37 +547,33 @@
                     }
 
                     status.textContent = "Lenken er kopiert.";
+                    return true;
                 } catch (error) {
                     status.textContent = "Kunne ikke kopiere automatisk. Marker og kopier lenken manuelt.";
                     document.getElementById("dialogShareLinklblUrl").focus();
                     document.getElementById("dialogShareLinklblUrl").select();
+                    return false;
                 }
             }
 
-            async function shareInviteMessenger() {
+            // The system share menu lists whichever chat apps the player has. Without one, the link is copied to paste in.
+            async function shareInviteChat() {
                 var inviteUrl = document.getElementById("dialogShareLinklblUrl").value;
                 var status = document.getElementById("dialogShareLinkStatus");
-                if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
-                    status.textContent = "Åpner Messenger. Hvis appen ikke åpnes, bruk «Kopier lenke».";
-                    window.location.href = "fb-messenger://share/?link=" + encodeURIComponent(inviteUrl);
-                    return;
-                }
                 if (!navigator.share) {
-                    status.textContent = "Messenger-deling støttes ikke her. Kopier lenken og lim den inn i Messenger.";
+                    if (await copyInviteLink()) { status.textContent = "Lenken er kopiert. Lim den inn i chat-appen din."; }
                     return;
                 }
-                status.textContent = "Velg Messenger i delingsmenyen.";
+                status.textContent = "Velg en chat-app i delingsmenyen.";
                 try {
                     await navigator.share({
                         title: "Boms og President",
                         text: "Bli med i spillet mitt:",
                         url: inviteUrl
                     });
-                    document.getElementById("dialogShareLinkStatus").textContent = "Invitasjonen er delt.";
+                    status.textContent = "Invitasjonen er delt.";
                 } catch (error) {
-                    if (error.name !== "AbortError") {
-                        document.getElementById("dialogShareLinkStatus").textContent = "Kunne ikke dele invitasjonen. Prøv «Kopier lenke».";
-                    }
+                    status.textContent = error.name === "AbortError" ? "" : "Kunne ikke dele invitasjonen. Prøv «Kopier lenke».";
                 }
             }
 
@@ -610,7 +604,7 @@
                 <div class="invite-actions">
                     <button type="button" id="dialogShareLinkbnCopy" onclick="copyInviteLink();">Kopier lenke</button>
                     <button type="button" id="inviteSmsButton" onclick="sendInviteSms();">Send på SMS</button>
-                    <button type="button" id="inviteMessengerButton" onclick="shareInviteMessenger();">Del på Messenger</button>
+                    <button type="button" id="inviteChatButton" onclick="shareInviteChat();">Del i chat-app</button>
                 </div>
                 <div id="dialogShareLinkStatus" class="invite-status" role="status" aria-live="polite"></div>
             </div>
@@ -908,18 +902,18 @@
     <script src="js/identity.js?rev=1d5df15b"></script>
     <script src="js/bot.js?rev=573f7c75"></script>
     <script src="js/presence.js?rev=c28bb1a2"></script>
-    <script src="js/game.js?rev=ae980059"></script>
-    <script src="js/layout.js?rev=7e0b536c"></script>
+    <script src="js/game.js?rev=0d1f2165"></script>
+    <script src="js/layout.js?rev=6d7c7614"></script>
     <script src="js/layout-animations.js?rev=17c9901d"></script>
     <script src="js/layout-table.js?rev=b064d659"></script>
     <script src="js/layout-hand.js?rev=2287c17f"></script>
     <script src="js/engine.js?rev=5f07bf04"></script>
     <script src="js/bot-turn.js?rev=8a5ffc1d"></script>
-    <script src="js/emotes.js?rev=797badab"></script>
-    <script src="js/connection.js?rev=f9c2737f"></script>
+    <script src="js/emotes.js?rev=6536c2c7"></script>
+    <script src="js/connection.js?rev=b7bd3364"></script>
     <script src="js/custom-rules.js?rev=93bc16e9"></script>
     <script src="js/leaderboard.js?rev=98194434"></script>
-    <script src="js/i18n.js?rev=cbf4c27b"></script>
+    <script src="js/i18n.js?rev=5f04c9b3"></script>
 </body>
 
 </html>

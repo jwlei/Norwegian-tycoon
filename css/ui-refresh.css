@@ -392,6 +392,8 @@ button:focus-visible {
 .player-pin-row > #playerUsePin { flex: 0 0 155px; }
 .player-pin-row > #playerPinFields { flex: 1; min-width: 0; }
 #playerPinHint { display: block; color: var(--muted); }
+#playerDefaultNameHint { display: block; margin-top: 4px; color: var(--muted); }
+#playerDefaultNameHint[hidden] { display: none; }
 
 .color-theme-list > .settings-category { margin: 16px 4px 4px; }
 

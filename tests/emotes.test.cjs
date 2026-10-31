@@ -22,15 +22,15 @@ function loadGame() {
         "layout-table.js", "layout-hand.js", "engine.js", "bot-turn.js", "emotes.js"]) {
         vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context);
     }
-    return vm.runInContext(`({ PresidentGame, PresidentPlayer, PresidentCard, CardDeck, playBotTurn, CUSTOM_RULES,
+    return vm.runInContext(`({ GamePresence, PresidentGame, PresidentPlayer, PresidentCard, CardDeck, playBotTurn, CUSTOM_RULES,
         createEmoteMemory, readEmoteEvents, planBotEmotes, planBotReply, emoteTrickKey, emoteCardsAreHigh,
-        EMOTE_BOT_LIMIT_PER_TRICK, EMOTES, EMOTE_EXTRAS, EMOTE_ALL, emoteUnlockRound, normalizeEmoteLoadout, placeEmoteInLoadout })`, context);
+        EMOTE_BOT_LIMIT_PER_TRICK, EMOTES, EMOTE_EXTRAS, EMOTE_ALL, emoteUnlockRound, normalizeEmoteLoadout, placeEmoteInLoadout, EMOTE_GROUPS, GameEmotes })`, context);
 }
 
 const types = loadGame();
 const { PresidentGame, PresidentPlayer, PresidentCard, CardDeck, playBotTurn, CUSTOM_RULES, createEmoteMemory,
     readEmoteEvents, planBotEmotes, planBotReply, emoteTrickKey, emoteCardsAreHigh, EMOTE_BOT_LIMIT_PER_TRICK,
-    EMOTES, EMOTE_EXTRAS, EMOTE_ALL, emoteUnlockRound, normalizeEmoteLoadout, placeEmoteInLoadout } = types;
+    EMOTES, EMOTE_EXTRAS, EMOTE_ALL, emoteUnlockRound, normalizeEmoteLoadout, placeEmoteInLoadout, EMOTE_GROUPS, GameEmotes } = types;
 
 function dealtGame(playerCount, rules, random) {
     const deck = [];
@@ -250,4 +250,69 @@ test("bots only say the default emotes, and answer an extra the way they answer 
         assert.ok(defaults.has(extra.like), extra.id);
         assert.ok(defaults.has(planBotReply("Human", extra.id, "Bot 1", table).emote), extra.id);
     }
+});
+
+test("every emote sits in exactly one mood group", () => {
+    const grouped = EMOTE_GROUPS.flatMap(group => Array.from(group.ids));
+    assert.equal(grouped.length, new Set(grouped).size);
+    assert.equal([...grouped].sort().join(), EMOTE_ALL.map(emote => emote.id).sort().join());
+});
+
+test("an emote aimed at a bot still flies when bot emotes are off, and only the setting turns bots on", () => {
+    const human = { name: "Me", playerKey: "human" }, bot = { name: "Bot", playerKey: "PC" }, friend = { name: "Friend", playerKey: "friend" };
+    const calls = [];
+    Object.assign(GameEmotes, {
+        game: { players: [human, bot, friend] },
+        showBubble: name => calls.push(`bubble:${name}`),
+        throwEmoji: (from, to) => calls.push(`fly:${from}>${to}`)
+    });
+    // getCookie gives nothing here, so bot emotes are at their default of off.
+    assert.equal(GameEmotes.isMuted("Bot"), true);
+    GameEmotes.deliver("Me", "wow", "Bot");
+    assert.equal(calls.join(), "bubble:Me,fly:Me>Bot");
+    calls.length = 0;
+    GameEmotes.deliver("Bot", "wow", "Me");
+    assert.equal(calls.length, 0, "a muted speaker stays silent");
+    GameEmotes.muted.set(types.GamePresence.playerId(bot), false);
+    assert.equal(GameEmotes.isMuted("Bot"), true, "no single bot can be turned on while the setting is off");
+    GameEmotes.muted.clear();
+    assert.equal(GameEmotes.isMuted("Friend"), false);
+});
+
+test("emotes share the card appearance lock, and both locked hints sit inside their boxes", () => {
+    const read = file => fs.readFileSync(path.join(__dirname, "..", file), "utf8");
+    const html = read("index.html");
+    assert.match(html, /class="setting-card-appearance"[\s\S]*?id="cardAppearanceLocked" hidden[\s\S]*?<\/div>\s*<button[^>]*id="emoteSettingsOpenButton"/);
+    assert.match(html, /id="emoteSettingsOpenButton"[\s\S]*?id="emoteAppearanceLocked" hidden[\s\S]*?<\/button>/);
+    const layout = read("js/layout.js");
+    assert.match(layout, /querySelectorAll\("#cardStyleOpenButton, #cardFoilOpenButton, #emoteSettingsOpenButton/);
+    assert.match(layout, /"emoteAppearanceLocked"\)\.hidden = !appearanceLocked/);
+});
+
+test("a mute stays on the device that set it: other people still get the emote", () => {
+    const me = { name: "Me", playerKey: "me" }, bot = { name: "Bot", playerKey: "PC" }, friend = { name: "Friend", playerKey: "friend" };
+    const spoke = () => {
+        let spoken = false;
+        Object.assign(GameEmotes, { takeFromAllowance: () => { spoken = true; return false; }, tableNext: 0 });
+        GameEmotes.botNext.clear();
+        GameEmotes.botSpoke.clear();
+        GameEmotes.botSpeak({ speaker: "Bot", emote: "hi", to: null }, "trick", 0);
+        return spoken;
+    };
+    const original = GameEmotes.takeFromAllowance;
+    GameEmotes.me = me;
+    // Bot emotes are off on this device, so the bot is muted here in all three cases.
+    GameEmotes.game = { players: [me, bot] };
+    assert.equal(GameEmotes.isMuted("Bot"), true);
+    assert.equal(spoke(), false, "alone at the table, nobody would see it");
+    GameEmotes.game = { players: [me, bot, friend] };
+    assert.equal(spoke(), true, "another player must still receive it");
+    GameEmotes.game = { players: [me, bot], waitingSpectators: { watcher: { playerKey: "watcher" } } };
+    assert.equal(spoke(), true, "a spectator must still receive it");
+    GameEmotes.takeFromAllowance = original;
+
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "emotes.js"), "utf8");
+    const toggle = source.slice(source.indexOf("    static toggleMute(name) {"), source.indexOf("    static botEmotesOn()"));
+    assert.match(toggle, /sessionStorage\.setItem/);
+    assert.doesNotMatch(toggle, /firebase|this\.write|\.set\(\{/, "a mute is never sent to the database");
 });

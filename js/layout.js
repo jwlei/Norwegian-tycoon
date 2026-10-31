@@ -223,13 +223,14 @@ class GameLayout {
             (game == null ? GameLayout.savedPlayerName : null);
         document.documentElement.dataset.cardStyle = GameLayout.cardStyle();
         var appearanceLocked = game != null && !["O", "F"].includes(game.status);
-        document.querySelectorAll("#cardStyleOpenButton, #cardFoilOpenButton, .card-style-scope-option, .card-style-option__select, .card-foil-option__select")
+        document.querySelectorAll("#cardStyleOpenButton, #cardFoilOpenButton, #emoteSettingsOpenButton, .card-style-scope-option, .card-style-option__select, .card-foil-option__select")
             .forEach(button => {
                 if (appearanceLocked) { button.disabled = true; }
-                else if (button.id == "cardStyleOpenButton" || button.id == "cardFoilOpenButton" ||
+                else if (button.id == "cardStyleOpenButton" || button.id == "cardFoilOpenButton" || button.id == "emoteSettingsOpenButton" ||
                     button.classList.contains("card-style-scope-option")) { button.disabled = false; }
             });
         document.getElementById("cardAppearanceLocked").hidden = !appearanceLocked;
+        document.getElementById("emoteAppearanceLocked").hidden = !appearanceLocked;
         if (game != null) { game.localPlayerName = player ? player.name : null; }
         var appShell = document.getElementById("gameShell");
         setClass(appShell, "game-active", (game != null));
