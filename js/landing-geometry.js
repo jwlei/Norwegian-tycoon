@@ -14,6 +14,8 @@
     const CONTOUR_POINTS = 68;
     // A blurred shadow stays visible to about 2.5 blur radii beyond its edge.
     const HALO = 2.5;
+    // About 180 points on a card face, so one point is roughly half a percent of its area.
+    const AREA_COLUMNS = 11, AREA_ROWS = 17;
     const radians = degrees => degrees * Math.PI / 180;
     const degrees = angle => angle * 180 / Math.PI;
     const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
@@ -169,10 +171,45 @@
         return insideAffine(pose, f.a, f.b, f.top, x, y, .25) || insideAffine(pose, f.a, f.b, f.base, x, y, .25);
     }
 
+    const areaCache = new WeakMap();
+    // Points spread evenly over the card's face, so counting them measures area. Edge-weighted samples would not.
+    function areaSamples(pose) {
+        return memo(areaCache, pose, () => {
+            const width = pose.width || WIDTH, height = pose.height || HEIGHT, points = [];
+            for (let column = 0; column < AREA_COLUMNS; column++) {
+                for (let row = 0; row < AREA_ROWS; row++) {
+                    const u = ((column + .5) / AREA_COLUMNS - .5) * width, v = ((row + .5) / AREA_ROWS - .5) * height;
+                    if (insideOutline(pose, u, v)) { points.push(screen(world(u, v, 0, pose))); }
+                }
+            }
+            return points;
+        });
+    }
+
+    // Whether at most `limit` of the card's face shows past the cards above it. Only their top faces count, with no
+    // margin, so this can understate coverage but not overstate it: a card it reports as hidden really is hidden.
+    function barelyVisible(pose, occluders, limit) {
+        const points = areaSamples(pose), allowed = points.length * limit;
+        let visible = 0;
+        for (const point of points) {
+            const covered = occluders.some(occluder => {
+                const f = footprint(occluder);
+                return point.x >= f.minX && point.x <= f.maxX && point.y >= f.minY && point.y <= f.maxY &&
+                    insideAffine(occluder, f.a, f.b, f.top, point.x, point.y);
+            });
+            if (!covered && ++visible > allowed) { return false; }
+        }
+        return true;
+    }
+
     function supportHeight(cards, x, y) {
+        return heightAmong(cards, cards.map(plane), x, y);
+    }
+
+    function heightAmong(cards, surfaces, x, y) {
         let height = 0;
         for (let index = cards.length - 1; index >= 0; index--) {
-            const card = cards[index], surface = plane(card);
+            const card = cards[index], surface = surfaces[index];
             if (surface.ceiling <= height || Math.abs(x - card.x) > surface.extentX ||
                 Math.abs(y - card.y) > surface.extentY) { continue; }
             if (insideAffine(card, surface.axisX, surface.axisY, card, x, y)) {
@@ -195,7 +232,8 @@
     function landingOrientation(cards, x, y, roll, dimensions = {}) {
         const flat = { ...dimensions, x, y, z: 0, pitch: 0, yaw: 0, roll };
         const contacts = samples(flat);
-        const heights = contacts.map(point => supportHeight(cards, point.x, point.y));
+        const surfaces = cards.map(plane);
+        const heights = contacts.map(point => heightAmong(cards, surfaces, point.x, point.y));
         // Fit a gentle resting plane to the support heights, then lift it until the underside clears all supports.
         let xx = 0, yy = 0, xy = 0, xh = 0, yh = 0;
         const mean = heights.reduce((sum, height) => sum + height, 0) / heights.length;
@@ -219,7 +257,8 @@
 
     function minimumHeight(cards, pose) {
         const underside = samples({ ...pose, z: 0 }, -EDGE);
-        return Math.max(...underside.map(point => supportHeight(cards, point.x, point.y) - point.z)) + .06;
+        const surfaces = cards.map(plane);
+        return Math.max(...underside.map(point => heightAmong(cards, surfaces, point.x, point.y) - point.z)) + .06;
     }
 
     function clipAbove(points, surface) {
@@ -524,7 +563,7 @@
     }
 
     const api = { WIDTH, HEIGHT, EDGE, VIEW_SHEAR, LIGHT, CONTACT, slideDistance, slideDistanceToRest, rotate, world, screen, plane, heightAt,
-        signedDistance, silhouette, contains, screenContains, screenCovers, samples, supportHeight, landing, minimumHeight, shadow,
+        signedDistance, silhouette, contains, screenContains, screenCovers, barelyVisible, samples, supportHeight, landing, minimumHeight, shadow,
         shadowedBy, shadowVisible, shadowMayReach, exposedPoints, flight, position, overlapCoverage, fitPlay, motion, motionOrientation };
     if (typeof module !== "undefined" && module.exports) { module.exports = api; }
     else { root.LandingGeometry = api; }

@@ -317,3 +317,18 @@ test("sandbox loads only native card assets, never the production WebGL renderer
     assert.match(html, /landing-geometry\.js/);
     assert.match(js, /if \(currentProgress < 1 && !paused\)/);
 });
+
+test("barelyVisible counts the area showing past the cards above", () => {
+    const card = flat();
+    assert.equal(G.barelyVisible(card, [], .1), false, "An uncovered card is fully visible");
+    assert.equal(G.barelyVisible(card, [flat()], .1), true, "An exactly covered card only shows its corners at most");
+    assert.equal(G.barelyVisible(card, [flat(G.WIDTH * .05)], .1), true, "A 5% sliver is below the limit");
+    assert.equal(G.barelyVisible(card, [flat(G.WIDTH * .15)], .1), false, "A 15% strip is above the limit");
+    assert.equal(G.barelyVisible(card, [flat(G.WIDTH * .6)], .1), false);
+    assert.equal(G.barelyVisible(card, [flat(G.WIDTH * .3), flat(-G.WIDTH * .3)], .1), true, "Coverage adds up across cards");
+});
+
+test("barelyVisible does not count a rotated card's corners as covering what they miss", () => {
+    const rotated = { ...flat(), roll: 45 };
+    assert.equal(G.barelyVisible(flat(), [rotated], .1), false, "A crossing card leaves the upright card's ends showing");
+});

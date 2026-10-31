@@ -13,6 +13,7 @@ function showDialog(dialogName, isVisible) {
         dialog.setAttribute("aria-modal", "true");
         dialog.setAttribute("aria-hidden", "false");
         dialog.classList.add('dialog-container--visible');
+        document.body.classList.add("has-open-dialog");
         var x = dialog.querySelector(".autofocus");
         if (!x) {
             x = dialog.querySelector(".dialog-window");
@@ -21,6 +22,7 @@ function showDialog(dialogName, isVisible) {
         if (x) { x.focus(); }
     } else {
         dialog.classList.remove('dialog-container--visible');
+        document.body.classList.toggle("has-open-dialog", document.querySelector(".dialog-container--visible") != null);
         dialog.setAttribute("aria-hidden", "true");
         game.inert = false;
         if (dialog.returnFocusElement instanceof HTMLElement && dialog.returnFocusElement.isConnected) {

@@ -8,6 +8,8 @@ class CardDepth {
     // Tables with more cards than this keep full shadows only on their top DETAILED_CARDS cards.
     static SIMPLIFY_FROM = 12;
     static DETAILED_CARDS = 8;
+    // A table card loses its foil once this share of its face or less still shows.
+    static FOIL_VISIBLE_LIMIT = .1;
     static shadowStyle = "fancy";
 
     static states = new WeakMap();
@@ -575,7 +577,22 @@ class CardDepth {
                 if (this.states.get(state.element) === state) { this.update(state.element, {}); }
             }
             this.updatePileBlur(scene);
+            this.updateFoilCoverage(scene);
         });
+    }
+
+    // Removes the foil from table cards that barely show. Hidden cards are not occluders, so a card still in the
+    // air cannot take the foil off the cards below it before it has landed.
+    static updateFoilCoverage(scene) {
+        for (const state of scene.states) {
+            const element = state.element;
+            if (state.hidden || !element.dataset.foil || element.dataset.foil === "none") { continue; }
+            const covered = LandingGeometry.barelyVisible(state.placed, this.tableAbove(scene, state.tableIndex + 1),
+                this.FOIL_VISIBLE_LIMIT);
+            if (covered === element.classList.contains("is-foil-covered")) { continue; }
+            element.classList.toggle("is-foil-covered", covered);
+            if (!covered) { this.syncFoilPhase([element]); }
+        }
     }
 
     static prepareTable(table) {
@@ -697,6 +714,7 @@ class CardDepth {
         // Top cards receive the landing card's shadows; caching them as layers spares the rest of the pile repaints.
         scene.states.forEach(state => state.element.classList.toggle("is-depth-detailed", this.detailed(state)));
         this.updatePileBlur(scene);
+        this.updateFoilCoverage(scene);
         this.refreshFlights(scene, elements);
         this.syncFoilPhase(attached);
         this.observeFoils(table);

@@ -943,3 +943,31 @@ test("production and interaction sandboxes load shared geometry before the nativ
         assert.ok(html.indexOf("card-depth.js") < html.indexOf("js/game.js"));
     }
 });
+
+test("table cards lose their foil only when at most a tenth of them shows", () => {
+    const f = fixture();
+    const buried = f.card(200), sliver = f.card(205), partly = f.card(260), top = f.card(200), plain = f.card(200), last = f.card(200);
+    [buried, sliver, partly, top, last].forEach(card => { card.dataset.foil = "rainbow"; });
+    plain.dataset.foil = "none";
+    f.Depth.prepareTable(f.table([plain, buried, sliver, partly, top, last]));
+    assert.equal(plain.classes.has("is-foil-covered"), false, "Cards without foil are left alone");
+    assert.equal(buried.classes.has("is-foil-covered"), true);
+    assert.equal(sliver.classes.has("is-foil-covered"), true);
+    assert.equal(partly.classes.has("is-foil-covered"), false, "A card with a wide strip showing keeps its foil");
+    assert.equal(last.classes.has("is-foil-covered"), false, "The top card keeps its foil");
+});
+
+test("a card in the air does not remove the foil below it until it has landed", async () => {
+    const f = fixture();
+    const below = f.card(200), landing = f.card(200);
+    below.dataset.foil = landing.dataset.foil = "rainbow";
+    landing.style.opacity = "0";
+    f.Depth.prepareTable(f.table([below, landing]));
+    assert.equal(below.classes.has("is-foil-covered"), false);
+    f.Depth.setHidden(landing, false);
+    await Promise.resolve();
+    assert.equal(below.classes.has("is-foil-covered"), true);
+    f.Depth.setHidden(landing, true);
+    await Promise.resolve();
+    assert.equal(below.classes.has("is-foil-covered"), false, "The foil returns when the card above leaves");
+});

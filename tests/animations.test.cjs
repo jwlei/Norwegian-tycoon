@@ -586,7 +586,7 @@ test("discard animation restores the original easing and scales duration and sta
                     return { left: 100, top: 100, width: 80, height: 120 };
                 },
                 cloneNode: () => ({
-                    style: {}, setAttribute() {}, classList: { add() {} },
+                    style: {}, setAttribute() {}, classList: { add() {}, remove() {} },
                     animate(frames, timing) { timings.push(timing); return {}; }
                 })
             }))
@@ -633,7 +633,7 @@ test("discarded foil previews retain their clipped card layer and are removed af
         className: "table-play__card card-preview card-preview--normal",
         dataset: { foil: "galaxy" },
         style: {},
-        classList: { add(name) { this[name] = true; } },
+        classList: { add(name) { this[name] = true; }, remove(name) { this[name] = false; } },
         setAttribute() {},
         animate() { animation = {}; return animation; },
         remove() { this.removed = true; }
@@ -652,6 +652,7 @@ test("discarded foil previews retain their clipped card layer and are removed af
     context.completed = 0;
     vm.runInContext("GameLayout.animateDiscardedCards(table, () => { completed++; })", context);
     assert.equal(flight.classList["card-discard-flight"], true);
+    assert.equal(flight.classList["is-foil-covered"], false, "A covered card shows its foil again once it flies");
     assert.match(flight.className, /card-preview/);
     assert.equal(flight.dataset.foil, "galaxy");
     assert.equal(card.style.opacityValue, "0");

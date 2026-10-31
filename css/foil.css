@@ -257,12 +257,19 @@
     0%, 100% { translate: -3.2% -1.6%; }
     50% { translate: 3.2% 1.6%; }
 }
+/* Behind a dialog's dimmed, blurred backdrop the shimmer is invisible, but every frame would re-blur it.
+   A class set by showDialog, because body:has() would re-check this rule on every DOM change. */
+body.has-open-dialog :is(#playerHand .game-card, #gameTable .card-preview)::before,
+body.has-open-dialog :is(#playerHand .game-card, #gameTable .card-preview)::after {
+    animation-play-state: paused !important;
+}
+
 /* Idle motion uses only opacity and translate, so foil gradients are not recalculated every frame. */
 @media (prefers-reduced-motion: no-preference) {
     body:not([data-idle-foil-animation="off"]) :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]):not(.is-tilting,
         .card-flight, .card-discard-flight, .is-drag-source, .card-drag-layer *,
         .card-foil-option:is(:hover, :focus-visible) *)::before {
-        animation: foil-idle-color 6s ease-in-out infinite;
+        animation: foil-idle-color 6s steps(45) infinite;
         transition: none;
     }
     /* The drifting glare is inset by its travel distance, so it never extends past the card. */
@@ -270,7 +277,7 @@
         .card-flight, .card-discard-flight, .is-drag-source, .card-drag-layer *,
         .card-foil-option:is(:hover, :focus-visible) *)::after {
         inset: calc(.625% + 1.6%) calc(.9375% + 3.2%);
-        animation: foil-idle-glare 6s ease-in-out infinite;
+        animation: foil-idle-glare 6s steps(45) infinite;
         transition: none;
     }
 }
@@ -278,6 +285,19 @@
 .is-foil-offscreen[data-foil]::before,
 .is-foil-offscreen[data-foil]::after {
     animation-play-state: paused !important;
+}
+
+/* At most a tenth of this table card shows (see CardDepth.updateFoilCoverage), so its blended foil layers are skipped. */
+.table-play__card.is-foil-covered[data-foil]::before,
+.table-play__card.is-foil-covered[data-foil]::after {
+    display: none !important;
+}
+
+/* The foil and style pickers stay in the DOM while closed. A visibility:hidden element paints nothing, so its
+   animation has no compositor layer and would otherwise tick on the main thread every frame. */
+.dialog-container:not(.dialog-container--visible) .card-preview::before,
+.dialog-container:not(.dialog-container--visible) .card-preview::after {
+    animation: none !important;
 }
 
 /* English configuration names map to persisted foil IDs without changing player preferences. */

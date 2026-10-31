@@ -195,7 +195,7 @@ GameLayout.extend(class {
             flight.style.width = `${targetBounds.width}px`;
             flight.style.height = `${targetBounds.height}px`;
             document.body.appendChild(flight);
-            if (typeof CardDepth != "undefined") { CardDepth.attach(flight); }
+            if (typeof CardDepth != "undefined") { CardDepth.attach(flight, true, false); }
             var usesDepth = typeof CardDepth != "undefined" && CardDepth.states.has(flight);
             var landingPose = usesDepth && typeof CardDepth.landingMotion == "function"
                 ? CardDepth.landingMotion(flight, target, {
@@ -397,12 +397,16 @@ GameLayout.extend(class {
         }
         var cards = Array.from(table.querySelectorAll(".table-play__card"));
         var cardBounds = cards.map(card => GameLayout.unrotatedCardBounds(card));
+        // Read before the loop: window.innerHeight forces a layout once the flights below dirty the page.
+        var riseDistance = Math.max(150, window.innerHeight * 0.4);
         cards.forEach((card, index) => {
             var bounds = cardBounds[index];
             if (bounds.width == 0 || bounds.height == 0) { return; }
             var rotation = parseFloat(card.style.getPropertyValue("--pile-rotation")) || 0;
             var flight = card.cloneNode(true);
             flight.classList.add("card-discard-flight");
+            // A discarded card flies off the pile in full view, so a covered card gets its foil back.
+            flight.classList.remove("is-foil-covered");
             flight.setAttribute("aria-hidden", "true");
             if (typeof flight.animate != "function") { return; }
             flight.style.left = `${bounds.left}px`;
@@ -410,7 +414,7 @@ GameLayout.extend(class {
             flight.style.width = `${bounds.width}px`;
             flight.style.height = `${bounds.height}px`;
             document.body.appendChild(flight);
-            if (typeof CardDepth != "undefined") { CardDepth.attach(flight); }
+            if (typeof CardDepth != "undefined") { CardDepth.attach(flight, true, false); }
             var usesDepth = typeof CardDepth != "undefined" && CardDepth.states.has(flight);
             var horizontalOffset = ((index % 7) - 3) * 35 + (Math.random() - 0.5) * 24;
             var spin = (index % 2 == 0 ? -1 : 1) * (35 + (index % 5) * 12) +
@@ -421,7 +425,7 @@ GameLayout.extend(class {
                     opacity: 1
                 },
                 {
-                    transform: `translate(${horizontalOffset}px, ${-Math.max(150, window.innerHeight * 0.4)}px)` +
+                    transform: `translate(${horizontalOffset}px, ${-riseDistance}px)` +
                         (usesDepth ? "" : ` rotate(${rotation + spin}deg)`),
                     opacity: 0
                 }
