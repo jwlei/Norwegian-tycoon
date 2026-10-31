@@ -1,0 +1,38 @@
+diff --git a/css/foil.css b/css/foil.css
+index ddcad9a..68e12ff 100644
+--- a/css/foil.css
++++ b/css/foil.css
+@@ -257,6 +257,13 @@
+     0%, 100% { translate: -3.2% -1.6%; }
+     50% { translate: 3.2% 1.6%; }
+ }
++/* Behind a dialog's dimmed, blurred backdrop the shimmer is invisible, but every frame would re-blur it.
++   A class set by showDialog, because body:has() would re-check this rule on every DOM change. */
++body.has-open-dialog :is(#playerHand .game-card, #gameTable .card-preview)::before,
++body.has-open-dialog :is(#playerHand .game-card, #gameTable .card-preview)::after {
++    animation-play-state: paused !important;
++}
++
+ /* Idle motion uses only opacity and translate, so foil gradients are not recalculated every frame. */
+ @media (prefers-reduced-motion: no-preference) {
+     body:not([data-idle-foil-animation="off"]) :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]):not(.is-tilting,
+diff --git a/js/shared.js b/js/shared.js
+index dd57df8..4be107c 100644
+--- a/js/shared.js
++++ b/js/shared.js
+@@ -13,6 +13,7 @@ function showDialog(dialogName, isVisible) {
+         dialog.setAttribute("aria-modal", "true");
+         dialog.setAttribute("aria-hidden", "false");
+         dialog.classList.add('dialog-container--visible');
++        document.body.classList.add("has-open-dialog");
+         var x = dialog.querySelector(".autofocus");
+         if (!x) {
+             x = dialog.querySelector(".dialog-window");
+@@ -21,6 +22,7 @@ function showDialog(dialogName, isVisible) {
+         if (x) { x.focus(); }
+     } else {
+         dialog.classList.remove('dialog-container--visible');
++        document.body.classList.toggle("has-open-dialog", document.querySelector(".dialog-container--visible") != null);
+         dialog.setAttribute("aria-hidden", "true");
+         game.inert = false;
+         if (dialog.returnFocusElement instanceof HTMLElement && dialog.returnFocusElement.isConnected) {

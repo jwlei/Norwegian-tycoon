@@ -26,7 +26,7 @@
  },
  "results": [
   {
-   "variant": "01-pause-hidden-dialog-animations+15-content-visibility-closed-dialogs+02-idle-foil-15fps+04-idle-foil-top-play-only+05-pause-foil-under-dialog+07-keep-hand-on-opponent-moves+08-flight-setup-without-layout-thrash+09-geometry-precompute-planes",
+   "variant": "01-pause-hidden-dialog-animations+15-content-visibility-closed-dialogs+02-idle-foil-15fps+04-idle-foil-top-play-only+16-pause-foil-under-dialog-class+07-keep-hand-on-opponent-moves+08-flight-setup-without-layout-thrash+09-geometry-precompute-planes",
    "tests": 686,
    "pass": 668,
    "fail": 18,
@@ -56,7 +56,7 @@
    "fixed": []
   },
   {
-   "variant": "15-content-visibility-closed-dialogs",
+   "variant": "16-pause-foil-under-dialog-class",
    "tests": 686,
    "pass": 669,
    "fail": 17,

@@ -2,6 +2,7 @@
  {
   "profile": "desktop",
   "scene": "hand",
+  "time": 1500,
   "variant": "baseline (repeat, measures noise)",
   "changedPercent": 0,
   "visiblePercent": 0,
@@ -11,7 +12,8 @@
  {
   "profile": "desktop",
   "scene": "hand",
-  "variant": "01+15+02+04+05+07+08+09",
+  "time": 1500,
+  "variant": "01+15+02+04+16+07+08+09",
   "changedPercent": 0.05,
   "visiblePercent": 0,
   "worstDelta": 1,
@@ -20,6 +22,7 @@
  {
   "profile": "desktop",
   "scene": "hand-waiting",
+  "time": 1500,
   "variant": "baseline (repeat, measures noise)",
   "changedPercent": 0,
   "visiblePercent": 0,
@@ -29,7 +32,8 @@
  {
   "profile": "desktop",
   "scene": "hand-waiting",
-  "variant": "01+15+02+04+05+07+08+09",
+  "time": 1500,
+  "variant": "01+15+02+04+16+07+08+09",
   "changedPercent": 0.04,
   "visiblePercent": 0,
   "worstDelta": 1,
@@ -38,6 +42,7 @@
  {
   "profile": "desktop",
   "scene": "table",
+  "time": 1500,
   "variant": "baseline (repeat, measures noise)",
   "changedPercent": 0,
   "visiblePercent": 0,
@@ -47,7 +52,8 @@
  {
   "profile": "desktop",
   "scene": "table",
-  "variant": "01+15+02+04+05+07+08+09",
+  "time": 1500,
+  "variant": "01+15+02+04+16+07+08+09",
   "changedPercent": 0.07,
   "visiblePercent": 0,
   "worstDelta": 1,
@@ -56,6 +62,7 @@
  {
   "profile": "desktop",
   "scene": "settings",
+  "time": 1500,
   "variant": "baseline (repeat, measures noise)",
   "changedPercent": 0,
   "visiblePercent": 0,
@@ -65,7 +72,8 @@
  {
   "profile": "desktop",
   "scene": "settings",
-  "variant": "01+15+02+04+05+07+08+09",
+  "time": 1500,
+  "variant": "01+15+02+04+16+07+08+09",
   "changedPercent": 0,
   "visiblePercent": 0,
   "worstDelta": 1,
@@ -74,6 +82,7 @@
  {
   "profile": "desktop",
   "scene": "foilPicker",
+  "time": 1500,
   "variant": "baseline (repeat, measures noise)",
   "changedPercent": 0,
   "visiblePercent": 0,
@@ -83,7 +92,8 @@
  {
   "profile": "desktop",
   "scene": "foilPicker",
-  "variant": "01+15+02+04+05+07+08+09",
+  "time": 1500,
+  "variant": "01+15+02+04+16+07+08+09",
   "changedPercent": 0,
   "visiblePercent": 0,
   "worstDelta": 1,
@@ -92,16 +102,18 @@
  {
   "profile": "phone",
   "scene": "hand",
+  "time": 1500,
   "variant": "baseline (repeat, measures noise)",
-  "changedPercent": 0,
+  "changedPercent": 6.31,
   "visiblePercent": 0,
-  "worstDelta": 0,
-  "meanDelta": 0
+  "worstDelta": 3,
+  "meanDelta": 0.065
  },
  {
   "profile": "phone",
   "scene": "hand",
-  "variant": "01+15+02+04+05+07+08+09",
+  "time": 1500,
+  "variant": "01+15+02+04+16+07+08+09",
   "changedPercent": 0.14,
   "visiblePercent": 0,
   "worstDelta": 1,
@@ -110,16 +122,18 @@
  {
   "profile": "phone",
   "scene": "hand-waiting",
+  "time": 1500,
   "variant": "baseline (repeat, measures noise)",
-  "changedPercent": 0,
+  "changedPercent": 6.9,
   "visiblePercent": 0,
-  "worstDelta": 0,
-  "meanDelta": 0
+  "worstDelta": 3,
+  "meanDelta": 0.071
  },
  {
   "profile": "phone",
   "scene": "hand-waiting",
-  "variant": "01+15+02+04+05+07+08+09",
+  "time": 1500,
+  "variant": "01+15+02+04+16+07+08+09",
   "changedPercent": 0.05,
   "visiblePercent": 0,
   "worstDelta": 1,
@@ -128,6 +142,7 @@
  {
   "profile": "phone",
   "scene": "table",
+  "time": 1500,
   "variant": "baseline (repeat, measures noise)",
   "changedPercent": 0,
   "visiblePercent": 0,
@@ -137,25 +152,28 @@
  {
   "profile": "phone",
   "scene": "table",
-  "variant": "01+15+02+04+05+07+08+09",
-  "changedPercent": 5.27,
-  "visiblePercent": 0.04,
+  "time": 1500,
+  "variant": "01+15+02+04+16+07+08+09",
+  "changedPercent": 13.93,
+  "visiblePercent": 0.05,
   "worstDelta": 27,
-  "meanDelta": 0.095
+  "meanDelta": 0.192
  },
  {
   "profile": "phone",
   "scene": "settings",
+  "time": 1500,
   "variant": "baseline (repeat, measures noise)",
-  "changedPercent": 0,
+  "changedPercent": 0.63,
   "visiblePercent": 0,
-  "worstDelta": 0,
-  "meanDelta": 0
+  "worstDelta": 6,
+  "meanDelta": 0.006
  },
  {
   "profile": "phone",
   "scene": "settings",
-  "variant": "01+15+02+04+05+07+08+09",
+  "time": 1500,
+  "variant": "01+15+02+04+16+07+08+09",
   "changedPercent": 0,
   "visiblePercent": 0,
   "worstDelta": 1,
@@ -164,16 +182,18 @@
  {
   "profile": "phone",
   "scene": "foilPicker",
+  "time": 1500,
   "variant": "baseline (repeat, measures noise)",
-  "changedPercent": 0,
-  "visiblePercent": 0,
-  "worstDelta": 0,
-  "meanDelta": 0
+  "changedPercent": 0.85,
+  "visiblePercent": 0.01,
+  "worstDelta": 42,
+  "meanDelta": 0.011
  },
  {
   "profile": "phone",
   "scene": "foilPicker",
-  "variant": "01+15+02+04+05+07+08+09",
+  "time": 1500,
+  "variant": "01+15+02+04+16+07+08+09",
   "changedPercent": 0.01,
   "visiblePercent": 0,
   "worstDelta": 1,

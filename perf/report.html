@@ -1,0 +1,158 @@
+<title>Boms Graphics Performance</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column of prose, with evidence tables allowed to run wider. Felt-green neutrals, foil violet as the single accent. */
+:root {
+  --bg: #f4f6f3; --surface: #e7ece5; --fg: #17201a; --muted: #55625a; --line: #c9d2c9;
+  --accent: #5b3fb0; --good: #17693f; --warn: #94600a; --bad: #a92f2a;
+  --display: "Familjen Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111713; --surface: #1b231d; --fg: #e6ece6; --muted: #9daa9f; --line: #323e35;
+  --accent: #b6a1f5; --good: #6fd19c; --warn: #e4b45c; --bad: #f08a84; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #111713; --surface: #1b231d; --fg: #e6ece6; --muted: #9daa9f; --line: #323e35;
+  --accent: #b6a1f5; --good: #6fd19c; --warn: #e4b45c; --bad: #f08a84; color-scheme: dark; }
+body { background: var(--bg); color: var(--fg); font: 400 16px/1.6 var(--body); }
+main { max-width: 1000px; margin-inline: auto; padding-block: 48px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 44px; }
+section { display: grid; gap: 14px; min-width: 0; }
+header { display: grid; gap: 14px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2rem, 6vw, 3rem); font-weight: 700; }
+h2 { font-size: 1.55rem; font-weight: 700; }
+h3 { font-size: 1.1rem; font-weight: 700; }
+p { margin: 0; max-width: 68ch; }
+ul { margin: 0; padding-left: 20px; display: grid; gap: 7px; max-width: 72ch; }
+code { font: 400 .88em var(--mono); }
+.lead { font-size: 1.15rem; }
+.meta { color: var(--muted); font: 400 .85rem var(--mono); }
+.note { background: var(--surface); padding: 14px 16px; border-radius: 6px; max-width: none; }
+.note p { max-width: 75ch; }
+.table { overflow-x: auto; border-block: 1px solid var(--line); }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; font-variant-numeric: tabular-nums; }
+th { text-align: left; font: 500 .75rem var(--mono); letter-spacing: .03em; color: var(--muted); white-space: nowrap; }
+th, td { padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.n { white-space: nowrap; font-family: var(--mono); font-size: .84rem; }
+td.id { font-family: var(--mono); font-weight: 500; color: var(--accent); }
+.none { color: var(--good); font-weight: 600; white-space: nowrap; }
+.slight { color: var(--warn); font-weight: 600; white-space: nowrap; }
+.bad { color: var(--bad); font-weight: 600; white-space: nowrap; }
+</style>
+
+<main>
+<header>
+  <h1>Boms Graphics Performance</h1>
+  <p class="lead">Most of the graphics cost is animation nobody can see. With a hand or table showing, stopping it cuts idle main-thread work by about 98% and idle GPU load by 80–89% on desktop and the emulated phone, with almost no visible change.</p>
+  <p class="meta">Measured on commit 756b252 · headless Edge 156 · Ryzen 5800X, RTX 3080 Ti · app code unchanged</p>
+</header>
+
+<div class="note" id="status">
+  <p><strong>Update: patches 01, 02, 07, 08, 09, 15 and 16 are now on <code>main</code>, along with a stricter version of 04.</strong> Patch 04 as implemented removes the foil only from table cards with at most 10% of their face showing, which is about 21–26 of 30 cards. The table below describes the original patch 04, so its memory figure does not apply to the implemented version.</p>
+  <p><strong>Not measured:</strong> timings for the combined patches during play, the combined startup, how fast dialogs open, and the gain from the 10% rule. Another job has held the machine at near 100% CPU since 17:54, so timings from that period were thrown out and the queued run was cancelled. All other numbers here were measured before 17:54.</p>
+</div>
+
+<section>
+  <h2>What to change</h2>
+  <p>Eight example patches are worth applying, listed by value. Gains are from clean runs with the other patches left out, except 02, 04, 07, 08, 09 and 16, which are measured on top of 01. "ms/s" means busy milliseconds per second of that thread.</p>
+  <div class="table"><table>
+    <tr><th>Patch</th><th>What it stops</th><th>Measured gain</th><th>Visual change</th><th>Tests</th></tr>
+    <tr><td class="id">01</td><td>Foil animations ticking forever inside closed dialogs, which force a full frame on every display refresh, even on the splash screen.</td><td class="n">Phone idle main thread<br>982 → 49 ms/s<br>Commits per run 751 → 20</td><td class="none">None</td><td>Pass</td></tr>
+    <tr><td class="id">02</td><td>Idle foil redrawing at the full display rate. Steps it to 15 updates per second.</td><td class="n">Idle GPU, hand<br>Desktop 561 → 79 ms/s<br>Phone 381 → 76 ms/s</td><td class="none">Not visible in frames</td><td>1 to update</td></tr>
+    <tr><td class="id">16</td><td>Foil animating behind an open dialog's dark, blurred backdrop.</td><td class="n">GPU with dialog open<br>Desktop 984 → 171 ms/s<br>Phone 415 → 49 ms/s</td><td class="none">None in practice</td><td>Pass</td></tr>
+    <tr><td class="id">09</td><td>Recomputing each card's plane for every height lookup when a card lands.</td><td class="n">Longest freeze, 4 on 30<br>Phone 469 → 356 ms<br>Desktop 83 → 70 ms</td><td class="none">None</td><td>Pass</td></tr>
+    <tr><td class="id">08</td><td>Layout forced for every card when the table clears, and idle-foil setup on cards in flight.</td><td class="n">Longest freeze, clear 30<br>Phone 437 → 172 ms<br>Desktop 87 → 72 ms</td><td class="none">None</td><td>Pass</td></tr>
+    <tr><td class="id">04</td><td>Idle foil on table cards buried under the top play.</td><td class="n">Phone, 30 cards on table<br>Memory 101 → 51 MB<br>Layers 206 → 90<br>No desktop gain</td><td class="slight">Slight</td><td>Pass</td></tr>
+    <tr><td class="id">07</td><td>Rebuilding your hand when an opponent moves.</td><td class="n">Opponent move update<br>Phone 142 → 122 ms<br>Desktop 25 → 20 ms</td><td class="none">None</td><td>Pass</td></tr>
+    <tr><td class="id">15</td><td>Laying out all 19 closed dialogs at startup. Apply this one last, because it has a cost.</td><td class="n">Phone, Fast 4G, first paint<br>First visit 692 → 392 ms<br>Repeat visit 636 → 284 ms<br>Cost: opponent move 97 → 126 ms on phone</td><td class="none">None</td><td>Pass</td></tr>
+  </table></div>
+  <p>Together they add one test failure: a test that looks for the literal text <code>ease-in-out</code>, which patch 02 replaces. It needs updating, and the behaviour it protects still holds. Patches are in <code>perf/examples/</code> and still apply to the current <code>main</code>.</p>
+</section>
+
+<section>
+  <h2>Combined result while idle</h2>
+  <p>This clean run used patch 05 where the final set uses 16. They only differ while a dialog is open or the page changes, so these idle figures should carry over.</p>
+  <div class="table"><table>
+    <tr><th>Scene</th><th>Main thread, ms/s</th><th>GPU, ms/s</th><th>Layer memory</th></tr>
+    <tr><td>Phone, hand of 13</td><td class="n">815 → 13</td><td class="n">387 → 58</td><td class="n">48 MB, unchanged</td></tr>
+    <tr><td>Phone, 30 cards on table</td><td class="n">987 → 24</td><td class="n">802 → 85</td><td class="n">101 → 51 MB</td></tr>
+    <tr><td>Phone, splash screen</td><td class="n">477 → 11</td><td class="n">131 → 124</td><td class="n">31 MB, unchanged</td></tr>
+    <tr><td>Desktop, hand of 13</td><td class="n">219 → 3</td><td class="n">564 → 71</td><td class="n">9 MB, unchanged</td></tr>
+    <tr><td>Desktop, 30 cards on table</td><td class="n">512 → 7</td><td class="n">1448 → 286</td><td class="n">21 MB, unchanged</td></tr>
+    <tr><td>Desktop, splash screen</td><td class="n">203 → 6</td><td class="n">224 → 155</td><td class="n">6 MB, unchanged</td></tr>
+  </table></div>
+  <p>For a player, this means less heat and battery drain while waiting for a turn, and a main thread that is free to respond. Phone main-thread load near 1000 ms/s means the emulated phone had no spare time at all.</p>
+</section>
+
+<section>
+  <h2>Effect on visual fidelity</h2>
+  <p><strong>The recommended set changes almost nothing you can see.</strong> On desktop no pixel moved by more than 4 levels out of 255 in any scene we could compare. On the phone, at most 0.06% of pixels changed visibly, on the table, because of patch 04.</p>
+  <p>Each build was frozen at seven moments across the 6-second foil cycle and three moments of a card in flight, then compared pixel by pixel with the original. "Visible" counts pixels that moved more than 8 levels out of 255. The first row shows how much the original differs from itself, so anything near it is noise.</p>
+  <div class="table"><table>
+    <tr><th>Patch</th><th>Verdict</th><th>Desktop: visible, worst</th><th>Phone: visible, worst</th><th>What actually changes</th></tr>
+    <tr><td>Original vs itself</td><td>Noise</td><td class="n">0%, 1</td><td class="n">0.01%, 42</td><td>Timing differences between two runs of the same code.</td></tr>
+    <tr><td class="id">01</td><td class="none">None</td><td class="n">0%, 1</td><td class="n">0.11%, 56*</td><td>Only hidden dialogs. Foil previews restart their cycle when a dialog opens, which nobody can notice.</td></tr>
+    <tr><td class="id">15</td><td class="none">None</td><td class="n">0%, 1</td><td class="n">0.01%, 44</td><td>Only closed dialogs. Open dialogs matched the original pixel for pixel on desktop.</td></tr>
+    <tr><td class="id">07, 08, 09</td><td class="none">None</td><td class="n">0%, 1</td><td class="n">0.01%, 44</td><td>Calculations only. The same picture is drawn.</td></tr>
+    <tr><td class="id">16</td><td class="none">None in practice</td><td class="n">0%, 2</td><td class="n">0.01%, 44</td><td>Foil behind an open dialog holds still instead of shimmering. It sits under a 70% black blur, and resumes where it stopped.</td></tr>
+    <tr><td class="id">02</td><td class="none">Not visible in frames</td><td class="n">0%, 3</td><td class="n">0.01%, 44</td><td>Up to 3.7% of desktop pixels differ, all by 3 levels or fewer. Foil updates 15 times per second, and each step moves under 0.2 px. The easing inside each half-cycle also becomes linear. Worth a look by eye on a real display.</td></tr>
+    <tr><td class="id">04</td><td class="slight">Slight</td><td class="n">0%, 4</td><td class="n">0.06%, 42</td><td>The one intended visual change. Buried cards keep their foil but it stops shimmering, and only the top play moves. The shimmer is small: 4 points of opacity and about 3% of drift. A card's glare may shift slightly when it gets covered, which still frames cannot show.</td></tr>
+    <tr><td><strong>All eight</strong></td><td class="slight">Slight</td><td class="n">0%, 4</td><td class="n">0.06%, 42</td><td>Effectively patch 04's change. Phone flight frames: 0.04%, worst 30.</td></tr>
+  </table></div>
+  <p class="meta">* One sample at 550 ms of a flight. Patch 01 only touches closed dialogs, so this is probably timing jitter, though the check cannot prove it.</p>
+  <h3>What this check cannot tell you</h3>
+  <ul>
+    <li><strong>Table clearing could not be verified.</strong> Cards scatter randomly, so the original differs from itself by 4.2% of pixels on desktop and 8.8% on the phone. Every patch fell in that same range.</li>
+    <li><strong>Frames show position, not how motion feels.</strong> Patches 02, 04 and 16 change motion, so they are the three to judge by eye.</li>
+    <li><strong>No person has compared these side by side yet,</strong> and the phone was emulated. Check patches 02 and 04 on a real phone before shipping.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Where the graphics cost comes from</h2>
+  <ul>
+    <li><strong>Whether foil is on matters far more than which foil.</strong> An idle hand costs 6 ms/s of GPU without foil and 332–407 ms/s with any foil on desktop (7 and 242–313 on the phone). Foil raises render passes per frame from 4 to 42. Every foil costs about the same, so removing a particular one would not help.</li>
+    <li><strong>Card styles are cheap.</strong> Drawing one card takes 0.16–0.55 ms. Neon is the most expensive and the only style with an SVG filter.</li>
+    <li><strong>The "Simple shadows" setting helps less than expected.</strong> On the phone it cuts the 4-card freeze from 450 to 378 ms, while turning foil off reaches 266 ms.</li>
+    <li><strong>What remains in the landing freeze:</strong> pose geometry, <code>getAnimations</code> and <code>getBoundingClientRect</code>. Patch 09 removes part of the first. On the phone the freeze is still about 350 ms with 30 cards on the table, the largest problem left during play.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Tested and rejected</h2>
+  <div class="table"><table>
+    <tr><th>Patch</th><th>Idea</th><th>Why not</th></tr>
+    <tr><td class="id">05</td><td>Pause foil under dialogs with <code>body:has()</code></td><td><span class="bad">Harmful.</span> Clearing the table went from 275 to 3,095 ms on the phone, because the browser re-checks the selector on every DOM change. Patch 16 gets the same gain with a class. Kept as a warning.</td></tr>
+    <tr><td class="id">14</td><td>Fly buried cards without depth</td><td>Best on desktop (freeze 87 → 40 ms, janky frames 23 → 7), but phone frame pacing got worse, 2 tests fail, and those cards visibly lose depth mid-flight.</td></tr>
+    <tr><td class="id">11</td><td>Share one outline across card sheets</td><td>Four times faster in isolation, but only 469 → 447 ms in the game. An early 31% gain vanished at 7 runs.</td></tr>
+    <tr><td class="id">12, 13</td><td>Reuse canvas paths, pre-render artwork</td><td>No reliable gain. Patch 13 also changes 3.2% of desktop table pixels (worst 141 of 255).</td></tr>
+    <tr><td class="id">03</td><td>2D transforms on resting cards</td><td>No gain, and it changes edges on the phone (0.13% visible, worst 156 of 255).</td></tr>
+    <tr><td class="id">06, 10</td><td>Capture only played cards, solve only new plays</td><td>No measurable gain.</td></tr>
+  </table></div>
+</section>
+
+<section>
+  <h2>Leads not yet chased</h2>
+  <ul>
+    <li><strong>Selecting a card on the phone</strong> spends about 50 ms in the hand scroll <code>step</code> at <a href="https://github.com/jwlei/Norwegian-tycoon/blob/756b252/js/game.js#L944">game.js:944</a>. Patch 01 did not change it, which ruled out my first guess. Writing <code>scrollLeft</code> forcing layout is the next suspect, unconfirmed.</li>
+    <li><strong>Dragging settles into one of two states</strong> from run to run, with 115 or 121 layers on desktop and about 8 times the raster load in the larger one. Whichever triggers it costs real time, and the cause is unknown.</li>
+    <li><strong>Startup on the phone</strong> blocks the main thread for about 1.3 s. Patch 15 reduces that to about 0.8 s, partly by shrinking a forced layout in <code>neon-logo.js</code> from 242 to 23 ms.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>How far to trust this</h2>
+  <ul>
+    <li>The phone is an emulated 390×844 screen with the main thread slowed 4×, running on a desktop GPU. Treat its numbers as relative, and confirm on a real device.</li>
+    <li>The headless browser refreshes at 144 Hz, so per-second loads run higher than on a 60 Hz display. The GPU figure is busy time on the GPU process threads, a proxy for real GPU work.</li>
+    <li>Absolute phone figures drift between sessions (the same freeze measured 450 and 654 ms), so each comparison uses results measured together. Freezes use 5–7 runs.</li>
+    <li>The set was not measured on the HiDPI or software-GPU profiles, because those runs were lost to contamination.</li>
+    <li>The test suite had 17 failures on 756b252 before any patch, unrelated to this work, and patches are judged only by the failures they add.</li>
+  </ul>
+</section>
+</main>

@@ -166,6 +166,15 @@ async function openPage(browser, server, profile) {
     return { page, errors };
 }
 
+// Whole-machine CPU use, so a run sharing the machine with another heavy job can be spotted afterwards.
+function machineCpu() {
+    const totals = os.cpus().reduce((sum, cpu) => {
+        const all = Object.values(cpu.times).reduce((a, b) => a + b, 0);
+        return { all: sum.all + all, idle: sum.idle + cpu.times.idle };
+    }, { all: 0, idle: 0 });
+    return { ...totals, busyPercentSince: earlier => Math.round((1 - (totals.idle - earlier.idle) / (totals.all - earlier.all)) * 100) };
+}
+
 async function runScenario(browser, server, name, profile, options) {
     const scenario = SCENARIOS[name];
     const { page, errors } = await openPage(browser, server, profile);
@@ -186,10 +195,12 @@ async function runScenario(browser, server, name, profile, options) {
             requestAnimationFrame(time => { if (previous != null) { window.__frames.push(time - previous); } if (!window.__stopFrames) { loop(time); } });
         })(null), window.__stopFrames = false, 0)`) : Promise.resolve();
     const before = (await page.send("Performance.getMetrics")).metrics;
+    const cpuBefore = machineCpu();
     const traced = await browser.trace(CATEGORIES, async () => {
         await framePromise();
         return scenario.measure(ctx);
     });
+    const machineBusyPercent = machineCpu().busyPercentSince(cpuBefore);
     const after = (await page.send("Performance.getMetrics")).metrics;
     if (profile.cpu > 1) { await page.send("Emulation.setCPUThrottlingRate", { rate: 1 }); }
     const metric = (list, key) => (list.find(entry => entry.name == key) || {}).value;
@@ -200,7 +211,7 @@ async function runScenario(browser, server, name, profile, options) {
     }
     const analysis = analyze(traced.events, traced.elapsedMs);
     const layers = options.layers ? await layerStats(page, profile) : null;
-    const result = { ...analysis, stats, setupStats, layers, frameStats: percentiles(intervals),
+    const result = { ...analysis, machineBusyPercent, stats, setupStats, layers, frameStats: percentiles(intervals),
         syncMs: traced.result && traced.result.syncMs, syncSamples: traced.result && traced.result.syncSamples,
         counters: { layouts: delta("LayoutCount"), styleRecalcs: delta("RecalcStyleCount"),
             styleMs: Math.round(delta("RecalcStyleDuration") * 10000) / 10, layoutMs: Math.round(delta("LayoutDuration") * 10000) / 10,

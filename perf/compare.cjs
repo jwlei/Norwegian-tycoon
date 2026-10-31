@@ -48,4 +48,6 @@ for (const row of summary) {
     const isBase = row.variant == reference;
     console.log(`${row.profile.padEnd(8)} ${row.scenario.padEnd(22)} ${row.variant.slice(0, 30).padEnd(30)} ${cell(row.main)}${isBase ? "      " : change(row.main, base && base.main)} ${cell(row.gpu)}${isBase ? "      " : change(row.gpu, base && base.gpu)} ${cell(row.comp)} ${cell(row.raster)} ${cell(row.passes, 6)} ${cell(row.commits, 6)} ${cell(row.draws, 6)} ${cell(row.longest)} ${cell(row.sync)} ${cell(row.p95, 6)} ${cell(row.jank, 5)} ${cell(row.layers, 4)} ${cell(row.layerMb, 6)}${row.errors ? ` ERR:${row.errors}` : ""}`);
 }
+const busy = rows.filter(row => row.machineBusyPercent > 40);
+if (busy.length) { console.log(`\nWARNING: ${busy.length} of ${rows.length} runs shared a busy machine (over 40% CPU overall). Their timings are unreliable.`); }
 if (jsonIndex >= 0) { fs.writeFileSync(process.argv[jsonIndex + 1], JSON.stringify(summary, null, 1)); }

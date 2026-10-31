@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Measures how much an example patch changes the picture: screenshots both builds at a frozen animation time and diffs them.
-//   node perf/visual.cjs --variant 01-... [--profile desktop,phone] [--out perf/results/visual.json] [--images <dir>]
+//   node perf/visual.cjs --variant 01-... [--profile desktop,phone] [--motion] [--out perf/results/visual.json] [--images <dir>]
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
@@ -82,17 +82,30 @@ const SCENES = {
     foilPicker: { hand: 13, table: 6, dialog: "CardFoil" }
 };
 
-async function shot(browser, server, profile, setup) {
+// With --motion: one frozen moment can hide a timing change, since eased and stepped motion can agree there. Also samples cards in flight.
+const IDLE_TIMES = [250, 750, 1500, 2250, 3000, 4000, 5000];
+const MOTION_SCENES = {
+    flight: { hand: 13, table: 14, perPlay: 1, action: "Perf.play(1)", times: [150, 350, 550] },
+    clearing: { hand: 13, table: 14, perPlay: 1, action: "(Perf.clearTable(), 0)", times: [150, 350, 550] }
+};
+
+// Returns one screenshot for each moment in the animations' timeline.
+async function shots(browser, server, profile, setup, times) {
     const { page, errors } = await openPage(browser, server, profile);
     await page.evaluate(`Perf.setup(${JSON.stringify(setup)})`);
     await page.evaluate("Perf.ready()");
     if (setup.dialog) { await page.evaluate(`Perf.openDialog(${JSON.stringify(setup.dialog)})`); }
     await sleep(800);
-    await page.evaluate("Perf.freeze(1500)");
-    const { data } = await page.send("Page.captureScreenshot", { format: "png" });
+    if (setup.action) { await page.evaluate(setup.action); }
+    const images = [];
+    for (const time of times) {
+        await page.evaluate(`Perf.freeze(${time})`);
+        const { data } = await page.send("Page.captureScreenshot", { format: "png" });
+        images.push(Buffer.from(data, "base64"));
+    }
     await browser.closePage(page);
     if (errors.length) { console.warn("page errors:", errors[0].slice(0, 200)); }
-    return Buffer.from(data, "base64");
+    return images;
 }
 
 async function main() {
@@ -106,23 +119,30 @@ async function main() {
         const browser = await Browser.launch({ gpu: profile.gpu });
         const preparedBaseline = prepareVariant("baseline");
         const baseline = await serve(preparedBaseline.root);
-        for (const [sceneName, setup] of Object.entries(SCENES)) {
-            const reference = await shot(browser, baseline, profile, setup);
-            const noiseShot = await shot(browser, baseline, profile, setup);
-            const noise = compare(decodePng(reference), decodePng(noiseShot));
-            results.push({ profile: profileName, scene: sceneName, variant: "baseline (repeat, measures noise)", ...noise });
-            console.log(profileName, sceneName, "noise floor", JSON.stringify(noise));
-            if (images) { fs.writeFileSync(path.join(images, `${profileName}-${sceneName}-baseline.png`), reference); }
+        const motion = process.argv.includes("--motion");
+        for (const [sceneName, setup] of Object.entries(motion ? { ...SCENES, ...MOTION_SCENES } : SCENES)) {
+            const times = setup.times || (motion ? IDLE_TIMES : [1500]);
+            const references = await shots(browser, baseline, profile, setup, times);
+            const repeats = await shots(browser, baseline, profile, setup, times);
+            const name = time => `${profileName}-${sceneName}${motion ? `-${time}` : ""}`;
+            times.forEach((time, index) => {
+                const noise = compare(decodePng(references[index]), decodePng(repeats[index]));
+                results.push({ profile: profileName, scene: sceneName, time, variant: "baseline (repeat, measures noise)", ...noise });
+                console.log(profileName, sceneName, time, "noise floor", JSON.stringify(noise));
+                if (images) { fs.writeFileSync(path.join(images, `${name(time)}-baseline.png`), references[index]); }
+            });
             for (const variant of variants) {
                 const prepared = prepareVariant(variant);
                 const server = await serve(prepared.root);
-                const image = await shot(browser, server, profile, setup);
+                const captured = await shots(browser, server, profile, setup, times);
                 await server.close();
                 prepared.cleanup();
-                const difference = compare(decodePng(reference), decodePng(image));
-                results.push({ profile: profileName, scene: sceneName, variant, ...difference });
-                console.log(profileName, sceneName, variant, JSON.stringify(difference));
-                if (images) { fs.writeFileSync(path.join(images, `${profileName}-${sceneName}-${variant}.png`), image); }
+                times.forEach((time, index) => {
+                    const difference = compare(decodePng(references[index]), decodePng(captured[index]));
+                    results.push({ profile: profileName, scene: sceneName, time, variant, ...difference });
+                    console.log(profileName, sceneName, time, variant, JSON.stringify(difference));
+                    if (images) { fs.writeFileSync(path.join(images, `${name(time)}-${variant}.png`), captured[index]); }
+                });
             }
         }
         await baseline.close();
