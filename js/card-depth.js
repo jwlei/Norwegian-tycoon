@@ -751,11 +751,11 @@ class CardDepth {
         }
     }
 
-    static landingMotion(element, target, start, power = .55, lean = 0, fromSeat = false) {
+    static landingMotion(element, target, start, power = .55, { lean = 0, swing = 0, fromSeat = false } = {}) {
         const state = this.states.get(element), destination = this.states.get(target);
         if (!state || !destination || !destination.rest) { return null; }
         const G = LandingGeometry, rest = destination.rest, scene = destination.scene;
-        const shape = G.throwShape({ start, rest, power, lean, fromSeat });
+        const shape = G.throwShape({ start, rest, power, lean, swing, fromSeat });
         power = shape.power;
         start = { ...start, roll: shape.startRoll };
         if (target.dataset.cardKey && typeof target.closest === "function") {
@@ -785,14 +785,14 @@ class CardDepth {
             poseAtProgress: progress => {
                 if (progress >= 1) { return rest; }
                 const pose = G.motion(supports, initial, impact, momentum, progress, contact).pose;
-                Object.assign(pose, G.throwOverlay(shape, pose, progress));
+                Object.assign(pose, G.throwOverlay(shape, pose));
                 // The height above was worked out on the straight path, so a swinging card checks where it really is.
                 if (shape.bulge > .5) { pose.z = Math.max(pose.z, G.minimumHeight(supports, pose)); }
                 return pose;
             },
             orientationAtProgress: progress => progress >= 1 ? { pitch: rest.pitch, yaw: rest.yaw }
                 : G.motionOrientation(supports, initial, impact, momentum, progress, contact),
-            positionAtProgress: progress => G.throwOverlay(shape, G.position(initial, impact, momentum, progress), progress)
+            positionAtProgress: progress => G.throwOverlay(shape, G.position(initial, impact, momentum, progress))
         };
     }
 

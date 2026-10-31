@@ -565,9 +565,10 @@
     }
 
     // What one client lays over the straight flight of one card. The resting pose is shared and never changes here.
-    // A hard sideways throw swings wide on its own side and hooks back in. Other players' cards get a random strength
-    // and rotation direction, and swing less than the player's own.
-    function throwShape({ start, rest, power, lean = 0, fromSeat = false, random = Math.random }) {
+    // A throw that fits inside the landing area keeps the plain flight. One sent past the limit (`swing`, from 0 to 1)
+    // goes wide on its own side and hooks back in. Other players' cards get a random strength and rotation direction,
+    // and only their hard ones swing, less than the player's own.
+    function throwShape({ start, rest, power, lean = 0, swing = 0, fromSeat = false, random = Math.random }) {
         const between = (low, high) => mix(low, high, random());
         const smooth = value => { const t = clamp(value, 0, 1); return t * t * (3 - 2 * t); };
         const dx = rest.x - start.x, dy = rest.y - start.y, distance = Math.max(1, Math.hypot(dx, dy));
@@ -584,22 +585,18 @@
             spin = Math.sign(Math.abs(heading.x) > .15 ? dx : rest.roll - start.roll) || 1;
         }
         const startRoll = fromSeat ? rest.roll - spin * (10 + power * 20) * between(.8, 1.2) : start.roll;
-        // Only a throw that is both sideways and hard swings. Anything else keeps the straight path.
-        const hard = smooth((Math.abs(lean) - .4) / .4) * smooth((power - .4) / .4);
+        const hard = fromSeat ? smooth((Math.abs(lean) - .4) / .4) * smooth((power - .7) / .1) : swing * smooth((power - .4) / .4);
         const bulge = Math.min(distance * .15, 72 * rest.height / HEIGHT_AT_FULL_SWING) * hard * between(.8, 1.2) * (fromSeat ? .5 : 1);
         const bend = { x: -heading.y * spin * bulge, y: heading.x * spin * bulge };
-        // Some extra rotation that comes and goes in flight: mostly with the throw, sometimes against it.
-        const wobble = (1.5 + power * 4) * between(.6, 1.2) * (random() < .7 ? spin : -spin) + spin * hard * 4;
-        return { start, heading, distance, power, spin, startRoll, bulge, bend, wobble };
+        return { start, heading, distance, power, spin, startRoll, bulge, bend };
     }
 
     // The swing is an arc in space, not in time, so speed along the path is untouched and the sideways speed fades with it.
-    function throwOverlay(shape, point, progress) {
-        const { start, heading, distance, bend, wobble } = shape;
+    function throwOverlay(shape, point) {
+        const { start, heading, distance, bend } = shape;
         const along = clamp(((point.x - start.x) * heading.x + (point.y - start.y) * heading.y) / distance, 0, 1);
         const arc = 4 * along * (1 - along);
-        return { x: point.x + bend.x * arc, y: point.y + bend.y * arc,
-            roll: point.roll + wobble * Math.sin(Math.PI * clamp(progress, 0, 1)) ** 2 };
+        return { x: point.x + bend.x * arc, y: point.y + bend.y * arc, roll: point.roll };
     }
 
     const api = { WIDTH, HEIGHT, EDGE, VIEW_SHEAR, LIGHT, CONTACT, slideDistance, slideDistanceToRest, rotate, world, screen, plane, heightAt,

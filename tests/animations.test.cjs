@@ -418,11 +418,11 @@ test("final angles lean with a sideways throw, vary, and stay inside the board's
     `, context);
     for (const { sign, desktop, mobile } of result) {
         assert.ok(desktop.angle * sign > 0, "A left throw rests counter-clockwise and a right throw clockwise");
-        assert.ok(Math.abs(desktop.angle) <= 38);
-        assert.ok(Math.abs(mobile.angle) <= 48);
+        assert.ok(Math.abs(desktop.angle) <= 42);
+        assert.ok(Math.abs(mobile.angle) <= 52);
         assert.equal(mobile.y, desktop.y);
     }
-    assert.ok(result.some(({ mobile }) => Math.abs(mobile.angle) > 38), "Small boards use their wider limit");
+    assert.ok(result.some(({ mobile }) => Math.abs(mobile.angle) > 42), "Small boards use their wider limit");
     assert.ok(new Set(result.map(({ sign, desktop }) => desktop.angle * sign)).size > 15, "The same throw lands at different angles");
 });
 
@@ -453,6 +453,43 @@ test("plays fan out up to 1.3 times as wide, varying from play to play and survi
     assert.ok(Math.max(...ratios) > 1.2 && Math.min(...ratios) < 1.1, "Some plays use the full margin and some almost none");
 });
 
+test("a throw sent past the landing limit lands turned further, by a varying amount", () => {
+    const context = load();
+    const extras = vm.runInContext(`
+        var game = {shuffleStartedAt:123,players:[{name:"Owner"}]};
+        var extras = [];
+        for (var rank = 1; rank <= 13; rank++) {
+            var pile = new CardPile("Owner", new PresidentCard(1,rank));
+            // Both lean fully left, but only the second was aimed past the limit.
+            pile.motion = {x:-.6,y:-.2,power:1,spin:-8,pitch:0,yaw:0};
+            var inside = GameLayout.pileCardJitter(game,pile,pile[0],rank,0,true).angle;
+            pile.motion = {x:-1,y:-.2,power:1,spin:-8,pitch:0,yaw:0};
+            extras.push(GameLayout.pileCardJitter(game,pile,pile[0],rank,0,true).angle - inside);
+        }
+        extras;
+    `, context);
+    assert.ok(new Set(extras.map(value => value.toFixed(1))).size > 1, "The extra turn varies");
+    extras.forEach(value => assert.ok(value <= 0 && value >= -10, `A left throw turns further counter-clockwise, not ${value}`));
+    assert.ok(extras.some(value => value < -3), "The extra turn is visible");
+});
+
+test("only a throw sent sideways past the landing limit swings", () => {
+    const context = load();
+    const swing = (x, spin) => {
+        context.motion = { x, y: -.3, power: 1, spin, pitch: 0, yaw: 0 };
+        return vm.runInContext("GameLayout.throwSwing(motion)", context);
+    };
+    assert.equal(swing(-1, -12), 1, "Hard left, past the limit");
+    assert.equal(swing(1, 12), 1, "Hard right, past the limit");
+    assert.equal(swing(0, 0), 0, "Straight up");
+    assert.equal(swing(-.6, -1), 0, "A straight flick from a card at the left of the hand");
+    assert.equal(swing(-1, -2), 0, "Released far out, with hardly any sideways speed");
+    assert.equal(swing(-.6, -12), 0, "Hard left, but it fits inside the limit");
+    assert.equal(swing(-1, 12), 0, "Released far left and thrown back to the right");
+    assert.ok(swing(-.85, -7) > 0 && swing(-.85, -7) < 1, "It grows in rather than switching on");
+    assert.equal(vm.runInContext("GameLayout.throwSwing(undefined)", context), 0, "A play without motion");
+});
+
 test("other players' cards leave their block at a phone's proportions, and flights say where they came from", () => {
     const calls = [];
     const element = () => ({
@@ -469,8 +506,8 @@ test("other players' cards leave their block at a phone's proportions, and fligh
         target, LandingGeometry: { CONTACT: .64 },
         CardDepth: {
             states: new Map(), attach(flight) { this.states.set(flight, {}); }, update() {}, follow() {}, detach() {},
-            landingMotion: (flight, card, start, power, lean, fromSeat) => {
-                calls.push({ start, power, lean, fromSeat });
+            landingMotion: (flight, card, start, power, { lean, swing, fromSeat }) => {
+                calls.push({ start, power, lean, swing, fromSeat });
                 return null;
             }
         },
@@ -493,6 +530,7 @@ test("other players' cards leave their block at a phone's proportions, and fligh
     assert.equal(calls[0].fromSeat, true);
     assert.equal(calls[1].fromSeat, false);
     assert.equal(calls[1].lean, -.85);
+    assert.equal(calls[1].swing, 0, "This throw fits inside the landing limit");
     assert.equal(calls[0].power, .8);
     const centre = 470 + 238 / 2;
     assert.ok(Math.abs(parseFloat(flights[0].style.left) + 127 / 2 - centre) < 1e-6, "The flight is centred on the block");

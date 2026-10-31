@@ -5,13 +5,15 @@ const G = require("../js/landing-geometry.js");
 
 const card = { width: 127, height: 190 };
 const hand = { x: 960, y: 900, roll: 0 };
+const seat = { x: 1300, y: 110, roll: 0 };
 const seeded = (seed = 1) => {
     const next = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     // The first values from a small seed are close to zero, so skip past them.
     for (let skip = 0; skip < 8; skip++) { next(); }
     return next;
 };
-const shaped = (rest, power, lean, extra = {}) => G.throwShape({ start: hand, rest: { ...card, ...rest }, power, lean, random: seeded(), ...extra });
+const shaped = (rest, power, lean, swing = 0, extra = {}) =>
+    G.throwShape({ start: hand, rest: { ...card, ...rest }, power, lean, swing, random: seeded(), ...extra });
 // The straight flight, built the way CardDepth.landingMotion builds it.
 function straightPath(start, rest, power = .55) {
     const distance = Math.max(1, Math.hypot(rest.x - start.x, rest.y - start.y));
@@ -22,14 +24,14 @@ function straightPath(start, rest, power = .55) {
     return progress => G.position(start, impact, momentum, progress);
 }
 
-test("a hard sideways throw swings wide on its own side and hooks back in", () => {
-    for (const [offset, lean, sign] of [[-200, -1, -1], [200, 1, 1]]) {
+test("a throw sent past the limit swings wide on its own side and hooks back in", () => {
+    for (const [offset, lean, sign] of [[-220, -1, -1], [220, 1, 1]]) {
         const rest = { x: hand.x + offset, y: 400, roll: sign * 28 };
-        const shape = shaped(rest, .95, lean);
+        const shape = shaped(rest, .95, lean, 1);
         const path = straightPath(hand, { ...card, ...rest }, .95);
         assert.ok(shape.bulge > 30, `Swing is ${shape.bulge}`);
         assert.equal(shape.spin, sign);
-        const steps = Array.from({ length: 41 }, (_, index) => G.throwOverlay(shape, path(index / 40), index / 40));
+        const steps = Array.from({ length: 41 }, (_, index) => G.throwOverlay(shape, path(index / 40)));
         const early = steps[5];
         const direct = hand.x + (rest.x - hand.x) * (hand.y - early.y) / (hand.y - rest.y);
         assert.ok((early.x - direct) * sign > 5, "The card goes wide of the straight line on the throw's side");
@@ -38,39 +40,47 @@ test("a hard sideways throw swings wide on its own side and hooks back in", () =
     }
 });
 
-test("only throws that are both hard and sideways swing; the rest keep the straight path", () => {
-    const rest = { x: hand.x - 80, y: 400, roll: -10 };
-    assert.equal(shaped(rest, .95, 0).bulge, 0, "Hard but straight");
-    assert.equal(shaped(rest, .95, .3).bulge, 0, "Hard, slightly sideways");
-    assert.equal(shaped(rest, .3, -1).bulge, 0, "Sideways but gentle");
-    const straight = shaped(rest, .3, -1), path = straightPath(hand, { ...card, ...rest }, .3);
-    for (let step = 0; step <= 20; step++) {
-        const point = path(step / 20), moved = G.throwOverlay(straight, point, step / 20);
-        assert.equal(moved.x, point.x);
-        assert.equal(moved.y, point.y);
+test("a throw inside the landing area keeps the plain flight, in both path and rotation", () => {
+    const rest = { ...card, x: hand.x - 120, y: 400, roll: -18 };
+    for (const [power, lean] of [[.3, -.3], [.6, -.8], [.8, -.6], [1, -1], [1, 0], [.5, .05]]) {
+        const shape = G.throwShape({ start: hand, rest, power, lean, swing: 0, random: seeded() });
+        assert.equal(shape.bulge, 0);
+        const path = straightPath(hand, rest, power);
+        for (let step = 0; step <= 40; step++) {
+            const point = path(step / 40), moved = G.throwOverlay(shape, point);
+            assert.equal(moved.x, point.x);
+            assert.equal(moved.y, point.y);
+            assert.equal(moved.roll, point.roll);
+        }
     }
-    const swing = power => shaped(rest, power, -1, { random: () => .5 }).bulge;
-    assert.ok(swing(.6) > 0 && swing(.6) < swing(.8), "It grows with power rather than switching on");
+});
+
+test("the swing grows with how far past the limit and how hard the throw was", () => {
+    const rest = { x: hand.x - 220, y: 400, roll: -28 };
+    const size = (power, swing) => shaped(rest, power, -1, swing, { random: () => .5 }).bulge;
+    assert.ok(size(1, .3) > 0 && size(1, .3) < size(1, .7) && size(1, .7) < size(1, 1));
+    assert.ok(size(.6, 1) > 0 && size(.6, 1) < size(.8, 1));
+    assert.equal(size(.4, 1), 0, "A gentle throw has no swing even at the limit");
 });
 
 test("the overlay keeps the flight's timing and ends exactly at rest", () => {
-    for (const offset of [-200, -60, 0, 60, 200]) {
+    for (const offset of [-220, -60, 0, 60, 220]) {
         for (const power of [.1, .5, .8, 1]) {
             const rest = { ...card, x: hand.x + offset, y: 400, roll: offset / 8 };
-            const shape = G.throwShape({ start: hand, rest, power, lean: Math.sign(offset) * power, random: seeded(offset + 300) });
+            const shape = G.throwShape({ start: hand, rest, power, lean: Math.sign(offset) * power, swing: 1, random: seeded(offset + 300) });
             const path = straightPath(hand, rest, power);
-            const last = G.throwOverlay(shape, path(1), 1);
+            const last = G.throwOverlay(shape, path(1));
             assert.ok(Math.hypot(last.x - rest.x, last.y - rest.y) < 1e-6);
             assert.ok(Math.abs(last.roll - rest.roll) < 1e-6);
-            const first = G.throwOverlay(shape, path(0), 0);
+            const first = G.throwOverlay(shape, path(0));
             assert.ok(Math.hypot(first.x - hand.x, first.y - hand.y) < 1e-6, "It leaves the hand where it was released");
-            const near = G.throwOverlay(shape, path(.995), .995);
+            const near = G.throwOverlay(shape, path(.995));
             assert.ok(Math.hypot(near.x - last.x, near.y - last.y) < .5 && Math.abs(near.roll - last.roll) < .1, "No visible step at the reveal");
             // Motion along the line is unchanged, frame for frame: only the sideways arc is added.
             const along = value => (value.x - hand.x) * shape.heading.x + (value.y - hand.y) * shape.heading.y;
             for (let step = 1; step < 20; step++) {
                 const point = path(step / 20);
-                assert.ok(Math.abs(along(G.throwOverlay(shape, point, step / 20)) - along(point)) < 1e-6);
+                assert.ok(Math.abs(along(G.throwOverlay(shape, point)) - along(point)) < 1e-6);
             }
         }
     }
@@ -79,21 +89,36 @@ test("the overlay keeps the flight's timing and ends exactly at rest", () => {
 test("the swing stays within its limits, also on a phone", () => {
     for (let seed = 1; seed < 60; seed++) {
         const random = seeded(seed);
-        const long = G.throwShape({ start: hand, rest: { ...card, x: 400, y: 200, roll: -20 }, power: 1, lean: -1, random });
+        const long = G.throwShape({ start: hand, rest: { ...card, x: 400, y: 200, roll: -20 }, power: 1, lean: -1, swing: 1, random });
         assert.ok(long.bulge <= 72 * 1.2 + 1e-9);
-        const phone = G.throwShape({ start: { x: 195, y: 700, roll: 0 }, rest: { width: 99, height: 148, x: 90, y: 340, roll: -20 }, power: 1, lean: -1, random });
+        const phone = G.throwShape({ start: { x: 195, y: 700, roll: 0 }, rest: { width: 99, height: 148, x: 90, y: 340, roll: -20 }, power: 1, lean: -1, swing: 1, random });
         assert.ok(phone.bulge <= 72 * 148 / 190 * 1.2 + 1e-9);
         assert.ok(phone.bulge <= phone.distance * .15 * 1.2 + 1e-9);
     }
 });
 
-test("rotation varies from throw to throw within tolerable margins", () => {
-    const rest = { x: hand.x - 60, y: 400, roll: -15 };
-    const wobbles = Array.from({ length: 300 }, (_, seed) => shaped(rest, .6, -.6, { random: seeded(seed + 1) }).wobble);
-    assert.ok(wobbles.every(value => Math.abs(value) <= 12), "A throw never gains more than a slight extra turn");
-    const forward = wobbles.filter(value => value < 0).length / wobbles.length;
-    assert.ok(forward > .55 && forward < .85, `${forward} rotate extra with the throw`);
-    assert.ok(new Set(wobbles.map(value => value.toFixed(1))).size > 30);
+test("a card never reverses its rotation on the way to landing", () => {
+    const flights = [
+        { start: hand, rest: { x: hand.x - 220, y: 400, roll: -38 }, power: 1, lean: -1, swing: 1 },
+        { start: hand, rest: { x: hand.x + 220, y: 400, roll: 42 }, power: .9, lean: 1, swing: .6 },
+        { start: { ...hand, roll: 6 }, rest: { x: hand.x - 80, y: 400, roll: -14 }, power: .5, lean: -.5 },
+        { start: seat, rest: { x: 700, y: 450, roll: 12 }, power: .55, fromSeat: true }
+    ];
+    for (const { rest, ...flight } of flights) {
+        for (let seed = 1; seed < 40; seed++) {
+            const target = { ...card, ...rest };
+            const shape = G.throwShape({ ...flight, rest: target, random: seeded(seed) });
+            const path = straightPath({ ...flight.start, roll: shape.startRoll }, target, shape.power);
+            const way = Math.sign(target.roll - shape.startRoll);
+            let previous = shape.startRoll;
+            for (let step = 1; step <= 200; step++) {
+                const { roll } = G.throwOverlay(shape, path(step / 200));
+                assert.ok((roll - previous) * way >= -1e-9, `The card turned back at step ${step}`);
+                previous = roll;
+            }
+            assert.ok(Math.abs(previous - target.roll) < 1e-6, "It stops exactly at its final angle");
+        }
+    }
 });
 
 test("the player's own left throws rotate counter-clockwise and right throws clockwise", () => {
@@ -102,12 +127,11 @@ test("the player's own left throws rotate counter-clockwise and right throws clo
         const shape = shaped(rest, .8, lean);
         assert.equal(shape.spin, sign);
         assert.equal(shape.startRoll, hand.roll, "The card leaves the hand as it was held");
-        assert.ok(G.throwOverlay(shape, straightPath(hand, { ...card, ...rest }, .8)(.3), .3).roll * sign > 5);
+        assert.ok(G.throwOverlay(shape, straightPath(hand, { ...card, ...rest }, .8)(.3)).roll * sign > 5);
     }
 });
 
 test("other players' throws come gentle, normal or hard, rotating either way", () => {
-    const seat = { x: 1300, y: 110, roll: 0 };
     const rest = { ...card, x: 700, y: 450, roll: 12 };
     const shapes = Array.from({ length: 600 }, (_, seed) =>
         G.throwShape({ start: seat, rest, power: .55, fromSeat: true, random: seeded(seed + 1) }));
@@ -124,14 +148,16 @@ test("other players' throws come gentle, normal or hard, rotating either way", (
     });
 });
 
-test("other players' cards swing half as much as the player's own", () => {
+test("only other players' hard throws swing, half as much as the player's own", () => {
     const rest = { ...card, x: 700, y: 450, roll: 12 };
-    const widest = (start, extra) => Math.max(...Array.from({ length: 300 }, (_, seed) =>
-        G.throwShape({ start, rest, random: seeded(seed + 1), ...extra }).bulge));
-    const own = widest(hand, { power: 1, lean: -1 });
-    const seat = widest({ x: 1300, y: 110, roll: 0 }, { power: .55, fromSeat: true });
+    const shapes = Array.from({ length: 600 }, (_, seed) =>
+        G.throwShape({ start: seat, rest, power: .55, fromSeat: true, random: seeded(seed + 1) }));
+    shapes.filter(shape => shape.power <= .7).forEach(shape => {
+        assert.equal(shape.bulge, 0, "Gentle and normal throws keep the plain flight");
+    });
+    const widest = Math.max(...shapes.map(shape => shape.bulge));
+    assert.ok(widest > 15 && widest <= 72 * 1.2 * .5 + 1e-9, `Other players swing up to ${widest}px`);
+    const own = Math.max(...Array.from({ length: 300 }, (_, seed) =>
+        G.throwShape({ start: hand, rest, power: 1, lean: -1, swing: 1, random: seeded(seed + 1) }).bulge));
     assert.ok(own > 75, `Own throws swing up to ${own}px`);
-    assert.ok(seat > 15 && seat <= 72 * 1.2 * .5 + 1e-9, `Other players swing up to ${seat}px`);
-    const shapes = Array.from({ length: 300 }, (_, seed) => G.throwShape({ start: hand, rest, power: .55, fromSeat: true, random: seeded(seed + 1) }));
-    assert.ok(shapes.some(shape => shape.bulge === 0), "Gentle ones fly straight");
 });

@@ -795,14 +795,14 @@ test("production trajectory retains contact momentum and lands exactly on the pe
     }
 });
 
-test("a hard sideways throw swings off the straight line, stays above the felt and lands exactly at rest", () => {
+test("a throw sent past the limit swings off the straight line, stays above the felt and lands exactly at rest", () => {
     const f = fixture();
     f.Depth.prepareTable(f.table([f.element]));
     const flight = new f.Node("span");
     flight.image = f.element.image;
     f.Depth.attach(flight);
     const start = { x: 900, y: 900, z: 0, pitch: 8, yaw: -6, roll: 0 };
-    const motion = f.Depth.landingMotion(flight, f.element, start, 1, -1);
+    const motion = f.Depth.landingMotion(flight, f.element, start, 1, { lean: -1, swing: 1 });
     const rest = f.Depth.states.get(f.element).rest;
     const dx = rest.x - start.x, dy = rest.y - start.y;
     let widest = 0;

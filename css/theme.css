@@ -2371,7 +2371,7 @@ select:focus-visible {
     --table-card-height: clamp(96px, 25vh, 190px);
     --table-card-width: calc(var(--table-card-height) * 2 / 3);
     --pile-edge-space: max(128px, calc(var(--table-card-height) * 0.75));
-    --landing-limit-x: 200px;
+    --landing-limit-x: 220px;
     --landing-limit-y: 130px;
     position: relative;
     flex: 0 0 auto;

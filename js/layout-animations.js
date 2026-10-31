@@ -203,7 +203,9 @@ GameLayout.extend(class {
                 ? CardDepth.landingMotion(flight, target, {
                     x: flightLeft + targetBounds.width / 2, y: flightTop + targetBounds.height / 2,
                     z: 0, pitch, yaw, roll: startRotation
-                }, pile.motion ? pile.motion.power : .55, GameLayout.throwLean(pile.motion), fromSeat) : null;
+                }, pile.motion ? pile.motion.power : .55, {
+                    lean: GameLayout.throwLean(pile.motion), swing: GameLayout.throwSwing(pile.motion), fromSeat
+                }) : null;
             target.style.opacity = "0";
             if (usesDepth && typeof CardDepth.setHidden == "function") { CardDepth.setHidden(target, true); }
             landedCards.push({ target, flight });
@@ -315,6 +317,16 @@ GameLayout.extend(class {
     // How sideways a throw is, from -1 (left) to 1 (right). Uses only synced fields, so all clients agree.
     static throwLean(motion) {
         return motion ? Math.max(-1, Math.min(1, motion.spin / 12 + motion.x * 0.7)) : 0;
+    }
+    // How far past the sideways landing limit a throw was sent, from 0 to 1. A throw that fits inside the limit, or
+    // a straight flick from a card at the edge of the hand, is 0: its card simply flies to where it was aimed.
+    static throwSwing(motion) {
+        if (!motion || motion.x * motion.spin <= 0) { return 0; }
+        var smooth = function (value) {
+            var amount = Math.max(0, Math.min(1, value));
+            return amount * amount * (3 - 2 * amount);
+        };
+        return smooth((Math.abs(motion.spin) - 4) / 5) * smooth((Math.abs(motion.x) - 0.7) / 0.25);
     }
     // getBoundingClientRect returns the enlarged axis-aligned box of a rotated card; flights rotate
     // themselves, so they need the card's own layout size centred on that box.
@@ -506,9 +518,11 @@ GameLayout.extend(class {
         var lean = GameLayout.throwLean(pile.motion);
         var align = Math.min(1, Math.abs(lean) / 0.2);
         var tilt = unit(0) * 24;
-        var leaning = tilt + (Math.abs(tilt) * Math.sign(lean) - tilt) * align + seatBias * (1 - align) +
+        // A throw sent past the landing limit lands turned further, so its card never has to turn back to land.
+        var sentPast = GameLayout.throwSwing(pile.motion) * Math.sign(lean) * (3 + (unit(8, Math.imul(seed, 48271) >>> 0) + 0.5) * 7);
+        var leaning = tilt + (Math.abs(tilt) * Math.sign(lean) - tilt) * align + seatBias * (1 - align) + sentPast +
             lean * 22 * (0.75 + (unit(24) + 0.5) * 0.5) * (smallScreen ? 1.2 : 1);
-        var limit = smallScreen ? 48 : 38;
+        var limit = smallScreen ? 52 : 42;
         return {
             angle: Math.round(Math.max(-limit, Math.min(limit,
                 leaning + center * (6 + power * 4) * fanOut + (splay ? unit(0, cardSeed) * 7 : 0))) * 10) / 10,
