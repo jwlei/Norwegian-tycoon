@@ -453,6 +453,34 @@ test("plays fan out up to 1.3 times as wide, varying from play to play and survi
     assert.ok(Math.max(...ratios) > 1.2 && Math.min(...ratios) < 1.1, "Some plays use the full margin and some almost none");
 });
 
+test("pairs, triples and quads keep their fan inside a lower limit instead of piling up against it", () => {
+    const context = load();
+    const plays = vm.runInContext(`
+        var plays = [];
+        for (var smallScreen of [false, true]) {
+            for (var count of [2,3,4]) {
+                for (var deal = 1; deal <= 40; deal++) {
+                    for (var [x, spin] of [[-1,-20],[1,20],[-1,-8],[1,8],[-.5,-5]]) {
+                        var game = {shuffleStartedAt:deal,players:[{name:"Owner"},{name:"Other"}]};
+                        var pile = new CardPile("Owner", ...[1,2,3,4].slice(0,count).map(suit=>new PresidentCard(suit,7)));
+                        pile.motion = {x,y:-.2,power:1,spin,pitch:0,yaw:0};
+                        plays.push({ smallScreen, sign: Math.sign(x), angles: pile.map((card,i)=>GameLayout.pileCardJitter(game,pile,card,8+i,i,smallScreen).angle) });
+                    }
+                }
+            }
+        }
+        plays;
+    `, context);
+    for (const { smallScreen, sign, angles } of plays) {
+        const limit = smallScreen ? 46 : 36;
+        assert.ok(angles.every(angle => Math.abs(angle) <= limit), `Angles ${angles} pass ${limit}`);
+        const leaning = angles.reduce((sum, angle) => sum + angle, 0) / angles.length;
+        assert.ok(leaning * sign > 0, "The play as a whole still leans with the throw");
+        // Neighbours stay fanned: 10 degrees apart at full power, give or take 7 of per-card splay.
+        angles.slice(1).forEach((angle, index) => assert.ok(angle - angles[index] >= 3 - 1e-9, `Angles ${angles} pile up`));
+    }
+});
+
 test("a throw sent past the landing limit lands turned further, by a varying amount", () => {
     const context = load();
     const extras = vm.runInContext(`

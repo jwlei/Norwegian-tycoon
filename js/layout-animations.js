@@ -522,10 +522,16 @@ GameLayout.extend(class {
         var sentPast = GameLayout.throwSwing(pile.motion) * Math.sign(lean) * (3 + (unit(8, Math.imul(seed, 48271) >>> 0) + 0.5) * 7);
         var leaning = tilt + (Math.abs(tilt) * Math.sign(lean) - tilt) * align + seatBias * (1 - align) + sentPast +
             lean * 22 * (0.75 + (unit(24) + 0.5) * 0.5) * (smallScreen ? 1.2 : 1);
-        var limit = smallScreen ? 52 : 42;
+        var limit = splay ? (smallScreen ? 46 : 36) : (smallScreen ? 52 : 42);
+        var fanAngle = 6 + power * 4;
+        if (splay) {
+            // A group leans less, and as a whole, so its outer card stays inside the limit instead of being flattened against it.
+            var room = Math.max(0, limit - (pile.length - 1) / 2 * fanAngle - 3.5);
+            leaning = Math.max(-room, Math.min(room, leaning * 0.75));
+        }
         return {
             angle: Math.round(Math.max(-limit, Math.min(limit,
-                leaning + center * (6 + power * 4) * fanOut + (splay ? unit(0, cardSeed) * 7 : 0))) * 10) / 10,
+                leaning + center * fanAngle + (splay ? unit(0, cardSeed) * 7 : 0))) * 10) / 10,
             x: Math.round(unit(8) * 14 + center * ((fanStep + power * 8) * fanOut - fanStep) +
                 (splay ? unit(8, cardSeed) * 6 * fanOut : 0)),
             y: Math.round(unit(16) * 10 + Math.abs(center) * (3 + power * 4) * fanOut +
