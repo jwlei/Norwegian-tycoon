@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Emotes: offline game</title>
+</head>
+<body>
+<script>
+    // Runs the real index.html, with its current CSS and game code, on an in-memory database instead of Firebase.
+    fetch("/index.html", { cache: "no-store" })
+        .then(response => response.text())
+        .then(html => {
+            html = html
+                .replace(/<script src="https:\/\/www\.gstatic\.com\/firebasejs\/[^"]*firebase-app-compat\.js"><\/script>/,
+                    '<script src="sandbox/firebase-memory.js"><\/script>')
+                .replace(/<script src="https:\/\/www\.gstatic\.com\/firebasejs\/[^"]*"><\/script>/g, "")
+                .replace(/<script src="https:\/\/cdnjs\.cloudflare\.com\/[^"]*seedrandom[^"]*"><\/script>/, "")
+                .replace("</body>", `<script>window.addEventListener("load", () => setTimeout(() => {
+                    document.querySelector('.quick-play-option[data-players="4"]')?.click();
+                    document.getElementById("quickPlayButton")?.click();
+                }, 200));<\/script></body>`);
+            document.open();
+            document.write(html);
+            document.close();
+        });
+</script>
+</body>
+</html>

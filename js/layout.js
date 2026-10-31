@@ -197,6 +197,8 @@ class GameLayout {
         return preview;
     }
     static updateSharedView(game, player) {
+        // Emotes follow once this render has finished, because they anchor to the seats it draws.
+        if (typeof GameEmotes != "undefined") { queueMicrotask(() => GameEmotes.update(game, player)); }
         if (game != null && !["O", "F"].includes(game.status) && !game.localCardStyleScope) {
             game.localCardStyleScope = GameLayout.cardStyleScope();
         } else if (game != null && ["O", "F"].includes(game.status)) {

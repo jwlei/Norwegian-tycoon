@@ -2774,6 +2774,24 @@
             currentGame.setReady(player, !player.ready);
         });
 
+        document.getElementById("muteBotEmotesToggleButton").addEventListener("click", function () {
+            var enabled = this.getAttribute("aria-pressed") != "true";
+            setCookie("MuteBotEmotes", enabled, 1000);
+            this.setAttribute("aria-pressed", String(enabled));
+            GameEmotes.syncMutes();
+        });
+        document.getElementById("muteBotEmotesToggleButton").setAttribute("aria-pressed", String(getCookie("MuteBotEmotes") == "true"));
+        EmoteSettings.updateSummary();
+        document.getElementById("emoteSettingsOpenButton").addEventListener("click", function () {
+            showDialog("Settings", false);
+            showDialog("Emotes", true);
+            EmoteSettings.open();
+            refreshPlayerPresidentWins().then(() => EmoteSettings.setRounds(playerRoundsPlayed, PlayerIdentity.isDefaultName(playerWinsName)));
+        });
+        document.getElementById("emoteSettingsCloseButton").addEventListener("click", function () {
+            showDialog("Emotes", false);
+            showDialog("Settings", true);
+        });
         function updateFastForwardButton() {
             updateSpeedButtons();
             updateTurnSpeedButtons();

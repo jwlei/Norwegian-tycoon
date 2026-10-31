@@ -25,7 +25,7 @@ test("every database root used by the game has explicit rules and everything els
     assert.equal(rules[".write"], false);
     const roots = databaseRoots();
     assert.deepEqual([...roots].sort(),
-        ["boms_1", "boms_public", "playerAppearance", "playerIds", "playerNames", "playerStats"]);
+        ["boms_1", "boms_emotes", "boms_public", "playerAppearance", "playerEmotes", "playerIds", "playerNames", "playerStats"]);
     for (const name of roots) { assert.ok(rules[name], `${name} has rules`); }
 });
 
@@ -40,6 +40,15 @@ test("every readable or writable location requires a signed-in user", () => {
         }
     };
     visit(rules, "");
+});
+
+test("emotes accept only the fixed set, and the server enforces the gap between them", () => {
+    const seat = rules.boms_emotes.$gameId.$seat;
+    assert.match(seat[".write"], /now >= data\.child\('t'\)\.val\(\) \+ 2500/);
+    const allowed = /\^\((.+)\)\$/.exec(seat.e[".validate"])[1].split("|").sort();
+    const used = Array.from(scripts.matchAll(/\{ id: "(\w+)", emoji:/g), match => match[1]).sort();
+    assert.deepEqual(allowed, used);
+    assert.equal(seat.$other[".validate"], false);
 });
 
 test("the leaderboard query is indexed", () => {

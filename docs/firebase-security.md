@@ -20,6 +20,8 @@ Before step 3, use the Rules Playground in the console to simulate a read of `/p
 | everything | Denied unless listed below. Every listed path requires a signed-in (anonymous) user, which blocks scripted access that has not gone through Firebase Auth. |
 | `boms_1/$gameId` | Readable and writable by any signed-in user. IDs must be 1–999999. |
 | `boms_public/$gameId` | The public lobby listing. Fields and types are fixed; unknown fields are rejected. `customRules` (the number of custom rules on) is only written when it is at least 1, so publish these rules before deploying a client that writes it. |
+| `boms_emotes/$gameId/$seat` | One overwritten slot per seat, kept outside the game document so an emote never re-renders the table or retries a move. Only the known emote IDs, a server timestamp and an optional target are accepted, at most one write per seat every 2.5 seconds. Seats are not tied to logins, so a seat can be spoofed; with a fixed set of emotes that is only cosmetic. |
+| `playerEmotes/$playerKey` | The six emotes a player has chosen, so they follow the player ID to other devices. Unlocks are checked in the client only, because they are cosmetic. |
 | `playerStats/$playerKey` | Readable for the leaderboard (indexed on `lastActiveAt`). Records cannot be deleted. `presidentWins`, `roundsPlayed` and `bomsCount` can only grow, and by at most 1 per write. |
 | `playerIds/$playerKey` | Write-once: a player ID's ownership token cannot be replaced. |
 | `playerNames/$nameKey` | PIN profiles cannot be moved to another player ID, and legacy PIN fields cannot be changed or removed. |

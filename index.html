@@ -11,7 +11,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#1e1e1e" />
     <!-- App version -->
-    <meta name="app-version" content="1.2.1">
+    <meta name="app-version" content="1.3.0">
     <base href="/" />
     <link rel="icon" type="image/svg+xml" href="icons/clover-four.svg" />
     <title>Boms og President – gratis kortspill på nett for 2–4 spillere | Norwegian Tycoon</title>
@@ -58,6 +58,7 @@
     <link rel="stylesheet" href="css/ui-refresh.css?rev=9e15aef9">
     <link rel="stylesheet" href="css/foil.css?rev=dc1f87c5">
     <link rel="stylesheet" href="css/card-depth.css?rev=dd07a03f">
+    <link rel="stylesheet" href="css/emotes.css?rev=8b62d5de">
     <script id="applySavedColorTheme">
         // Applies the saved theme before first paint so the splash never flashes the default colours.
         (function () {
@@ -170,6 +171,10 @@
                     <svg class="fast-forward-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="m3 5 9 7-9 7V5Zm10 0 9 7-9 7V5Z"/></svg>
                     <svg class="normal-play-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="m6 4 14 8-14 8V4Z"/></svg>
                 </button>
+                <button type="button" id="emoteButton" title="Emote" aria-label="Emote" aria-haspopup="true" aria-expanded="false" hidden>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 4h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-9l-5 4v-4H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"/><path d="M8.5 12.5c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8" stroke-linecap="round"/><path d="M9 8.6v.1M15 8.6v.1" stroke-linecap="round" stroke-width="2.6"/></svg>
+                    <span>Emote</span>
+                </button>
             </div>
             <div id="suggestionControls">
                 <button type="button" id="autoSuggestionToggleButton" title="Automatisk kortforslag er på" aria-label="Slå av automatisk kortforslag" aria-pressed="true">
@@ -266,6 +271,10 @@
                     <div id="cardAppearancePreview" class="card-appearance-preview" aria-hidden="true"></div>
                 </div>
                 <small id="cardAppearanceLocked" hidden>Kortutseende kan bare endres mellom spill.</small>
+                <button type="button" id="emoteSettingsOpenButton" class="setting-row" aria-haspopup="dialog">
+                    <span class="setting-row__text"><strong>Emotes</strong><small>Dine emotes og opplåsinger</small></span>
+                    <span id="emoteSettingsSummary" aria-hidden="true" data-i18n-skip></span>
+                </button>
                 <h3 class="settings-category">Spill og styring</h3>
                 <section id="messageSettings" class="message-settings" aria-label="Meldinger">
                 <button type="button" id="hideToastsToggleButton" class="setting-row" aria-pressed="false">
@@ -298,6 +307,10 @@
                         <button type="button" class="animation-speed-option" data-animation-speed="slow" aria-pressed="false">Sakte</button>
                     </span>
                 </div>
+                <button type="button" id="muteBotEmotesToggleButton" class="setting-row" aria-pressed="false">
+                    <span class="setting-row__text"><strong>Demp bot-emotes</strong><small>Skjuler emotes fra boter som standard. Trykk på en bot under spillet for å slå dem på igjen.</small></span>
+                    <span class="setting-row__switch" aria-hidden="true"><span></span></span>
+                </button>
                 <div class="setting-row setting-play-input" role="group" aria-label="Kortstyring">
                     <span class="setting-row__text"><strong>Kortstyring</strong></span>
                     <span class="play-input-options">
@@ -370,6 +383,15 @@
             </div>
             <div class="dialog-footer">
                 <button type="button" id="colorThemeCloseButton">Lukk</button>
+            </div>
+        </div>
+    </div>
+    <div id="dialogEmotes" class="dialog-container">
+        <div class="dialog-window">
+            <div class="dialog-title">Emotes</div>
+            <div class="dialogBody emote-settings" id="emoteSettingsBody"></div>
+            <div class="dialog-footer">
+                <button type="button" id="emoteSettingsCloseButton">Lukk</button>
             </div>
         </div>
     </div>
@@ -887,16 +909,17 @@
     <script src="js/bot.js?rev=573f7c75"></script>
     <script src="js/presence.js?rev=c28bb1a2"></script>
     <script src="js/game.js?rev=ae980059"></script>
-    <script src="js/layout.js?rev=856bd28f"></script>
+    <script src="js/layout.js?rev=7e0b536c"></script>
     <script src="js/layout-animations.js?rev=17c9901d"></script>
     <script src="js/layout-table.js?rev=b064d659"></script>
     <script src="js/layout-hand.js?rev=2287c17f"></script>
-    <script src="js/engine.js?rev=68a590f1"></script>
+    <script src="js/engine.js?rev=5f07bf04"></script>
     <script src="js/bot-turn.js?rev=8a5ffc1d"></script>
-    <script src="js/connection.js?rev=d1a686d4"></script>
+    <script src="js/emotes.js?rev=797badab"></script>
+    <script src="js/connection.js?rev=f9c2737f"></script>
     <script src="js/custom-rules.js?rev=93bc16e9"></script>
     <script src="js/leaderboard.js?rev=98194434"></script>
-    <script src="js/i18n.js?rev=ede3e614"></script>
+    <script src="js/i18n.js?rev=cbf4c27b"></script>
 </body>
 
 </html>

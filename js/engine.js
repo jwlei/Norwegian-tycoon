@@ -2324,7 +2324,8 @@ class PresidentGame extends Game {
             id: `${now}-${Math.random().toString(36).slice(2)}`,
             kind: "pass",
             until: now + this.actionPauseMs(),
-            message: `${player.name}: pass.`
+            message: `${player.name}: pass.`,
+            passedBy: player.name
         };
         this.recordHumanAction(player);
         this.advanceTurn();
@@ -2394,6 +2395,7 @@ class PresidentGame extends Game {
                     : `${clearedPile.name}: ${info.text}! ${nextPlayer.name} starter.`);
             var placementMessage = this.turnPause && this.turnPause.placementMessage;
             var extraMessage = this.turnPause && this.turnPause.extraMessage;
+            var passedBy = this.turnPause && this.turnPause.kind == "pass" ? this.turnPause.passedBy : null;
             this.turnPause = {
                 presentationVersion: 1,
                 id: `${now}-${Math.random().toString(36).slice(2)}`,
@@ -2404,6 +2406,7 @@ class PresidentGame extends Game {
                 playedPile: playedPile
             };
             if (extraMessage) { this.turnPause.extraMessage = extraMessage; }
+            if (passedBy) { this.turnPause.passedBy = passedBy; }
             if (passedPlayers.length > 0) {
                 this.turnPause.passedPlayers = passedPlayers;
             }

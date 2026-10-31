@@ -28,6 +28,21 @@
       }
     },
 
+    "boms_emotes": {
+      "$gameId": {
+        ".read": "auth != null",
+        ".validate": "$gameId.matches(/^[1-9][0-9]{0,5}$/)",
+        "$seat": {
+          ".write": "auth != null && (!newData.exists() || !data.exists() || now >= data.child('t').val() + 2500)",
+          ".validate": "$seat.length <= 700 && newData.hasChildren(['e', 't'])",
+          "e": { ".validate": "newData.isString() && newData.val().matches(/^(hi|gg|ty|wow|omg|excellent|fatal|defeat|rage|foolish|ghost|alien|garbage|strike|galaxy|dominance|motives|goodgame|mercy|wasted|value|badtrade|lethal|predicted|questionable|salt|calculated|trapped|doomed|blunder|flawless|lucky|unlucky|denied|countered|waiting|thinking|observing|panicking|brilliant|bait|punished|inevitable|greed|patience|overkill|misclick)$/)" },
+          "t": { ".validate": "newData.val() == now" },
+          "to": { ".validate": "newData.isString() && newData.val().length <= 700" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
+
     "playerStats": {
       ".read": "auth != null",
       ".indexOn": ["lastActiveAt"],
@@ -69,6 +84,17 @@
             "$other": { ".validate": false }
           }
         }
+      }
+    },
+
+    "playerEmotes": {
+      "$playerKey": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        ".validate": "$playerKey.length <= 200 && newData.hasChildren(['set', 'updatedAt'])",
+        "set": { ".validate": "newData.isString() && newData.val().length <= 120 && newData.val().matches(/^[a-z]+(,[a-z]+){5}$/)" },
+        "updatedAt": { ".validate": "newData.isNumber()" },
+        "$other": { ".validate": false }
       }
     },
 

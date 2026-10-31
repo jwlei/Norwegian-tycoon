@@ -1,0 +1,368 @@
+/* Emotes. Bubbles and menus use a fixed dark, blurred surface so play stays visible behind them in every colour theme. */
+
+#emoteLayer {
+    position: fixed;
+    inset: 0;
+    z-index: 450;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.emote-bubble,
+.emote-panel {
+    border: 0;
+    background: rgb(0 0 0 / 55%);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    color: #fff;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .emote-bubble,
+    .emote-panel { background: rgb(0 0 0 / 82%); }
+}
+
+.emote-bubble {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: calc(100vw - 12px);
+    padding: 6px 12px;
+    border-radius: 14px;
+    font-size: 0.86rem;
+    font-weight: 800;
+    line-height: 1.15;
+    white-space: nowrap;
+    translate: -50% 0;
+    transform-origin: calc(50% + var(--tail-x, 0px)) 0;
+    animation: emote-bubble 3s cubic-bezier(.2, .8, .25, 1) both;
+}
+/* Without a border, the tail alone carries the speaker's colour. */
+.emote-bubble::before {
+    content: "";
+    position: absolute;
+    top: -7px;
+    left: calc(50% + var(--tail-x, 0px) - 7px);
+    width: 14px;
+    height: 7px;
+    background: var(--player-color, rgb(255 255 255 / 70%));
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.emote-bubble__emoji { font-size: 1.15em; }
+.emote-bubble__target {
+    overflow: hidden;
+    max-width: 110px;
+    color: rgb(255 255 255 / 75%);
+    font-size: 0.82em;
+    font-weight: 700;
+    text-overflow: ellipsis;
+}
+@keyframes emote-bubble {
+    0% { opacity: 0; scale: .55; }
+    6% { opacity: 1; scale: 1.06; }
+    10% { scale: 1; }
+    90% { opacity: 1; scale: 1; }
+    100% { opacity: 0; scale: .96; }
+}
+
+/* The button sits at the row's right edge; fast forward appears to its left, so it never moves. */
+#playbackControls {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    width: auto;
+}
+#fastForwardButton {
+    position: relative;
+    right: auto;
+    bottom: auto;
+}
+#playbackControls #emoteButton,
+#emoteButton.is-floating,
+#emoteButton:hover,
+#emoteButton:active {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 5px;
+    width: auto;
+    min-width: 0;
+    height: 36px;
+    min-height: 36px;
+    margin: 0;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+    transform: none;
+}
+#playbackControls #emoteButton[hidden],
+#emoteButton[hidden] { display: none; }
+#emoteButton:hover,
+#emoteButton[aria-expanded="true"] { color: var(--ink); }
+#emoteButton:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+#emoteButton svg { width: 22px; height: 22px; }
+#emoteButton.is-cooling { opacity: .4; }
+#emoteButton.is-floating {
+    position: absolute;
+    border-radius: 10px;
+    background: rgb(0 0 0 / 55%);
+    color: #fff;
+    pointer-events: auto;
+}
+
+.emote-panel {
+    position: absolute;
+    padding: 8px;
+    border-radius: 16px;
+    pointer-events: auto;
+    animation: emote-panel-in 130ms cubic-bezier(.2, .8, .25, 1) both;
+}
+@keyframes emote-panel-in {
+    from { opacity: 0; translate: 0 8px; scale: .96; }
+    to { opacity: 1; translate: 0 0; scale: 1; }
+}
+.emote-tray { width: min(372px, calc(100vw - 16px)); }
+.emote-strip { width: min(340px, calc(100vw - 12px)); }
+.emote-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+}
+@media (orientation: landscape) and (max-height: 500px) {
+    .emote-tray { width: min(760px, calc(100vw - 16px)); }
+    .emote-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
+.emote-chip,
+.emote-chip:hover,
+.emote-chip:active {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    min-height: 56px;
+    margin: 0;
+    padding: 5px 2px;
+    border: 0;
+    border-radius: 12px;
+    background: rgb(255 255 255 / 9%);
+    box-shadow: none;
+    color: #fff;
+    font: inherit;
+    font-size: 0.76rem;
+    font-weight: 800;
+    line-height: 1.1;
+    white-space: nowrap;
+    cursor: pointer;
+    touch-action: manipulation;
+    transform: none;
+    transition: scale 90ms ease, background-color 90ms ease;
+}
+.emote-chip:hover { background: rgb(255 255 255 / 18%); scale: 1.05; }
+.emote-chip:active { scale: .96; }
+.emote-chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.emote-chip__emoji { font-size: 1.5em; line-height: 1.1; }
+#emoteLayer.is-cooling .emote-chip { opacity: .45; }
+
+.emote-strip__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 36px;
+    margin-bottom: 6px;
+    padding: 0 4px;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+.emote-strip__title {
+    overflow: hidden;
+    color: rgb(255 255 255 / 80%);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.emote-strip__mute,
+.emote-strip__mute:hover,
+.emote-strip__mute:active {
+    flex: none;
+    min-height: 36px;
+    margin: 0;
+    padding: 2px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: rgb(255 255 255 / 9%);
+    box-shadow: none;
+    color: #fff;
+    font: inherit;
+    cursor: pointer;
+    transform: none;
+}
+.emote-strip__mute:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+#gameShell:not(.Lobby) #playerList .player-summary:not(.player-summary--self),
+.game-over__standing:not(.game-over__standing--self) { cursor: pointer; }
+#playerList .player-summary[data-emote-muted] { position: relative; }
+#playerList .player-summary[data-emote-muted]::after {
+    content: "🔇";
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 0.8rem;
+}
+
+.emote-throw {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    margin: -16px 0 0 -16px;
+    font-size: 26px;
+    line-height: 32px;
+    text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .emote-bubble { animation-name: emote-bubble-still; }
+    .emote-panel { animation-duration: 1ms; }
+    .emote-chip, .emote-chip:hover, .emote-chip:active { scale: 1; transition: none; }
+}
+@keyframes emote-bubble-still {
+    0%, 100% { opacity: 0; }
+    5%, 92% { opacity: 1; }
+}
+
+/* Emote settings. */
+#emoteSettingsSummary { flex: none; font-size: 1rem; letter-spacing: 1px; white-space: nowrap; }
+#dialogEmotes .dialog-window {
+    display: flex;
+    flex-direction: column;
+    height: min(88dvh, 740px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+#dialogEmotes .dialog-title { flex: 0 0 auto; padding-bottom: 12px; }
+#dialogEmotes .dialogBody {
+    flex: 1 0 auto;
+    min-height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 8px 16px 16px;
+}
+#dialogEmotes .dialog-footer {
+    float: none;
+    flex: 0 0 auto;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: var(--surface);
+    justify-content: center;
+    border-top: 1px solid var(--line);
+}
+#dialogEmotes .dialog-footer > button { width: min(100%, 240px); flex: 0 1 auto; }
+.emote-settings__hint { margin: 0 0 4px; color: var(--muted); font-size: 0.82rem; }
+.emote-settings__action,
+.emote-settings__action:hover,
+.emote-settings__action:active {
+    width: 100%;
+    min-height: 44px;
+    margin: 0 0 10px;
+    font-weight: 800;
+}
+.emote-settings__pending {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-weight: 800;
+}
+.emote-settings__emoji { font-size: 1.5rem; line-height: 1.1; }
+.emote-settings__label { min-width: 0; line-height: 1.15; text-align: center; overflow-wrap: anywhere; }
+.emote-settings__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+.emote-slot,
+.emote-slot:hover,
+.emote-slot:active {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+    min-height: 84px;
+    margin: 0;
+    padding: 6px 4px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface-soft);
+    box-shadow: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 800;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+.emote-slot.is-dragging { position: relative; z-index: 3; cursor: grabbing; opacity: .9; }
+.emote-slot.is-target { border-color: var(--accent); outline: 2px solid var(--accent); }
+.emote-slot:focus-visible,
+.emote-option:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.emote-settings__list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 6px;
+    margin-top: 10px;
+}
+.emote-option,
+.emote-option:hover,
+.emote-option:active {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 2px 8px;
+    min-height: 56px;
+    margin: 0;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface-soft);
+    box-shadow: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+.emote-option .emote-settings__emoji { grid-row: 1 / 3; }
+.emote-option .emote-settings__label { text-align: left; }
+.emote-option small { grid-column: 2; color: var(--muted); font-size: 0.7rem; font-weight: 600; }
+.emote-option small:empty { display: none; }
+.emote-option:disabled { opacity: .5; cursor: default; }
+.emote-option:disabled .emote-settings__emoji { filter: grayscale(1); }
+
+/* Longer labels wrap in the in-game menu and stay whole in the bubble. */
+.emote-chip,
+.emote-chip:hover,
+.emote-chip:active {
+    white-space: normal;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+.emote-bubble > span:not(.emote-bubble__target) { flex: none; }
+.emote-bubble__target { flex: 0 1 auto; min-width: 0; }
