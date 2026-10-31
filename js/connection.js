@@ -1414,19 +1414,19 @@
                 }
                 return;
             }
-            if (!player || player != next || GamePresence.isBot(game, player) ||
+            if (!player || player != next || GamePresence.isBot(game, player) || game.status != "S" ||
                 player.playerKey != getPlayerKey() || pause.readyAt != null) { return; }
             readinessInFlight = pause.id;
-            game.databaseRef.transaction(record => {
-                if (!record || record.turnPause?.id != pause.id || record.turnPause.readyAt != null ||
-                    record.status != "S") { return; }
-                var actor = record.spillere[record.sinTur];
-                if (!actor || actor.nick != player.name || actor.spillerKey != getPlayerKey() ||
-                    (record.controllers || {})[GamePresence.playerId(actor)]) { return; }
+            // Every human turn reports this, so it skips resending the whole game to every player.
+            // A new play or pass gets a new id, so a late report can't touch the next turn's pause.
+            game.databaseRef.child("turnPause").transaction(current => {
+                if (!current || current.id != pause.id || current.readyAt != null) { return; }
+                // The seat isn't under this path, so each attempt rechecks it against the latest synced game.
+                var actor = game.players[game.turn];
+                if (game.status != "S" || !actor || actor.name != player.name || actor.playerKey != getPlayerKey() ||
+                    GamePresence.isBot(game, actor)) { return; }
                 var now = GamePresence.now();
-                return Object.assign({}, record, {
-                    turnPause: Object.assign({}, record.turnPause, { readyAt: now, until: now })
-                });
+                return Object.assign({}, current, { readyAt: now, until: now });
             }, undefined, false).catch(error => {
                 console.error("Kunne ikke melde at kortanimasjonen er ferdig.", error);
                 showGameToast("Kunne ikke oppdatere turen. Prøver igjen.", game);

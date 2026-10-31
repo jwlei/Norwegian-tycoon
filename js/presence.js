@@ -184,6 +184,15 @@ class GamePresence {
         return null;
     }
 
+    static onlyDeadlinesChanged(record, next) {
+        // The database drops empty containers, so an empty one equals a missing one.
+        var stored = value => {
+            var text = JSON.stringify(value ?? null);
+            return text == "{}" || text == "[]" ? "null" : text;
+        };
+        return Object.keys(next).every(key => key == "actionDeadlines" || stored(record[key]) == stored(next[key]));
+    }
+
     static reconcile(record, now = this.now()) {
         if (record == null || record.status == "V") { return; }
         var baseline = this.lastActivityAt(record);
@@ -342,9 +351,14 @@ class GamePresence {
         this.refresh();
         if (!this.online || this.pending || !this.record || this.stopped || this.now() < this.retryAt) { return; }
         this.register();
-        if (!GamePresence.reconcile(this.record, this.now())) { return; }
+        var next = GamePresence.reconcile(this.record, this.now());
+        if (!next) { return; }
         this.pending = true;
         try {
+            if (GamePresence.onlyDeadlinesChanged(this.record, next)) {
+                await this.writeDeadlines();
+                return;
+            }
             var result = await this.game.databaseRef.transaction(record => GamePresence.reconcile(record, this.now()), undefined, false);
             if (result.committed && result.snapshot.val() && result.snapshot.val().status == "V") {
                 this.game.status = "V";
@@ -357,6 +371,15 @@ class GamePresence {
         } finally {
             this.pending = false;
         }
+    }
+
+    // Turn timers change twice per human turn, so they skip resending the whole game to every player.
+    writeDeadlines() {
+        return this.game.databaseRef.child("actionDeadlines").transaction(current => {
+            var record = Object.assign({}, this.record, { actionDeadlines: current || {} });
+            var next = GamePresence.reconcile(record, this.now());
+            if (next && GamePresence.onlyDeadlinesChanged(record, next)) { return next.actionDeadlines; }
+        }, undefined, false);
     }
 
     async changeControl(reclaim = false) {

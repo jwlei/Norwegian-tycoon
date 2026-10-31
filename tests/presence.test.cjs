@@ -622,6 +622,155 @@ test("legacy reconciliation freezes the session baseline before later bot saves 
     assert.equal(expired.lastHumanActionAt, start);
 });
 
+function tickClient(record) {
+    const P = loadPresence();
+    let stored = record;
+    const writes = [];
+    const client = Object.assign(Object.create(P.prototype), {
+        game: {
+            status: "S", updatePublicListing() {},
+            databaseRef: {
+                async transaction(transform) {
+                    writes.push("game");
+                    const next = transform(structuredClone(stored));
+                    if (next !== undefined) { stored = next; }
+                    return { committed: next !== undefined, snapshot: { val: () => stored } };
+                },
+                child: name => ({
+                    async transaction(transform) {
+                        writes.push(name);
+                        const next = transform(stored[name] === undefined ? null : structuredClone(stored[name]));
+                        if (next !== undefined) { stored = { ...stored, [name]: next }; }
+                        return { committed: next !== undefined };
+                    }
+                })
+            }
+        },
+        record, online: true, pending: false, stopped: false, retryAt: 0, now: () => start,
+        refresh() {}, register() {}, notify() {}
+    });
+    return { P, client, writes, get stored() { return stored; }, set stored(value) { stored = value; } };
+}
+
+test("starting and clearing a turn timer writes only the timers, not the whole game", async () => {
+    const fixture = tickClient(room());
+    await fixture.client.tick();
+    assert.deepEqual(fixture.writes, ["actionDeadlines"]);
+    const id = Presence.playerId(room().spillere[0]);
+    assert.equal(fixture.stored.actionDeadlines[id].until, start + Presence.actionMs);
+    fixture.client.pending = false;
+    fixture.client.record = { ...fixture.stored, turnPause: { until: start + 1000 } };
+    fixture.stored = fixture.client.record;
+    await fixture.client.tick();
+    assert.deepEqual(fixture.writes, ["actionDeadlines", "actionDeadlines"]);
+    assert.deepEqual(Object.keys(fixture.stored.actionDeadlines), []);
+    assert.equal(fixture.client.pending, false);
+});
+
+test("a timer another client already started is kept, including its extension", async () => {
+    const fixture = tickClient(room());
+    const id = Presence.playerId(room().spillere[0]);
+    const token = Presence.actionToken(room(), room().spillere[0], 0, start);
+    const theirs = { token, until: start + 240000, extended: true };
+    fixture.stored = { ...fixture.stored, actionDeadlines: { [id]: theirs } };
+    await fixture.client.tick();
+    assert.deepEqual(fixture.writes, ["actionDeadlines"]);
+    assert.equal(fixture.stored.actionDeadlines[id].until, start + 240000);
+    assert.equal(fixture.stored.actionDeadlines[id].extended, true);
+});
+
+test("a timer write is dropped if the game has meanwhile moved on to something bigger", async () => {
+    const fixture = tickClient(room());
+    const transaction = fixture.client.game.databaseRef.child;
+    fixture.client.game.databaseRef.child = name => ({
+        transaction(transform) {
+            fixture.client.record = { ...fixture.client.record, status: "V" };
+            return transaction(name).transaction(transform);
+        }
+    });
+    await fixture.client.tick();
+    assert.equal(fixture.stored.actionDeadlines, undefined);
+});
+
+test("bot takeovers still write the whole game, because they change more than the timers", async () => {
+    const record = Presence.reconcile(room(), start);
+    const fixture = tickClient(record);
+    fixture.client.now = () => start + Presence.actionMs;
+    await fixture.client.tick();
+    assert.deepEqual(fixture.writes, ["game"]);
+    assert.ok(fixture.stored.controllers[Presence.playerId(room().spillere[0])]);
+});
+
+test("only timer changes count as timer-only, and empty containers equal missing ones", () => {
+    const record = room();
+    assert.equal(Presence.onlyDeadlinesChanged(record, { ...record, actionDeadlines: { a: 1 }, controllers: {}, connectionNotices: [] }), true);
+    assert.equal(Presence.onlyDeadlinesChanged(record, { ...record, controllers: { a: {} } }), false);
+    assert.equal(Presence.onlyDeadlinesChanged(record, { ...record, status: "V" }), false);
+    assert.equal(Presence.onlyDeadlinesChanged(record, { ...record, exchangeReady: { id: "gate" } }), false);
+    assert.equal(Presence.onlyDeadlinesChanged(record, { ...record, hostName: "Guest" }), false);
+});
+
+function presentationReadyFixture(overrides = {}) {
+    const source = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    const player = { name: "Owner", playerKey: "owner" };
+    const pause = { id: "pause-1", until: start + 10000, presentationVersion: 1 };
+    const game = {
+        status: "S", turn: 0, players: [player], turnPause: pause, presentationCompletedPauseId: pause.id,
+        connectionOnline: true, localWritePending: false, getPlayer: () => player,
+        ...overrides
+    };
+    const writes = [];
+    let stored = { id: pause.id, until: pause.until, message: "Bot: pass." };
+    game.databaseRef = {
+        transaction() { writes.push("game"); return Promise.resolve({ committed: true }); },
+        child: name => ({
+            transaction(transform) {
+                writes.push(name);
+                const next = transform(stored);
+                if (next !== undefined) { stored = next; }
+                return Promise.resolve({ committed: next !== undefined });
+            }
+        })
+    };
+    const context = vm.createContext({
+        console, currentGame: game, currentPlayerName: "Owner", getPlayerKey: () => "owner",
+        readinessInFlight: null, GamePresence: { isBot: () => false, now: () => start + 800 }
+    });
+    vm.runInContext(source.slice(source.indexOf("        function publishPresentationReady("),
+        source.indexOf("        function handleRoundStartVote(")), context);
+    context.game = game;
+    context.pause = pause;
+    return { context, writes, set stored(value) { stored = value; }, get stored() { return stored; } };
+}
+
+test("finishing the card animation writes only the turn pause, and keeps the rest of the pause", async () => {
+    const f = presentationReadyFixture();
+    vm.runInContext("publishPresentationReady(game, pause)", f.context);
+    assert.deepEqual(f.writes, ["turnPause"]);
+    assert.equal(f.stored.readyAt, start + 800);
+    assert.equal(f.stored.until, start + 800);
+    assert.equal(f.stored.message, "Bot: pass.");
+});
+
+test("a late animation report can't change the next turn's pause or a pause already reported", () => {
+    const f = presentationReadyFixture();
+    const next = { id: "pause-2", until: start + 10000 };
+    f.stored = next;
+    vm.runInContext("publishPresentationReady(game, pause)", f.context);
+    assert.equal(f.stored, next);
+    const reported = presentationReadyFixture();
+    const done = { id: "pause-1", until: start + 500, readyAt: start + 500 };
+    reported.stored = done;
+    vm.runInContext("publishPresentationReady(game, pause)", reported.context);
+    assert.equal(reported.stored, done);
+});
+
+test("the animation report is skipped when the round is over", () => {
+    const f = presentationReadyFixture({ status: "F" });
+    vm.runInContext("publishPresentationReady(game, pause)", f.context);
+    assert.deepEqual(f.writes, []);
+});
+
 function lifecycleGame({ serverTimestamp = null } = {}) {
     let now = start;
     let stored = null;

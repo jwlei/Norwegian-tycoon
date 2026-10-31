@@ -991,13 +991,17 @@ test("readiness is published only after completion and rechecks the current name
     };
     let saved;
     let writes = 0;
+    let beforeAttempt = () => {};
+    const paths = [];
     const game = {
-        turnPause: pause, turn: 0, players: [player], getPlayer: () => player,
-        databaseRef: { transaction(transform) {
+        status: "S", turnPause: pause, turn: 0, players: [player], getPlayer: () => player,
+        databaseRef: { child: name => ({ transaction(transform) {
             writes++;
-            saved = transform(record);
+            paths.push(name);
+            beforeAttempt();
+            saved = transform(record.turnPause);
             return Promise.resolve();
-        } }
+        } }) }
     };
     const context = vm.createContext({
         console, currentGame: game, currentPlayerName: player.name,
@@ -1014,12 +1018,25 @@ test("readiness is published only after completion and rechecks the current name
     game.presentationCompletedPauseId = pause.id;
     context.publishPresentationReady(game, pause);
     await new Promise(resolve => setImmediate(resolve));
-    assert.equal(saved.turnPause.until, 12345);
-    assert.equal(saved.turnPause.readyAt, 12345);
+    assert.equal(saved.until, 12345);
+    assert.equal(saved.readyAt, 12345);
+    assert.deepEqual(paths, ["turnPause"], "Readiness never rewrites the whole game");
     record.turnPause = { id: "new-action" };
     context.publishPresentationReady(game, pause);
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(saved, undefined, "A delayed readiness acknowledgment cannot unlock a newer action");
+    record.turnPause = pause;
+    beforeAttempt = () => { game.players = [{ name: "Other", playerKey: "other-key" }]; };
+    context.publishPresentationReady(game, pause);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(saved, undefined, "A seat that changed before the attempt cannot report readiness");
+    game.players = [player];
+    beforeAttempt = () => {
+        game.controllers = { [GamePresence.playerId(player)]: { reason: "idle" } };
+    };
+    context.publishPresentationReady(game, pause);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(saved, undefined, "A seat a bot took over cannot report readiness");
 });
 
 test("automatically selected exchange cards scroll into view without playing-turn selection", () => {
