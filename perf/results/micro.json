@@ -1,0 +1,162 @@
+{
+ "measuredAt": "2026-10-31T12:28:02.088Z",
+ "node": "v24.20.0",
+ "results": [
+  {
+   "name": "motion(), airborne frame [0 cards on table]",
+   "medianMs": 0.0062,
+   "p95Ms": 0.0094,
+   "iterations": 55069
+  },
+  {
+   "name": "motion(), sliding frame [0 cards on table]",
+   "medianMs": 0.0219,
+   "p95Ms": 0.039,
+   "iterations": 15551
+  },
+  {
+   "name": "81 foil keyframe orientations [0 cards on table]",
+   "medianMs": 0.2292,
+   "p95Ms": 0.3883,
+   "iterations": 1531
+  },
+  {
+   "name": "motion(), airborne frame [8 cards on table]",
+   "medianMs": 0.027,
+   "p95Ms": 0.0467,
+   "iterations": 13383
+  },
+  {
+   "name": "motion(), sliding frame [8 cards on table]",
+   "medianMs": 0.0831,
+   "p95Ms": 0.1024,
+   "iterations": 4568
+  },
+  {
+   "name": "81 foil keyframe orientations [8 cards on table]",
+   "medianMs": 0.8964,
+   "p95Ms": 1.2911,
+   "iterations": 418
+  },
+  {
+   "name": "shadowVisible(flight -> felt) [8 cards on table]",
+   "medianMs": 0.0204,
+   "p95Ms": 0.0372,
+   "iterations": 13858
+  },
+  {
+   "name": "shadowVisible(flight -> top card) [8 cards on table]",
+   "medianMs": 0.023,
+   "p95Ms": 0.0408,
+   "iterations": 13422
+  },
+  {
+   "name": "exposedPoints(bottom card) [8 cards on table]",
+   "medianMs": 0.0346,
+   "p95Ms": 0.0514,
+   "iterations": 9796
+  },
+  {
+   "name": "re-solve all resting poses [8 cards on table]",
+   "medianMs": 0.2892,
+   "p95Ms": 0.4016,
+   "iterations": 958
+  },
+  {
+   "name": "motion(), airborne frame [12 cards on table]",
+   "medianMs": 0.0377,
+   "p95Ms": 0.0728,
+   "iterations": 8231
+  },
+  {
+   "name": "motion(), sliding frame [12 cards on table]",
+   "medianMs": 0.1114,
+   "p95Ms": 0.2147,
+   "iterations": 2768
+  },
+  {
+   "name": "81 foil keyframe orientations [12 cards on table]",
+   "medianMs": 1.2964,
+   "p95Ms": 2.2202,
+   "iterations": 260
+  },
+  {
+   "name": "shadowVisible(flight -> felt) [12 cards on table]",
+   "medianMs": 0.0276,
+   "p95Ms": 0.043,
+   "iterations": 11683
+  },
+  {
+   "name": "shadowVisible(flight -> top card) [12 cards on table]",
+   "medianMs": 0.0288,
+   "p95Ms": 0.0537,
+   "iterations": 10397
+  },
+  {
+   "name": "exposedPoints(bottom card) [12 cards on table]",
+   "medianMs": 0.0507,
+   "p95Ms": 0.0831,
+   "iterations": 6298
+  },
+  {
+   "name": "re-solve all resting poses [12 cards on table]",
+   "medianMs": 0.5822,
+   "p95Ms": 1.0112,
+   "iterations": 410
+  },
+  {
+   "name": "motion(), airborne frame [30 cards on table]",
+   "medianMs": 0.0845,
+   "p95Ms": 0.1621,
+   "iterations": 3926
+  },
+  {
+   "name": "motion(), sliding frame [30 cards on table]",
+   "medianMs": 0.2315,
+   "p95Ms": 0.4585,
+   "iterations": 1308
+  },
+  {
+   "name": "81 foil keyframe orientations [30 cards on table]",
+   "medianMs": 2.3378,
+   "p95Ms": 4.2765,
+   "iterations": 144
+  },
+  {
+   "name": "shadowVisible(flight -> felt) [30 cards on table]",
+   "medianMs": 0.0311,
+   "p95Ms": 0.0521,
+   "iterations": 9678
+  },
+  {
+   "name": "shadowVisible(flight -> top card) [30 cards on table]",
+   "medianMs": 0.0234,
+   "p95Ms": 0.0526,
+   "iterations": 11647
+  },
+  {
+   "name": "exposedPoints(bottom card) [30 cards on table]",
+   "medianMs": 0.0639,
+   "p95Ms": 0.1172,
+   "iterations": 4674
+  },
+  {
+   "name": "re-solve all resting poses [30 cards on table]",
+   "medianMs": 3.0873,
+   "p95Ms": 5.0705,
+   "iterations": 84
+  },
+  {
+   "name": "seven paper sheets, today (per card, per frame)",
+   "medianMs": 0.104,
+   "p95Ms": 0.1956,
+   "iterations": 3147
+  },
+  {
+   "name": "seven paper sheets, shared outline",
+   "medianMs": 0.0248,
+   "p95Ms": 0.0339,
+   "iterations": 15719
+  }
+ ]
+}

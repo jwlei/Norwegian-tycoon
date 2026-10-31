@@ -1,0 +1,62 @@
+[
+ {
+  "variant": "baseline",
+  "label": "first visit",
+  "runs": 5,
+  "fcp": 576,
+  "domContentLoaded": 2161,
+  "load": 2169,
+  "responseEnd": 90,
+  "scriptBytes": 293325,
+  "styleBytes": 35385,
+  "documentBytes": 14010,
+  "totalBytes": 345602,
+  "requests": 137,
+  "firebaseBytes": 102517
+ },
+ {
+  "variant": "baseline",
+  "label": "repeat visit",
+  "runs": 5,
+  "fcp": 632,
+  "domContentLoaded": 1853,
+  "load": 1912,
+  "responseEnd": 93,
+  "scriptBytes": 0,
+  "styleBytes": 0,
+  "documentBytes": 14010,
+  "totalBytes": 14010,
+  "requests": 136,
+  "firebaseBytes": 0
+ },
+ {
+  "variant": "01+15+02+04+05+07+08+09",
+  "label": "first visit",
+  "runs": 5,
+  "fcp": 400,
+  "domContentLoaded": 1645,
+  "load": 1706,
+  "responseEnd": 82,
+  "scriptBytes": 293497,
+  "styleBytes": 35990,
+  "documentBytes": 14010,
+  "totalBytes": 346379,
+  "requests": 137,
+  "firebaseBytes": 102517
+ },
+ {
+  "variant": "01+15+02+04+05+07+08+09",
+  "label": "repeat visit",
+  "runs": 5,
+  "fcp": 288,
+  "domContentLoaded": 1256,
+  "load": 1363,
+  "responseEnd": 82,
+  "scriptBytes": 0,
+  "styleBytes": 0,
+  "documentBytes": 14010,
+  "totalBytes": 14010,
+  "requests": 136,
+  "firebaseBytes": 0
+ }
+]

@@ -1,0 +1,23 @@
+diff --git a/js/card-depth.js b/js/card-depth.js
+index 7a953b2..230251e 100644
+--- a/js/card-depth.js
++++ b/js/card-depth.js
+@@ -89,7 +89,17 @@ class CardDepth {
+         if (!pending) {
+             const image = new Image();
+             image.src = source;
+-            pending = image.decode().then(() => image);
++            pending = image.decode().then(() => {
++                // Twice the device density of the largest card, including its 1.12x drag scale.
++                const scale = 2 * (window.devicePixelRatio || 1);
++                const rendered = document.createElement("canvas");
++                rendered.width = Math.ceil(126 * scale);
++                rendered.height = Math.ceil(189 * scale);
++                const context = rendered.getContext("2d");
++                context.imageSmoothingQuality = "high";
++                context.drawImage(image, 0, 0, rendered.width, rendered.height);
++                return rendered;
++            });
+             if (this.supersampledArtwork.size >= 64) {
+                 this.supersampledArtwork.delete(this.supersampledArtwork.keys().next().value);
+             }

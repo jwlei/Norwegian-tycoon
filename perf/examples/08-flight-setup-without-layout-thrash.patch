@@ -1,0 +1,40 @@
+diff --git a/js/layout-animations.js b/js/layout-animations.js
+index afe3bb7..e3e1dd5 100644
+--- a/js/layout-animations.js
++++ b/js/layout-animations.js
+@@ -195,7 +195,7 @@ GameLayout.extend(class {
+             flight.style.width = `${targetBounds.width}px`;
+             flight.style.height = `${targetBounds.height}px`;
+             document.body.appendChild(flight);
+-            if (typeof CardDepth != "undefined") { CardDepth.attach(flight); }
++            if (typeof CardDepth != "undefined") { CardDepth.attach(flight, true, false); }
+             var usesDepth = typeof CardDepth != "undefined" && CardDepth.states.has(flight);
+             var landingPose = usesDepth && typeof CardDepth.landingMotion == "function"
+                 ? CardDepth.landingMotion(flight, target, {
+@@ -397,6 +397,8 @@ GameLayout.extend(class {
+         }
+         var cards = Array.from(table.querySelectorAll(".table-play__card"));
+         var cardBounds = cards.map(card => GameLayout.unrotatedCardBounds(card));
++        // Read before the loop: window.innerHeight forces a layout once the flights below dirty the page.
++        var riseDistance = Math.max(150, window.innerHeight * 0.4);
+         cards.forEach((card, index) => {
+             var bounds = cardBounds[index];
+             if (bounds.width == 0 || bounds.height == 0) { return; }
+@@ -410,7 +412,7 @@ GameLayout.extend(class {
+             flight.style.width = `${bounds.width}px`;
+             flight.style.height = `${bounds.height}px`;
+             document.body.appendChild(flight);
+-            if (typeof CardDepth != "undefined") { CardDepth.attach(flight); }
++            if (typeof CardDepth != "undefined") { CardDepth.attach(flight, true, false); }
+             var usesDepth = typeof CardDepth != "undefined" && CardDepth.states.has(flight);
+             var horizontalOffset = ((index % 7) - 3) * 35 + (Math.random() - 0.5) * 24;
+             var spin = (index % 2 == 0 ? -1 : 1) * (35 + (index % 5) * 12) +
+@@ -421,7 +423,7 @@ GameLayout.extend(class {
+                     opacity: 1
+                 },
+                 {
+-                    transform: `translate(${horizontalOffset}px, ${-Math.max(150, window.innerHeight * 0.4)}px)` +
++                    transform: `translate(${horizontalOffset}px, ${-riseDistance}px)` +
+                         (usesDepth ? "" : ` rotate(${rotation + spin}deg)`),
+                     opacity: 0
+                 }

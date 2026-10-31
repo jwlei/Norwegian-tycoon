@@ -1,0 +1,999 @@
+{
+ "measuredAt": "2026-10-31T14:00:18.498Z",
+ "runs": 3,
+ "cpu": "AMD Ryzen 7 5800X 8-Core Processor             ",
+ "platform": "win32",
+ "data": [
+  {
+   "profile": "desktop",
+   "scenario": "hand-idle-nofoil",
+   "variant": "01",
+   "run": 0,
+   "elapsedMs": 6014,
+   "loadMsPerS": {
+    "main": 2.6,
+    "compositor": 4.4,
+    "raster": 0.1,
+    "gpu": 5.4
+   },
+   "mainPhasesMs": {
+    "other": 13.1,
+    "paint": 1.3,
+    "style": 0.5,
+    "script": 0.7
+   },
+   "totalMs": {
+    "main": 15.6,
+    "compositor": 26.5,
+    "raster": 0.9,
+    "gpu": 32.3
+   },
+   "frames": {
+    "commits": 18,
+    "paints": 0,
+    "raf": 0,
+    "styles": 13,
+    "layouts": 0,
+    "draws": 38,
+    "rasterTasks": 0,
+    "passes": 144,
+    "passesPerDraw": 3.8
+   },
+   "longestTaskMs": 0.8,
+   "longTasks": 0,
+   "blockingMs": 0,
+   "stats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 11,
+    "runningFoil": 0,
+    "supersampling": true,
+    "canvasMegabytes": 0,
+    "dpr": 1
+   },
+   "setupStats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 12,
+    "runningFoil": 0,
+    "supersampling": true,
+    "canvasMegabytes": 0,
+    "dpr": 1
+   },
+   "layers": {
+    "count": 32,
+    "painted": 24,
+    "megabytes": 7
+   },
+   "frameStats": null,
+   "counters": {
+    "layouts": 0,
+    "styleRecalcs": 19,
+    "styleMs": 0.7,
+    "layoutMs": 0,
+    "scriptMs": 0.8,
+    "taskMs": 24.6,
+    "heapMb": 4,
+    "nodes": 11272
+   },
+   "errors": []
+  },
+  {
+   "profile": "desktop",
+   "scenario": "hand-idle-nofoil",
+   "variant": "01+03",
+   "run": 0,
+   "elapsedMs": 6002,
+   "loadMsPerS": {
+    "main": 1.9,
+    "compositor": 4.2,
+    "raster": 0,
+    "gpu": 4.9
+   },
+   "mainPhasesMs": {
+    "other": 9.3,
+    "paint": 1.1,
+    "style": 0.5,
+    "script": 0.6
+   },
+   "totalMs": {
+    "main": 11.6,
+    "compositor": 25,
+    "raster": 0,
+    "gpu": 29.4
+   },
+   "frames": {
+    "commits": 17,
+    "paints": 0,
+    "raf": 0,
+    "styles": 13,
+    "layouts": 0,
+    "draws": 36,
+    "rasterTasks": 0,
+    "passes": 142,
+    "passesPerDraw": 3.9
+   },
+   "longestTaskMs": 0.4,
+   "longTasks": 0,
+   "blockingMs": 0,
+   "stats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 11,
+    "runningFoil": 0,
+    "supersampling": true,
+    "canvasMegabytes": 0,
+    "dpr": 1
+   },
+   "setupStats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 12,
+    "runningFoil": 0,
+    "supersampling": true,
+    "canvasMegabytes": 0,
+    "dpr": 1
+   },
+   "layers": {
+    "count": 20,
+    "painted": 13,
+    "megabytes": 7.3
+   },
+   "frameStats": null,
+   "counters": {
+    "layouts": 0,
+    "styleRecalcs": 13,
+    "styleMs": 0.5,
+    "layoutMs": 0,
+    "scriptMs": 0.4,
+    "taskMs": 12.6,
+    "heapMb": 4,
+    "nodes": 11273
+   },
+   "errors": []
+  },
+  {
+   "profile": "desktop",
+   "scenario": "hand-idle-nofoil",
+   "variant": "01+03",
+   "run": 1,
+   "elapsedMs": 6004,
+   "loadMsPerS": {
+    "main": 2.2,
+    "compositor": 4.5,
+    "raster": 0,
+    "gpu": 5.2
+   },
+   "mainPhasesMs": {
+    "other": 11,
+    "paint": 1.3,
+    "style": 0.5,
+    "script": 0.6
+   },
+   "totalMs": {
+    "main": 13.4,
+    "compositor": 26.7,
+    "raster": 0,
+    "gpu": 31
+   },
+   "frames": {
+    "commits": 19,
+    "paints": 0,
+    "raf": 0,
+    "styles": 13,
+    "layouts": 0,
+    "draws": 36,
+    "rasterTasks": 0,
+    "passes": 144,
+    "passesPerDraw": 4
+   },
+   "longestTaskMs": 1.6,
+   "longTasks": 0,
+   "blockingMs": 0,
+   "stats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 11,
+    "runningFoil": 0,
+    "supersampling": true,
+    "canvasMegabytes": 0,
+    "dpr": 1
+   },
+   "setupStats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 12,
+    "runningFoil": 0,
+    "supersampling": true,
+    "canvasMegabytes": 0,
+    "dpr": 1
+   },
+   "layers": {
+    "count": 20,
+    "painted": 13,
+    "megabytes": 7.3
+   },
+   "frameStats": null,
+   "counters": {
+    "layouts": 0,
+    "styleRecalcs": 13,
+    "styleMs": 0.5,
+    "layoutMs": 0,
+    "scriptMs": 0.3,
+    "taskMs": 14.3,
+    "heapMb": 4,
+    "nodes": 11249
+   },
+   "errors": []
+  },
+  {
+   "profile": "desktop",
+   "scenario": "hand-idle-nofoil",
+   "variant": "01",
+   "run": 1,
+   "elapsedMs": 6008,
+   "loadMsPerS": {
+    "main": 2.2,
+    "compositor": 4.6,
+    "raster": 0,
+    "gpu": 5
+   },
+   "mainPhasesMs": {
+    "other": 10.6,
+    "paint": 1.4,
+    "style": 0.6,
+    "script": 0.6
+   },
+   "totalMs": {
+    "main": 13.1,
+    "compositor": 27.5,
+    "raster": 0,
+    "gpu": 30.3
+   },
+   "frames": {
+    "commits": 19,
+    "paints": 0,
+    "raf": 0,
+    "styles": 13,
+    "layouts": 0,
+    "draws": 36,
+    "rasterTasks": 0,
+    "passes": 144,
+    "passesPerDraw": 4
+   },
+   "longestTaskMs": 1.2,
+   "longTasks": 0,
+   "blockingMs": 0,
+   "stats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 11,
+    "runningFoil": 0,
+    "supersampling": true,
+    "canvasMegabytes": 0,
+    "dpr": 1
+   },
+   "setupStats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 12,
+    "runningFoil": 0,
+    "supersampling": true,
+    "canvasMegabytes": 0,
+    "dpr": 1
+   },
+   "layers": {
+    "count": 32,
+    "painted": 24,
+    "megabytes": 7
+   },
+   "frameStats": null,
+   "counters": {
+    "layouts": 0,
+    "styleRecalcs": 13,
+    "styleMs": 0.6,
+    "layoutMs": 0,
+    "scriptMs": 0.4,
+    "taskMs": 13.9,
+    "heapMb": 4,
+    "nodes": 11249
+   },
+   "errors": []
+  },
+  {
+   "profile": "desktop",
+   "scenario": "hand-idle-nofoil",
+   "variant": "01",
+   "run": 2,
+   "elapsedMs": 6005,
+   "loadMsPerS": {
+    "main": 2.3,
+    "compositor": 4.7,
+    "raster": 0,
+    "gpu": 5.2
+   },
+   "mainPhasesMs": {
+    "other": 10.8,
+    "paint": 1.5,
+    "style": 0.6,
+    "script": 0.7
+   },
+   "totalMs": {
+    "main": 13.6,
+    "compositor": 28,
+    "raster": 0,
+    "gpu": 31.1
+   },
+   "frames": {
+    "commits": 19,
+    "paints": 0,
+    "raf": 0,
+    "styles": 13,
+    "layouts": 0,
+    "draws": 36,
+    "rasterTasks": 0,
+    "passes": 143,
+    "passesPerDraw": 4
+   },
+   "longestTaskMs": 1.3,
+   "longTasks": 0,
+   "blockingMs": 0,
+   "stats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 11,
+    "runningFoil": 0,
+    "supersampling": true,
+    "canvasMegabytes": 0,
+    "dpr": 1
+   },
+   "setupStats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 12,
+    "runningFoil": 0,
+    "supersampling": true,
+    "canvasMegabytes": 0,
+    "dpr": 1
+   },
+   "layers": {
+    "count": 32,
+    "painted": 24,
+    "megabytes": 7
+   },
+   "frameStats": null,
+   "counters": {
+    "layouts": 0,
+    "styleRecalcs": 13,
+    "styleMs": 0.6,
+    "layoutMs": 0,
+    "scriptMs": 0.4,
+    "taskMs": 14.5,
+    "heapMb": 4,
+    "nodes": 11249
+   },
+   "errors": []
+  },
+  {
+   "profile": "desktop",
+   "scenario": "hand-idle-nofoil",
+   "variant": "01+03",
+   "run": 2,
+   "elapsedMs": 6009,
+   "loadMsPerS": {
+    "main": 2.2,
+    "compositor": 4.3,
+    "raster": 0,
+    "gpu": 5
+   },
+   "mainPhasesMs": {
+    "other": 10.7,
+    "paint": 1.3,
+    "style": 0.6,
+    "script": 0.6
+   },
+   "totalMs": {
+    "main": 13.2,
+    "compositor": 25.7,
+    "raster": 0,
+    "gpu": 30.2
+   },
+   "frames": {
+    "commits": 19,
+    "paints": 0,
+    "raf": 0,
+    "styles": 13,
+    "layouts": 0,
+    "draws": 36,
+    "rasterTasks": 0,
+    "passes": 143,
+    "passesPerDraw": 4
+   },
+   "longestTaskMs": 1.2,
+   "longTasks": 0,
+   "blockingMs": 0,
+   "stats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 11,
+    "runningFoil": 0,
+    "supersampling": true,
+    "canvasMegabytes": 0,
+    "dpr": 1
+   },
+   "setupStats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 12,
+    "runningFoil": 0,
+    "supersampling": true,
+    "canvasMegabytes": 0,
+    "dpr": 1
+   },
+   "layers": {
+    "count": 20,
+    "painted": 13,
+    "megabytes": 7.3
+   },
+   "frameStats": null,
+   "counters": {
+    "layouts": 0,
+    "styleRecalcs": 13,
+    "styleMs": 0.5,
+    "layoutMs": 0,
+    "scriptMs": 0.4,
+    "taskMs": 14.1,
+    "heapMb": 4,
+    "nodes": 11249
+   },
+   "errors": []
+  },
+  {
+   "profile": "phone",
+   "scenario": "hand-idle-nofoil",
+   "variant": "01",
+   "run": 0,
+   "elapsedMs": 6017,
+   "loadMsPerS": {
+    "main": 13.5,
+    "compositor": 4.2,
+    "raster": 0.2,
+    "gpu": 5.4
+   },
+   "mainPhasesMs": {
+    "script": 22.9,
+    "other": 49.7,
+    "style": 2.6,
+    "paint": 5.1,
+    "gc": 0.8
+   },
+   "totalMs": {
+    "main": 81.1,
+    "compositor": 25.5,
+    "raster": 1.5,
+    "gpu": 32.7
+   },
+   "frames": {
+    "commits": 13,
+    "paints": 0,
+    "raf": 0,
+    "styles": 14,
+    "layouts": 0,
+    "draws": 38,
+    "rasterTasks": 0,
+    "passes": 141,
+    "passesPerDraw": 3.7
+   },
+   "longestTaskMs": 6.5,
+   "longTasks": 0,
+   "blockingMs": 0,
+   "stats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 11,
+    "runningFoil": 0,
+    "supersampling": false,
+    "canvasMegabytes": 0,
+    "dpr": 3
+   },
+   "setupStats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 12,
+    "runningFoil": 0,
+    "supersampling": false,
+    "canvasMegabytes": 0,
+    "dpr": 3
+   },
+   "layers": {
+    "count": 35,
+    "painted": 27,
+    "megabytes": 28.5
+   },
+   "frameStats": null,
+   "counters": {
+    "layouts": 0,
+    "styleRecalcs": 19,
+    "styleMs": 2.9,
+    "layoutMs": 0,
+    "scriptMs": 31.8,
+    "taskMs": 114.9,
+    "heapMb": 4,
+    "nodes": 11258
+   },
+   "errors": []
+  },
+  {
+   "profile": "phone",
+   "scenario": "hand-idle-nofoil",
+   "variant": "01+03",
+   "run": 0,
+   "elapsedMs": 6014,
+   "loadMsPerS": {
+    "main": 12.8,
+    "compositor": 4.2,
+    "raster": 0,
+    "gpu": 5
+   },
+   "mainPhasesMs": {
+    "other": 43.4,
+    "style": 2.6,
+    "script": 25.7,
+    "gc": 0.9,
+    "paint": 4.5
+   },
+   "totalMs": {
+    "main": 77.1,
+    "compositor": 25.5,
+    "raster": 0,
+    "gpu": 29.9
+   },
+   "frames": {
+    "commits": 13,
+    "paints": 0,
+    "raf": 0,
+    "styles": 14,
+    "layouts": 0,
+    "draws": 36,
+    "rasterTasks": 0,
+    "passes": 143,
+    "passesPerDraw": 4
+   },
+   "longestTaskMs": 8,
+   "longTasks": 0,
+   "blockingMs": 0,
+   "stats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 11,
+    "runningFoil": 0,
+    "supersampling": false,
+    "canvasMegabytes": 0,
+    "dpr": 3
+   },
+   "setupStats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 12,
+    "runningFoil": 0,
+    "supersampling": false,
+    "canvasMegabytes": 0,
+    "dpr": 3
+   },
+   "layers": {
+    "count": 23,
+    "painted": 16,
+    "megabytes": 28.8
+   },
+   "frameStats": null,
+   "counters": {
+    "layouts": 0,
+    "styleRecalcs": 14,
+    "styleMs": 2.5,
+    "layoutMs": 0,
+    "scriptMs": 24.1,
+    "taskMs": 77.6,
+    "heapMb": 4,
+    "nodes": 11259
+   },
+   "errors": []
+  },
+  {
+   "profile": "phone",
+   "scenario": "hand-idle-nofoil",
+   "variant": "01+03",
+   "run": 1,
+   "elapsedMs": 6010,
+   "loadMsPerS": {
+    "main": 14.1,
+    "compositor": 4.6,
+    "raster": 0,
+    "gpu": 5.2
+   },
+   "mainPhasesMs": {
+    "other": 44.5,
+    "style": 2.4,
+    "script": 32.1,
+    "paint": 4.7,
+    "gc": 1.2
+   },
+   "totalMs": {
+    "main": 84.8,
+    "compositor": 27.5,
+    "raster": 0,
+    "gpu": 31
+   },
+   "frames": {
+    "commits": 12,
+    "paints": 0,
+    "raf": 0,
+    "styles": 14,
+    "layouts": 0,
+    "draws": 36,
+    "rasterTasks": 0,
+    "passes": 142,
+    "passesPerDraw": 3.9
+   },
+   "longestTaskMs": 7.9,
+   "longTasks": 0,
+   "blockingMs": 0,
+   "stats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 11,
+    "runningFoil": 0,
+    "supersampling": false,
+    "canvasMegabytes": 0,
+    "dpr": 3
+   },
+   "setupStats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 12,
+    "runningFoil": 0,
+    "supersampling": false,
+    "canvasMegabytes": 0,
+    "dpr": 3
+   },
+   "layers": {
+    "count": 23,
+    "painted": 16,
+    "megabytes": 28.8
+   },
+   "frameStats": null,
+   "counters": {
+    "layouts": 0,
+    "styleRecalcs": 14,
+    "styleMs": 2.6,
+    "layoutMs": 0,
+    "scriptMs": 29.4,
+    "taskMs": 86,
+    "heapMb": 4,
+    "nodes": 11235
+   },
+   "errors": []
+  },
+  {
+   "profile": "phone",
+   "scenario": "hand-idle-nofoil",
+   "variant": "01",
+   "run": 1,
+   "elapsedMs": 6009,
+   "loadMsPerS": {
+    "main": 13.8,
+    "compositor": 4.6,
+    "raster": 0,
+    "gpu": 5.2
+   },
+   "mainPhasesMs": {
+    "other": 44.1,
+    "style": 3,
+    "script": 30.2,
+    "paint": 4.2,
+    "gc": 1.2
+   },
+   "totalMs": {
+    "main": 82.7,
+    "compositor": 27.4,
+    "raster": 0,
+    "gpu": 31
+   },
+   "frames": {
+    "commits": 11,
+    "paints": 0,
+    "raf": 0,
+    "styles": 13,
+    "layouts": 0,
+    "draws": 36,
+    "rasterTasks": 0,
+    "passes": 143,
+    "passesPerDraw": 4
+   },
+   "longestTaskMs": 7.2,
+   "longTasks": 0,
+   "blockingMs": 0,
+   "stats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 11,
+    "runningFoil": 0,
+    "supersampling": false,
+    "canvasMegabytes": 0,
+    "dpr": 3
+   },
+   "setupStats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 12,
+    "runningFoil": 0,
+    "supersampling": false,
+    "canvasMegabytes": 0,
+    "dpr": 3
+   },
+   "layers": {
+    "count": 35,
+    "painted": 27,
+    "megabytes": 28.5
+   },
+   "frameStats": null,
+   "counters": {
+    "layouts": 0,
+    "styleRecalcs": 14,
+    "styleMs": 3,
+    "layoutMs": 0,
+    "scriptMs": 28.8,
+    "taskMs": 84.3,
+    "heapMb": 4,
+    "nodes": 11235
+   },
+   "errors": []
+  },
+  {
+   "profile": "phone",
+   "scenario": "hand-idle-nofoil",
+   "variant": "01",
+   "run": 2,
+   "elapsedMs": 6004,
+   "loadMsPerS": {
+    "main": 14.3,
+    "compositor": 4.4,
+    "raster": 0,
+    "gpu": 4.9
+   },
+   "mainPhasesMs": {
+    "other": 45.9,
+    "style": 3.3,
+    "script": 29.4,
+    "paint": 6,
+    "gc": 1.3
+   },
+   "totalMs": {
+    "main": 85.9,
+    "compositor": 26.5,
+    "raster": 0,
+    "gpu": 29.6
+   },
+   "frames": {
+    "commits": 14,
+    "paints": 0,
+    "raf": 0,
+    "styles": 15,
+    "layouts": 0,
+    "draws": 36,
+    "rasterTasks": 0,
+    "passes": 140,
+    "passesPerDraw": 3.9
+   },
+   "longestTaskMs": 8.8,
+   "longTasks": 0,
+   "blockingMs": 0,
+   "stats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 11,
+    "runningFoil": 0,
+    "supersampling": false,
+    "canvasMegabytes": 0,
+    "dpr": 3
+   },
+   "setupStats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 12,
+    "runningFoil": 0,
+    "supersampling": false,
+    "canvasMegabytes": 0,
+    "dpr": 3
+   },
+   "layers": {
+    "count": 35,
+    "painted": 27,
+    "megabytes": 28.5
+   },
+   "frameStats": null,
+   "counters": {
+    "layouts": 0,
+    "styleRecalcs": 16,
+    "styleMs": 3.5,
+    "layoutMs": 0,
+    "scriptMs": 28.6,
+    "taskMs": 88.6,
+    "heapMb": 4,
+    "nodes": 11235
+   },
+   "errors": []
+  },
+  {
+   "profile": "phone",
+   "scenario": "hand-idle-nofoil",
+   "variant": "01+03",
+   "run": 2,
+   "elapsedMs": 6009,
+   "loadMsPerS": {
+    "main": 13.8,
+    "compositor": 4.7,
+    "raster": 0,
+    "gpu": 5.1
+   },
+   "mainPhasesMs": {
+    "other": 44.3,
+    "script": 30.4,
+    "style": 2.8,
+    "paint": 4.5,
+    "gc": 1
+   },
+   "totalMs": {
+    "main": 83.1,
+    "compositor": 28,
+    "raster": 0,
+    "gpu": 30.8
+   },
+   "frames": {
+    "commits": 12,
+    "paints": 0,
+    "raf": 0,
+    "styles": 13,
+    "layouts": 0,
+    "draws": 36,
+    "rasterTasks": 0,
+    "passes": 144,
+    "passesPerDraw": 4
+   },
+   "longestTaskMs": 6.7,
+   "longTasks": 0,
+   "blockingMs": 0,
+   "stats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 11,
+    "runningFoil": 0,
+    "supersampling": false,
+    "canvasMegabytes": 0,
+    "dpr": 3
+   },
+   "setupStats": {
+    "nodes": 1321,
+    "handCards": 13,
+    "tableCards": 0,
+    "canvases": 0,
+    "filters": 3,
+    "shadowPaths": 0,
+    "animations": 12,
+    "runningFoil": 0,
+    "supersampling": false,
+    "canvasMegabytes": 0,
+    "dpr": 3
+   },
+   "layers": {
+    "count": 23,
+    "painted": 16,
+    "megabytes": 28.8
+   },
+   "frameStats": null,
+   "counters": {
+    "layouts": 0,
+    "styleRecalcs": 14,
+    "styleMs": 3,
+    "layoutMs": 0,
+    "scriptMs": 29,
+    "taskMs": 84.4,
+    "heapMb": 4,
+    "nodes": 11235
+   },
+   "errors": []
+  }
+ ],
+ "browser": "Edg/156.0.4314.50"
+}

@@ -1,0 +1,202 @@
+{
+ "variant": "01",
+ "foils": [],
+ "styles": [
+  {
+   "style": "normal",
+   "bytes": 6512,
+   "elements": 47,
+   "filters": 0,
+   "perDrawMs": 0.29
+  },
+  {
+   "style": "botanical",
+   "bytes": 7614,
+   "elements": 53,
+   "filters": 0,
+   "perDrawMs": 0.39
+  },
+  {
+   "style": "monochrome",
+   "bytes": 3071,
+   "elements": 21,
+   "filters": 0,
+   "perDrawMs": 0.16
+  },
+  {
+   "style": "minimalist",
+   "bytes": 3157,
+   "elements": 21,
+   "filters": 0,
+   "perDrawMs": 0.17
+  },
+  {
+   "style": "onyx-gold",
+   "bytes": 7120,
+   "elements": 52,
+   "filters": 0,
+   "perDrawMs": 0.3
+  },
+  {
+   "style": "love-notes",
+   "bytes": 7022,
+   "elements": 51,
+   "filters": 0,
+   "perDrawMs": 0.31
+  },
+  {
+   "style": "cherry-blossom",
+   "bytes": 7446,
+   "elements": 54,
+   "filters": 0,
+   "perDrawMs": 0.29
+  },
+  {
+   "style": "origami",
+   "bytes": 4167,
+   "elements": 28,
+   "filters": 0,
+   "perDrawMs": 0.21
+  },
+  {
+   "style": "gold",
+   "bytes": 7261,
+   "elements": 53,
+   "filters": 0,
+   "perDrawMs": 0.28
+  },
+  {
+   "style": "solar-eclipse",
+   "bytes": 7128,
+   "elements": 51,
+   "filters": 0,
+   "perDrawMs": 0.27
+  },
+  {
+   "style": "marble-noir",
+   "bytes": 7073,
+   "elements": 51,
+   "filters": 0,
+   "perDrawMs": 0.31
+  },
+  {
+   "style": "stained-glass",
+   "bytes": 7115,
+   "elements": 51,
+   "filters": 0,
+   "perDrawMs": 0.42
+  },
+  {
+   "style": "crystal",
+   "bytes": 4119,
+   "elements": 27,
+   "filters": 0,
+   "perDrawMs": 0.25
+  },
+  {
+   "style": "silver",
+   "bytes": 4880,
+   "elements": 34,
+   "filters": 0,
+   "perDrawMs": 0.22
+  },
+  {
+   "style": "holo",
+   "bytes": 7478,
+   "elements": 55,
+   "filters": 0,
+   "perDrawMs": 0.28
+  },
+  {
+   "style": "spellbook",
+   "bytes": 7227,
+   "elements": 51,
+   "filters": 0,
+   "perDrawMs": 0.33
+  },
+  {
+   "style": "cosmic",
+   "bytes": 6085,
+   "elements": 54,
+   "filters": 0,
+   "perDrawMs": 0.22
+  },
+  {
+   "style": "space-explorer",
+   "bytes": 7374,
+   "elements": 53,
+   "filters": 0,
+   "perDrawMs": 0.38
+  },
+  {
+   "style": "tarot-moon",
+   "bytes": 6906,
+   "elements": 49,
+   "filters": 0,
+   "perDrawMs": 0.33
+  },
+  {
+   "style": "gothic",
+   "bytes": 3922,
+   "elements": 28,
+   "filters": 0,
+   "perDrawMs": 0.3
+  },
+  {
+   "style": "parallax",
+   "bytes": 6997,
+   "elements": 50,
+   "filters": 0,
+   "perDrawMs": 0.32
+  },
+  {
+   "style": "desert-caravan",
+   "bytes": 7311,
+   "elements": 53,
+   "filters": 0,
+   "perDrawMs": 0.42
+  },
+  {
+   "style": "butterfly-garden",
+   "bytes": 7036,
+   "elements": 50,
+   "filters": 0,
+   "perDrawMs": 0.36
+  },
+  {
+   "style": "pixel",
+   "bytes": 9229,
+   "elements": 100,
+   "filters": 0,
+   "perDrawMs": 0.27
+  },
+  {
+   "style": "neon",
+   "bytes": 6881,
+   "elements": 53,
+   "filters": 1,
+   "perDrawMs": 0.55
+  },
+  {
+   "style": "cyberpunk",
+   "bytes": 3950,
+   "elements": 28,
+   "filters": 0,
+   "perDrawMs": 0.27
+  },
+  {
+   "style": "glitched",
+   "bytes": 4719,
+   "elements": 35,
+   "filters": 0,
+   "perDrawMs": 0.3
+  },
+  {
+   "style": "astronomy-atlas",
+   "bytes": 7512,
+   "elements": 53,
+   "filters": 0,
+   "perDrawMs": 0.44
+  }
+ ]
+}

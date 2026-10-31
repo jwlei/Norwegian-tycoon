@@ -1,0 +1,70 @@
+diff --git a/css/theme.css b/css/theme.css
+index bbdc449..265a7f3 100644
+--- a/css/theme.css
++++ b/css/theme.css
+@@ -1016,8 +1016,7 @@ select:focus-visible {
+     touch-action: none;
+     -webkit-tap-highlight-color: transparent;
+     isolation: isolate;
+-    transform-style: preserve-3d;
+-    transform: perspective(900px) translateX(var(--card-offset, 0px)) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
++    transform: translateX(var(--card-offset, 0px)) rotate(var(--card-rotation, 0deg));
+     transition: transform 180ms ease, filter 180ms ease, opacity 180ms ease;
+ }
+ 
+@@ -1415,15 +1414,15 @@ select:focus-visible {
+ }
+ 
+ .game-card.is-selected {
+-    transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-19.8px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
++    transform: translateX(var(--card-offset, 0px)) translateY(-19.8px) rotate(var(--card-rotation, 0deg));
+ }
+ 
+ @keyframes hand-card-rise {
+     from {
+-        transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(0) rotate(var(--card-rotation, 0deg));
++        transform: translateX(var(--card-offset, 0px)) translateY(0) rotate(var(--card-rotation, 0deg));
+     }
+     to {
+-        transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-19.8px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
++        transform: translateX(var(--card-offset, 0px)) translateY(-19.8px) rotate(var(--card-rotation, 0deg));
+     }
+ }
+ 
+@@ -1433,10 +1432,10 @@ select:focus-visible {
+ 
+ @keyframes hand-card-lower {
+     from {
+-        transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-19.8px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
++        transform: translateX(var(--card-offset, 0px)) translateY(-19.8px) rotate(var(--card-rotation, 0deg));
+     }
+     to {
+-        transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(0) rotate(var(--card-rotation, 0deg));
++        transform: translateX(var(--card-offset, 0px)) translateY(0) rotate(var(--card-rotation, 0deg));
+     }
+ }
+ 
+@@ -1450,12 +1449,12 @@ select:focus-visible {
+ }
+ 
+ .game-card.is-exchange-selected {
+-    transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-19.8px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
++    transform: translateX(var(--card-offset, 0px)) translateY(-19.8px) rotate(var(--card-rotation, 0deg));
+ }
+ 
+ @media (hover: hover) and (pointer: fine) {
+     .game-card:hover:not(.is-selected):not(.is-exchange-selected):not(.is-dragging) {
+-        transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-8px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
++        transform: translateX(var(--card-offset, 0px)) translateY(-8px) rotate(var(--card-rotation, 0deg));
+     }
+ }
+ 
+@@ -1483,7 +1482,7 @@ select:focus-visible {
+ }
+ 
+ .game-card.is-selected:active {
+-    transform: perspective(900px) translateX(var(--card-offset, 0px)) translateY(-19.8px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) rotate(var(--card-rotation, 0deg));
++    transform: translateX(var(--card-offset, 0px)) translateY(-19.8px) rotate(var(--card-rotation, 0deg));
+ }
+ 
+ .game-card.is-dragging {

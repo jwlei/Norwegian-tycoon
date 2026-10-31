@@ -1,0 +1,56 @@
+{
+ "scenario": "drag",
+ "profile": "desktop",
+ "variant": "baseline",
+ "totalMs": 77.49066666666667,
+ "top": [
+  {
+   "fn": "(program)",
+   "ms": 986.1093333333324
+  },
+  {
+   "fn": "(anonymous) card-depth.js:58",
+   "ms": 13.229666666666665
+  },
+  {
+   "fn": "(garbage collector)",
+   "ms": 12.049999999999999
+  },
+  {
+   "fn": "setAttribute",
+   "ms": 10.263666666666667
+  },
+  {
+   "fn": "setProperty",
+   "ms": 2.8496666666666663
+  },
+  {
+   "fn": "rotate landing-geometry.js:25",
+   "ms": 2.284666666666667
+  },
+  {
+   "fn": "path card-depth.js:57",
+   "ms": 2.0283333333333333
+  },
+  {
+   "fn": "silhouette landing-geometry.js:79",
+   "ms": 2.027
+  },
+  {
+   "fn": "world landing-geometry.js:44",
+   "ms": 1.8576666666666668
+  },
+  {
+   "fn": "animateCardDragTilt game.js:628",
+   "ms": 1.851
+  },
+  {
+   "fn": "updateHand layout-hand.js:29",
+   "ms": 1.813666666666667
+  },
+  {
+   "fn": "matchMedia",
+   "ms": 1.4716666666666667
+  }
+ ]
+}

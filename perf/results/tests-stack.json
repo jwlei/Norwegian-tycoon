@@ -1,0 +1,86 @@
+{
+ "baseline": {
+  "variant": "baseline",
+  "tests": 686,
+  "pass": 669,
+  "fail": 17,
+  "failed": [
+   "short flicks work throughout the upward pickup cone on mouse and touch",
+   "mouse and touch accept a gentler flick but reject release strokes outside the pickup cone",
+   "touch pickup accepts the full initial pickup cone from the contact point",
+   "shorter gentler upward flicks play, including movement first reported at pointerup",
+   "direct touch flicks tolerate jitter before the minimum stroke has been recognized",
+   "direct flick recognition keeps the same minimum speed despite early jitter",
+   "lift-off recoil tolerance works across touch flick angles and selected cards",
+   "a recent flick is cancelled by deliberate downward or sideways movement, or holding",
+   "a circular pickup can finish with a short upward flick anywhere below the table",
+   "a card can be held for many seconds before finishing with an upward flick",
+   "resuming movement after a long hold needs no new pickup or drag deadline reset",
+   "recent flick detection is consistent across pointer sampling rates at the new speed threshold",
+   "a brief diagonal drift does not lock a vertical flick into hand scrolling",
+   "flick intent follows the final vertical stroke, not earlier stronger movement",
+   "a flick from a non-primary touch still plays, but a second finger cannot hijack a gesture",
+   "snapshot refreshes during a hand gesture are deferred instead of cancelling the drag",
+   "mobile examples use the game's exact minimum speed and stroke thresholds"
+  ]
+ },
+ "results": [
+  {
+   "variant": "01-pause-hidden-dialog-animations+15-content-visibility-closed-dialogs+02-idle-foil-15fps+04-idle-foil-top-play-only+05-pause-foil-under-dialog+07-keep-hand-on-opponent-moves+08-flight-setup-without-layout-thrash+09-geometry-precompute-planes",
+   "tests": 686,
+   "pass": 668,
+   "fail": 18,
+   "failed": [
+    "six-second idle foil uses compositor-friendly opacity and contained glare drift",
+    "short flicks work throughout the upward pickup cone on mouse and touch",
+    "mouse and touch accept a gentler flick but reject release strokes outside the pickup cone",
+    "touch pickup accepts the full initial pickup cone from the contact point",
+    "shorter gentler upward flicks play, including movement first reported at pointerup",
+    "direct touch flicks tolerate jitter before the minimum stroke has been recognized",
+    "direct flick recognition keeps the same minimum speed despite early jitter",
+    "lift-off recoil tolerance works across touch flick angles and selected cards",
+    "a recent flick is cancelled by deliberate downward or sideways movement, or holding",
+    "a circular pickup can finish with a short upward flick anywhere below the table",
+    "a card can be held for many seconds before finishing with an upward flick",
+    "resuming movement after a long hold needs no new pickup or drag deadline reset",
+    "recent flick detection is consistent across pointer sampling rates at the new speed threshold",
+    "a brief diagonal drift does not lock a vertical flick into hand scrolling",
+    "flick intent follows the final vertical stroke, not earlier stronger movement",
+    "a flick from a non-primary touch still plays, but a second finger cannot hijack a gesture",
+    "snapshot refreshes during a hand gesture are deferred instead of cancelling the drag",
+    "mobile examples use the game's exact minimum speed and stroke thresholds"
+   ],
+   "added": [
+    "six-second idle foil uses compositor-friendly opacity and contained glare drift"
+   ],
+   "fixed": []
+  },
+  {
+   "variant": "15-content-visibility-closed-dialogs",
+   "tests": 686,
+   "pass": 669,
+   "fail": 17,
+   "failed": [
+    "short flicks work throughout the upward pickup cone on mouse and touch",
+    "mouse and touch accept a gentler flick but reject release strokes outside the pickup cone",
+    "touch pickup accepts the full initial pickup cone from the contact point",
+    "shorter gentler upward flicks play, including movement first reported at pointerup",
+    "direct touch flicks tolerate jitter before the minimum stroke has been recognized",
+    "direct flick recognition keeps the same minimum speed despite early jitter",
+    "lift-off recoil tolerance works across touch flick angles and selected cards",
+    "a recent flick is cancelled by deliberate downward or sideways movement, or holding",
+    "a circular pickup can finish with a short upward flick anywhere below the table",
+    "a card can be held for many seconds before finishing with an upward flick",
+    "resuming movement after a long hold needs no new pickup or drag deadline reset",
+    "recent flick detection is consistent across pointer sampling rates at the new speed threshold",
+    "a brief diagonal drift does not lock a vertical flick into hand scrolling",
+    "flick intent follows the final vertical stroke, not earlier stronger movement",
+    "a flick from a non-primary touch still plays, but a second finger cannot hijack a gesture",
+    "snapshot refreshes during a hand gesture are deferred instead of cancelling the drag",
+    "mobile examples use the game's exact minimum speed and stroke thresholds"
+   ],
+   "added": [],
+   "fixed": []
+  }
+ ]
+}

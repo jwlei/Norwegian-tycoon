@@ -1,0 +1,17 @@
+diff --git a/css/foil.css b/css/foil.css
+index ddcad9a..50ff045 100644
+--- a/css/foil.css
++++ b/css/foil.css
+@@ -257,6 +257,12 @@
+     0%, 100% { translate: -3.2% -1.6%; }
+     50% { translate: 3.2% 1.6%; }
+ }
++/* Behind a dialog's dimmed, blurred backdrop the shimmer is invisible, but every frame would re-blur it. */
++body:has(.dialog-container--visible) :is(#playerHand .game-card, #gameTable .card-preview)::before,
++body:has(.dialog-container--visible) :is(#playerHand .game-card, #gameTable .card-preview)::after {
++    animation-play-state: paused !important;
++}
++
+ /* Idle motion uses only opacity and translate, so foil gradients are not recalculated every frame. */
+ @media (prefers-reduced-motion: no-preference) {
+     body:not([data-idle-foil-animation="off"]) :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]):not(.is-tilting,

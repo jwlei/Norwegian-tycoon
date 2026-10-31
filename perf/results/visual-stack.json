@@ -1,0 +1,182 @@
+[
+ {
+  "profile": "desktop",
+  "scene": "hand",
+  "variant": "baseline (repeat, measures noise)",
+  "changedPercent": 0,
+  "visiblePercent": 0,
+  "worstDelta": 0,
+  "meanDelta": 0
+ },
+ {
+  "profile": "desktop",
+  "scene": "hand",
+  "variant": "01+15+02+04+05+07+08+09",
+  "changedPercent": 0.05,
+  "visiblePercent": 0,
+  "worstDelta": 1,
+  "meanDelta": 0.001
+ },
+ {
+  "profile": "desktop",
+  "scene": "hand-waiting",
+  "variant": "baseline (repeat, measures noise)",
+  "changedPercent": 0,
+  "visiblePercent": 0,
+  "worstDelta": 0,
+  "meanDelta": 0
+ },
+ {
+  "profile": "desktop",
+  "scene": "hand-waiting",
+  "variant": "01+15+02+04+05+07+08+09",
+  "changedPercent": 0.04,
+  "visiblePercent": 0,
+  "worstDelta": 1,
+  "meanDelta": 0
+ },
+ {
+  "profile": "desktop",
+  "scene": "table",
+  "variant": "baseline (repeat, measures noise)",
+  "changedPercent": 0,
+  "visiblePercent": 0,
+  "worstDelta": 0,
+  "meanDelta": 0
+ },
+ {
+  "profile": "desktop",
+  "scene": "table",
+  "variant": "01+15+02+04+05+07+08+09",
+  "changedPercent": 0.07,
+  "visiblePercent": 0,
+  "worstDelta": 1,
+  "meanDelta": 0.001
+ },
+ {
+  "profile": "desktop",
+  "scene": "settings",
+  "variant": "baseline (repeat, measures noise)",
+  "changedPercent": 0,
+  "visiblePercent": 0,
+  "worstDelta": 0,
+  "meanDelta": 0
+ },
+ {
+  "profile": "desktop",
+  "scene": "settings",
+  "variant": "01+15+02+04+05+07+08+09",
+  "changedPercent": 0,
+  "visiblePercent": 0,
+  "worstDelta": 1,
+  "meanDelta": 0
+ },
+ {
+  "profile": "desktop",
+  "scene": "foilPicker",
+  "variant": "baseline (repeat, measures noise)",
+  "changedPercent": 0,
+  "visiblePercent": 0,
+  "worstDelta": 0,
+  "meanDelta": 0
+ },
+ {
+  "profile": "desktop",
+  "scene": "foilPicker",
+  "variant": "01+15+02+04+05+07+08+09",
+  "changedPercent": 0,
+  "visiblePercent": 0,
+  "worstDelta": 1,
+  "meanDelta": 0
+ },
+ {
+  "profile": "phone",
+  "scene": "hand",
+  "variant": "baseline (repeat, measures noise)",
+  "changedPercent": 0,
+  "visiblePercent": 0,
+  "worstDelta": 0,
+  "meanDelta": 0
+ },
+ {
+  "profile": "phone",
+  "scene": "hand",
+  "variant": "01+15+02+04+05+07+08+09",
+  "changedPercent": 0.14,
+  "visiblePercent": 0,
+  "worstDelta": 1,
+  "meanDelta": 0.001
+ },
+ {
+  "profile": "phone",
+  "scene": "hand-waiting",
+  "variant": "baseline (repeat, measures noise)",
+  "changedPercent": 0,
+  "visiblePercent": 0,
+  "worstDelta": 0,
+  "meanDelta": 0
+ },
+ {
+  "profile": "phone",
+  "scene": "hand-waiting",
+  "variant": "01+15+02+04+05+07+08+09",
+  "changedPercent": 0.05,
+  "visiblePercent": 0,
+  "worstDelta": 1,
+  "meanDelta": 0
+ },
+ {
+  "profile": "phone",
+  "scene": "table",
+  "variant": "baseline (repeat, measures noise)",
+  "changedPercent": 0,
+  "visiblePercent": 0,
+  "worstDelta": 0,
+  "meanDelta": 0
+ },
+ {
+  "profile": "phone",
+  "scene": "table",
+  "variant": "01+15+02+04+05+07+08+09",
+  "changedPercent": 5.27,
+  "visiblePercent": 0.04,
+  "worstDelta": 27,
+  "meanDelta": 0.095
+ },
+ {
+  "profile": "phone",
+  "scene": "settings",
+  "variant": "baseline (repeat, measures noise)",
+  "changedPercent": 0,
+  "visiblePercent": 0,
+  "worstDelta": 0,
+  "meanDelta": 0
+ },
+ {
+  "profile": "phone",
+  "scene": "settings",
+  "variant": "01+15+02+04+05+07+08+09",
+  "changedPercent": 0,
+  "visiblePercent": 0,
+  "worstDelta": 1,
+  "meanDelta": 0
+ },
+ {
+  "profile": "phone",
+  "scene": "foilPicker",
+  "variant": "baseline (repeat, measures noise)",
+  "changedPercent": 0,
+  "visiblePercent": 0,
+  "worstDelta": 0,
+  "meanDelta": 0
+ },
+ {
+  "profile": "phone",
+  "scene": "foilPicker",
+  "variant": "01+15+02+04+05+07+08+09",
+  "changedPercent": 0.01,
+  "visiblePercent": 0,
+  "worstDelta": 1,
+  "meanDelta": 0
+ }
+]

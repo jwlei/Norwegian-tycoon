@@ -1,0 +1,96 @@
+{
+ "scenario": "select-card",
+ "profile": "phone",
+ "variant": "baseline",
+ "totalMs": 706.0469999999996,
+ "top": [
+  {
+   "fn": "(program)",
+   "ms": 1043.1039999999964
+  },
+  {
+   "fn": "step game.js:944",
+   "ms": 363.87899999999973
+  },
+  {
+   "fn": "updateHand layout-hand.js:29",
+   "ms": 167.33000000000013
+  },
+  {
+   "fn": "getBoundingClientRect",
+   "ms": 41.418
+  },
+  {
+   "fn": "(garbage collector)",
+   "ms": 15.241666666666669
+  },
+  {
+   "fn": "focus",
+   "ms": 14.47566666666667
+  },
+  {
+   "fn": "get cookie",
+   "ms": 11.834666666666669
+  },
+  {
+   "fn": "createCardImage layout.js:182",
+   "ms": 9.609
+  },
+  {
+   "fn": "translateCore i18n.js:902",
+   "ms": 8.774666666666668
+  },
+  {
+   "fn": "getAnimations",
+   "ms": 8.384333333333336
+  },
+  {
+   "fn": "(anonymous) layout-hand.js:745",
+   "ms": 7.969666666666668
+  },
+  {
+   "fn": "getCookie shared.js:93",
+   "ms": 7.454000000000001
+  },
+  {
+   "fn": "matchMedia",
+   "ms": 3.4603333333333333
+  },
+  {
+   "fn": "appendChild",
+   "ms": 2.8876666666666666
+  },
+  {
+   "fn": "setAttribute",
+   "ms": 2.5756666666666668
+  },
+  {
+   "fn": "",
+   "ms": 2.5170000000000003
+  },
+  {
+   "fn": "(anonymous) game.js:581",
+   "ms": 2.176666666666667
+  },
+  {
+   "fn": "closest",
+   "ms": 2.176
+  },
+  {
+   "fn": "translateText i18n.js:924",
+   "ms": 2.175666666666667
+  },
+  {
+   "fn": "scheduleCardDragPreparation game.js:577",
+   "ms": 1.997333333333333
+  },
+  {
+   "fn": "click",
+   "ms": 1.7983333333333336
+  },
+  {
+   "fn": "(anonymous) layout-hand.js:1100",
+   "ms": 1.7806666666666668
+  }
+ ]
+}

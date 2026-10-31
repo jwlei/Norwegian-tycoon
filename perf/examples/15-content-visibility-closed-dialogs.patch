@@ -1,0 +1,20 @@
+diff --git a/css/theme.css b/css/theme.css
+index bbdc449..dd8e603 100644
+--- a/css/theme.css
++++ b/css/theme.css
+@@ -1672,11 +1672,14 @@ select:focus-visible {
+     background: rgb(0 0 0 / 70%);
+     backdrop-filter: blur(5px);
+     visibility: hidden;
+-    transition: opacity 0.333s ease, visibility 0s linear 0.333s;
++    /* Closed dialogs hold over a hundred card previews; skip their style, layout, paint and animations. */
++    content-visibility: hidden;
++    transition: opacity 0.333s ease, visibility 0s linear 0.333s, content-visibility 0s linear 0.333s allow-discrete;
+ }
+ 
+ .dialog-container--visible {
+     visibility: visible;
++    content-visibility: visible;
+     transition-delay: 0s;
+ }
+ 

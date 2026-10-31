@@ -1,0 +1,170 @@
+{
+ "variant": "baseline",
+ "summaries": [
+  {
+   "dcl": 2250.10000000149,
+   "fcp": 760,
+   "images": 102,
+   "nodes": 1274,
+   "phases": {
+    "other": 528.5,
+    "script": 726.3,
+    "style": 441.7,
+    "paint": 121.3,
+    "layout": 700.5,
+    "gc": 4.4
+   },
+   "longest": 902.6,
+   "blocking": 1417.1,
+   "longTasks": 8
+  },
+  {
+   "dcl": 2198.39999999851,
+   "fcp": 424,
+   "images": 102,
+   "nodes": 1274,
+   "phases": {
+    "other": 552.1,
+    "script": 700.1,
+    "style": 433.4,
+    "paint": 120.5,
+    "layout": 619.8,
+    "gc": 3.4
+   },
+   "longest": 843,
+   "blocking": 1344.2,
+   "longTasks": 8
+  },
+  {
+   "dcl": 1968,
+   "fcp": 620,
+   "images": 102,
+   "nodes": 1274,
+   "phases": {
+    "other": 496.7,
+    "script": 635.5,
+    "style": 412.8,
+    "paint": 121.1,
+    "layout": 575.5,
+    "gc": 3.1
+   },
+   "longest": 769.4,
+   "blocking": 1260.2,
+   "longTasks": 6
+  }
+ ],
+ "top": [
+  {
+   "fn": "(program)",
+   "ms": 3497.409666666656
+  },
+  {
+   "fn": "bounds neon-logo.js:74",
+   "ms": 242.17799999999977
+  },
+  {
+   "fn": "applyColorTheme shared.js:172",
+   "ms": 77.2513333333333
+  },
+  {
+   "fn": "hideGameToast connection.js:749",
+   "ms": 69.05633333333328
+  },
+  {
+   "fn": "getCookie shared.js:93",
+   "ms": 20.910333333333327
+  },
+  {
+   "fn": "createCardImage layout.js:182",
+   "ms": 14.366666666666667
+  },
+  {
+   "fn": "toImageDataUri cards.js:259",
+   "ms": 11.264666666666665
+  },
+  {
+   "fn": "translateCore i18n.js:902",
+   "ms": 10.012666666666664
+  },
+  {
+   "fn": "updateHand layout-hand.js:29",
+   "ms": 9.308333333333334
+  },
+  {
+   "fn": "isSkipped i18n.js:941",
+   "ms": 7.313333333333333
+  },
+  {
+   "fn": "walk i18n.js:977",
+   "ms": 6.785333333333331
+  },
+  {
+   "fn": "(top level) connection.js:2371",
+   "ms": 5.620666666666666
+  },
+  {
+   "fn": "(garbage collector)",
+   "ms": 5.485
+  },
+  {
+   "fn": "processText i18n.js:946",
+   "ms": 5.219
+  },
+  {
+   "fn": "(top level) connection.js:2",
+   "ms": 5.013
+  },
+  {
+   "fn": "imageSource cards.js:501",
+   "ms": 4.861
+  },
+  {
+   "fn": "querySelectorAll",
+   "ms": 4.375
+  },
+  {
+   "fn": "(top level) neon-logo.js:88",
+   "ms": 4.155333333333334
+  },
+  {
+   "fn": "(top level) index.html:63",
+   "ms": 3.6946666666666665
+  },
+  {
+   "fn": "processAttribute i18n.js:964",
+   "ms": 3.447333333333333
+  },
+  {
+   "fn": "translateText i18n.js:924",
+   "ms": 3.2443333333333335
+  },
+  {
+   "fn": "cardFoil layout.js:154",
+   "ms": 2.951333333333333
+  },
+  {
+   "fn": "addEventListener",
+   "ms": 2.81
+  },
+  {
+   "fn": "(top level) connection.js:2385",
+   "ms": 2.786
+  },
+  {
+   "fn": "updatePlayerView layout.js:806",
+   "ms": 2.573
+  },
+  {
+   "fn": "(top level) connection.js:2570",
+   "ms": 2.468
+  },
+  {
+   "fn": "(top level) i18n.js:2",
+   "ms": 2.4156666666666666
+  },
+  {
+   "fn": "(top level) neon-logo.js:1",
+   "ms": 1.8869999999999998
+  }
+ ]
+}

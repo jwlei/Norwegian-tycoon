@@ -1,0 +1,17 @@
+diff --git a/css/foil.css b/css/foil.css
+index ddcad9a..fb326c1 100644
+--- a/css/foil.css
++++ b/css/foil.css
+@@ -313,6 +313,12 @@
+     --foil-strength: .7; --foil-saturation: .75;
+ }
+ 
++/* Older plays are mostly covered, so they keep their static foil and only the play on top shimmers. */
++.table-play[data-top-play="false"] .card-preview::before,
++.table-play[data-top-play="false"] .card-preview::after {
++    animation: none !important;
++}
++
+ @media (prefers-reduced-motion: reduce) {
+     :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"])::before,
+     :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"])::after {

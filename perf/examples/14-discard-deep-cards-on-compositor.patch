@@ -1,0 +1,51 @@
+diff --git a/js/layout-animations.js b/js/layout-animations.js
+index afe3bb7..dddf33c 100644
+--- a/js/layout-animations.js
++++ b/js/layout-animations.js
+@@ -397,11 +397,15 @@ GameLayout.extend(class {
+         }
+         var cards = Array.from(table.querySelectorAll(".table-play__card"));
+         var cardBounds = cards.map(card => GameLayout.unrotatedCardBounds(card));
++        // Read before the loop: window.innerHeight forces a layout once the flights below dirty the page.
++        var riseDistance = Math.max(150, window.innerHeight * 0.4);
+         cards.forEach((card, index) => {
+             var bounds = cardBounds[index];
+             if (bounds.width == 0 || bounds.height == 0) { return; }
+             var rotation = parseFloat(card.style.getPropertyValue("--pile-rotation")) || 0;
+-            var flight = card.cloneNode(true);
++            var flight = card.cloneNode(false);
++            flight.appendChild(card.querySelector("img").cloneNode(false));
++            flight.classList.remove("has-card-depth");
+             flight.classList.add("card-discard-flight");
+             flight.setAttribute("aria-hidden", "true");
+             if (typeof flight.animate != "function") { return; }
+@@ -410,7 +414,9 @@ GameLayout.extend(class {
+             flight.style.width = `${bounds.width}px`;
+             flight.style.height = `${bounds.height}px`;
+             document.body.appendChild(flight);
+-            if (typeof CardDepth != "undefined") { CardDepth.attach(flight); }
++            var sourceDepth = typeof CardDepth != "undefined" ? CardDepth.states.get(card) : null;
++            // Deep cards were mostly hidden and fade as they rise: no per-frame depth pose, no main-thread work.
++            if (typeof CardDepth != "undefined" && !(sourceDepth && !CardDepth.detailed(sourceDepth))) { CardDepth.attach(flight, true, false); }
+             var usesDepth = typeof CardDepth != "undefined" && CardDepth.states.has(flight);
+             var horizontalOffset = ((index % 7) - 3) * 35 + (Math.random() - 0.5) * 24;
+             var spin = (index % 2 == 0 ? -1 : 1) * (35 + (index % 5) * 12) +
+@@ -421,7 +427,7 @@ GameLayout.extend(class {
+                     opacity: 1
+                 },
+                 {
+-                    transform: `translate(${horizontalOffset}px, ${-Math.max(150, window.innerHeight * 0.4)}px)` +
++                    transform: `translate(${horizontalOffset}px, ${-riseDistance}px)` +
+                         (usesDepth ? "" : ` rotate(${rotation + spin}deg)`),
+                     opacity: 0
+                 }
+@@ -432,9 +438,6 @@ GameLayout.extend(class {
+                 fill: "forwards"
+             });
+             if (usesDepth) {
+-                var sourceDepth = CardDepth.states.get(card);
+-                // Cards from deep in a large pile were mostly hidden; as they fade out they cast no shadow at all.
+-                if (sourceDepth && !CardDepth.detailed(sourceDepth)) { CardDepth.states.get(flight).shadowless = true; }
+                 var initial = sourceDepth && sourceDepth.world
+                     ? { pitch: sourceDepth.world.pitch, yaw: sourceDepth.world.yaw, z: sourceDepth.world.z }
+                     : { pitch: 0, yaw: 0, z: undefined };

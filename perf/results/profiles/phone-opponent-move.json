@@ -1,0 +1,96 @@
+{
+ "scenario": "opponent-move",
+ "profile": "phone",
+ "variant": "baseline",
+ "totalMs": 1585.4426666666661,
+ "top": [
+  {
+   "fn": "(program)",
+   "ms": 3035.0020000000072
+  },
+  {
+   "fn": "getBoundingClientRect",
+   "ms": 154.28566666666674
+  },
+  {
+   "fn": "(anonymous) card-depth.js:58",
+   "ms": 139.26166666666677
+  },
+  {
+   "fn": "setAttribute",
+   "ms": 121.3926666666668
+  },
+  {
+   "fn": "getAnimations",
+   "ms": 119.72533333333341
+  },
+  {
+   "fn": "updateHand layout-hand.js:29",
+   "ms": 88.92733333333338
+  },
+  {
+   "fn": "plane landing-geometry.js:53",
+   "ms": 77.35933333333332
+  },
+  {
+   "fn": "(garbage collector)",
+   "ms": 56.200999999999986
+  },
+  {
+   "fn": "querySelector",
+   "ms": 52.391999999999996
+  },
+  {
+   "fn": "supportHeight landing-geometry.js:172",
+   "ms": 49.92499999999999
+  },
+  {
+   "fn": "world landing-geometry.js:44",
+   "ms": 49.83366666666664
+  },
+  {
+   "fn": "rotate landing-geometry.js:25",
+   "ms": 40.38066666666666
+  },
+  {
+   "fn": "path card-depth.js:57",
+   "ms": 30.693000000000012
+  },
+  {
+   "fn": "renderShadows card-depth.js:381",
+   "ms": 25.257000000000005
+  },
+  {
+   "fn": "insideAffine landing-geometry.js:121",
+   "ms": 23.566666666666674
+  },
+  {
+   "fn": "insideOutline landing-geometry.js:107",
+   "ms": 22.74533333333334
+  },
+  {
+   "fn": "animate",
+   "ms": 21.914333333333335
+  },
+  {
+   "fn": "silhouette landing-geometry.js:79",
+   "ms": 20.736666666666668
+  },
+  {
+   "fn": "projectedSamples landing-geometry.js:330",
+   "ms": 19.286333333333342
+  },
+  {
+   "fn": "memo landing-geometry.js:133",
+   "ms": 18.61666666666667
+  },
+  {
+   "fn": "update card-depth.js:298",
+   "ms": 18.533333333333335
+  },
+  {
+   "fn": "shadow landing-geometry.js:239",
+   "ms": 15.14266666666667
+  }
+ ]
+}

@@ -1,0 +1,32 @@
+diff --git a/js/layout-animations.js b/js/layout-animations.js
+index afe3bb7..68dc9ec 100644
+--- a/js/layout-animations.js
++++ b/js/layout-animations.js
+@@ -48,10 +48,13 @@ GameLayout.extend(class {
+             });
+         }
+     }
+-    static capturePlayOrigins() {
++    // Pass the cards still held to skip them: only cards leaving the hand fly anywhere.
++    static capturePlayOrigins(heldCards = null) {
+         var cardOrigins = new Map();
++        var held = new Set((heldCards || []).map(card => `${card.suit}:${card.rank}`));
+         document.querySelectorAll("#playerHand .game-card[data-card-key] img").forEach(image => {
+             var cardElement = image.closest(".game-card");
++            if (held.has(cardElement.dataset.cardKey)) { return; }
+             var preview = cardElement._dragPreview;
+             var bounds = (preview || image).getBoundingClientRect();
+             var scale = preview ? parseFloat(preview.style.getPropertyValue("--drag-scale")) || 1 : 1;
+diff --git a/js/layout.js b/js/layout.js
+index 822a3f9..11a2fcb 100644
+--- a/js/layout.js
++++ b/js/layout.js
+@@ -290,7 +290,7 @@ class GameLayout {
+                     .map(element => element.dataset.playSignature)
+             );
+             var playOrigins = (isContinuingRound || hasNewPlayedAction)
+-                ? this.capturePlayOrigins()
++                ? this.capturePlayOrigins(player ? player.cards : null)
+                 : null;
+             setClass(mainMenu, "is-hidden", true);
+             // The splash intro plays once per visit; later returns to the menu use the quick settle.

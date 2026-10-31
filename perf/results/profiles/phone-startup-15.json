@@ -1,0 +1,106 @@
+{
+ "variant": "15",
+ "summaries": [
+  {
+   "dcl": 1604.1000000014901,
+   "fcp": 432,
+   "images": 102,
+   "nodes": 1274,
+   "phases": {
+    "other": 483.3,
+    "script": 726.8,
+    "style": 265.2,
+    "paint": 58,
+    "layout": 418.4,
+    "gc": 4.4
+   },
+   "longest": 861.5,
+   "blocking": 998.2,
+   "longTasks": 7
+  },
+  {
+   "dcl": 1522.9000000022352,
+   "fcp": 216,
+   "images": 102,
+   "nodes": 1274,
+   "phases": {
+    "other": 455,
+    "script": 704.4,
+    "style": 249.3,
+    "paint": 52.9,
+    "layout": 342.9,
+    "gc": 3.3
+   },
+   "longest": 828.2,
+   "blocking": 929.3,
+   "longTasks": 5
+  },
+  {
+   "dcl": 1334.199999999255,
+   "fcp": 204,
+   "images": 102,
+   "nodes": 1274,
+   "phases": {
+    "other": 435.2,
+    "script": 584.2,
+    "style": 221.1,
+    "paint": 51.2,
+    "layout": 315.3,
+    "gc": 3.4
+   },
+   "longest": 680.1,
+   "blocking": 777.9,
+   "longTasks": 4
+  }
+ ],
+ "top": [
+  {
+   "fn": "(program)",
+   "ms": 2000.159000000005
+  },
+  {
+   "fn": "bounds neon-logo.js:74",
+   "ms": 22.607333333333333
+  },
+  {
+   "fn": "getCookie shared.js:93",
+   "ms": 20.051
+  },
+  {
+   "fn": "updateHand layout-hand.js:29",
+   "ms": 17.833666666666662
+  },
+  {
+   "fn": "applyColorTheme shared.js:172",
+   "ms": 16.386999999999997
+  },
+  {
+   "fn": "createCardImage layout.js:182",
+   "ms": 15.889333333333326
+  },
+  {
+   "fn": "translateCore i18n.js:902",
+   "ms": 9.498666666666669
+  },
+  {
+   "fn": "walk i18n.js:977",
+   "ms": 9.217333333333334
+  },
+  {
+   "fn": "toImageDataUri cards.js:259",
+   "ms": 7.882666666666668
+  },
+  {
+   "fn": "isSkipped i18n.js:941",
+   "ms": 6.679666666666666
+  },
+  {
+   "fn": "(top level) connection.js:2371",
+   "ms": 5.795666666666666
+  },
+  {
+   "fn": "(garbage collector)",
+   "ms": 4.738333333333332
+  }
+ ]
+}

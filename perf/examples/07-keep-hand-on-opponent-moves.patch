@@ -1,0 +1,22 @@
+diff --git a/js/layout-hand.js b/js/layout-hand.js
+index 0d8cc09..c7d4068 100644
+--- a/js/layout-hand.js
++++ b/js/layout-hand.js
+@@ -8,14 +8,15 @@ GameLayout.extend(class {
+         return [
+             game.id,
+             game.round,
+-            game.turn,
++            // Whose turn it is and what lies on the table only affect the hand during the player's own turn.
++            player.turn == 1 ? game.turn : "",
+             player.name,
+             player.placement,
+             player.turn,
+             game.isTurnPaused() ? 1 : 0,
+             game.connectionOnline === false ? 0 : 1,
+             GamePresence.isBot(game, player) ? 1 : 0,
+-            game.piles.map(pile => `${pile.strengthRank}/${pile.map(keyOf).join(",")}`).join("|"),
++            player.turn == 1 ? game.piles.map(pile => `${pile.strengthRank}/${pile.map(keyOf).join(",")}`).join("|") : "",
+             player.cards.map(keyOf).join(","),
+             Array.from(selectedCardKeys).join(","),
+             selectedCardStrength,

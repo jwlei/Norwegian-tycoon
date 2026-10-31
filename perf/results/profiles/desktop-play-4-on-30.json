@@ -1,0 +1,72 @@
+{
+ "scenario": "play-4-on-30",
+ "profile": "desktop",
+ "variant": "baseline",
+ "totalMs": 381.2733333333333,
+ "top": [
+  {
+   "fn": "(program)",
+   "ms": 368.83633333333324
+  },
+  {
+   "fn": "plane landing-geometry.js:53",
+   "ms": 54.506999999999984
+  },
+  {
+   "fn": "getAnimations",
+   "ms": 32.69733333333333
+  },
+  {
+   "fn": "drawImage",
+   "ms": 29.845666666666663
+  },
+  {
+   "fn": "supportHeight landing-geometry.js:172",
+   "ms": 21.570333333333334
+  },
+  {
+   "fn": "(anonymous) card-depth.js:58",
+   "ms": 20.514333333333337
+  },
+  {
+   "fn": "setAttribute",
+   "ms": 20.50666666666666
+  },
+  {
+   "fn": "getBoundingClientRect",
+   "ms": 17.014000000000003
+  },
+  {
+   "fn": "renderSupersampledFace card-depth.js:121",
+   "ms": 11.363333333333335
+  },
+  {
+   "fn": "(garbage collector)",
+   "ms": 9.385666666666667
+  },
+  {
+   "fn": "rotate landing-geometry.js:25",
+   "ms": 8.212666666666665
+  },
+  {
+   "fn": "querySelector",
+   "ms": 7.498333333333332
+  },
+  {
+   "fn": "world landing-geometry.js:44",
+   "ms": 7.0249999999999995
+  },
+  {
+   "fn": "memo landing-geometry.js:133",
+   "ms": 6.785
+  },
+  {
+   "fn": "projectedSamples landing-geometry.js:330",
+   "ms": 5.966
+  },
+  {
+   "fn": "insideOutline landing-geometry.js:107",
+   "ms": 5.769666666666666
+  }
+ ]
+}

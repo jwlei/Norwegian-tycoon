@@ -1,0 +1,39 @@
+diff --git a/js/landing-geometry.js b/js/landing-geometry.js
+index f6d469e..4ef862e 100644
+--- a/js/landing-geometry.js
++++ b/js/landing-geometry.js
+@@ -170,9 +170,13 @@
+     }
+ 
+     function supportHeight(cards, x, y) {
++        return heightAmong(cards, cards.map(plane), x, y);
++    }
++
++    function heightAmong(cards, surfaces, x, y) {
+         let height = 0;
+         for (let index = cards.length - 1; index >= 0; index--) {
+-            const card = cards[index], surface = plane(card);
++            const card = cards[index], surface = surfaces[index];
+             if (surface.ceiling <= height || Math.abs(x - card.x) > surface.extentX ||
+                 Math.abs(y - card.y) > surface.extentY) { continue; }
+             if (insideAffine(card, surface.axisX, surface.axisY, card, x, y)) {
+@@ -195,7 +199,8 @@
+     function landingOrientation(cards, x, y, roll, dimensions = {}) {
+         const flat = { ...dimensions, x, y, z: 0, pitch: 0, yaw: 0, roll };
+         const contacts = samples(flat);
+-        const heights = contacts.map(point => supportHeight(cards, point.x, point.y));
++        const surfaces = cards.map(plane);
++        const heights = contacts.map(point => heightAmong(cards, surfaces, point.x, point.y));
+         // Fit a gentle resting plane to the support heights, then lift it until the underside clears all supports.
+         let xx = 0, yy = 0, xy = 0, xh = 0, yh = 0;
+         const mean = heights.reduce((sum, height) => sum + height, 0) / heights.length;
+@@ -219,7 +224,8 @@
+ 
+     function minimumHeight(cards, pose) {
+         const underside = samples({ ...pose, z: 0 }, -EDGE);
+-        return Math.max(...underside.map(point => supportHeight(cards, point.x, point.y) - point.z)) + .06;
++        const surfaces = cards.map(plane);
++        return Math.max(...underside.map(point => heightAmong(cards, surfaces, point.x, point.y) - point.z)) + .06;
+     }
+ 
+     function clipAbove(points, surface) {

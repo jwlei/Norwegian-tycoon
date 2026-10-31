@@ -1,0 +1,22 @@
+diff --git a/css/foil.css b/css/foil.css
+index ddcad9a..a576b0e 100644
+--- a/css/foil.css
++++ b/css/foil.css
+@@ -262,7 +262,7 @@
+     body:not([data-idle-foil-animation="off"]) :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]):not(.is-tilting,
+         .card-flight, .card-discard-flight, .is-drag-source, .card-drag-layer *,
+         .card-foil-option:is(:hover, :focus-visible) *)::before {
+-        animation: foil-idle-color 6s ease-in-out infinite;
++        animation: foil-idle-color 6s steps(45) infinite;
+         transition: none;
+     }
+     /* The drifting glare is inset by its travel distance, so it never extends past the card. */
+@@ -270,7 +270,7 @@
+         .card-flight, .card-discard-flight, .is-drag-source, .card-drag-layer *,
+         .card-foil-option:is(:hover, :focus-visible) *)::after {
+         inset: calc(.625% + 1.6%) calc(.9375% + 3.2%);
+-        animation: foil-idle-glare 6s ease-in-out infinite;
++        animation: foil-idle-glare 6s steps(45) infinite;
+         transition: none;
+     }
+ }

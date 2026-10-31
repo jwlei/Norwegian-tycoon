@@ -1,0 +1,56 @@
+{
+ "scenario": "clear-30",
+ "profile": "phone",
+ "variant": "baseline",
+ "totalMs": 869.1203333333333,
+ "top": [
+  {
+   "fn": "(program)",
+   "ms": 1053.7279999999985
+  },
+  {
+   "fn": "getAnimations",
+   "ms": 171.67100000000008
+  },
+  {
+   "fn": "(anonymous) card-depth.js:58",
+   "ms": 146.60500000000016
+  },
+  {
+   "fn": "(anonymous) layout-animations.js:400",
+   "ms": 102.57500000000006
+  },
+  {
+   "fn": "setAttribute",
+   "ms": 84.00966666666669
+  },
+  {
+   "fn": "path card-depth.js:57",
+   "ms": 44.05100000000001
+  },
+  {
+   "fn": "(garbage collector)",
+   "ms": 24.828999999999997
+  },
+  {
+   "fn": "cloneNode",
+   "ms": 17.383333333333336
+  },
+  {
+   "fn": "update card-depth.js:298",
+   "ms": 15.693999999999997
+  },
+  {
+   "fn": "step card-depth.js:821",
+   "ms": 14.930666666666667
+  },
+  {
+   "fn": "remove",
+   "ms": 11.601
+  },
+  {
+   "fn": "world landing-geometry.js:44",
+   "ms": 11.520000000000001
+  }
+ ]
+}

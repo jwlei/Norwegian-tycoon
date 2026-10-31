@@ -1,0 +1,420 @@
+{
+ "variant": "01",
+ "foils": [
+  {
+   "profile": "desktop",
+   "foil": "none",
+   "gpu": 6.1,
+   "compositor": 5.5,
+   "passes": 3.9
+  },
+  {
+   "profile": "desktop",
+   "foil": "holo",
+   "gpu": 370.9,
+   "compositor": 90.8,
+   "passes": 42.4
+  },
+  {
+   "profile": "desktop",
+   "foil": "galaxy",
+   "gpu": 407.4,
+   "compositor": 96.4,
+   "passes": 42.5
+  },
+  {
+   "profile": "desktop",
+   "foil": "v",
+   "gpu": 392.9,
+   "compositor": 97.8,
+   "passes": 42.4
+  },
+  {
+   "profile": "desktop",
+   "foil": "vmax",
+   "gpu": 375.3,
+   "compositor": 92.3,
+   "passes": 42.4
+  },
+  {
+   "profile": "desktop",
+   "foil": "vstar",
+   "gpu": 363.2,
+   "compositor": 90.2,
+   "passes": 42.5
+  },
+  {
+   "profile": "desktop",
+   "foil": "full-art",
+   "gpu": 370,
+   "compositor": 92,
+   "passes": 42.5
+  },
+  {
+   "profile": "desktop",
+   "foil": "trainer-full-art",
+   "gpu": 348.5,
+   "compositor": 88.5,
+   "passes": 42.5
+  },
+  {
+   "profile": "desktop",
+   "foil": "rainbow",
+   "gpu": 338.6,
+   "compositor": 84.4,
+   "passes": 42.5
+  },
+  {
+   "profile": "desktop",
+   "foil": "rainbow-alt",
+   "gpu": 331.5,
+   "compositor": 82.1,
+   "passes": 42.5
+  },
+  {
+   "profile": "desktop",
+   "foil": "gold",
+   "gpu": 353.1,
+   "compositor": 86.2,
+   "passes": 42.5
+  },
+  {
+   "profile": "desktop",
+   "foil": "radiant",
+   "gpu": 334.1,
+   "compositor": 83.3,
+   "passes": 42.4
+  },
+  {
+   "profile": "desktop",
+   "foil": "gallery-holo",
+   "gpu": 345.4,
+   "compositor": 87.3,
+   "passes": 42.5
+  },
+  {
+   "profile": "desktop",
+   "foil": "gallery-v",
+   "gpu": 339.2,
+   "compositor": 85.4,
+   "passes": 42.5
+  },
+  {
+   "profile": "desktop",
+   "foil": "gallery-vmax",
+   "gpu": 344.1,
+   "compositor": 86.6,
+   "passes": 42.5
+  },
+  {
+   "profile": "phone",
+   "foil": "none",
+   "gpu": 7.3,
+   "compositor": 5.8,
+   "passes": 3.9
+  },
+  {
+   "profile": "phone",
+   "foil": "holo",
+   "gpu": 248.3,
+   "compositor": 70.6,
+   "passes": 27.5
+  },
+  {
+   "profile": "phone",
+   "foil": "galaxy",
+   "gpu": 244,
+   "compositor": 69.6,
+   "passes": 27.5
+  },
+  {
+   "profile": "phone",
+   "foil": "v",
+   "gpu": 312.9,
+   "compositor": 89.9,
+   "passes": 27.6
+  },
+  {
+   "profile": "phone",
+   "foil": "vmax",
+   "gpu": 255.6,
+   "compositor": 75.6,
+   "passes": 27.5
+  },
+  {
+   "profile": "phone",
+   "foil": "vstar",
+   "gpu": 245.4,
+   "compositor": 74.4,
+   "passes": 27.5
+  },
+  {
+   "profile": "phone",
+   "foil": "full-art",
+   "gpu": 251.8,
+   "compositor": 76.2,
+   "passes": 27.5
+  },
+  {
+   "profile": "phone",
+   "foil": "trainer-full-art",
+   "gpu": 242.3,
+   "compositor": 70.9,
+   "passes": 27.5
+  },
+  {
+   "profile": "phone",
+   "foil": "rainbow",
+   "gpu": 273.1,
+   "compositor": 80,
+   "passes": 27.5
+  },
+  {
+   "profile": "phone",
+   "foil": "rainbow-alt",
+   "gpu": 253.4,
+   "compositor": 75.4,
+   "passes": 27.6
+  },
+  {
+   "profile": "phone",
+   "foil": "gold",
+   "gpu": 261.4,
+   "compositor": 74.1,
+   "passes": 27.5
+  },
+  {
+   "profile": "phone",
+   "foil": "radiant",
+   "gpu": 271.2,
+   "compositor": 81.2,
+   "passes": 27.5
+  },
+  {
+   "profile": "phone",
+   "foil": "gallery-holo",
+   "gpu": 265.3,
+   "compositor": 76.3,
+   "passes": 27.6
+  },
+  {
+   "profile": "phone",
+   "foil": "gallery-v",
+   "gpu": 279.9,
+   "compositor": 83.2,
+   "passes": 27.5
+  },
+  {
+   "profile": "phone",
+   "foil": "gallery-vmax",
+   "gpu": 245.2,
+   "compositor": 72.5,
+   "passes": 27.5
+  }
+ ],
+ "styles": [
+  {
+   "style": "normal",
+   "bytes": 6512,
+   "elements": 47,
+   "filters": 0,
+   "perDrawMs": 2.52
+  },
+  {
+   "style": "botanical",
+   "bytes": 7614,
+   "elements": 53,
+   "filters": 0,
+   "perDrawMs": 1.22
+  },
+  {
+   "style": "normal",
+   "bytes": 6512,
+   "elements": 47,
+   "filters": 0,
+   "perDrawMs": 0.3
+  },
+  {
+   "style": "monochrome",
+   "bytes": 3071,
+   "elements": 21,
+   "filters": 0,
+   "perDrawMs": 0.26
+  },
+  {
+   "style": "minimalist",
+   "bytes": 3157,
+   "elements": 21,
+   "filters": 0,
+   "perDrawMs": 0.29
+  },
+  {
+   "style": "onyx-gold",
+   "bytes": 7120,
+   "elements": 52,
+   "filters": 0,
+   "perDrawMs": 0.48
+  },
+  {
+   "style": "love-notes",
+   "bytes": 7022,
+   "elements": 51,
+   "filters": 0,
+   "perDrawMs": 0.32
+  },
+  {
+   "style": "cherry-blossom",
+   "bytes": 7446,
+   "elements": 54,
+   "filters": 0,
+   "perDrawMs": 0.36
+  },
+  {
+   "style": "origami",
+   "bytes": 4167,
+   "elements": 28,
+   "filters": 0,
+   "perDrawMs": 0.33
+  },
+  {
+   "style": "gold",
+   "bytes": 7261,
+   "elements": 53,
+   "filters": 0,
+   "perDrawMs": 1.02
+  },
+  {
+   "style": "solar-eclipse",
+   "bytes": 7128,
+   "elements": 51,
+   "filters": 0,
+   "perDrawMs": 0.31
+  },
+  {
+   "style": "marble-noir",
+   "bytes": 7073,
+   "elements": 51,
+   "filters": 0,
+   "perDrawMs": 0.82
+  },
+  {
+   "style": "stained-glass",
+   "bytes": 7115,
+   "elements": 51,
+   "filters": 0,
+   "perDrawMs": 0.35
+  },
+  {
+   "style": "crystal",
+   "bytes": 4119,
+   "elements": 27,
+   "filters": 0,
+   "perDrawMs": 0.35
+  },
+  {
+   "style": "silver",
+   "bytes": 4880,
+   "elements": 34,
+   "filters": 0,
+   "perDrawMs": 0.38
+  },
+  {
+   "style": "holo",
+   "bytes": 7478,
+   "elements": 55,
+   "filters": 0,
+   "perDrawMs": 0.37
+  },
+  {
+   "style": "spellbook",
+   "bytes": 7227,
+   "elements": 51,
+   "filters": 0,
+   "perDrawMs": 0.36
+  },
+  {
+   "style": "cosmic",
+   "bytes": 6085,
+   "elements": 54,
+   "filters": 0,
+   "perDrawMs": 0.28
+  },
+  {
+   "style": "space-explorer",
+   "bytes": 7374,
+   "elements": 53,
+   "filters": 0,
+   "perDrawMs": 0.33
+  },
+  {
+   "style": "tarot-moon",
+   "bytes": 6906,
+   "elements": 49,
+   "filters": 0,
+   "perDrawMs": 0.29
+  },
+  {
+   "style": "gothic",
+   "bytes": 3922,
+   "elements": 28,
+   "filters": 0,
+   "perDrawMs": 0.33
+  },
+  {
+   "style": "parallax",
+   "bytes": 6997,
+   "elements": 50,
+   "filters": 0,
+   "perDrawMs": 0.45
+  },
+  {
+   "style": "desert-caravan",
+   "bytes": 7311,
+   "elements": 53,
+   "filters": 0,
+   "perDrawMs": 0.41
+  },
+  {
+   "style": "butterfly-garden",
+   "bytes": 7036,
+   "elements": 50,
+   "filters": 0,
+   "perDrawMs": 0.34
+  },
+  {
+   "style": "pixel",
+   "bytes": 9229,
+   "elements": 100,
+   "filters": 0,
+   "perDrawMs": 0.35
+  },
+  {
+   "style": "neon",
+   "bytes": 6881,
+   "elements": 53,
+   "filters": 1,
+   "perDrawMs": 2.75
+  },
+  {
+   "style": "cyberpunk",
+   "bytes": 3950,
+   "elements": 28,
+   "filters": 0,
+   "perDrawMs": 0.27
+  },
+  {
+   "style": "glitched",
+   "bytes": 4719,
+   "elements": 35,
+   "filters": 0,
+   "perDrawMs": 0.6
+  },
+  {
+   "style": "astronomy-atlas",
+   "bytes": 7512,
+   "elements": 53,
+   "filters": 0,
+   "perDrawMs": 0.39
+  }
+ ]
+}

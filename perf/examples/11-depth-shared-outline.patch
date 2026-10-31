@@ -1,0 +1,48 @@
+diff --git a/js/card-depth.js b/js/card-depth.js
+index 7a953b2..4b8043d 100644
+--- a/js/card-depth.js
++++ b/js/card-depth.js
+@@ -114,6 +114,9 @@ class CardDepth {
+                 state.raster.element.remove();
+                 delete state.raster;
+                 state.faceGroup.style.display = "";
++                state.geometryKey = null;
++                state.key = null;
++                this.update(state.element, {});
+             }
+         });
+     }
+@@ -360,21 +363,24 @@ class CardDepth {
+             state.face.setAttribute("width", width);
+             state.face.setAttribute("height", height);
+         }
+-        // Each paper sheet is the top outline stepped back along the card normal.
+-        const top = G.silhouette(world), normal = G.rotate(0, 0, 1, world);
+-        state.layers.forEach((layer, index) => {
+-            const depth = G.EDGE * (1 - index / (state.layers.length - 1));
+-            layer.setAttribute("d", this.path(top.map(point => G.screen({ x: point.x - normal.x * depth,
+-                y: point.y - normal.y * depth, z: point.z - normal.z * depth })), world));
+-        });
++        const top = G.silhouette(world), step = G.screen(G.rotate(0, 0, 1, world));
+         const a = G.screen(G.rotate(1, 0, 0, world)), b = G.screen(G.rotate(0, 1, 0, world));
+         const transform = `matrix(${a.x}, ${a.y}, ${b.x}, ${b.y}, 0, ${-G.VIEW_SHEAR * world.z})`;
+-        state.face.setAttribute("transform", transform);
+         const outline = this.path(top.map(G.screen), world);
+         state.faceOutline = outline;
+-        state.light.setAttribute("d", outline);
+         state.outline.setAttribute("d", outline);
+         state.element.style.setProperty("--depth-face-transform", transform);
++        // A rasterized face hides the native group, so its sheets and light need no updates.
++        if (!state.raster) {
++            // Each paper sheet is the top outline stepped back along the card normal: a constant screen offset.
++            state.layers.forEach((layer, index) => {
++                const depth = G.EDGE * (1 - index / (state.layers.length - 1));
++                layer.setAttribute("d", outline);
++                layer.setAttribute("transform", `translate(${-step.x * depth} ${-step.y * depth})`);
++            });
++            state.face.setAttribute("transform", transform);
++            state.light.setAttribute("d", outline);
++        }
+         this.renderSupersampledFace(state);
+     }
+ 

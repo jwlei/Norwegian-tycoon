@@ -1,0 +1,82 @@
+diff --git a/js/card-depth.js b/js/card-depth.js
+index 7a953b2..0209f8e 100644
+--- a/js/card-depth.js
++++ b/js/card-depth.js
+@@ -122,20 +122,25 @@ class CardDepth {
+         if (!state.raster) { return; }
+         const G = LandingGeometry, world = state.world;
+         const { canvas, context: ctx, element, image } = state.raster;
+-        const top = G.silhouette(world), normal = G.rotate(0, 0, 1, world);
+-        const outlines = state.layers.map((layer, index) => {
+-            const depth = G.EDGE * (1 - index / (state.layers.length - 1));
+-            return top.map(point => {
+-                const projected = G.screen({ x: point.x - normal.x * depth,
+-                    y: point.y - normal.y * depth, z: point.z - normal.z * depth });
+-                return { x: projected.x - world.x, y: projected.y - world.y };
+-            });
++        const step = G.screen(G.rotate(0, 0, 1, world));
++        const outline = G.silhouette(world).map(point => {
++            const projected = G.screen(point);
++            return { x: projected.x - world.x, y: projected.y - world.y };
++        });
++        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
++        const sheet = new Path2D();
++        outline.forEach((point, i) => {
++            i ? sheet.lineTo(point.x, point.y) : sheet.moveTo(point.x, point.y);
++            minX = Math.min(minX, point.x); maxX = Math.max(maxX, point.x);
++            minY = Math.min(minY, point.y); maxY = Math.max(maxY, point.y);
+         });
+-        const points = outlines.flat();
+-        const left = Math.floor(Math.min(...points.map(p => p.x))) - 2;
+-        const upper = Math.floor(Math.min(...points.map(p => p.y))) - 2;
+-        const width = Math.ceil(Math.max(...points.map(p => p.x))) + 2 - left;
+-        const height = Math.ceil(Math.max(...points.map(p => p.y))) + 2 - upper;
++        sheet.closePath();
++        const backX = -step.x * G.EDGE, backY = -step.y * G.EDGE;
++        const left = Math.floor(minX + Math.min(0, backX)) - 2;
++        const upper = Math.floor(minY + Math.min(0, backY)) - 2;
++        // Rounded up to 8px steps: resizing reallocates the backing store, which is costly to do every frame.
++        const width = Math.ceil((maxX + Math.max(0, backX) + 2 - left) / 8) * 8;
++        const height = Math.ceil((maxY + Math.max(0, backY) + 2 - upper) / 8) * 8;
+         // Twice the display pixel density in each axis, including on Retina desktops.
+         const scale = 2 * (window.devicePixelRatio || 1);
+         const pixelsWide = Math.ceil(width * scale), pixelsHigh = Math.ceil(height * scale);
+@@ -149,12 +154,13 @@ class CardDepth {
+         ctx.clearRect(0, 0, canvas.width, canvas.height);
+         ctx.setTransform(canvas.width / width, 0, 0, canvas.height / height,
+             -left * canvas.width / width, -upper * canvas.height / height);
+-        outlines.forEach((outline, index) => {
+-            ctx.beginPath();
+-            outline.forEach((point, i) => i ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+-            ctx.closePath();
+-            ctx.fillStyle = state.layers[index].getAttribute("fill");
+-            ctx.fill();
++        state.layers.forEach((layer, index) => {
++            const depth = G.EDGE * (1 - index / (state.layers.length - 1));
++            ctx.save();
++            ctx.translate(-step.x * depth, -step.y * depth);
++            ctx.fillStyle = layer.getAttribute("fill");
++            ctx.fill(sheet);
++            ctx.restore();
+         });
+         const a = G.screen(G.rotate(1, 0, 0, world)), b = G.screen(G.rotate(0, 1, 0, world));
+         ctx.save();
+@@ -164,15 +170,10 @@ class CardDepth {
+         ctx.drawImage(image, -world.width / 2, -world.height / 2, world.width, world.height);
+         ctx.restore();
+         // Match the SVG's object-bounding-box lighting gradient on the top outline.
+-        const outline = outlines[outlines.length - 1];
+-        ctx.beginPath();
+-        outline.forEach((point, i) => i ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+-        ctx.closePath();
+-        const xs = outline.map(p => p.x), ys = outline.map(p => p.y);
+         ctx.save();
+-        ctx.clip();
+-        ctx.translate(Math.min(...xs), Math.min(...ys));
+-        ctx.scale(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
++        ctx.clip(sheet);
++        ctx.translate(minX, minY);
++        ctx.scale(maxX - minX, maxY - minY);
+         const gradient = ctx.createLinearGradient(0, 0, 1, 1);
+         gradient.addColorStop(0, "rgba(255,255,255,0.13)");
+         gradient.addColorStop(1, "rgba(11,33,18,0.039)");

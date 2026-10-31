@@ -1,0 +1,35 @@
+diff --git a/js/card-depth.js b/js/card-depth.js
+index 7a953b2..19529c3 100644
+--- a/js/card-depth.js
++++ b/js/card-depth.js
+@@ -650,8 +650,22 @@ class CardDepth {
+             else { groups.push({ parent, cards: [plan] }); }
+         }
+         let previous = null;
++        const solutions = scene.solutions || (scene.solutions = new WeakMap());
++        const boardKey = boardBounds ? [boardBounds.left, boardBounds.top, boardBounds.width, boardBounds.height].join(":") : "";
+         for (const group of groups) {
+             const supportCount = supports.length;
++            // A play rests only on the plays beneath it, so appending one leaves earlier solutions valid.
++            const groupKey = boardKey + "|" + group.cards.map(({ base }) =>
++                [base.x, base.y, base.roll, base.width, base.height, base.radius].join(":")).join("|");
++            const solved = solutions.get(group.parent);
++            if (solved && solved.key === groupKey && solved.previous === previous && solved.supportCount === supportCount) {
++                group.cards.forEach((plan, index) => {
++                    plan.pose = solved.poses[index];
++                    supports.push(plan.pose);
++                });
++                previous = group.cards[group.cards.length - 1].pose;
++                continue;
++            }
+             // Fit before flight planning; tilted supporting cards can reduce the flat overlap estimate.
+             for (let attempt = 0; attempt < 5; attempt++) {
+                 supports.length = supportCount;
+@@ -674,6 +688,7 @@ class CardDepth {
+                     LandingGeometry.overlapCoverage(group.cards[group.cards.length - 1].pose, previous) >= .1) { break; }
+                 if (attempt === 4) { throw new Error("The projected play cannot meet the required 10% overlap."); }
+             }
++            solutions.set(group.parent, { key: groupKey, previous, supportCount, poses: group.cards.map(plan => plan.pose) });
+             previous = group.cards[group.cards.length - 1].pose;
+         }
+         elements.forEach((element, index) => {

@@ -1,0 +1,18 @@
+diff --git a/css/foil.css b/css/foil.css
+index ddcad9a..c6b870e 100644
+--- a/css/foil.css
++++ b/css/foil.css
+@@ -280,6 +280,13 @@
+     animation-play-state: paused !important;
+ }
+ 
++/* The foil and style pickers stay in the DOM while closed. A visibility:hidden element paints nothing, so its
++   animation has no compositor layer and would otherwise tick on the main thread every frame. */
++.dialog-container:not(.dialog-container--visible) .card-preview::before,
++.dialog-container:not(.dialog-container--visible) .card-preview::after {
++    animation: none !important;
++}
++
+ /* English configuration names map to persisted foil IDs without changing player preferences. */
+ :is(#playerHand .game-card, .card-preview)[data-foil="holo"] { /* stripes */
+     --foil-strength: .7; --foil-saturation: .75; --foil-mix: soft-light;
