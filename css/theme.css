@@ -2371,8 +2371,8 @@ select:focus-visible {
     --table-card-height: clamp(96px, 25vh, 190px);
     --table-card-width: calc(var(--table-card-height) * 2 / 3);
     --pile-edge-space: max(128px, calc(var(--table-card-height) * 0.75));
-    --landing-limit-x: 180px;
-    --landing-limit-y: 120px;
+    --landing-limit-x: 200px;
+    --landing-limit-y: 130px;
     position: relative;
     flex: 0 0 auto;
     width: calc(var(--table-card-width) + var(--pile-fan-width) + var(--pile-depth) + 10px);
@@ -2382,8 +2382,8 @@ select:focus-visible {
 @media (max-width: 600px) {
     .table-card-pile {
         --pile-edge-space: max(112px, calc(var(--table-card-height) * 0.75));
-        --landing-limit-x: 140px;
-        --landing-limit-y: 160px;
+        --landing-limit-x: 150px;
+        --landing-limit-y: 170px;
     }
 }
 

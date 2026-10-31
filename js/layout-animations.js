@@ -150,6 +150,8 @@ GameLayout.extend(class {
                     height: targetBounds.height
                 };
             }
+            var fromSeat = source === playerOrigin;
+            if (fromSeat) { source = GameLayout.seatThrowOrigin(source, targetBounds.width); }
             var flight = document.createElement("span");
             var cardStyle = target.dataset.cardStyle || "normal";
             flight.className = `card-flight card-preview card-preview--${cardStyle}`;
@@ -201,7 +203,7 @@ GameLayout.extend(class {
                 ? CardDepth.landingMotion(flight, target, {
                     x: flightLeft + targetBounds.width / 2, y: flightTop + targetBounds.height / 2,
                     z: 0, pitch, yaw, roll: startRotation
-                }, pile.motion ? pile.motion.power : .55) : null;
+                }, pile.motion ? pile.motion.power : .55, GameLayout.throwLean(pile.motion), fromSeat) : null;
             target.style.opacity = "0";
             if (usesDepth && typeof CardDepth.setHidden == "function") { CardDepth.setHidden(target, true); }
             landedCards.push({ target, flight });
@@ -303,6 +305,16 @@ GameLayout.extend(class {
             animation.oncancel = finishAnimation;
         });
         if (pendingAnimations == 0 && onComplete) { onComplete(); }
+    }
+    // A flight starts at its origin's width. A desktop player block is about twice a table card wide, so capping
+    // the width gives every screen the proportions a phone's block has by nature.
+    static seatThrowOrigin(block, cardWidth) {
+        var width = Math.min(block.width, cardWidth * 0.93);
+        return { left: block.left + (block.width - width) / 2, top: block.top, width: width, height: block.height };
+    }
+    // How sideways a throw is, from -1 (left) to 1 (right). Uses only synced fields, so all clients agree.
+    static throwLean(motion) {
+        return motion ? Math.max(-1, Math.min(1, motion.spin / 12 + motion.x * 0.7)) : 0;
     }
     // getBoundingClientRect returns the enlarged axis-aligned box of a rotated card; flights rotate
     // themselves, so they need the card's own layout size centred on that box.
@@ -466,8 +478,8 @@ GameLayout.extend(class {
         });
         completeIfReady();
     }
-    // Deterministic within each board-size class; the player's seat biases the tilt.
-    // Grouped cards share a readable fan, with stable per-card splay that survives table redraws.
+    // Deterministic within each board-size class; a sideways throw leans the card its way, otherwise the seat biases the tilt.
+    // Grouped cards share a readable fan up to 1.3 times as wide, with stable per-card splay that survives table redraws.
     static pileCardJitter(game, pile, card, stackIndex, cardIndex = 0, smallScreen = false) {
         var seed = 2166136261;
         var first = pile[0];
@@ -486,17 +498,24 @@ GameLayout.extend(class {
             ? 0
             : ((seat / (seatCount - 1)) - 0.5) * 24;
         var power = pile.motion ? pile.motion.power : 0;
-        var spread = 6 + power * 4;
-        var fanAngle = (cardIndex - (pile.length - 1) / 2) * spread;
-        var arc = Math.abs(cardIndex - (pile.length - 1) / 2);
+        var center = cardIndex - (pile.length - 1) / 2;
+        var fanOut = 1 + (unit(0, Math.imul(seed, 48271) >>> 0) + 0.5) * 0.3;
+        // The stylesheet's --pile-fan-step already spaces the cards, so only the extra width belongs here.
+        var fanStep = smallScreen ? 38 : 48;
+        // A sideways throw turns the random tilt and seat bias its way, so it never lands leaning against the throw.
+        var lean = GameLayout.throwLean(pile.motion);
+        var align = Math.min(1, Math.abs(lean) / 0.2);
+        var tilt = unit(0) * 24;
+        var leaning = tilt + (Math.abs(tilt) * Math.sign(lean) - tilt) * align + seatBias * (1 - align) +
+            lean * 22 * (0.75 + (unit(24) + 0.5) * 0.5) * (smallScreen ? 1.2 : 1);
+        var limit = smallScreen ? 48 : 38;
         return {
-            angle: Math.round(Math.max(smallScreen ? -40 : -30, Math.min(smallScreen ? 40 : 30,
-                seatBias + unit(0) * 20 + fanAngle + (splay ? unit(0, cardSeed) * 4 : 0) +
-                (pile.motion ? pile.motion.spin * (smallScreen ? 1.4 : 1) : 0))) * 10) / 10,
-            x: Math.round(unit(8) * 14 + (cardIndex - (pile.length - 1) / 2) * power * 8 +
-                (splay ? unit(8, cardSeed) * 6 : 0)),
-            y: Math.round(unit(16) * 10 + arc * (3 + power * 4) +
-                (splay ? unit(16, cardSeed) * 10 : 0))
+            angle: Math.round(Math.max(-limit, Math.min(limit,
+                leaning + center * (6 + power * 4) * fanOut + (splay ? unit(0, cardSeed) * 7 : 0))) * 10) / 10,
+            x: Math.round(unit(8) * 14 + center * ((fanStep + power * 8) * fanOut - fanStep) +
+                (splay ? unit(8, cardSeed) * 6 * fanOut : 0)),
+            y: Math.round(unit(16) * 10 + Math.abs(center) * (3 + power * 4) * fanOut +
+                (splay ? unit(16, cardSeed) * 10 * fanOut : 0))
         };
     }
 });

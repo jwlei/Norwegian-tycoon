@@ -380,7 +380,7 @@ test("throw metadata survives both pile deserializers and clamps finite motion v
     assert.equal(vm.runInContext('new CardPile("").fromRecord({nick:"Legacy",verdiBoms:7}).motion', context), undefined);
 });
 
-test("hard throws spread cards further and clients in the same board-size class share landing jitter", () => {
+test("hard throws fan out further and clients in the same board-size class share landing jitter", () => {
     const context = load();
     const result = vm.runInContext(`
         var game = {shuffleStartedAt:123,players:[{name:"Owner"},{name:"Other"}]};
@@ -393,70 +393,114 @@ test("hard throws spread cards further and clients in the same board-size class 
         var repeated = remote.map((card,index)=>GameLayout.pileCardJitter(game,remote,card,index,index));
         ({gentle,hard,repeated});
     `, context);
-    assert.equal(result.hard[0].x, result.gentle[0].x - 12);
-    assert.equal(result.hard[3].x, result.gentle[3].x + 12);
-    assert.equal(result.hard[0].angle, Math.max(-30, Math.round((result.gentle[0].angle - 6) * 10) / 10));
-    assert.equal(result.hard[3].angle, Math.min(30, Math.round((result.gentle[3].angle + 6) * 10) / 10));
+    assert.ok(result.hard[3].x - result.hard[0].x >= result.gentle[3].x - result.gentle[0].x + 24);
+    assert.ok(result.hard[3].angle - result.hard[0].angle > result.gentle[3].angle - result.gentle[0].angle);
     assert.deepEqual(JSON.parse(JSON.stringify(result.hard)), JSON.parse(JSON.stringify(result.repeated)));
 });
 
-test("small boards allow more directional inertia while large-board rotation stays bounded", () => {
+test("final angles lean with a sideways throw, vary, and stay inside the board's limit", () => {
     const context = load();
     const result = vm.runInContext(`
-        var game = {shuffleStartedAt:123,players:[{name:"Owner"}]};
-        var pile = new CardPile("Owner", new PresidentCard(1,7));
-        var rotations = [-20, 0, 20].map(spin => {
-            pile.motion = {x:0,y:0,power:1,spin,pitch:0,yaw:0};
-            return {
-                desktop: GameLayout.pileCardJitter(game,pile,pile[0],0,0,false),
-                mobile: GameLayout.pileCardJitter(game,pile,pile[0],0,0,true)
-            };
-        });
-        rotations;
+        var game = {shuffleStartedAt:123,players:[{name:"Owner"},{name:"Other"}]};
+        var samples = [];
+        for (var rank = 1; rank <= 13; rank++) {
+            for (var name of ["Owner", "Other"]) {
+                for (var [x, spin] of [[-.6,-8],[.6,8],[-1,-20],[1,20]]) {
+                    var pile = new CardPile(name, new PresidentCard(1,rank));
+                    pile.motion = {x,y:-.2,power:.8,spin,pitch:0,yaw:0};
+                    samples.push({ sign: Math.sign(x),
+                        desktop: GameLayout.pileCardJitter(game,pile,pile[0],rank,0,false),
+                        mobile: GameLayout.pileCardJitter(game,pile,pile[0],rank,0,true) });
+                }
+            }
+        }
+        samples;
     `, context);
-    assert.ok(result[0].mobile.angle < result[0].desktop.angle);
-    assert.ok(result[2].mobile.angle > result[2].desktop.angle);
-    assert.equal(result[1].mobile.angle, result[1].desktop.angle);
-    for (const { mobile, desktop } of result) {
-        assert.ok(Math.abs(desktop.angle) <= 30);
-        assert.ok(Math.abs(mobile.angle) <= 40);
-        assert.equal(mobile.x, desktop.x);
+    for (const { sign, desktop, mobile } of result) {
+        assert.ok(desktop.angle * sign > 0, "A left throw rests counter-clockwise and a right throw clockwise");
+        assert.ok(Math.abs(desktop.angle) <= 38);
+        assert.ok(Math.abs(mobile.angle) <= 48);
         assert.equal(mobile.y, desktop.y);
     }
+    assert.ok(result.some(({ mobile }) => Math.abs(mobile.angle) > 38), "Small boards use their wider limit");
+    assert.ok(new Set(result.map(({ sign, desktop }) => desktop.angle * sign)).size > 15, "The same throw lands at different angles");
 });
 
-test("pairs, triples and quads have subtle per-card splay that survives serialization and redraws", () => {
+test("plays fan out up to 1.3 times as wide, varying from play to play and surviving redraws", () => {
     const context = load();
     const groups = vm.runInContext(`
-        var game = {shuffleStartedAt:123,players:[{name:"Owner"}]};
-        [2,3,4].map(count => {
-            var pile = new CardPile("Owner", ...Array.from({length:count}, (_, i) => new PresidentCard(i + 1,7)));
-            pile.motion = {x:.2,y:-.5,power:.6,spin:0,pitch:0,yaw:0};
-            var sample = play => play.map((card,i) => GameLayout.pileCardJitter(game,play,card,8+i,i));
-            var single = new CardPile("Owner", pile[0]);
-            single.motion = pile.motion;
-            return { count, cards: sample(pile),
-                base: GameLayout.pileCardJitter(game,single,single[0],8),
-                repeated: sample(PresidentCard.deserializePiles([JSON.parse(JSON.stringify(pile))])[0]) };
-        });
+        var groups = [];
+        for (var smallScreen of [false, true]) {
+            for (var deal = 1; deal < 200; deal++) {
+                var game = {shuffleStartedAt:deal,players:[{name:"Owner"}]};
+                var pile = new CardPile("Owner", ...[1,2,3,4].map(suit=>new PresidentCard(suit,7)));
+                pile.motion = {x:0,y:0,power:1,spin:0,pitch:0,yaw:0};
+                var sample = play => play.map((card,i) => GameLayout.pileCardJitter(game,play,card,8+i,i,smallScreen));
+                groups.push({ smallScreen, cards: sample(pile), repeated: sample(PresidentCard.deserializePiles([JSON.parse(JSON.stringify(pile))])[0]) });
+            }
+        }
+        groups;
     `, context);
-    for (const { count, cards, base, repeated } of groups) {
+    const ratios = groups.map(({ smallScreen, cards, repeated }) => {
         assert.deepEqual(JSON.parse(JSON.stringify(cards)), JSON.parse(JSON.stringify(repeated)));
-        const offsets = cards.map((card, index) => {
-            const center = index - (count - 1) / 2;
-            const offsets = {
-                angle: card.angle - base.angle - center * 8.4,
-                x: card.x - base.x - center * .6 * 8,
-                y: card.y - base.y - Math.abs(center) * 5.4
-            };
-            assert.ok(Math.abs(offsets.angle) <= 2.1, "Extra rotation stays within two degrees");
-            assert.ok(Math.abs(offsets.x) <= 4, "Sideways splay stays subtle");
-            assert.ok(Math.abs(offsets.y) <= 6, "Cards retain a readable grouped landing");
-            return offsets;
-        });
-        assert.ok(new Set(offsets.map(value => value.angle.toFixed(1))).size > 1);
-        assert.ok(new Set(offsets.map(value => value.y.toFixed(1))).size > 1);
-    }
+        const step = smallScreen ? 38 : 48;
+        const placed = cards.map((card, index) => index * step + card.x);
+        const width = Math.max(...placed) - Math.min(...placed), today = 3 * (step + 8), scatter = 6 * 1.3 + 2;
+        assert.ok(width <= today * 1.3 + scatter, `A fan ${width}px wide against ${today}px`);
+        assert.ok(width >= today - scatter, `A fan ${width}px wide against ${today}px`);
+        return width / today;
+    });
+    assert.ok(Math.max(...ratios) > 1.2 && Math.min(...ratios) < 1.1, "Some plays use the full margin and some almost none");
+});
+
+test("other players' cards leave their block at a phone's proportions, and flights say where they came from", () => {
+    const calls = [];
+    const element = () => ({
+        dataset: {}, style: {}, setAttribute() {}, appendChild() {}, cloneNode: () => element(), remove() {},
+        animate: () => ({})
+    });
+    const target = {
+        dataset: { cardStyle: "normal", foil: "none" }, style: { getPropertyValue: () => "15" }, animate() {},
+        querySelector: element, offsetWidth: 127, offsetHeight: 190,
+        getBoundingClientRect: () => ({ left: 200, top: 200, width: 127, height: 190 })
+    };
+    const flights = [];
+    const context = load({
+        target, LandingGeometry: { CONTACT: .64 },
+        CardDepth: {
+            states: new Map(), attach(flight) { this.states.set(flight, {}); }, update() {}, follow() {}, detach() {},
+            landingMotion: (flight, card, start, power, lean, fromSeat) => {
+                calls.push({ start, power, lean, fromSeat });
+                return null;
+            }
+        },
+        window: { innerWidth: 1000, innerHeight: 800, matchMedia: () => ({ matches: false }) },
+        document: { createElement: element, body: { appendChild: flight => flights.push(flight) } }
+    });
+    vm.runInContext(`
+        GameLayout.foilStates = elements => elements.map(() => null);
+        var play = (name, origins, motion) => {
+            var pile = new CardPile(name, new PresidentCard(1,7));
+            pile.motion = motion;
+            GameLayout.animatePlayedCards({querySelector:()=>target}, pile, origins);
+        };
+        var motion = {x:-.5,y:0,power:.8,spin:-6,pitch:0,yaw:0};
+        play("Other", { cardOrigins:new Map(), playerOrigins:new Map([["Other",{left:470,top:60,width:238,height:64}]]) }, motion);
+        play("Owner", { playerOrigins:new Map(), cardOrigins:new Map([["1:7",{left:0,top:500,width:100,height:150,rotation:0}]]) }, motion);
+        var phone = GameLayout.seatThrowOrigin({left:100,top:56,width:92,height:60}, 99);
+        var neutral = GameLayout.throwLean(undefined);
+    `, context);
+    assert.equal(calls[0].fromSeat, true);
+    assert.equal(calls[1].fromSeat, false);
+    assert.equal(calls[1].lean, -.85);
+    assert.equal(calls[0].power, .8);
+    const centre = 470 + 238 / 2;
+    assert.ok(Math.abs(parseFloat(flights[0].style.left) + 127 / 2 - centre) < 1e-6, "The flight is centred on the block");
+    assert.equal(vm.runInContext("neutral", context), 0);
+    assert.deepEqual({ ...vm.runInContext("phone", context) }, { left: 100, top: 56, width: 92, height: 60 }, "Phones keep their start");
+    const desktop = vm.runInContext("GameLayout.seatThrowOrigin({left:470,top:60,width:238,height:64}, 127)", context);
+    assert.ok(Math.abs(desktop.width / 127 - 92 / 99) < .01, "The same scale as a phone rather than 1.9 times the card");
+    assert.equal(desktop.left + desktop.width / 2, centre);
 });
 
 test("played flights retain source tilt, scale and foil position and settle level before cleanup", () => {

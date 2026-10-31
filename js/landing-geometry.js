@@ -16,6 +16,8 @@
     const HALO = 2.5;
     // About 180 points on a card face, so one point is roughly half a percent of its area.
     const AREA_COLUMNS = 11, AREA_ROWS = 17;
+    // A hard throw's swing is capped at 72px on a card this tall, and scales with the card.
+    const HEIGHT_AT_FULL_SWING = 190;
     const radians = degrees => degrees * Math.PI / 180;
     const degrees = angle => angle * 180 / Math.PI;
     const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
@@ -562,9 +564,48 @@
         return { pitch, yaw };
     }
 
+    // What one client lays over the straight flight of one card. The resting pose is shared and never changes here.
+    // A hard sideways throw swings wide on its own side and hooks back in. Other players' cards get a random strength
+    // and rotation direction, and swing less than the player's own.
+    function throwShape({ start, rest, power, lean = 0, fromSeat = false, random = Math.random }) {
+        const between = (low, high) => mix(low, high, random());
+        const smooth = value => { const t = clamp(value, 0, 1); return t * t * (3 - 2 * t); };
+        const dx = rest.x - start.x, dy = rest.y - start.y, distance = Math.max(1, Math.hypot(dx, dy));
+        const heading = { x: dx / distance, y: dy / distance };
+        let spin;
+        if (fromSeat) {
+            const strength = random();
+            power = strength < .3 ? between(.2, .4) : strength < .75 ? between(.45, .65) : between(.75, .95);
+            spin = random() < .5 ? -1 : 1;
+            lean = spin * between(.3, 1);
+        } else if (Math.abs(lean) >= .12) {
+            spin = Math.sign(lean);
+        } else {
+            spin = Math.sign(Math.abs(heading.x) > .15 ? dx : rest.roll - start.roll) || 1;
+        }
+        const startRoll = fromSeat ? rest.roll - spin * (10 + power * 20) * between(.8, 1.2) : start.roll;
+        // Only a throw that is both sideways and hard swings. Anything else keeps the straight path.
+        const hard = smooth((Math.abs(lean) - .4) / .4) * smooth((power - .4) / .4);
+        const bulge = Math.min(distance * .15, 72 * rest.height / HEIGHT_AT_FULL_SWING) * hard * between(.8, 1.2) * (fromSeat ? .5 : 1);
+        const bend = { x: -heading.y * spin * bulge, y: heading.x * spin * bulge };
+        // Some extra rotation that comes and goes in flight: mostly with the throw, sometimes against it.
+        const wobble = (1.5 + power * 4) * between(.6, 1.2) * (random() < .7 ? spin : -spin) + spin * hard * 4;
+        return { start, heading, distance, power, spin, startRoll, bulge, bend, wobble };
+    }
+
+    // The swing is an arc in space, not in time, so speed along the path is untouched and the sideways speed fades with it.
+    function throwOverlay(shape, point, progress) {
+        const { start, heading, distance, bend, wobble } = shape;
+        const along = clamp(((point.x - start.x) * heading.x + (point.y - start.y) * heading.y) / distance, 0, 1);
+        const arc = 4 * along * (1 - along);
+        return { x: point.x + bend.x * arc, y: point.y + bend.y * arc,
+            roll: point.roll + wobble * Math.sin(Math.PI * clamp(progress, 0, 1)) ** 2 };
+    }
+
     const api = { WIDTH, HEIGHT, EDGE, VIEW_SHEAR, LIGHT, CONTACT, slideDistance, slideDistanceToRest, rotate, world, screen, plane, heightAt,
         signedDistance, silhouette, contains, screenContains, screenCovers, barelyVisible, samples, supportHeight, landing, minimumHeight, shadow,
-        shadowedBy, shadowVisible, shadowMayReach, exposedPoints, flight, position, overlapCoverage, fitPlay, motion, motionOrientation };
+        shadowedBy, shadowVisible, shadowMayReach, exposedPoints, flight, position, overlapCoverage, fitPlay, motion, motionOrientation,
+        throwShape, throwOverlay };
     if (typeof module !== "undefined" && module.exports) { module.exports = api; }
     else { root.LandingGeometry = api; }
 })(globalThis);

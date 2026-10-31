@@ -795,6 +795,29 @@ test("production trajectory retains contact momentum and lands exactly on the pe
     }
 });
 
+test("a hard sideways throw swings off the straight line, stays above the felt and lands exactly at rest", () => {
+    const f = fixture();
+    f.Depth.prepareTable(f.table([f.element]));
+    const flight = new f.Node("span");
+    flight.image = f.element.image;
+    f.Depth.attach(flight);
+    const start = { x: 900, y: 900, z: 0, pitch: 8, yaw: -6, roll: 0 };
+    const motion = f.Depth.landingMotion(flight, f.element, start, 1, -1);
+    const rest = f.Depth.states.get(f.element).rest;
+    const dx = rest.x - start.x, dy = rest.y - start.y;
+    let widest = 0;
+    for (let i = 0; i < 100; i++) {
+        const pose = motion.poseAtProgress(i / 100), position = motion.positionAtProgress(i / 100);
+        for (const key of ["x", "y", "roll"]) { assert.ok(Math.abs(position[key] - pose[key]) < 1e-8, "The card and its depth rendering stay together"); }
+        assert.ok(G.samples(pose, -G.EDGE).every(point => point.z >= .059));
+        widest = Math.max(widest, Math.abs((pose.x - start.x) * dy - (pose.y - start.y) * dx) / Math.hypot(dx, dy));
+    }
+    assert.ok(widest > 10, `It swings ${widest}px off the line`);
+    assert.deepEqual({ ...motion.poseAtProgress(1) }, { ...rest });
+    const close = motion.poseAtProgress(.995);
+    assert.ok(Math.hypot(close.x - rest.x, close.y - rest.y) < .5 && Math.abs(close.roll - rest.roll) < .2, "No jump at the reveal");
+});
+
 test("hidden destinations do not leave duplicate external shadows, and detach removes hosted shadows", async () => {
     const f = fixture();
     f.Depth.prepareTable(f.table([f.element]));
