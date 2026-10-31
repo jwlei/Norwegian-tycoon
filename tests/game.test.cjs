@@ -105,6 +105,14 @@ test("toast visibility limit is independent of animation speed and keeps at most
     vm.runInContext(source.slice(hideStart, hideEnd) + source.slice(showStart, showEnd), context);
     vm.runInContext(source.slice(source.indexOf("        function handleTurnPause("),
         source.indexOf("        var presentationSnapshots")), context);
+    const rendered = [];
+    context.appendColoredGameMessage = (container, message) => rendered.push(message);
+    vm.runInContext('showGameToast("A: to femmere.", game, undefined, "pause", false, true, ["B står over."])', context);
+    assert.equal(clones, 0, "A pause's extra lines don't push out its message");
+    assert.deepEqual(rendered, ["A: to femmere.\nB står over."]);
+    assert.deepEqual(Array.from(context.gameLogEntries, entry => entry.message), ["A: to femmere.", "B står over."]);
+    vm.runInContext('showGameToast("A: to niere.", game, undefined, "pause", false, false, ["Spillretningen snus!", "B står over."])', context);
+    assert.equal(rendered.at(-1), "A: to niere.\nSpillretningen snus! · B står over.", "Never more than two lines");
     vm.runInContext('showGameToast("Next", game)', context);
     assert.equal(clones, 0);
     assert.equal(context.gameToastExpiresAt, 6000);
@@ -2137,7 +2145,7 @@ test("tapping a selected group keeps only the tapped card, then allows adding ca
         const context = vm.createContext({
             PresidentCard, player: { cards }, selectedCardKeys: keys,
             selectedCardStrength: null, autoSuggestedCardKeys: new Set(),
-            playableStrengths: new Set([7]), hasFourOfKindOnTop: () => count == 4,
+            playableStrengths: new Set([7]), hasFourOfKindOnTop: () => count == 4, clearsAsSingleTwo: () => false,
             game: { topPile: () => count == null ? null : Array(count) },
             showInvalidCardWarning: () => assert.fail("Every test card is playable")
         });
@@ -3072,6 +3080,7 @@ test("the starter toast waits until exchange is complete and the starter can pla
         currentGame: { status: "G", roundStarterName: "Bjørn", piles: [] }, currentPlayerName: "Bjørn",
         starterFlashTimer: null, STARTER_FLASH_DURATION_MS: 1000,
         announcedStarterRound: null, announcedBumStarterGame: null,
+        leadsAsBum: (game, starter) => starter.lastPlacement == game.players.length,
         GamePresence: { now: () => 1000, isActionPaused: game => game.paused === true },
         showGameToast: (text, game, duration, pauseId, endsTrick, includeInLog) =>
             messages.push({ text, includeInLog }),

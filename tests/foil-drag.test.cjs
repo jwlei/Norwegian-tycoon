@@ -2295,6 +2295,34 @@ test("auto-suggested round starts keep manual choice and refresh the play button
     assert.deepEqual(f.plays, [["3:9"]]);
 });
 
+test("with clearing twos on, the hand offers a single two on a pair and the pair only by hand", () => {
+    const start = rules => {
+        const f = roundStartHandFixture();
+        const { PresidentCard } = f.types;
+        const CardPile = vm.runInContext("CardPile", f.context);
+        f.player.cards.length = 0;
+        f.player.cards.push(new PresidentCard(1, 2), new PresidentCard(2, 2), new PresidentCard(3, 9));
+        f.game.piles = [new CardPile("Other", new PresidentCard(1, 5), new PresidentCard(2, 5))];
+        f.game.rules = rules;
+        f.render();
+        return f;
+    };
+    const f = start({ twoClears: true });
+    assert.deepEqual(f.selected(), ["1:2"], "The suggestion is the single two");
+    assert.equal(f.nodes.get("selectedCardCount").textContent.startsWith("1 av 1 kort"), true);
+    const twoOf = (key) => f.cards().find(card => card.dataset.cardKey == key);
+    twoOf("1:2").onclick();
+    assert.deepEqual(f.selected(), []);
+    twoOf("2:2").onclick();
+    assert.deepEqual(f.selected(), ["2:2"], "Tapping a two picks only that two");
+    twoOf("1:2").onclick();
+    assert.deepEqual(f.selected().sort(), ["1:2", "2:2"], "A second tap adds the other two");
+    assert.equal(f.playButton.disabled, false, "The pair stays playable");
+
+    const standard = start({});
+    assert.deepEqual(standard.selected().sort(), ["1:2", "2:2"], "Standard rules still need the pair");
+});
+
 test("quick flicks use input timestamps and coalesced samples, so handler delays cannot drop them", () => {
     for (const coalesced of [false, true]) {
         const f = pointerFixture();

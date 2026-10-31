@@ -178,6 +178,16 @@ function hasCustomRule(game, id) {
     return isCustomRuleOn(game?.rules, CUSTOM_RULES.find(rule => rule.id == id));
 }
 
+function clearsAsSingleTwo(game, strengthRank) {
+    return strengthRank == 15 && !hasFourOfKindOnTop(game) && hasCustomRule(game, "twoClears");
+}
+
+// The Bum only leads by rule when no custom rule has taken over who starts.
+function leadsAsBum(game, starter) {
+    return starter.lastPlacement == game.players.length &&
+        !hasCustomRule(game, "presidentStarts") && !hasCustomRule(game, "randomStarter");
+}
+
 function presidentExchangeCount(game) {
     if (hasCustomRule(game, "tradeOne")) { return 1; }
     if (hasCustomRule(game, "tradeThree")) { return 3; }

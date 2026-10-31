@@ -4459,6 +4459,11 @@ body[data-message-timer-bar="off"] .game-toast::after {
         --board-toast-height: 30px;
     }
 
+    /* Too low for two lines: run them together instead of clipping both. */
+    #gameToastRegion > .game-toast {
+        white-space: normal;
+    }
+
     #gameTable:has(#gameToastRegion:not([hidden]) > .game-toast.is-visible) > :is(#turnTimer, #tableTurnHint) {
         top: 4px;
         bottom: auto;

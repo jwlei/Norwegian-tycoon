@@ -16,11 +16,11 @@ function load() {
     ]) {
         vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context);
     }
-    return vm.runInContext("({ BotAI, PresidentGame, PresidentPlayer, PresidentCard, CardDeck, CardPile, playBotTurn, CUSTOM_RULES, normalizeCustomRules, activeCustomRules, customRulesFromRecord, customRulesToRecord, hasCustomRule })", context);
+    return vm.runInContext("({ BotAI, PresidentGame, PresidentPlayer, PresidentCard, CardDeck, CardPile, playBotTurn, CUSTOM_RULES, normalizeCustomRules, activeCustomRules, customRulesFromRecord, customRulesToRecord, hasCustomRule, leadsAsBum })", context);
 }
 
 const { BotAI, PresidentGame, PresidentPlayer, PresidentCard, CardDeck, CardPile, playBotTurn, CUSTOM_RULES,
-    normalizeCustomRules, activeCustomRules, customRulesFromRecord, customRulesToRecord } = load();
+    normalizeCustomRules, activeCustomRules, customRulesFromRecord, customRulesToRecord, leadsAsBum } = load();
 
 const card = (rank, suit = 1) => new PresidentCard(suit, rank);
 const CLUB_THREE = () => new PresidentCard(3, 3);
@@ -202,6 +202,10 @@ test("a single two clears anything but four of a kind, while several twos follow
     const twos = [card(2, 1), card(2, 2)];
     const pairs = makeGame([[...pair, ...filler()], [...twos, ...filler()], filler()], { twoClears: true });
     play(pairs, ...pair);
+    const suggested = {};
+    pairs.canPlayRank(pairs.players[1], 15, suggested);
+    assert.equal(suggested.pile.length, 1, "Holding two twos, the default play is still the single that clears");
+    assert.equal(canPlay(pairs, ...twos), true, "The pair stays legal when picked by hand");
     assert.equal(BotAI.moves(BotAI.observe(pairs, pairs.players[1])).some(move => move.length == 1 && move[0].strengthRank == 15), true);
     play(pairs, ...twos);
     assert.equal(pairs.piles.length, 2, "A pair of twos doesn't clear");
@@ -435,6 +439,15 @@ test("a random player opens every round, also the first, and the turn follows th
     }
 });
 
+test("the Bum is only announced as starting by rule when no custom rule decides who starts", () => {
+    const game = rules => makeGame([[], [], []], rules);
+    const bum = { lastPlacement: 3 };
+    assert.equal(leadsAsBum(game({}), bum), true);
+    assert.equal(leadsAsBum(game({}), { lastPlacement: 2 }), false);
+    assert.equal(leadsAsBum(game({ randomStarter: true }), bum), false, "A random draw can land on the Bum");
+    assert.equal(leadsAsBum(game({ presidentStarts: true }), bum), false);
+});
+
 test("the President starts and the random starter exclude each other", () => {
     const both = { presidentStarts: true, randomStarter: true };
     assert.deepEqual(Array.from(activeCustomRules(both), rule => rule.id), ["presidentStarts"]);
@@ -475,6 +488,16 @@ test("downfall doesn't apply to the President winning, or to a first round witho
     first.setTurn(1);
     play(first, card(13));
     assert.deepEqual(first.players.map(player => player.placement), [0, 1, 0]);
+});
+
+test("downfall has no effect with two players", () => {
+    const game = makeGame([[card(4), card(5)], [card(13)]], { downfall: true });
+    game.players.forEach((player, index) => { player.lastPlacement = index + 1; });
+    game.setTurn(1);
+    const pause = play(game, card(13));
+    assert.equal(pause.extraMessage, undefined, "Nobody is announced as losing power");
+    assert.equal(game.players[1].placement, 1);
+    assert.equal(game.players[0].placement, 2);
 });
 
 test("downfall ends a three-player round with every place filled", () => {

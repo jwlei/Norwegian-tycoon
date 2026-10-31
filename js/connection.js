@@ -479,8 +479,7 @@
             announcedStarterRound = roundKey;
             var starter = game.players[game.turn];
             var starterName = starter.name;
-            var isFirstBumStart = starter.lastPlacement == game.players.length &&
-                announcedBumStarterGame != game.id;
+            var isFirstBumStart = leadsAsBum(game, starter) && announcedBumStarterGame != game.id;
             if (isFirstBumStart) { announcedBumStarterGame = game.id; }
             var isPlayerReminder = !isFirstBumStart && starterName == currentPlayerName;
             showGameToast(isFirstBumStart
@@ -921,7 +920,7 @@
             });
         }
 
-        function showGameToast(message, game, duration = game.fastForward === true ? 1000 : GAME_SPEED_MS[currentGameSpeed()], pauseId = null, endsTrick = false, includeInLog = true) {
+        function showGameToast(message, game, duration = game.fastForward === true ? 1000 : GAME_SPEED_MS[currentGameSpeed()], pauseId = null, endsTrick = false, includeInLog = true, extraLines = []) {
             if (game.status == "F") { hideGameToast(); return; }
             ensureGameLog(game);
             positionArchivedToasts();
@@ -952,6 +951,7 @@
                     }
                 }
                 recordGameLogEntry(message, players);
+                extraLines.forEach(line => recordGameLogEntry(line, players));
             }
             if (endsTrick) { gameLogNeedsTrickHeader = true; }
             if (gameToastsHidden() || game.status == "F") {
@@ -967,7 +967,10 @@
                     : "linear-gradient(90deg, var(--success-fill), var(--success), var(--warning))"
             );
             activeToastPauseId = pauseId;
-            appendColoredGameMessage(toast, localizedMessage(message), players, true);
+            // The toast only has room for two lines, so extras share the second one.
+            var toastText = localizedMessage(message);
+            if (extraLines.length > 0) { toastText += "\n" + extraLines.map(localizedMessage).join(" · "); }
+            appendColoredGameMessage(toast, toastText, players, true);
             toast.classList.add("is-visible");
             animateToastEntry(toast);
             gameToastExpiresAt = Date.now() + duration;
@@ -1308,8 +1311,7 @@
             if (pause.presentationVersion == 1) {
                 if (pause.id != lastShownTurnPauseId) {
                     lastShownTurnPauseId = pause.id;
-                    showGameToast(pause.message, game, undefined, pause.id, pause.kind == "clear");
-                    [].concat(pause.extraMessage || []).forEach(message => showGameToast(message, game, undefined, pause.id));
+                    showGameToast(pause.message, game, undefined, pause.id, pause.kind == "clear", true, [].concat(pause.extraMessage || []));
                 }
                 completeLocalPresentation(game, pause);
                 return;
@@ -1327,8 +1329,7 @@
                     var duration = game.fastForward === true ? Math.min(delay, 1000) : currentGameSpeed() == "fast"
                         ? Math.min(delay, GAME_SPEED_MS.fast)
                         : GAME_SPEED_MS[currentGameSpeed()];
-                    showGameToast(pause.message, game, duration, pause.id, pause.kind == "clear");
-                    [].concat(pause.extraMessage || []).forEach(message => showGameToast(message, game, duration, pause.id));
+                    showGameToast(pause.message, game, duration, pause.id, pause.kind == "clear", true, [].concat(pause.extraMessage || []));
                     if (game.fastForward === true || currentGameSpeed() == "fast") {
                         gameToastExpiresAt = Math.min(gameToastExpiresAt, pause.until);
                     }

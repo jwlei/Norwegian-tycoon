@@ -2115,7 +2115,7 @@ class PresidentGame extends Game {
         var topPile = this.topPile();
         var fourOfKindOnTop = hasFourOfKindOnTop(this);
         var isClubThree = strengthRank == PresidentCard.clubThreePower();
-        var isClearingTwo = strengthRank == 15 && !fourOfKindOnTop && hasCustomRule(this, "twoClears");
+        var isClearingTwo = clearsAsSingleTwo(this, strengthRank);
         if (fourOfKindOnTop && isClubThree && !hasCustomRule(this, "clubThreeBeatsFour")) {
             resultInfo.svar = false;
             resultInfo.text = "Kløver 3 kan ikke slå fire like.";
@@ -2137,8 +2137,8 @@ class PresidentGame extends Game {
             return false;
         };
         var cardCount = isClubThree ? 1 : (fourOfKindOnTop ? 4 : topPile.length);
-        // A lone two still clears when the hand can't match the pile's card count.
-        if (isClearingTwo && player.cards.filter(card => card.strengthRank == 15).length < cardCount) { cardCount = 1; }
+        // Only a single two clears, so that is the default play; more twos can still be picked by hand.
+        if (isClearingTwo) { cardCount = 1; }
         var pile = new CardPile(player.name);
         var n = 0;
         player.cards.forEach(k => {
@@ -2287,7 +2287,7 @@ class PresidentGame extends Game {
             if (player.placement == 1) {
                 this.turnPause.placementMessage = `${player.name} ble President!`;
                 this.turnPause.message = this.turnPause.placementMessage;
-                var fallenPresident = hasCustomRule(this, "downfall")
+                var fallenPresident = this.players.length > 2 && hasCustomRule(this, "downfall")
                     ? this.players.find(other => other.placement == 0 && other.lastPlacement == 1)
                     : null;
                 if (fallenPresident) {

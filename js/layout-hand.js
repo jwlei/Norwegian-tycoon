@@ -717,7 +717,9 @@ GameLayout.extend(class {
                 var topPile = game.topPile();
                 var requiredCount = (topPile == null)
                     ? null
-                    : ((selectedCardStrength == PresidentCard.clubThreePower()) ? 1 : topPile.length);
+                    : (game.canPlayPile(player, new CardPile(player.name, ...selectedCards))
+                        ? selectedCards.length
+                        : ((selectedCardStrength == PresidentCard.clubThreePower()) ? 1 : topPile.length));
                 selectionCount.textContent = (requiredCount == null)
                     ? `${selectedCards.length} kort valgt. Sveip vannrett over kortene for å bla. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.`
                     : `${selectedCards.length} av ${requiredCount} kort valgt. Sveip vannrett over kortene for å bla. Dra eller flick utvalget opp for å legge det ut, eller trykk Enter.`;
@@ -911,7 +913,7 @@ GameLayout.extend(class {
                                                     .concat(matchingCards.filter(card =>
                                                         `${card.suit}:${card.rank}` != cardKey
                                                     ))
-                                                    .slice(0, maxCards)
+                                                    .slice(0, clearsAsSingleTwo(game, k.strengthRank) ? 1 : maxCards)
                                                     .forEach(card => selectedCardKeys.add(`${card.suit}:${card.rank}`));
                                             } else {
                                                 if (selectedCardKeys.size >= maxCards) {
