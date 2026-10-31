@@ -2364,6 +2364,22 @@
                 playerWinsName == (currentPlayerName || readLastUsedPlayerName()) &&
                 requiredRounds != null && playerRoundsPlayed >= requiredRounds;
         }
+        // The line under the title of the emote, foil and card style windows. Foils unlock by wins, the other two by rounds.
+        function showUnlockProgress(id, countsWins, unlocked, total) {
+            var messages = playerWinsLoading ? [countsWins ? "Henter seire…" : "Henter runder…"]
+                : playerWinsError ? [countsWins ? "Kunne ikke hente seire. Åpne menyen igjen for å prøve på nytt."
+                    : "Kunne ikke hente runder. Åpne menyen igjen for å prøve på nytt."]
+                : [countsWins ? `Seire: ${playerPresidentWins}` : `Runder spilt: ${playerRoundsPlayed}`, `Låst opp: ${unlocked} av ${total}`];
+            if (!playerWinsLoading && !playerWinsError && unlocked < total && PlayerIdentity.isDefaultName(playerWinsName)) {
+                messages.push(countsWins ? "Velg et eget spillernavn for at seirene dine skal telle."
+                    : "Velg et eget spillernavn for at rundene dine skal telle.");
+            }
+            document.getElementById(id).replaceChildren(...messages.map(message => {
+                var part = document.createElement("span");
+                part.textContent = message;
+                return part;
+            }));
+        }
         function updateCardStyleButtons() {
             document.querySelectorAll(".card-style-scope-option").forEach(button => {
                 button.setAttribute("aria-pressed", String(button.dataset.scope == GameLayout.cardStyleScope()));
@@ -2372,12 +2388,17 @@
             var style = GameLayout.cardStyle();
             document.documentElement.dataset.cardStyle = style;
             var previewCards = [new PresidentCard(2, 1), new PresidentCard(1, 12), new PresidentCard(4, 7)];
+            var unlockedStyles = 0, shownStyles = 0;
             document.querySelectorAll(".card-style-option").forEach(row => {
                 row.hidden = row.dataset.cardStyle == "botanical" && !GameLayout.canUseBotanicalStyle();
                 var button = row.querySelector(".card-style-option__select");
                 button.setAttribute("aria-pressed", String(row.dataset.cardStyle == style));
                 var unlocked = isCardStyleUnlocked(row.dataset.cardStyle, currentPlayerName || readLastUsedPlayerName());
-                button.disabled = !unlocked || (currentGame != null && !["O", "F"].includes(currentGame.status));
+                if (!row.hidden) {
+                    shownStyles++;
+                    if (unlocked) { unlockedStyles++; }
+                }
+                button.disabled =!unlocked || (currentGame != null && !["O", "F"].includes(currentGame.status));
                 row.classList.toggle("is-locked", !unlocked);
                 var unlock = button.querySelector(".card-style-option__unlock");
                 unlock.textContent = unlocked ? "" : localizedMessage(`Krever ${Card.styleUnlockRounds(row.dataset.cardStyle)} runder`);
@@ -2400,10 +2421,7 @@
                     });
                 }
             });
-            document.getElementById("cardStyleRounds").textContent = playerWinsLoading
-                ? localizedMessage("Henter runder…")
-                : playerWinsError ? localizedMessage("Kunne ikke hente runder. Åpne menyen igjen for å prøve på nytt.")
-                : localizedMessage(`Dine runder: ${playerRoundsPlayed}`);
+            showUnlockProgress("cardStyleProgress", false, unlockedStyles, shownStyles);
             var selected = document.querySelector(`.card-style-option[data-card-style="${style}"] strong`);
             if (selected != null) {
                 document.getElementById("cardStyleCurrentName").textContent =
@@ -2571,6 +2589,7 @@
                     options.appendChild(row);
                 });
             }
+            var unlockedFoils = 0;
             options.querySelectorAll(".card-foil-option").forEach(row => {
                 var button = row.querySelector(".card-foil-option__select");
                 button.setAttribute("aria-pressed", String(row.dataset.cardFoil == foil));
@@ -2578,7 +2597,8 @@
                     row.dataset.cardFoil,
                     currentPlayerName || readLastUsedPlayerName()
                 );
-                button.disabled = !unlocked || (currentGame != null && !["O", "F"].includes(currentGame.status));
+                if (unlocked) { unlockedFoils++; }
+                button.disabled =!unlocked || (currentGame != null && !["O", "F"].includes(currentGame.status));
                 row.classList.toggle("is-locked", !unlocked);
                 var holder = row.querySelector(".card-style-option__cards");
                 var unlock = button.querySelector(".card-foil-option__unlock");
@@ -2603,10 +2623,7 @@
             });
             document.getElementById("cardFoilCurrentName").textContent =
                 localizedMessage(Card.foilOptions().find(option => option.id == foil).name);
-            document.getElementById("cardFoilWins").textContent = playerWinsLoading
-                ? localizedMessage("Henter seire…")
-                : playerWinsError ? localizedMessage("Kunne ikke hente seire. Åpne menyen igjen for å prøve på nytt.")
-                : `Your wins: ${playerPresidentWins}`;
+            showUnlockProgress("cardFoilProgress", true, unlockedFoils, Card.foilOptions().length);
             updateCardAppearancePreview();
         }
         updateCardFoilButtons();
@@ -2780,11 +2797,17 @@
         });
 
         EmoteSettings.updateSummary();
+        function updateEmoteUnlocks() {
+            EmoteSettings.setRounds(playerRoundsPlayed, Card.hasAllAppearanceUnlocks(currentPlayerName || readLastUsedPlayerName(), getPlayerKey()));
+            showUnlockProgress("emoteProgress", false, EmoteSettings.unlockedCount(), EMOTE_ALL.length);
+        }
         document.getElementById("emoteSettingsOpenButton").addEventListener("click", function () {
             showDialog("Settings", false);
             showDialog("Emotes", true);
             EmoteSettings.open();
-            refreshPlayerPresidentWins().then(() => EmoteSettings.setRounds(playerRoundsPlayed, PlayerIdentity.isDefaultName(playerWinsName)));
+            var refresh = refreshPlayerPresidentWins();
+            updateEmoteUnlocks();
+            refresh.then(updateEmoteUnlocks);
         });
         document.getElementById("emoteSettingsCloseButton").addEventListener("click", function () {
             showDialog("Emotes", false);

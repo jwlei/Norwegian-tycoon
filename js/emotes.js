@@ -52,10 +52,12 @@ const EMOTE_EXTRAS = [
     { id: "greed", emoji: "💰", label: "Grådighet", like: "excellent" },
     { id: "patience", emoji: "🧘", label: "Tålmodighet", like: "wow" },
     { id: "overkill", emoji: "💥", label: "Overkill", like: "excellent" },
-    { id: "misclick", emoji: "🖱️", label: "Feilklikk", like: "omg" }
+    { id: "misclick", emoji: "🖱️", label: "Feilklikk", like: "omg" },
+    { id: "pass", emoji: "🤷", label: "Pass...", like: "omg" },
+    { id: "hehe", emoji: "😏", label: "He-he-he..", like: "excellent" }
 ];
 const EMOTE_ALL = [...EMOTES, ...EMOTE_EXTRAS];
-const EMOTE_LAST_UNLOCK_ROUND = 50;
+const EMOTE_LAST_UNLOCK_ROUND = 100;
 const EMOTE_DEFAULT_LOADOUT = EMOTES.map(emote => emote.id);
 // How the list is sorted in the settings, by mood. Every emote belongs to exactly one.
 const EMOTE_GROUPS = [
@@ -63,9 +65,9 @@ const EMOTE_GROUPS = [
     { title: "Imponert", ids: ["wow", "strike", "galaxy", "flawless", "lucky", "brilliant"] },
     { title: "Skryt", ids: ["excellent", "fatal", "dominance", "value", "lethal", "calculated", "doomed", "denied", "countered", "punished", "inevitable", "overkill"] },
     { title: "Erting", ids: ["foolish", "wasted", "badtrade", "questionable", "salt", "blunder", "greed"] },
-    { title: "Lur", ids: ["ghost", "alien", "motives", "predicted", "trapped", "bait"] },
+    { title: "Lur", ids: ["ghost", "alien", "motives", "predicted", "trapped", "bait", "hehe"] },
     { title: "Oppgitt", ids: ["omg", "defeat", "rage", "garbage", "mercy", "unlucky", "panicking", "misclick"] },
-    { title: "Rolig", ids: ["waiting", "thinking", "observing", "patience"] }
+    { title: "Rolig", ids: ["waiting", "thinking", "observing", "patience", "pass"] }
 ];
 const EMOTE_COOLDOWN_MS = 3000;
 const EMOTE_MAX_AGE_MS = 5000;
@@ -746,7 +748,7 @@ class GameEmotes {
 // They have their own database path, so a problem here can never touch saving the card appearance.
 class EmoteSettings {
     static rounds = 0;
-    static needsOwnName = false;
+    static allUnlocked = false;
     static view = { arranging: false, emote: null, slot: null, placed: null };
 
     static loadout() { return normalizeEmoteLoadout(getCookie("EmoteLoadout")); }
@@ -793,12 +795,13 @@ class EmoteSettings {
         this.sync();
         this.render();
     }
-    static setRounds(rounds, needsOwnName) {
+    static setRounds(rounds, allUnlocked) {
         this.rounds = rounds;
-        this.needsOwnName = needsOwnName;
+        this.allUnlocked = allUnlocked;
         this.render();
     }
-    static isUnlocked(id) { return this.rounds >= emoteUnlockRound(id); }
+    static isUnlocked(id) { return this.allUnlocked || this.rounds >= emoteUnlockRound(id); }
+    static unlockedCount() { return EMOTE_ALL.filter(emote => this.isUnlocked(emote.id)).length; }
     static choose(details) {
         Object.assign(this.view, details);
         this.render();
@@ -826,7 +829,7 @@ class EmoteSettings {
         var refocus = focused == null ? null : focused.id ? `#${focused.id}`
             : focused.dataset.emoteOption ? `[data-emote-option="${focused.dataset.emoteOption}"]`
             : focused.dataset.slot != null ? `.emote-slot[data-slot="${focused.dataset.slot}"]` : null;
-        body.replaceChildren(this.topPanel(), this.botToggle(), this.progress(),
+        body.replaceChildren(this.topPanel(), this.botToggle(),
             ...EMOTE_GROUPS.map(group => this.emoteGroup(group)));
         this.view.placed = null;
         dialog.scrollTop = scroll;
@@ -884,18 +887,6 @@ class EmoteSettings {
             this.render();
         });
         return button;
-    }
-    static progress() {
-        var line = document.createElement("p");
-        line.className = "emote-settings__hint emote-settings__progress";
-        var unlocked = EMOTE_ALL.filter(emote => this.isUnlocked(emote.id)).length;
-        [`Runder spilt: ${this.rounds}`, `Låst opp: ${unlocked} av ${EMOTE_ALL.length}`,
-            ...(this.needsOwnName ? ["Velg et eget spillernavn for at rundene dine skal telle."] : [])].forEach(message => {
-            var part = document.createElement("span");
-            part.textContent = message;
-            line.appendChild(part);
-        });
-        return line;
     }
     static face(emote) {
         var fragment = document.createDocumentFragment();

@@ -53,12 +53,12 @@
     <link rel="stylesheet" href="css/common.css?rev=ab06da32">
     <link rel="stylesheet" href="css/game.css?rev=6a126a50">
     <link rel="stylesheet" href="css/mobile.css?rev=6217c4bf">
-    <link rel="stylesheet" href="css/theme.css?rev=4c8be1e4">
+    <link rel="stylesheet" href="css/theme.css?rev=5e485f9c">
     <link rel="stylesheet" href="css/color-themes.css?rev=be696cdb">
     <link rel="stylesheet" href="css/ui-refresh.css?rev=7bcef4d3">
     <link rel="stylesheet" href="css/foil.css?rev=dc1f87c5">
     <link rel="stylesheet" href="css/card-depth.css?rev=dd07a03f">
-    <link rel="stylesheet" href="css/emotes.css?rev=50952818">
+    <link rel="stylesheet" href="css/emotes.css?rev=e6b30ad3">
     <script id="applySavedColorTheme">
         // Applies the saved theme before first paint so the splash never flashes the default colours.
         (function () {
@@ -386,6 +386,7 @@
     <div id="dialogEmotes" class="dialog-container">
         <div class="dialog-window">
             <div class="dialog-title">Emotes</div>
+            <p class="unlock-progress" id="emoteProgress"></p>
             <div class="dialogBody emote-settings" id="emoteSettingsBody"></div>
             <div class="dialog-footer">
                 <button type="button" id="emoteSettingsCloseButton">Lukk</button>
@@ -395,8 +396,8 @@
     <div id="dialogCardFoil" class="dialog-container">
         <div class="dialog-window">
             <div class="dialog-title">Velg folie</div>
+            <p class="unlock-progress" id="cardFoilProgress"></p>
             <p class="color-theme-description">Folie legges over kortstilen</p>
-            <p class="card-foil-wins" id="cardFoilWins">Your wins: 0</p>
             <div class="dialogBody card-style-list" id="cardFoilOptions"></div>
             <div class="dialog-footer">
                 <button type="button" id="cardFoilCloseButton">Lukk</button>
@@ -406,7 +407,7 @@
     <div id="dialogCardStyle" class="dialog-container">
         <div class="dialog-window">
             <div class="dialog-title">Velg kortstil</div>
-            <p class="card-foil-wins" id="cardStyleRounds">Dine runder: 0</p>
+            <p class="unlock-progress" id="cardStyleProgress"></p>
             <div class="dialogBody card-style-list">
                 <div class="setting-row setting-card-style-scope" role="group" aria-label="Visning av kortutseende">
                     <span class="setting-row__text"><strong>Visning av kortutseende</strong><small>Bruk valgt stil og folie på alle kort, eller vis andre spilleres valgte stil og folie.</small></span>
@@ -909,11 +910,11 @@
     <script src="js/layout-hand.js?rev=2287c17f"></script>
     <script src="js/engine.js?rev=5f07bf04"></script>
     <script src="js/bot-turn.js?rev=8a5ffc1d"></script>
-    <script src="js/emotes.js?rev=6536c2c7"></script>
-    <script src="js/connection.js?rev=977d75f9"></script>
+    <script src="js/emotes.js?rev=b89ea81a"></script>
+    <script src="js/connection.js?rev=7de8e979"></script>
     <script src="js/custom-rules.js?rev=93bc16e9"></script>
     <script src="js/leaderboard.js?rev=98194434"></script>
-    <script src="js/i18n.js?rev=5f04c9b3"></script>
+    <script src="js/i18n.js?rev=51f62d8d"></script>
 </body>
 
 </html>

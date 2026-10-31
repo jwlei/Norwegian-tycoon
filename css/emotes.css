@@ -247,7 +247,7 @@
     /* A sideways swipe on the boxes would otherwise be the browser's "go back" and leave the game. */
     touch-action: pan-y pinch-zoom;
 }
-#dialogEmotes .dialog-title { flex: 0 0 auto; padding-bottom: 8px; }
+#dialogEmotes .dialog-title { flex: 0 0 auto; padding-bottom: 12px; }
 #dialogEmotes .dialogBody {
     flex: 1 0 auto;
     min-height: auto;
@@ -308,12 +308,6 @@
 .emote-settings__rearrange[aria-pressed="true"] { color: var(--accent); }
 .emote-settings__rearrange:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .emote-settings__hint { margin: 6px 0 0; color: var(--muted); font-size: 0.74rem; line-height: 1.25; }
-.emote-settings__progress {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2px 12px;
-    margin-bottom: 4px;
-}
 .emote-settings__emoji { font-size: 1.5rem; line-height: 1.1; }
 .emote-settings__label { min-width: 0; line-height: 1.15; overflow-wrap: anywhere; }
 .emote-settings__grid {

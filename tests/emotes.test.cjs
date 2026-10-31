@@ -24,13 +24,13 @@ function loadGame() {
     }
     return vm.runInContext(`({ GamePresence, PresidentGame, PresidentPlayer, PresidentCard, CardDeck, playBotTurn, CUSTOM_RULES,
         createEmoteMemory, readEmoteEvents, planBotEmotes, planBotReply, emoteTrickKey, emoteCardsAreHigh,
-        EMOTE_BOT_LIMIT_PER_TRICK, EMOTES, EMOTE_EXTRAS, EMOTE_ALL, emoteUnlockRound, normalizeEmoteLoadout, placeEmoteInLoadout, EMOTE_GROUPS, GameEmotes })`, context);
+        EMOTE_BOT_LIMIT_PER_TRICK, EMOTES, EMOTE_EXTRAS, EMOTE_ALL, emoteUnlockRound, normalizeEmoteLoadout, placeEmoteInLoadout, EMOTE_GROUPS, GameEmotes, EmoteSettings })`, context);
 }
 
 const types = loadGame();
 const { PresidentGame, PresidentPlayer, PresidentCard, CardDeck, playBotTurn, CUSTOM_RULES, createEmoteMemory,
     readEmoteEvents, planBotEmotes, planBotReply, emoteTrickKey, emoteCardsAreHigh, EMOTE_BOT_LIMIT_PER_TRICK,
-    EMOTES, EMOTE_EXTRAS, EMOTE_ALL, emoteUnlockRound, normalizeEmoteLoadout, placeEmoteInLoadout, EMOTE_GROUPS, GameEmotes } = types;
+    EMOTES, EMOTE_EXTRAS, EMOTE_ALL, emoteUnlockRound, normalizeEmoteLoadout, placeEmoteInLoadout, EMOTE_GROUPS, GameEmotes, EmoteSettings } = types;
 
 function dealtGame(playerCount, rules, random) {
     const deck = [];
@@ -213,15 +213,31 @@ test("a reply goes back to the sender, and only bots answer", () => {
     assert.equal(planBotReply("Human", "hi", null, table).to, "Human");
 });
 
-test("the extras unlock evenly from round 1 to round 50, and the defaults are always available", () => {
-    assert.equal(EMOTE_EXTRAS.length, 41);
+test("the extras unlock evenly from round 1 to round 100, and the defaults are always available", () => {
+    assert.equal(EMOTE_EXTRAS.length, 43);
     assert.equal(new Set(EMOTE_ALL.map(emote => emote.id)).size, EMOTE_ALL.length);
     assert.ok(EMOTES.every(emote => emoteUnlockRound(emote.id) == 0));
     const rounds = EMOTE_EXTRAS.map(emote => emoteUnlockRound(emote.id));
     assert.equal(rounds[0], 1);
-    assert.equal(rounds[rounds.length - 1], 50);
+    assert.equal(rounds[rounds.length - 1], 100);
     assert.equal(new Set(rounds).size, rounds.length, "one unlock per round at most");
     assert.ok(rounds.every((round, index) => index == 0 || round > rounds[index - 1]));
+});
+
+test("the unlocked count follows rounds played, and an ID with every appearance unlock has every emote", () => {
+    EmoteSettings.allUnlocked = false;
+    EmoteSettings.rounds = 0;
+    assert.equal(EmoteSettings.unlockedCount(), EMOTES.length);
+    assert.equal(EmoteSettings.isUnlocked("hehe"), false);
+    EmoteSettings.rounds = 1;
+    assert.equal(EmoteSettings.unlockedCount(), EMOTES.length + 1);
+    EmoteSettings.rounds = 0;
+    EmoteSettings.allUnlocked = true;
+    assert.equal(EmoteSettings.unlockedCount(), EMOTE_ALL.length);
+    assert.equal(EmoteSettings.isUnlocked("hehe"), true);
+    EmoteSettings.allUnlocked = false;
+    const connection = fs.readFileSync(path.join(__dirname, "..", "js", "connection.js"), "utf8");
+    assert.match(connection, /EmoteSettings\.setRounds\(playerRoundsPlayed, Card\.hasAllAppearanceUnlocks\(/);
 });
 
 test("a loadout always holds six different known emotes, and placing one already in use swaps them", () => {

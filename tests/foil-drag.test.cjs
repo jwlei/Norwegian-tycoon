@@ -5,7 +5,8 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const source = name => fs.readFileSync(path.join(__dirname, "..", "js", name), "utf8");
-const bounds = { left: 0, top: 0, right: 400, bottom: 300, width: 400, height: 300 };
+const progressLine = line => line.children.map(part => part.textContent);
+const bounds ={ left: 0, top: 0, right: 400, bottom: 300, width: 400, height: 300 };
 
 // Flick thresholds are tuned in game.js; derive test boundaries from them instead of copying values.
 const tuning = Object.fromEntries(Array.from(
@@ -381,6 +382,7 @@ test("the foil selector persists independently, updates previews and never regis
     context.playerWinsName = "Ada";
     context.playerWinsLoading = false;
     context.playerWinsError = false;
+    context.PlayerIdentity = { isDefaultName: () => false };
     context.refreshPlayerPresidentWins = () => {};
     context.showDialog = (...args) => dialogs.push(args);
     let styleUpdates = 0;
@@ -405,7 +407,7 @@ test("the foil selector persists independently, updates previews and never regis
     assert.ok(options.children.every(button => button.querySelectorAll(".card-preview").length == 1));
     assert.deepEqual(options.children.slice(0, 5).map(button => button.dataset.cardFoil),
         ["none", "full-art", "holo", "trainer-full-art", "vstar"]);
-    assert.equal(nodes.get("cardFoilWins").textContent, "Your wins: 12");
+    assert.deepEqual(progressLine(nodes.get("cardFoilProgress")), ["Seire: 12", "Låst opp: 7 av 15"]);
     const goldRow = options.children.find(button => button.dataset.cardFoil == "gold");
     const gold = goldRow.querySelector(".card-foil-option__select");
     assert.equal(gold.disabled, true);
@@ -485,7 +487,10 @@ test("foil locks show win requirements, block locked selection and exempt the na
     assert.match(themeCss, /\.card-foil-option__unlock\s*\{[^}]*position:\s*absolute;[^}]*top:\s*50%;[^}]*left:\s*50%;[^}]*text-align:\s*center;/);
     assert.match(themeCss, /\.card-foil-option__unlock\s*\{[^}]*border:\s*1px solid var\(--line\);/);
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-    assert.match(html, /id="cardFoilWins">Your wins: 0<\/p>/);
+    for (const id of ["emoteProgress", "cardFoilProgress", "cardStyleProgress"]) {
+        assert.match(html, new RegExp(`class="dialog-title">[^<]*</div>\\s*<p class="unlock-progress" id="${id}">`),
+            "The progress line sits right under the window title");
+    }
 });
 
 test("opening the menu refreshes wins by name and stale responses cannot unlock another name", async () => {
@@ -629,6 +634,7 @@ test("locked card styles disable only selection while their previews stay intera
         playerWinsLoading: false, playerWinsError: false,
         localizedMessage: text => text, updateCardAppearancePreview() {},
         readLastUsedPlayerName: () => "Ada",
+        PlayerIdentity: { isDefaultName: name => name == "Spiller" },
         bindCardPreviewTilt: preview => bound.push(preview)
     });
     const connection = source("connection.js");
@@ -645,12 +651,28 @@ test("locked card styles disable only selection while their previews stay intera
     assert.ok(rows.every(row => row.disabled === undefined));
     assert.equal(bound.length, 15);
     assert.ok(bound.every(preview => preview.tabIndex == 0));
-    assert.equal(f.nodes.get("cardStyleRounds").textContent, "Dine runder: 5");
+    const line = () => progressLine(f.nodes.get("cardStyleProgress"));
+    assert.deepEqual(line(), ["Runder spilt: 5", "Låst opp: 2 av 4"], "The hidden secret style is not counted");
     f.context.playerRoundsPlayed = 150;
     f.context.updateCardStyleButtons();
-    assert.equal(f.nodes.get("cardStyleRounds").textContent, "Dine runder: 150",
+    assert.deepEqual(line(), ["Runder spilt: 150", "Låst opp: 4 av 4"],
         "A fresh count must update even when existing preview images are reused");
     assert.equal(bound.length, 15);
+    f.context.playerWinsLoading = true;
+    f.context.updateCardStyleButtons();
+    assert.deepEqual(line(), ["Henter runder…"]);
+    f.context.playerWinsLoading = false;
+    f.context.playerWinsError = true;
+    f.context.updateCardStyleButtons();
+    assert.deepEqual(line(), ["Kunne ikke hente runder. Åpne menyen igjen for å prøve på nytt."]);
+    f.context.playerWinsError = false;
+    Object.assign(f.context, { playerRoundsPlayed: 0, currentPlayerName: "Spiller", playerWinsName: "Spiller",
+        readLastUsedPlayerName: () => "Spiller" });
+    f.context.updateCardStyleButtons();
+    assert.deepEqual(line(), ["Runder spilt: 0", "Låst opp: 1 av 4", "Velg et eget spillernavn for at rundene dine skal telle."]);
+    Object.assign(f.context, { playerRoundsPlayed: 150, currentPlayerName: "Ada", playerWinsName: "Ada",
+        readLastUsedPlayerName: () => "Ada" });
+    f.context.updateCardStyleButtons();
     assert.equal(rows[4].querySelector(".card-style-option__select").disabled, false);
     f.context.currentGame = { status: "G", getPlayer: () => null };
     f.context.updateCardStyleButtons();

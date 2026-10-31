@@ -1297,12 +1297,20 @@ select:focus-visible {
     display: none;
 }
 
-.card-foil-wins {
+.unlock-progress {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    gap: 2px 12px;
     margin: 0;
-    padding: 0 18px 10px;
-    color: var(--ink);
-    font-size: 0.85rem;
-    font-weight: 600;
+    padding: 0 16px 10px;
+    color: var(--muted);
+    font-size: 0.74rem;
+    line-height: 1.25;
+}
+
+#dialogCardFoil .color-theme-description {
+    padding-inline: 16px;
 }
 
 .card-foil-option > strong,

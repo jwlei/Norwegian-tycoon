@@ -35,7 +35,7 @@
         "$seat": {
           ".write": "auth != null && (!newData.exists() || !data.exists() || now >= data.child('t').val() + 2500)",
           ".validate": "$seat.length <= 700 && newData.hasChildren(['e', 't'])",
-          "e": { ".validate": "newData.isString() && newData.val().matches(/^(hi|gg|ty|wow|omg|excellent|fatal|defeat|rage|foolish|ghost|alien|garbage|strike|galaxy|dominance|motives|goodgame|mercy|wasted|value|badtrade|lethal|predicted|questionable|salt|calculated|trapped|doomed|blunder|flawless|lucky|unlucky|denied|countered|waiting|thinking|observing|panicking|brilliant|bait|punished|inevitable|greed|patience|overkill|misclick)$/)" },
+          "e": { ".validate": "newData.isString() && newData.val().matches(/^(hi|gg|ty|wow|omg|excellent|fatal|defeat|rage|foolish|ghost|alien|garbage|strike|galaxy|dominance|motives|goodgame|mercy|wasted|value|badtrade|lethal|predicted|questionable|salt|calculated|trapped|doomed|blunder|flawless|lucky|unlucky|denied|countered|waiting|thinking|observing|panicking|brilliant|bait|punished|inevitable|greed|patience|overkill|misclick|pass|hehe)$/)" },
           "t": { ".validate": "newData.val() == now" },
           "to": { ".validate": "newData.isString() && newData.val().length <= 700" },
           "$other": { ".validate": false }

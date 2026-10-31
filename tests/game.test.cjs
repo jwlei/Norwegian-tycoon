@@ -3233,7 +3233,7 @@ test("settings show the localized selected style name and refresh the shared pre
     let previewUpdates = 0;
     const context = vm.createContext({
         PresidentCard, style: "holo", selectedName: "Holo",
-        playerRoundsPlayed: 0, playerWinsLoading: false, playerWinsError: false,
+        playerRoundsPlayed: 0, playerWinsLoading: false, playerWinsError: false, showUnlockProgress() {},
         GameLayout: { cardStyle: () => context.style, canUseBotanicalStyle: () => true },
         localizedMessage: text => "Translated " + text,
         updateCardAppearancePreview: () => previewUpdates++,
