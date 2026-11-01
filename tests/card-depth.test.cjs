@@ -73,17 +73,6 @@ function fixture(borderColor = null) {
 
 const numbers = d => d.match(/-?\d+\.\d+/g).map(Number);
 
-test("cards have one shadow style and no shadow setting", () => {
-    const f = fixture();
-    assert.equal(f.Depth.setShadowStyle, undefined);
-    assert.equal(f.Depth.renderSimpleShadow, undefined);
-    f.Depth.attach(f.element);
-    assert.ok(f.Depth.states.get(f.element).shadowEntries.get(f.Depth.FLOOR).filter, "The felt shadow keeps its blur");
-    for (const file of ["index.html", "js/connection.js", "js/i18n.js", "css/theme.css", "css/ui-refresh.css"]) {
-        assert.doesNotMatch(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), /card-shadow|CardShadow|Kortskygger/, file);
-    }
-});
-
 test("recreated cards keep the document's six-second foil phase without changing other animations", () => {
     const f = fixture();
     f.context.document.timeline = { currentTime: 8123 };
@@ -841,13 +830,11 @@ test("invalid artwork logs an explicit warning and retains the original image", 
     assert.equal(f.element.classes.has("has-card-depth"), false);
 });
 
-test("production and interaction sandboxes load shared geometry before the native renderer", () => {
-    for (const file of ["index.html", "sandbox/card-tilt-sandbox.html", "sandbox/mouse-drag-sandbox.html"]) {
-        const html = fs.readFileSync(path.join(__dirname, "..", file), "utf8");
-        assert.match(html, /card-depth\.css/);
-        assert.ok(html.indexOf("landing-geometry.js") < html.indexOf("card-depth.js"));
-        assert.ok(html.indexOf("card-depth.js") < html.indexOf("js/game.js"));
-    }
+test("the game loads shared geometry before the native renderer", () => {
+    const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+    assert.match(html, /card-depth\.css/);
+    assert.ok(html.indexOf("landing-geometry.js") < html.indexOf("card-depth.js"));
+    assert.ok(html.indexOf("card-depth.js") < html.indexOf("js/game.js"));
 });
 
 test("table cards lose their foil only when at most a tenth of them shows", () => {

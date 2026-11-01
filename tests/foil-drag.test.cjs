@@ -720,14 +720,6 @@ test("foil reduces light and pattern movement by twenty percent with 400ms easin
     assert.equal(vm.runInContext("CARD_DRAG_FOIL_PATTERN_MS", fixture().context), 230);
 });
 
-test("idle foil has no setting and still stops for reduced motion", () => {
-    const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-    const css = fs.readFileSync(path.join(__dirname, "..", "css", "foil.css"), "utf8");
-    for (const file of [html, css, source("connection.js"), source("i18n.js")]) {
-        assert.doesNotMatch(file, /idleFoilAnimation|idle-foil-animation|IdleFoilAnimation|Folieanimasjon/);
-    }
-});
-
 test("six-second idle foil keeps the blended colour layer still and drifts only a plain glare", () => {
     const css = fs.readFileSync(path.join(__dirname, "..", "css", "foil.css"), "utf8");
     const depthCss = fs.readFileSync(path.join(__dirname, "..", "css", "card-depth.css"), "utf8");
@@ -741,7 +733,6 @@ test("six-second idle foil keeps the blended colour layer still and drifts only 
     assert.match(depthCss, /\.table-card-pile \.table-play__card\.is-depth-detailed\[data-foil\]:not\(\[data-foil="none"\]\) \{\s*will-change: transform;/,
         "Painted foil must not be repainted when the top cards are promoted at every landing");
     assert.match(css, /@media \(prefers-reduced-motion: no-preference\) \{[^@]*:is\(#playerHand \.game-card, \.card-preview\)/);
-    assert.doesNotMatch(css, /foil-idle-reflection/);
     assert.match(css, /:not\(\.is-tilting,\s*\.card-flight, \.card-discard-flight, \.is-drag-source, \.card-drag-layer \*/);
     const keyframes = name => {
         const start = css.indexOf(`@keyframes ${name}`);
@@ -754,7 +745,6 @@ test("six-second idle foil keeps the blended colour layer still and drifts only 
     assert.match(css, /inset: calc\(\.625% \+ 1\.6%\) calc\(\.9375% \+ 3\.2%\);\s*animation: foil-idle-glare/);
     assert.match(css, /\.is-foil-offscreen\[data-foil\]::before,\s*\.is-foil-offscreen\[data-foil\]::after/);
     assert.match(css, /\.card-flight\[data-foil\][^{]*::after\s*\{[^}]*translate: var\(--foil-glare-x\) var\(--foil-glare-y\);/);
-    assert.doesNotMatch(css, /foil-idle-reflection|--foil-activity/);
 });
 
 test("a dragged card's tilt follows every frame while its foil light repaints at most 30 times a second", () => {

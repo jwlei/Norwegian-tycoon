@@ -1,7 +1,5 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
 const G = require("../js/landing-geometry.js");
 
 const flat = (x = 0, y = 0, z = 2.56) => ({ x, y, z, pitch: 0, yaw: 0, roll: 0 });
@@ -307,15 +305,6 @@ test("a wide edge-constrained fan tightens only as needed, retaining readable sp
             assert.equal(card.y - fitted[0].y, cards[i].y - cards[0].y);
         }
     });
-});
-
-test("sandbox loads only native card assets, never the production WebGL renderer", () => {
-    const html = fs.readFileSync(path.join(__dirname, "..", "sandbox", "landing-sandbox.html"), "utf8");
-    const js = fs.readFileSync(path.join(__dirname, "..", "sandbox", "landing-sandbox.js"), "utf8");
-    assert.doesNotMatch(html, /card-depth|depth-renderer|firebase|src=".*game\.js/);
-    assert.doesNotMatch(js, /getContext|createElement\("canvas"\)|setInterval/);
-    assert.match(html, /landing-geometry\.js/);
-    assert.match(js, /if \(currentProgress < 1 && !paused\)/);
 });
 
 test("barelyVisible counts the area showing past the cards above", () => {

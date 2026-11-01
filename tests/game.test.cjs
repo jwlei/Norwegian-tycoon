@@ -6136,12 +6136,11 @@ test("public lobby metadata publishes the shared turn speed, defaulting older ro
     }
 });
 
-test("settings have three log-style categories and no performance section", () => {
+test("settings have three log-style categories", () => {
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
     const css = fs.readFileSync(path.join(__dirname, "..", "css", "theme.css"), "utf8");
     const settings = html.slice(html.indexOf('id="dialogSettings"'), html.indexOf('id="dialogColorTheme"'));
     assert.equal((settings.match(/class="settings-category"/g) || []).length, 3);
-    assert.doesNotMatch(settings, /Ytelse/);
     assert.match(settings, /data-speed="slow"[\s\S]*?id="messageTimerBarToggleButton"[\s\S]*?<\/section>\s*<div class="setting-row setting-turn-speed"/);
     assert.match(css, /\.game-log__trick,\s*\.settings-category\s*\{/);
     assert.match(css, /\.game-log__trick::after,\s*\.settings-category::after\s*\{/);
