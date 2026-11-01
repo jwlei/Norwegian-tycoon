@@ -2225,7 +2225,7 @@ test("the max-visible selector persists independently and updates across tabs", 
     vm.runInContext(source.slice(source.indexOf("        function maxVisibleMessages()"),
         source.indexOf("        function updateToastVisibility()")) +
         source.slice(source.indexOf("        function updateMaxMessageButtons()"),
-            source.indexOf("        function updateIdleFoilAnimation(")), context);
+            source.indexOf("        function updateMessageTimerBar(")), context);
     assert.equal(context.maxVisibleMessages(), 1);
     assert.equal(buttons[0]["aria-pressed"], "true");
     buttons[1].click();
@@ -6136,12 +6136,12 @@ test("public lobby metadata publishes the shared turn speed, defaulting older ro
     }
 });
 
-test("settings have four log-style categories with performance controls at the bottom", () => {
+test("settings have three log-style categories and no performance section", () => {
     const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
     const css = fs.readFileSync(path.join(__dirname, "..", "css", "theme.css"), "utf8");
     const settings = html.slice(html.indexOf('id="dialogSettings"'), html.indexOf('id="dialogColorTheme"'));
-    assert.equal((settings.match(/class="settings-category"/g) || []).length, 4);
-    assert.ok(settings.indexOf("Ytelse") > settings.indexOf("Spill og styring"));
+    assert.equal((settings.match(/class="settings-category"/g) || []).length, 3);
+    assert.doesNotMatch(settings, /Ytelse/);
     assert.match(settings, /data-speed="slow"[\s\S]*?id="messageTimerBarToggleButton"[\s\S]*?<\/section>\s*<div class="setting-row setting-turn-speed"/);
     assert.match(css, /\.game-log__trick,\s*\.settings-category\s*\{/);
     assert.match(css, /\.game-log__trick::after,\s*\.settings-category::after\s*\{/);

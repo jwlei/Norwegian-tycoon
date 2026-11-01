@@ -68,11 +68,8 @@ test("message options share a box and the optional timer bar has no effect on to
     assert.match(refresh, /#dialogRules \.play-guide-shortcut \{[^}]*margin: 0 auto 12px;[^}]*background: transparent;/);
 });
 
-test("settings finish with performance controls and keep the PIN input beside its switch", () => {
+test("settings keep the PIN input beside its switch", () => {
     const settings = html.slice(html.indexOf('id="dialogSettings"'), html.indexOf('id="dialogColorTheme"'));
-    assert.ok(settings.indexOf("Ytelse") > settings.indexOf("Kortstyring"));
-    assert.ok(settings.indexOf('id="idleFoilAnimationToggleButton"') > settings.indexOf("Ytelse"));
-    assert.ok(settings.indexOf('aria-label="Kortskygger"') > settings.indexOf("Ytelse"));
     assert.match(settings, /id="cardAppearanceLocked" hidden/);
     assert.match(html, /class="player-pin-row">[\s\S]*?id="playerUsePin"[\s\S]*?id="playerPinFields" hidden>[\s\S]*?id="playerRecoveryPin"/);
     const refresh = fs.readFileSync(path.join(__dirname, "..", "css", "ui-refresh.css"), "utf8");

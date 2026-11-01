@@ -59,7 +59,8 @@
             GameLayout.foilForPlayer = () => foil;
             GameLayout.styleForPlayer = () => style;
             document.body.dataset.idleFoilAnimation = idleFoil ? "on" : "off";
-            CardDepth.setShadowStyle(shadows);
+            // Commits before 1.4.3 only: later ones have no simple shadows, so asking for them throws instead of measuring the wrong thing.
+            if (shadows != "fancy") { CardDepth.setShadowStyle(shadows); }
             if (theme) { document.documentElement.dataset.colorTheme = theme; }
 
             const all = deck();

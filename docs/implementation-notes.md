@@ -25,13 +25,9 @@ Changing which cards the President gives back made no measurable difference acro
 
 ## Card depth, landing and rendering
 
-Settings include a local, saved **Card shadows** choice. **Fancy** (the default) keeps the
-existing projected, blurred shadows and card-to-card shadowing. **Simple** uses one unblurred,
-offset silhouette per card, skipping shadow projection, occlusion tests and receiver shadows.
-It applies immediately to table cards, drags and flights, including prepared drag previews when
-next used. Card artwork, seven-layer edges, foil treatments, landing physics and motion are unchanged.
+Cards use one shadow style: projected, blurred shadows with card-to-card shadowing. The **Card shadows** and **Idle foil animation** settings were removed in 1.4.3 to reduce clutter. Idle foil's main saving is now built in. Simple shadows shortened freezes by about 15% on an emulated phone, and were never measured on a real one, so slower phones may lose that. Saved choices are ignored.
 
-Fancy-mode optimizations keep all 81 flight foil keyframes but calculate their exact pitch/yaw
+Rendering optimizations keep the flight foil keyframes but calculate their exact pitch/yaw
 without solving unused clearance heights. Full physics still drives every displayed flight pose.
 Support and shadow tests reuse each plane's exact local axes; shadow bounds reject unreachable
 receivers before calculating exposed samples, without changing the remaining visibility tests.
@@ -68,8 +64,6 @@ Idle foils use one six-second light drift, without moving the card or changing i
 
 The blended color layer never animates, because an animated blended layer needs off-screen render passes every time anything on the page moves, about three per card in Chromium. Still, it is painted once into its card's layer and costs what no foil costs (3.9 passes per frame either way). The glare uses a plain white gradient instead of soft-light, so it needs no pass of its own; [perf/foil-model.cjs](../perf/foil-model.cjs) fits it to the old look within 6 of 255 levels on any color, 2.3 on average. The top table cards keep their layers so landings do not repaint their foil. [perf/phone-lab.cjs](../perf/phone-lab.cjs) measures this on a real phone.
 
-The saved **Idle foil animation** switch under Appearance defaults to on. Turning it off stops idle motion across hand, table and settings-preview cards while keeping static foil visible and retaining drag/flight reflections. It applies immediately, synchronizes across tabs and still respects reduced-motion preferences.
-
 Played cards carry their visible foil light position, eased pattern position and intensity from the hand or drag preview into flight. The light follows the same tilt/settling poses as the card face and blends into the destination's idle phase at the whole play's reveal, including staggered groups. Recreated native table cards share the document's six-second phase so a table refresh does not restart their shimmer. Flight foil keyframes are computed once; no additional frame loop is introduced.
 
 A moving card's foil has its own layers, so tilting moves them without repainting the gradients. The tilt follows every frame, while the light updates at most about 30 times a second, held between samples: 17 samples per flight and one update per 33 ms during a drag, with the last frame always written so the light comes to rest exactly. A flight's foil properties are in an animation separate from its movement, because custom properties in the same animation are expected to keep its transform off the compositor in Chromium. On the first OnePlus 15 run these changes showed no clear gain over the still foil alone, so they are worth re-measuring in Chrome.
@@ -84,7 +78,7 @@ AMOLED Black uses flat, solid-colour controls and panels, a true-black table wit
 
 Buttons across all themes use flat colours without glass highlights, gradients, shadows or glow. Primary actions retain their filled accent colour; secondary actions retain quieter theme-coloured fills and semantic action colours. Auto-pass, automatic suggestions and fast-forward remain discreet, borderless controls on a transparent background, with their original icons, state colours and hover opacity. Keyboard focus outlines remain visible.
 
-The top-bar controls are icons without button backgrounds. Settings end with a Performance section for card shadows and idle foil animation. Card style, foil and appearance scope can only be changed between games, not during trading or play; the shared game snapshot keeps active players' appearance stable across device updates. The PIN switch and input share a row. Only the splash profile's ID has a dotted underline; the entire name-and-ID line remains clickable and keyboard-accessible, opening a hint linking to settings for retaining progress with a name and PIN on other devices.
+The top-bar controls are icons without button backgrounds. Card style, foil and appearance scope can only be changed between games, not during trading or play; the shared game snapshot keeps active players' appearance stable across device updates. The PIN switch and input share a row. Only the splash profile's ID has a dotted underline; the entire name-and-ID line remains clickable and keyboard-accessible, opening a hint linking to settings for retaining progress with a name and PIN on other devices.
 
 The table uses its theme's surface (AMOLED remains flat black); there is no separate Flat/Textured selector. The delayed outline around the table cards uses the selected theme's accent colour.
 
@@ -114,7 +108,7 @@ Use [per-foil settings](../sandbox/foil-settings-preview.html) to choose one sha
 
 Production foil treatments now use the approved per-foil opacity, saturation, blend and printed-layer choices in `Card.foilTreatments`, keyed by English foil names (stripes, stardust, prism, waves, facets, rings, weave, rainbow, contrast, gold-sheen, grid, iridescent, pearlescent, rays). Existing saved IDs remain compatible. CSS reflections apply the same reductions at rest, during dragging and in flight; printed SVG foil is disabled for prism, waves, contrast, grid and rays. The settings preview starts from these production choices when no local choices exist and exports English-named version-2 configuration. Preview images request untreated artwork so adjustments are not applied twice.
 
-Production uses the full CSS foil with idle animation on by default. Idle foil animates only a translated plain glare layer inset by its travel distance, avoiding per-frame gradient recalculation; table cards, hand cards and flights share the same phase. Dragged cards ease their foil pattern in JavaScript rather than restarting CSS transitions each frame. Foil stays visible while scrolling, and pointer, drag and flight reflections remain. The Appearance idle-animation toggle still saves and synchronizes across tabs; an explicitly saved disabled preference is honored.
+Production uses the full CSS foil with idle animation on by default. Idle foil animates only a translated plain glare layer inset by its travel distance, avoiding per-frame gradient recalculation; table cards, hand cards and flights share the same phase. Dragged cards ease their foil pattern in JavaScript rather than restarting CSS transitions each frame. Foil stays visible while scrolling, and pointer, drag and flight reflections remain.
 
 The Messages setting is off by default and controls board messages, not the game log. Its switch is on when messages are enabled; message timing settings appear only while enabled. Existing saved visibility preferences are preserved.
 

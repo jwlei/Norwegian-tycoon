@@ -2173,39 +2173,6 @@
             if (event.key == "norwegian-tycoon-cookie-MaxVisibleMessages") { updateMaxMessageButtons(); }
         });
         updateMaxMessageButtons();
-        function updateIdleFoilAnimation(enabled) {
-            document.body.dataset.idleFoilAnimation = enabled ? "on" : "off";
-            document.getElementById("idleFoilAnimationToggleButton").setAttribute("aria-pressed", String(enabled));
-        }
-        document.getElementById("idleFoilAnimationToggleButton").addEventListener("click", function () {
-            var enabled = this.getAttribute("aria-pressed") != "true";
-            setCookie("IdleFoilAnimation", enabled, 1000);
-            updateIdleFoilAnimation(enabled);
-        });
-        window.addEventListener("storage", function (event) {
-            if (event.key != "norwegian-tycoon-cookie-IdleFoilAnimation") { return; }
-            setCookie("IdleFoilAnimation", event.newValue != "false", 1000);
-            updateIdleFoilAnimation(event.newValue != "false");
-        });
-        updateIdleFoilAnimation(getCookie("IdleFoilAnimation") != "false");
-        function updateCardShadowButtons(style) {
-            CardDepth.setShadowStyle(style == "simple" ? "simple" : "fancy");
-            document.querySelectorAll(".card-shadow-option").forEach(button => {
-                button.setAttribute("aria-pressed", String(button.dataset.cardShadow == CardDepth.shadowStyle));
-            });
-        }
-        document.querySelectorAll(".card-shadow-option").forEach(button => {
-            button.addEventListener("click", function () {
-                setCookie("CardShadowStyle", button.dataset.cardShadow, 1000);
-                updateCardShadowButtons(button.dataset.cardShadow);
-            });
-        });
-        window.addEventListener("storage", function (event) {
-            if (event.key != "norwegian-tycoon-cookie-CardShadowStyle") { return; }
-            setCookie("CardShadowStyle", event.newValue == "simple" ? "simple" : "fancy", 1000);
-            updateCardShadowButtons(event.newValue);
-        });
-        updateCardShadowButtons(getCookie("CardShadowStyle"));
         function updateMessageTimerBar(enabled) {
             document.body.dataset.messageTimerBar = enabled ? "on" : "off";
             document.getElementById("messageTimerBarToggleButton").setAttribute("aria-pressed", String(enabled));

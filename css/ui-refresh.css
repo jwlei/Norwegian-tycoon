@@ -240,7 +240,6 @@ button:not(.game-card) {
 /* Segmented controls: one connected track with a filled selected option. */
 .speed-options,
 .turn-speed-options,
-.card-shadow-options,
 .play-input-options,
 .card-style-scope-options,
 .quick-play-options,
@@ -254,7 +253,6 @@ button:not(.game-card) {
 }
 .speed-option + .speed-option,
 .animation-speed-option + .animation-speed-option,
-.card-shadow-option + .card-shadow-option,
 .play-input-option + .play-input-option,
 .card-style-scope-option + .card-style-scope-option,
 .quick-play-option + .quick-play-option,
@@ -263,7 +261,6 @@ button:not(.game-card) {
 }
 .speed-option,
 .animation-speed-option,
-.card-shadow-option,
 .play-input-option,
 .card-style-scope-option,
 #mainMenu .quick-play-option,
@@ -275,8 +272,6 @@ button:not(.game-card) {
 .speed-option[aria-pressed="true"]:hover,
 .animation-speed-option[aria-pressed="true"],
 .animation-speed-option[aria-pressed="true"]:hover,
-.card-shadow-option[aria-pressed="true"],
-.card-shadow-option[aria-pressed="true"]:hover,
 .play-input-option[aria-pressed="true"],
 .play-input-option[aria-pressed="true"]:hover,
 .card-style-scope-option[aria-pressed="true"],
@@ -336,7 +331,7 @@ button:focus-visible {
 :root[data-color-theme="amoled"] :is(
     button, .dialog-window, .setting-row, .setting-row__switch, .setting-row__switch > span,
     #gameMenu, #gameTable, #playerList > div, .player-summary, .exchange,
-    .speed-options, .turn-speed-options, .card-shadow-options, .play-input-options,
+    .speed-options, .turn-speed-options, .play-input-options,
     .card-style-scope-options, .quick-play-options, .language-options
 ) {
     background-image: none !important;

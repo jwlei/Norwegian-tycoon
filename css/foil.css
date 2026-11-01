@@ -264,13 +264,13 @@ body.has-open-dialog :is(#playerHand .game-card, #gameTable .card-preview)::afte
 /* The blended colour layer stays still at rest, so it is painted once into its card's layer and costs no render pass
    while something else on the page moves. Only the plain glare drifts, and only on cards that nothing covers. */
 @media (prefers-reduced-motion: no-preference) {
-    body:not([data-idle-foil-animation="off"]) :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]):not(.is-tilting,
+    :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]):not(.is-tilting,
         .card-flight, .card-discard-flight, .is-drag-source, .card-drag-layer *,
         .card-foil-option:is(:hover, :focus-visible) *)::before {
         transition: none;
     }
     /* The drifting glare is inset by its travel distance, so it never extends past the card. */
-    body:not([data-idle-foil-animation="off"]) :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]):not(.is-tilting,
+    :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]):not(.is-tilting,
         .card-flight, .card-discard-flight, .is-drag-source, .card-drag-layer *,
         .card-foil-option:is(:hover, :focus-visible) *)::after {
         inset: calc(.625% + 1.6%) calc(.9375% + 3.2%);

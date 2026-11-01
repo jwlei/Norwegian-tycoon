@@ -82,6 +82,7 @@ body.is-active :is(#comparisons, #stress-hand) .card-preview[data-renderer="cach
     0%, 100% { transform: translate(-3px, -2px); }
     50% { transform: translate(3px, 2px); }
 }
+body[data-idle-foil-animation="off"] .card-preview::after { animation: none !important; }
 @media (prefers-reduced-motion: no-preference) {
     body:not([data-idle-foil-animation="off"]) :is(#comparisons, #stress-hand) .card-preview[data-renderer="simple"]:not(.is-tilting)::before {
         animation: cheap-foil-pulse 6s ease-in-out infinite !important;

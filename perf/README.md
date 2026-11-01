@@ -42,6 +42,7 @@ Variants are patches in `examples/`, named by number. `01+09` stacks them in tha
 ## Limits
 
 - `phone` is an emulated viewport with 4× CPU throttling on the main thread only, running on a desktop GPU. It is not a real device, so check final decisions on a real phone with `phone-lab.cjs`.
+- The `-simple` and `hand-idle-foil-off` scenarios measure settings removed in 1.4.3, so they need `PERF_COMMIT=0424bf9`. On later commits `-simple` throws, and `hand-idle-foil-off` measures the same as `hand-idle`.
 - `phone-lab.cjs` measures frame intervals from inside the page. GPU overload shows up there because the browser holds back frames, but render passes and layers cannot be read from a page.
 - `phone-sw` uses a software GPU as a pessimistic stand-in for a weak mobile GPU.
 - Headless Edge runs at 144 Hz here, so per-second loads are higher than on a 60 Hz display.

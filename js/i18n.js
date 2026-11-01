@@ -6,7 +6,6 @@
     var EN = Object.assign({}, window.I18N_EN || {}, {
         // Static page text
         "Innstillinger": "Settings",
-        "Ytelse": "Performance",
         "Bots": "Bots",
         "Tidslinje for meldinger": "Message timer bar",
         "Vis nedtellingslinjen under meldinger.": "Show the countdown bar below messages.",
@@ -279,12 +278,6 @@
         "Spillhastighet": "Game speed",
         "Viser meldinger på spillbrettet for deg. Hendelser vises alltid i spilloggen.": "Shows board messages for you. Events always appear in the game log.",
         "Animasjonshastighet": "Animation speed",
-        "Kortskygger": "Card shadows",
-        "Folieanimasjon i hvile": "Idle foil animation",
-        "Slå av for bedre ytelse. Folie vises fortsatt på kortene.": "Turn off for better performance. Foil remains visible on cards.",
-        "Detaljerte": "Fancy",
-        "Enkle": "Simple",
-        "Enkle skygger gir bedre ytelse. Kortutseende og bevegelser er uendret.": "Simple shadows improve performance. Card artwork and motion are unchanged.",
         "Varighet på meldinger om spillhendelser": "Duration of game event messages",
         "Rask bruker 50 % kortere tid, Sakte 50 % lengre tid enn Vanlig. Botene venter 1 / 2 / 3 sekunder, og alltid til kortanimasjonene er ferdige. I nettspill bestemmes bottempoet av den som styrer botene.": "Fast takes 50% less time, Slow 50% more time than Normal. Bots wait 1 / 2 / 3 seconds, and always until card animations finish. In online games, bot pace follows the client controlling the bots.",
         "Kunne ikke oppdatere turen. Prøver igjen.": "Could not update the turn. Retrying.",
