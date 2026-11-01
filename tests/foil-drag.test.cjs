@@ -801,6 +801,35 @@ test("six-second idle foil keeps the blended colour layer still and drifts only 
     assert.doesNotMatch(css, /foil-idle-reflection|--foil-activity/);
 });
 
+test("a dragged card's tilt follows every frame while its foil light repaints at most 30 times a second", () => {
+    const f = fixture();
+    const hand = new Element();
+    const card = new Element();
+    card.dataset.cardKey = "1:5";
+    card.dataset.foil = "rainbow";
+    card.className = "game-card";
+    hand.append(card);
+    vm.runInContext('selectedCardKeys.add("1:5")', f.context);
+    f.context.startCardDragPreview(hand, { clientX: 100, clientY: 100 });
+    const preview = card._dragPreview;
+    f.context.moveCardDragPreview(hand, { clientX: 300, clientY: 20 }, 100, 100);
+    f.runFrame(1000);
+    const painted = [preview.properties.get("--foil-pattern-x")];
+    const tilts = [preview.properties.get("--tilt-y")];
+    // Eight frames at 120 Hz, a little over 58 ms.
+    for (let frame = 1; frame <= 7; frame++) {
+        f.context.moveCardDragPreview(hand, { clientX: 300 + frame * 40, clientY: 20 }, 100, 100);
+        f.runFrame(1000 + frame * 8.33);
+        painted.push(preview.properties.get("--foil-pattern-x"));
+        tilts.push(preview.properties.get("--tilt-y"));
+    }
+    assert.equal(new Set(tilts).size, 8, "The tilt changes on every frame");
+    assert.equal(new Set(painted).size, 2, "The light changes only once in this time");
+    const css = fs.readFileSync(path.join(__dirname, "..", "css", "foil.css"), "utf8");
+    assert.match(css, /:is\(\.card-drag-preview, \.card-flight\)\[data-foil\]:not\(\[data-foil="none"\]\)::after \{\s*will-change: transform;/,
+        "Tilting must move the foil's own layers without repainting its gradients");
+});
+
 test("touch-dragging a foil preview tracks its pointer without selecting its option", () => {
     const f = fixture();
     const connection = source("connection.js");

@@ -240,7 +240,15 @@ test("normal play animation restores the original movement, easing and card stag
                 { left: 0, top: 0, width: 80, height: 120, rotation: 0 }]))
         });
     `, context);
-    assert.equal(animations.length, 4);
+    // Each card has a movement animation and a separate foil one, so custom properties cannot hold back its transform.
+    assert.equal(animations.length, 8);
+    const movements = animations.filter((animation, index) => index % 2 == 0);
+    const foils = animations.filter((animation, index) => index % 2 == 1);
+    foils.forEach((foil, index) => {
+        assert.equal(foil.frames[0].transform, undefined);
+        assert.ok("--foil-pattern-x" in foil.frames[0]);
+        assert.deepEqual(foil.timing, movements[index].timing);
+    });
     assert.deepEqual(layoutEvents, [...Array(4).fill("read"), ...Array(4).fill("write")]);
     assert.equal(flights.length, 4);
     flights.forEach(flight => {
@@ -248,7 +256,7 @@ test("normal play animation restores the original movement, easing and card stag
         assert.equal(flight.dataset.foil, "galaxy");
         assert.equal(flight.children.length, 1);
     });
-    for (const [index, { frames, timing }] of animations.entries()) {
+    for (const [index, { frames, timing }] of movements.entries()) {
         assert.equal(timing.duration, 520);
         assert.equal(timing.delay, index * 55);
         assert.equal(timing.easing, "cubic-bezier(.22,.8,.25,1)");
@@ -317,29 +325,38 @@ test("depth flights render rotation internally, preserve foil rendering, and rel
     `, context);
     assert.equal(states.size, 1);
     assert.equal(fullPoseCalls, 0, "Preparing foil keyframes must not run the full height solver");
-    assert.equal(orientationCalls, 82, "Keep all 81 foil samples and the exact reveal orientation");
+    assert.equal(orientationCalls, 18, "Keep 17 held foil samples and the exact reveal orientation");
     assert.equal(flights[0].dataset.foil, "rainbow");
+    assert.equal(animations[0].frames.length, 81, "The card itself still moves through every sample");
     for (const frame of animations[0].frames) {
         assert.doesNotMatch(frame.transform, /rotate|perspective/);
         assert.match(frame.transform, /scale/);
+        assert.equal(Object.keys(frame).some(key => key.startsWith("--")), false,
+            "Custom properties in the movement animation would keep its transform off the compositor");
     }
-    assert.equal(animations[0].frames[0]["--pointer-x"], "0%");
-    assert.equal(animations[0].frames[0]["--pointer-y"], "0%");
-    assert.equal(animations[0].frames[0]["--foil-color-opacity"], .57);
-    assert.equal(animations[0].frames[0]["--foil-glare-opacity"], .28);
-    assert.equal(animations[0].frames[0]["--foil-pattern-x"], "44%");
-    assert.equal(animations[0].frames[0]["--foil-pattern-y"], "45%");
-    assert.equal(animations[0].frames.at(-1)["--pointer-x"], "54%");
-    assert.equal(animations[0].frames.at(-1)["--pointer-y"], "52%");
-    assert.equal(animations[0].frames.at(-1)["--foil-color-opacity"], .49);
-    assert.equal(animations[0].frames.at(-1)["--foil-glare-opacity"], .32);
-    assert.equal(animations[0].frames.at(-1)["--foil-pattern-x"], "53.2%");
-    assert.equal(animations[0].frames.at(-1)["--foil-pattern-y"], "51.6%");
-    assert.equal(animations[0].frames[0]["--foil-glare-x"], "-1%");
-    assert.equal(animations[0].frames[0]["--foil-glare-y"], "0.5%");
-    assert.equal(animations[0].frames.at(-1)["--foil-glare-x"], "2.4%");
-    assert.equal(animations[0].frames.at(-1)["--foil-glare-y"], "-1.2%");
-    for (const frame of animations[0].frames) {
+    const foilFrames = animations[1].frames;
+    assert.equal(foilFrames.length, 17);
+    assert.deepEqual(animations[1].timing, animations[0].timing);
+    for (const frame of foilFrames) { assert.equal(frame.easing, "step-end"); }
+    assert.equal(foilFrames[0].offset, 0);
+    assert.equal(foilFrames.at(-1).offset, 1);
+    assert.equal(foilFrames[0]["--pointer-x"], "0%");
+    assert.equal(foilFrames[0]["--pointer-y"], "0%");
+    assert.equal(foilFrames[0]["--foil-color-opacity"], .57);
+    assert.equal(foilFrames[0]["--foil-glare-opacity"], .28);
+    assert.equal(foilFrames[0]["--foil-pattern-x"], "44%");
+    assert.equal(foilFrames[0]["--foil-pattern-y"], "45%");
+    assert.equal(foilFrames.at(-1)["--pointer-x"], "54%");
+    assert.equal(foilFrames.at(-1)["--pointer-y"], "52%");
+    assert.equal(foilFrames.at(-1)["--foil-color-opacity"], .49);
+    assert.equal(foilFrames.at(-1)["--foil-glare-opacity"], .32);
+    assert.equal(foilFrames.at(-1)["--foil-pattern-x"], "53.2%");
+    assert.equal(foilFrames.at(-1)["--foil-pattern-y"], "51.6%");
+    assert.equal(foilFrames[0]["--foil-glare-x"], "-1%");
+    assert.equal(foilFrames[0]["--foil-glare-y"], "0.5%");
+    assert.equal(foilFrames.at(-1)["--foil-glare-x"], "2.4%");
+    assert.equal(foilFrames.at(-1)["--foil-glare-y"], "-1.2%");
+    for (const frame of foilFrames) {
         const progress = frame.offset, blend = progress * progress * (3 - 2 * progress);
         const expectedY = (poseAtProgress(progress).pitch - 12) * 2.5 + (52 + 12 * 2.5) * blend;
         assert.ok(Math.abs(parseFloat(frame["--pointer-y"]) - expectedY) < 1e-10,
@@ -605,18 +622,20 @@ test("played flights retain source tilt, scale and foil position and settle leve
         },()=>completed++);
     `, context);
     const { frames, animation } = animations[0];
+    const foilFrames = animations[1].frames;
     assert.match(frames[0].transform, /rotateX\(12deg\) rotateY\(-10deg\) rotate\(0deg\) scale\(1.5\)/);
-    assert.equal(frames[0]["--pointer-x"], "25%");
-    assert.equal(frames[0]["--pointer-y"], "20%");
-    assert.equal(frames[0]["--foil-color-opacity"], .51);
-    assert.equal(frames[0]["--foil-glare-opacity"], .28);
+    assert.equal(foilFrames[0]["--pointer-x"], "25%");
+    assert.equal(foilFrames[0]["--pointer-y"], "20%");
+    assert.equal(foilFrames[0]["--foil-color-opacity"], .51);
+    assert.equal(foilFrames[0]["--foil-glare-opacity"], .28);
     assert.match(frames[1].transform, /rotateX\(8\.2deg\) rotateY\(-5\.5deg\)/);
-    assert.equal(frames[1]["--pointer-x"], "36.25%");
+    assert.equal(foilFrames[1]["--pointer-x"], "36.25%");
+    assert.equal(foilFrames[1].offset, .68);
     assert.match(frames[2].transform, /rotateX\(0deg\) rotateY\(0deg\) rotate\(15deg\) scale\(1\)/);
-    assert.equal(frames[2]["--pointer-x"], "50%");
-    assert.equal(frames[2]["--pointer-y"], "50%");
-    assert.equal(frames[2]["--foil-color-opacity"], .48);
-    assert.equal(frames[2]["--foil-glare-opacity"], .3);
+    assert.equal(foilFrames[2]["--pointer-x"], "50%");
+    assert.equal(foilFrames[2]["--pointer-y"], "50%");
+    assert.equal(foilFrames[2]["--foil-color-opacity"], .48);
+    assert.equal(foilFrames[2]["--foil-glare-opacity"], .3);
     assert.equal(target.style.opacity, "0");
     animation.onfinish();
     animation.oncancel();

@@ -538,6 +538,8 @@ function resetCardTilt(cardElement) {
 
 // Equivalent to the 400 ms ease-out foil transition restarted every frame, without creating transitions.
 var CARD_DRAG_FOIL_PATTERN_MS = 230;
+// The tilt follows every frame. The light moves slowly and repainting it is the costly part, so it updates less often.
+var CARD_DRAG_FOIL_PAINT_MS = 33;
 
 function prepareCardDragPreview(card, bounds) {
     var image = card.querySelector("img");
@@ -659,6 +661,8 @@ function animateCardDragTilt(drag, time) {
     if (settled) { drag.pitch = drag.yaw = drag.targetPitch = drag.targetYaw = 0; }
     var patternBlend = reducedMotion ? 1 : 1 - Math.exp(-elapsed / CARD_DRAG_FOIL_PATTERN_MS);
     var patternsSettled = true;
+    var paintFoil = drag.lastFoilPaint == null || time - drag.lastFoilPaint >= CARD_DRAG_FOIL_PAINT_MS;
+    if (paintFoil) { drag.lastFoilPaint = time; }
     drag.previews.forEach((preview, index) => {
         var pitchScale = drag.cards.length == 1 ? 1 : 0.9 + 0.2 * index / (drag.cards.length - 1);
         var pitch = Math.max(-18, Math.min(18, drag.pitch * pitchScale));
@@ -677,10 +681,13 @@ function animateCardDragTilt(drag, time) {
         }
         preview.style.setProperty("--tilt-x", pitch == 0 ? "0deg" : `${pitch.toFixed(2)}deg`);
         preview.style.setProperty("--tilt-y", drag.yaw == 0 ? "0deg" : `${drag.yaw.toFixed(2)}deg`);
-        preview.style.setProperty("--pointer-x", `${pointerX.toFixed(2)}%`);
-        preview.style.setProperty("--pointer-y", `${pointerY.toFixed(2)}%`);
-        preview.style.setProperty("--foil-pattern-x", `${pattern.x.toFixed(2)}%`);
-        preview.style.setProperty("--foil-pattern-y", `${pattern.y.toFixed(2)}%`);
+        // The last frame always paints, so the light comes to rest exactly where it should.
+        if (paintFoil || settled && pattern.x == patternX && pattern.y == patternY) {
+            preview.style.setProperty("--pointer-x", `${pointerX.toFixed(2)}%`);
+            preview.style.setProperty("--pointer-y", `${pointerY.toFixed(2)}%`);
+            preview.style.setProperty("--foil-pattern-x", `${pattern.x.toFixed(2)}%`);
+            preview.style.setProperty("--foil-pattern-y", `${pattern.y.toFixed(2)}%`);
+        }
         preview.classList.toggle("is-tilting", !settled && !reducedMotion);
         if (typeof CardDepth != "undefined") {
             CardDepth.update(preview, { pitch, yaw: drag.yaw, lift: reducedMotion ? 0 : 18 });

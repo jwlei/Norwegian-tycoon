@@ -238,6 +238,7 @@ GameLayout.extend(class {
                     };
                 });
             }
+            var foilFrames = null;
             if (flight.dataset.foil !== "none") {
                 // Match the visible light and eased pattern, then join the table's idle phase at reveal.
                 var sourceX = source.pointerX != null ? parseFloat(source.pointerX) : 50 + yaw / 18 * 45;
@@ -257,7 +258,13 @@ GameLayout.extend(class {
                 var endGlareX = restingFoil?.glareX ?? 0;
                 var endGlareY = restingFoil?.glareY ?? 0;
                 var restPose = landingPose ? landingPose.orientationAtProgress(1) : { pitch: 0, yaw: 0 };
+                foilFrames = [];
                 flightFrames.forEach((frame, index) => {
+                    // Every fifth sample, held until the next: about 30 foil repaints per second at any display rate.
+                    if (landingPose && index % 5) { return; }
+                    var foilFrame = { offset: frame.offset ?? (index === 0 ? 0 : index === flightFrames.length - 1 ? 1 : .68) };
+                    if (landingPose) { foilFrame.easing = "step-end"; }
+                    foilFrames.push(foilFrame);
                     var progress = frame.offset ?? (index === 0 ? 0 : index === flightFrames.length - 1 ? 1 : .68);
                     var blend = progress * progress * (3 - 2 * progress);
                     var pose = landingPose ? landingPose.orientationAtProgress(progress) :
@@ -265,22 +272,25 @@ GameLayout.extend(class {
                             yaw: index === 0 ? yaw : index === 1 ? middleYaw : 0 };
                     var tiltX = (pose.yaw - yaw - (restPose.yaw - yaw) * blend) / 18 * 45;
                     var tiltY = (pose.pitch - pitch - (restPose.pitch - pitch) * blend) / 18 * 45;
-                    frame["--pointer-x"] = `${sourceX + (endX - sourceX) * blend + tiltX}%`;
-                    frame["--pointer-y"] = `${sourceY + (endY - sourceY) * blend + tiltY}%`;
-                    frame["--foil-pattern-x"] = `${sourcePatternX + (endPatternX - sourcePatternX) * blend + tiltX * .8}%`;
-                    frame["--foil-pattern-y"] = `${sourcePatternY + (endPatternY - sourcePatternY) * blend + tiltY * .8}%`;
-                    frame["--foil-color-opacity"] = sourceColor + (endColor - sourceColor) * blend;
-                    frame["--foil-glare-opacity"] = sourceGlare + (endGlare - sourceGlare) * blend;
-                    frame["--foil-glare-x"] = `${sourceGlareX + (endGlareX - sourceGlareX) * blend}%`;
-                    frame["--foil-glare-y"] = `${sourceGlareY + (endGlareY - sourceGlareY) * blend}%`;
+                    foilFrame["--pointer-x"] = `${sourceX + (endX - sourceX) * blend + tiltX}%`;
+                    foilFrame["--pointer-y"] = `${sourceY + (endY - sourceY) * blend + tiltY}%`;
+                    foilFrame["--foil-pattern-x"] = `${sourcePatternX + (endPatternX - sourcePatternX) * blend + tiltX * .8}%`;
+                    foilFrame["--foil-pattern-y"] = `${sourcePatternY + (endPatternY - sourcePatternY) * blend + tiltY * .8}%`;
+                    foilFrame["--foil-color-opacity"] = sourceColor + (endColor - sourceColor) * blend;
+                    foilFrame["--foil-glare-opacity"] = sourceGlare + (endGlare - sourceGlare) * blend;
+                    foilFrame["--foil-glare-x"] = `${sourceGlareX + (endGlareX - sourceGlareX) * blend}%`;
+                    foilFrame["--foil-glare-y"] = `${sourceGlareY + (endGlareY - sourceGlareY) * blend}%`;
                 });
             }
-            var animation = flight.animate(flightFrames, {
+            var flightTiming = {
                 duration: duration,
                 delay: animationDuration(typeof currentGame != "undefined" ? currentGame : null, cardIndex * 55),
                 easing: landingPose ? "linear" : "cubic-bezier(.22,.8,.25,1)",
                 fill: "both"
-            });
+            };
+            var animation = flight.animate(flightFrames, flightTiming);
+            // A separate animation, because custom properties in the same one would keep the transform off the compositor.
+            if (foilFrames) { flight.animate(foilFrames, flightTiming); }
             if (usesDepth) {
                 CardDepth.update(flight, { pitch, yaw, roll: startRotation, lift: 18 });
                 CardDepth.follow(flight, animation, progress => {

@@ -283,6 +283,12 @@ body.has-open-dialog :is(#playerHand .game-card, #gameTable .card-preview)::afte
     animation: none !important;
 }
 
+/* A moving card's foil keeps its own layers, so tilting the card moves them without repainting the gradients. */
+:is(.card-drag-preview, .card-flight)[data-foil]:not([data-foil="none"])::before,
+:is(.card-drag-preview, .card-flight)[data-foil]:not([data-foil="none"])::after {
+    will-change: transform;
+}
+
 .is-foil-offscreen[data-foil]::before,
 .is-foil-offscreen[data-foil]::after {
     animation-play-state: paused !important;
