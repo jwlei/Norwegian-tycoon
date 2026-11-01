@@ -37,6 +37,20 @@ class BotAI {
         ]
     };
 
+    // Exact endings: total cards in play before searching, and the node budget per decision (about 8µs a node on a desktop).
+    static searchLimits = {
+        pro: { cards: 12, nodes: 3000, samples: 8 },
+        god: { cards: 18, nodes: 5000 }
+    };
+
+    // How much worse than passing a play may look before Normal passes. A pass locks the bot out of the whole
+    // pile, so it is rarely worth it: tuned in paired games, where 10 clearly beats both 2 and never passing.
+    static passMargin = 10;
+
+    // Good departs from Normal's move only when rollouts show at least `margin` more placement value.
+    // Scoring the winning margin in rollouts (`marginWeight`) separates moves that placement alone rates equal.
+    static proRollouts = { finalists: 4, samples: 8, margin: 0.3, marginWeight: 0.5 };
+
     static skillForName(name) {
         var normalized = (name || "").trim().toLocaleLowerCase();
         return BotAI.skills.find(skill =>
@@ -77,8 +91,58 @@ class BotAI {
             tableOwners: game.piles.map(pile => pile.name),
             playedCards: (game.playedCards || []).map(card => ({ suit: card.suit, rank: card.rank })),
             playerCount: game.players.length,
+            // Public facts the rollout needs: who loses power to Maktfall, and who leads after a finished player's pile.
+            president: (game.players.some(other => other.placement == 1) ? null :
+                game.players.find(other => other.placement == 0 && other.lastPlacement == 1)?.name) ?? null,
+            nextAfterTop: top == null ? null : BotAI.nextActiveName(game, top.name),
+            ...BotAI.exchangeMemory(game, player),
             rules: normalizeCustomRules(game.rules)
         };
+    }
+
+    // What this bot's own exchange receipts prove: cards it gave are held until played, and whoever
+    // handed over their best cards holds nothing above the lowest of them, apart from club three.
+    static exchangeMemory(game, player) {
+        var played = new Set((game.playedCards || []).map(card => `${card.suit}:${card.rank}`));
+        var held = {};
+        var capped = {};
+        (game.exchangeReceipts || []).forEach(receipt => {
+            if (receipt.sender == player.name) {
+                held[receipt.recipient] = (held[receipt.recipient] || []).concat(receipt.cards
+                    .filter(card => !played.has(`${card.suit}:${card.rank}`))
+                    .map(card => ({ suit: card.suit, rank: card.rank })));
+            } else if (receipt.recipient == player.name && !String(receipt.id).includes(":trade:") &&
+                game.players.some(other => other.name == receipt.sender && other.lastPlacement > player.lastPlacement)) {
+                capped[receipt.sender] = Math.min(...receipt.cards.map(BotAI.strengthOf));
+            }
+        });
+        return { held, capped };
+    }
+
+    static nextActiveName(game, name) {
+        var count = game.players.length;
+        var direction = game.turnDirection === -1 ? -1 : 1;
+        var seat = game.players.findIndex(other => other.name == name);
+        for (var step = 1; seat >= 0 && step < count; step++) {
+            var next = game.players[(seat + direction * step + count * 2) % count];
+            if (next.placement == 0) { return next.name; }
+        }
+        return null;
+    }
+
+    static strengthOf(card) {
+        if (card.rank == 3) { return card.suit == 3 ? 16 : 3; }
+        return card.rank < 3 ? card.rank + 13 : card.rank;
+    }
+
+    // How many cards of this strength lie unbroken on top of the table.
+    static trailing(tableCards, rank) {
+        var count = 0;
+        for (var index = tableCards.length - 1; index >= 0; index--) {
+            if (BotAI.strengthOf(tableCards[index]) != rank) { break; }
+            count++;
+        }
+        return count;
     }
 
     static groups(cards) {
@@ -115,7 +179,71 @@ class BotAI {
             return !(rest.length == 1 && rest[0].strengthRank == 16);
         });
         if (safe.length > 0) { moves = safe; }
+        // Leading club three clears nothing and hands the lead straight back, so it only spends the card.
+        // Held, it can still be played just before the last combination, so it is kept unless that time is now.
+        if (view.top == null && BotAI.groups(view.cards).length > 2) {
+            moves = moves.filter(move => move[0].strengthRank != 16);
+        }
         return moves;
+    }
+
+    // Club three followed by a lead of the only remaining combination cannot be stopped.
+    static clubThreeWins(view, move) {
+        return move[0].strengthRank == 16 && BotAI.groups(BotAI.remaining(view.cards, move)).length == 1;
+    }
+
+    static unseenCounts(view) {
+        var seen = new Array(53).fill(false);
+        var mark = card => { seen[(card.suit - 1) * 13 + card.rank - 1] = true; };
+        view.cards.forEach(mark);
+        view.playedCards.forEach(mark);
+        view.tableCards.forEach(mark);
+        var counts = new Array(17).fill(0);
+        for (var suit = 1; suit <= 4; suit++) {
+            for (var rank = 1; rank <= 13; rank++) {
+                if (seen[(suit - 1) * 13 + rank - 1] || (view.playerCount == 3 && suit == 4 && rank == 3)) { continue; }
+                counts[BotAI.strengthOf({ suit, rank })]++;
+            }
+        }
+        return counts;
+    }
+
+    // True when the unseen cards prove that nobody among these opponents can answer the combination.
+    static unbeatable(view, rank, count, counts, opponents) {
+        var rules = view.rules || {};
+        if ((rank == 10 && rules.tenClears) || (rank == 15 && count == 1 && rules.twoClears) ||
+            (count == 4 && rules.fourAlwaysClears)) { return true; }
+        if (opponents.length == 0) { return true; }
+        if (counts[16] > 0 && (count < 4 || rules.clubThreeBeatsFour)) { return false; }
+        if (rules.twoClears && counts[15] > 0 && count < 4) { return false; }
+        if (!opponents.some(other => other.count >= count)) { return true; }
+        for (var strength = rules.higherOnly ? rank + 1 : rank; strength <= 15; strength++) {
+            if (counts[strength] >= count) { return false; }
+        }
+        return true;
+    }
+
+    // A line nothing can stop: every combination but the last is unbeatable, so the bot keeps the lead to the end.
+    static certainMove(view, moves) {
+        var groups = BotAI.groups(view.cards).filter(group => group[0].strengthRank != 16);
+        if (groups.length > 6) { return null; }
+        var counts = BotAI.unseenCounts(view);
+        var isSafe = group => BotAI.unbeatable(view, group[0].strengthRank, group.length, counts, view.opponents);
+        var runsOut = cards => BotAI.groups(cards).filter(group =>
+            group[0].strengthRank != 16 && !isSafe(group)).length <= 1;
+        if (view.top == null) {
+            var safe = groups.filter(isSafe);
+            // With club three held, the last combination must wait for it: playing it now would strand club three.
+            var strands = groups.length == 1 && view.cards.length > groups[0].length;
+            return safe.length > 0 && !strands && groups.length - safe.length <= 1 ? safe[0] : null;
+        }
+        var rules = view.rules || {};
+        var responders = rules.openPass ? view.opponents : view.opponents.filter(other => !other.passed);
+        var plain = moves.find(move => move[0].strengthRank != 16 &&
+            (BotAI.clears(view, move) || BotAI.unbeatable(view, move[0].strengthRank, move.length, counts, responders)) &&
+            runsOut(BotAI.remaining(view.cards, move)));
+        if (plain != null) { return plain; }
+        return moves.find(move => move[0].strengthRank == 16 && runsOut(BotAI.remaining(view.cards, move))) || null;
     }
 
     static remaining(cards, move) {
@@ -127,6 +255,8 @@ class BotAI {
         var cost = 0;
         BotAI.groups(cards).forEach(group => {
             var rank = group[0].strengthRank;
+            // Club three wins back the lead whenever it is needed, so holding it makes a hand cheaper.
+            if (rank == 16) { cost -= 4; return; }
             cost += 12 + (group.length == 1 && rank < 11 ? 5 : 0);
             cost -= Math.max(0, rank - 10) * 1.4;
         });
@@ -139,6 +269,8 @@ class BotAI {
         var rank = move[0].strengthRank;
         if (rank == 16 || (rank == 10 && rules.tenClears) || (rank == 15 && move.length == 1 && rules.twoClears) ||
             (move.length == 4 && rules.fourAlwaysClears)) { return true; }
+        // Four of a kind built from smaller plays clears at once; only four from the hand can be answered.
+        if (move.length < 4 && BotAI.trailing(view.tableCards, rank) + move.length >= 4) { return true; }
         var naturalThrees = new Set();
         for (var index = view.tableCards.length - 1; index >= 0; index--) {
             var card = view.tableCards[index];
@@ -156,7 +288,8 @@ class BotAI {
         if (rest.length == 0) { return rank == 16 ? -10000 : 10000; }
         var score = -BotAI.handCost(rest) - rank * 0.65 + move.length * 2;
         if (rank == 16) {
-            score -= rest.length > 5 ? 14 : -6;
+            // The lead it wins is worth less the more combinations are still left to shed.
+            score -= 5 * (BotAI.groups(rest).length - 1);
         }
         var threatened = view.opponents.some(other => other.count <= 2);
         if (threatened) {
@@ -171,7 +304,11 @@ class BotAI {
     }
 
     static samples(view, random) {
-        var known = new Set(view.cards.concat(view.playedCards, view.tableCards)
+        var held = view.held || {};
+        var capped = view.capped || {};
+        var heldCards = other => (held[other.name] || []).slice(0, other.count)
+            .map(card => new PresidentCard(card.suit, card.rank));
+        var known = new Set(view.cards.concat(view.playedCards, view.tableCards, Object.values(held).flat())
             .map(card => `${card.suit}:${card.rank}`));
         var unseen = [];
         for (var suit = 1; suit <= 4; suit++) {
@@ -187,7 +324,21 @@ class BotAI {
                 var swap = Math.floor(random() * (index + 1));
                 [deck[index], deck[swap]] = [deck[swap], deck[index]];
             }
-            samples.push(view.opponents.map(other => deck.splice(0, other.count)));
+            var hands = view.opponents.map(heldCards);
+            // Capped hands choose first; if a cap cannot be met the deal fills up from what is left.
+            view.opponents.map((other, seat) => seat)
+                .filter(seat => capped[view.opponents[seat].name] != null).forEach(seat => {
+                    var cap = capped[view.opponents[seat].name];
+                    for (var index = deck.length - 1; index >= 0 && hands[seat].length < view.opponents[seat].count; index--) {
+                        if (deck[index].strengthRank <= cap || deck[index].strengthRank == 16) {
+                            hands[seat].push(deck.splice(index, 1)[0]);
+                        }
+                    }
+                });
+            hands.forEach((hand, seat) => {
+                hand.push(...deck.splice(0, Math.max(0, view.opponents[seat].count - hand.length)));
+            });
+            samples.push(hands);
         }
         return samples;
     }
@@ -196,13 +347,7 @@ class BotAI {
         if (BotAI.clears(view, move)) { return { control: 1, finish: 0 }; }
         var rules = view.rules || {};
         var rank = move[0].strengthRank;
-        var trailing = 0;
-        for (var index = view.tableCards.length - 1; index >= 0; index--) {
-            var card = view.tableCards[index];
-            if (new PresidentCard(card.suit, card.rank).strengthRank != rank) { break; }
-            trailing++;
-        }
-        var required = trailing + move.length >= 4 ? 4 : move.length;
+        var required = move.length;
         var control = 0;
         var finish = 0;
         samples.forEach(hands => {
@@ -216,17 +361,17 @@ class BotAI {
                 return;
             }
             hands.forEach((hand, index) => {
+                // A pass locks the player out until the pile clears, unless Åpent pass reopens it on new cards.
+                if (view.opponents[index].passed && !rules.openPass) { return; }
                 var responses = BotAI.groups(hand).filter(group =>
-                    group[0].strengthRank == 16 ||
+                    (group[0].strengthRank == 16 && (required < 4 || rules.clubThreeBeatsFour)) ||
                     (group[0].strengthRank == 15 && required < 4 && rules.twoClears) ||
                     (group.length >= required && (rules.higherOnly
                         ? group[0].strengthRank > rank
                         : group[0].strengthRank >= rank)));
                 var hasResponse = responses.some(group =>
                     group[0].strengthRank != 16 || hand.length > 1);
-                // A voluntary pass is evidence, not proof that the player cannot respond.
-                if (hasResponse && !view.opponents[index].passed) { overtaken = true; }
-                if (hasResponse && view.opponents[index].passed) { control -= 0.25; }
+                if (hasResponse) { overtaken = true; }
                 if (responses.some(group => group[0].strengthRank != 16 && group.length == hand.length &&
                     hand.length == required)) { finishing = true; }
             });
@@ -252,99 +397,252 @@ class BotAI {
         return score;
     }
 
-    static rollout(view, firstMove, hands) {
-        var rules = view.rules || {};
-        var players = [{ cards: view.cards.slice(), passed: false }].concat(hands.map((hand, index) => ({
-            cards: hand.slice(), passed: view.opponents[index].passed
-        })));
-        var table = view.tableCards.slice();
+    // A running copy of the round. Seat 0 is the bot; the other seats follow in playing order.
+    static simulation(view, hands) {
         var seatForName = name => name == null ? -1 : (name == view.name ? 0 :
-            (view.opponents.some(other => other.name == name)
-                ? view.opponents.findIndex(other => other.name == name) + 1 : -1));
-        var owners = (view.tableOwners || []).map(seatForName);
-        var top = view.top == null ? null : {
-            rank: view.top.rank, count: view.top.count,
-            owner: view.top.own ? 0 : seatForName(view.top.name)
+            view.opponents.findIndex(other => other.name == name) + 1 || -1);
+        return {
+            rules: view.rules || {},
+            playerCount: view.playerCount,
+            players: [{ cards: view.cards.slice(), passed: false, place: 0 }].concat(hands.map((hand, index) => ({
+                cards: hand.slice(), passed: view.opponents[index].passed, place: 0
+            }))),
+            table: view.tableCards.slice(),
+            owners: (view.tableOwners || []).map(seatForName),
+            top: view.top == null ? null : {
+                rank: view.top.rank, count: view.top.count,
+                owner: view.top.own ? 0 : seatForName(view.top.name)
+            },
+            nextAfterTop: seatForName(view.nextAfterTop),
+            president: seatForName(view.president),
+            turn: 0, direction: 1, winners: 0, losers: 0
         };
-        var finished = 0;
-        var turn = 0;
-        var makeView = index => ({
-            cards: players[index].cards,
-            opponents: players.filter((other, seat) => seat != index && !other.finished)
+    }
+
+    static simulationView(sim, index) {
+        var top = sim.top;
+        return {
+            cards: sim.players[index].cards,
+            opponents: sim.players.filter((other, seat) => seat != index && other.place == 0)
                 .map(other => ({ count: other.cards.length, passed: other.passed })),
             top: top == null ? null : { rank: top.rank, count: top.count, own: top.owner == index },
-            tableCards: table, playedCards: [], playerCount: view.playerCount, rules
-        });
-        for (var step = 0; step < 100; step++) {
-            var current = players[turn];
-            var state = makeView(turn);
-            var move = step == 0 ? firstMove : BotAI.chooseMove(state, "good");
-            if (move == null) {
-                current.passed = true;
-            } else {
-                current.cards = BotAI.remaining(current.cards, move);
-                current.passed = false;
-                table = table.concat(move.map(card => ({ suit: card.suit, rank: card.rank })));
-                owners.push(turn);
-                top = { owner: turn, rank: move[0].strengthRank, count: move.length };
-                if (current.cards.length == 0) {
-                    if (move[0].strengthRank == 16) {
-                        current.finished = true;
-                        if (turn == 0) { return 0; }
-                    } else {
-                        current.finished = true;
-                        finished++;
-                        if (turn == 0) { return (players.length - finished) / (players.length - 1); }
-                    }
+            tableCards: sim.table, playedCards: [], playerCount: sim.playerCount, rules: sim.rules
+        };
+    }
+
+    static simulationPlace(sim, seat, won) {
+        var count = sim.players.length;
+        sim.players[seat].place = won ? ++sim.winners : count - sim.losers++;
+    }
+
+    static simulationNext(sim, seat, direction, skipOne) {
+        var count = sim.players.length;
+        for (var step = 0; step < count * 2; step++) {
+            seat = (seat + direction + count) % count;
+            var player = sim.players[seat];
+            if (player.place != 0 || player.passed) { continue; }
+            if (skipOne) { skipOne = false; continue; }
+            return seat;
+        }
+        return seat;
+    }
+
+    // Plays or passes for the seat in turn, in the same order of checks as the engine's playCards and nextTurnIndex.
+    static simulationStep(sim, move) {
+        var rules = sim.rules;
+        var seat = sim.turn;
+        var current = sim.players[seat];
+        var clear = false;
+        var skipOne = false;
+        if (move == null) {
+            current.passed = true;
+        } else {
+            clear = BotAI.clears(BotAI.simulationView(sim, seat), move);
+            var rank = move[0].strengthRank;
+            skipOne = rules.sameRankSkip === true && sim.top != null && sim.top.rank == rank;
+            current.cards = BotAI.remaining(current.cards, move);
+            if (rules.openPass) { sim.players.forEach(other => { other.passed = false; }); }
+            current.passed = false;
+            sim.table = sim.table.concat(move.map(card => ({ suit: card.suit, rank: card.rank })));
+            sim.owners = sim.owners.concat(seat);
+            sim.top = { owner: seat, rank, count: move.length };
+            if (rank == 9 && rules.reversingNine) { sim.direction = -sim.direction; }
+            if (current.cards.length == 0) {
+                BotAI.simulationPlace(sim, seat, rank != 16);
+                if (current.place == 1 && rules.downfall && sim.playerCount > 2 &&
+                    sim.president >= 0 && sim.president != seat && sim.players[sim.president].place == 0) {
+                    BotAI.simulationPlace(sim, sim.president, false);
                 }
-            }
-            var active = players.filter(other => !other.finished);
-            if (active.length <= 1) {
-                return (players.length - finished - 1) / (players.length - 1);
-            }
-            var clear = move != null && BotAI.clears(state, move);
-            var trailing = 0;
-            if (top != null) {
-                for (var index = table.length - 1; index >= 0; index--) {
-                    var card = table[index];
-                    if (new PresidentCard(card.suit, card.rank).strengthRank != top.rank) { break; }
-                    trailing++;
-                }
-                if (trailing >= 4) {
-                    top.count = 4;
-                    clear = rules.fourAlwaysClears === true || !players.some((other, seat) => seat != top.owner && !other.finished && !other.passed &&
-                        BotAI.groups(other.cards).some(group => (group.length >= 4 && group[0].strengthRank > top.rank) ||
-                            (group[0].strengthRank == 16 && rules.clubThreeBeatsFour)));
-                }
-                if (players.every((other, seat) => seat == top.owner || other.finished || other.passed)) {
-                    clear = true;
-                }
-            }
-            if (clear) {
-                var owner = top.owner;
-                var activeOwners = owners.filter(seat => seat >= 0 && !players[seat].finished);
-                var finishedOwnerWithTwoRemaining = move == null && owner >= 0 &&
-                    players[owner].finished && active.length == 2;
-                if (finishedOwnerWithTwoRemaining) {
-                    turn = owner;
-                    do { turn = (turn + 1) % players.length; } while (players[turn].finished);
-                } else if (activeOwners.length > 0) {
-                    turn = activeOwners[activeOwners.length - 1];
-                } else {
-                    turn = owner < 0 ? 0 : owner;
-                    do { turn = (turn + players.length - 1) % players.length; } while (players[turn].finished);
-                }
-                top = null;
-                table = [];
-                owners = [];
-                players.forEach(other => { other.passed = false; });
-            } else {
-                do { turn = (turn + 1) % players.length; } while (players[turn].finished);
-                players[turn].passed = false;
             }
         }
-        return 0.5 + (players.reduce((sum, other) => sum + BotAI.handCost(other.cards), 0) /
-            players.length - BotAI.handCost(players[0].cards)) / 200;
+        var active = sim.players.filter(other => other.place == 0);
+        if (active.length <= 1) {
+            if (active.length == 1) { BotAI.simulationPlace(sim, sim.players.indexOf(active[0]), true); }
+            return;
+        }
+        var top = sim.top;
+        if (top != null && !clear && BotAI.trailing(sim.table, top.rank) >= 4) {
+            top.count = 4;
+            clear = !sim.players.some((other, index) => index != top.owner && other.place == 0 && !other.passed &&
+                ((rules.clubThreeBeatsFour && other.cards.some(card => card.strengthRank == 16)) ||
+                    BotAI.groups(other.cards).some(group => group.length >= 4 && group[0].strengthRank > top.rank)));
+        }
+        var ownerFinished = top != null && (top.owner < 0 || sim.players[top.owner].place != 0);
+        var allPassed = !clear && top != null && sim.players.every((other, index) =>
+            index == top.owner || other.place != 0 || other.passed);
+        if (!clear && !allPassed) {
+            sim.turn = BotAI.simulationNext(sim, seat, sim.direction, skipOne);
+            return;
+        }
+        sim.players.forEach(other => { other.passed = false; });
+        var owners = sim.owners.filter(owner => owner >= 0 && sim.players[owner].place == 0);
+        if (allPassed && ownerFinished) {
+            // Only a pile from a player who finished before the simulation has no seat to count from.
+            sim.turn = top.owner < 0 && sim.nextAfterTop >= 0 && sim.players[sim.nextAfterTop].place == 0
+                ? sim.nextAfterTop
+                : BotAI.simulationNext(sim, top.owner < 0 ? seat : top.owner, sim.direction, false);
+        } else if (owners.length > 0) {
+            sim.turn = owners[owners.length - 1];
+        } else {
+            sim.turn = BotAI.simulationNext(sim, top.owner < 0 ? seat : top.owner, -sim.direction, false);
+        }
+        sim.top = null;
+        sim.table = [];
+        sim.owners = [];
+    }
+
+    static rollout(view, firstMove, hands, marginWeight = 0) {
+        var sim = BotAI.simulation(view, hands);
+        var count = sim.players.length;
+        var worth = place => (count - place) / (count - 1);
+        var behind = null;
+        for (var step = 0; step < 200; step++) {
+            var move = step == 0 ? firstMove : BotAI.chooseMove(BotAI.simulationView(sim, sim.turn), "good");
+            BotAI.simulationStep(sim, move);
+            if (behind == null && sim.players[0].place == 0 && sim.players.some(other => other.place != 0)) {
+                behind = sim.players[0].cards.length;
+            }
+            if (sim.players[0].place != 0) {
+                var left = sim.players.slice(1).filter(other => other.place == 0);
+                var margin = behind != null ? -behind :
+                    (left.length ? left.reduce((sum, other) => sum + other.cards.length, 0) / left.length : 0);
+                return worth(sim.players[0].place) + marginWeight * margin / 20;
+            }
+        }
+        return 0.5 + (sim.players.reduce((sum, other) => sum + BotAI.handCost(other.cards), 0) /
+            count - BotAI.handCost(sim.players[0].cards)) / 200;
+    }
+
+    static searchOptions(view) {
+        if (view.top != null && view.top.own && !(view.rules || {}).sameRankSkip) { return [null]; }
+        var moves = BotAI.moves(view);
+        var winning = moves.find(move => move.length == view.cards.length && move[0].strengthRank != 16) ||
+            moves.find(move => BotAI.clubThreeWins(view, move));
+        if (winning != null) { return [winning]; }
+        return view.top == null ? moves : moves.concat([null]);
+    }
+
+    static searchKey(sim) {
+        var key = "";
+        sim.players.forEach(player => {
+            if (player.place != 0) {
+                key += `#${player.place}`;
+            } else {
+                key += player.passed ? "!" : "/";
+                player.cards.forEach(card => { key += String.fromCharCode(97 + card.strengthRank); });
+            }
+        });
+        var top = sim.top;
+        if (top != null) {
+            var leader = -1;
+            for (var index = sim.owners.length - 1; index >= 0 && leader < 0; index--) {
+                var owner = sim.owners[index];
+                if (owner >= 0 && sim.players[owner].place == 0) { leader = owner; }
+            }
+            key += `|${top.rank},${top.count},${top.owner},${BotAI.trailing(sim.table, top.rank)},${leader}`;
+        }
+        return `${key}|${sim.turn},${sim.direction}`;
+    }
+
+    static searchStep(sim, move) {
+        var next = Object.assign({}, sim);
+        next.players = sim.players.map(player => Object.assign({}, player));
+        next.top = sim.top == null ? null : Object.assign({}, sim.top);
+        BotAI.simulationStep(next, move);
+        return next;
+    }
+
+    // Exact search of the rest of the round: every player picks the move that places them best.
+    // Returns each seat's placement, or null when the search runs out of nodes.
+    static search(sim, memo, budget) {
+        if (sim.players.every(player => player.place != 0)) { return sim.players.map(player => player.place); }
+        var key = BotAI.searchKey(sim);
+        var known = memo.get(key);
+        if (known != null) { return known; }
+        if (--budget.nodes < 0) { return null; }
+        var seat = sim.turn;
+        var best = null;
+        var options = BotAI.searchOptions(BotAI.simulationView(sim, seat));
+        for (var index = 0; index < options.length; index++) {
+            var places = BotAI.search(BotAI.searchStep(sim, options[index]), memo, budget);
+            if (places == null) { return null; }
+            if (best == null || places[seat] < best[seat]) { best = places; }
+            if (best[seat] == sim.winners + 1) { break; }
+        }
+        memo.set(key, best);
+        return best;
+    }
+
+    // Each option's placement for this bot against the given hands, or null when out of nodes.
+    static searchRoot(view, hands, budget) {
+        var sim = BotAI.simulation(view, hands);
+        var memo = new Map();
+        var results = [];
+        var options = BotAI.searchOptions(view);
+        for (var index = 0; index < options.length; index++) {
+            var places = BotAI.search(BotAI.searchStep(sim, options[index]), memo, budget);
+            if (places == null) { return null; }
+            results.push({ move: options[index], place: places[0] });
+        }
+        return results;
+    }
+
+    // Averages exact searches over the given hands. Undefined when the ending is still too big to search.
+    static searchedMove(view, samples, limit) {
+        var cards = view.opponents.reduce((sum, other) => sum + other.count, view.cards.length);
+        if (cards > limit.cards) { return undefined; }
+        var budget = { nodes: limit.nodes };
+        var totals = [];
+        for (var index = 0; index < samples.length; index++) {
+            var results = BotAI.searchRoot(view, samples[index], budget);
+            if (results == null) { return undefined; }
+            results.forEach((result, option) => { totals[option] = (totals[option] || 0) + result.place; });
+        }
+        var best = Math.min(...totals);
+        return BotAI.searchOptions(view).filter((option, index) => totals[index] - best < 1e-9)
+            .map(option => ({
+                option, score: option == null ? -BotAI.handCost(view.cards) : BotAI.proScore(view, option, samples)
+            }))
+            .sort((a, b) => b.score - a.score)[0].option;
+    }
+
+    // Normal's move, unless rollouts over the sampled hands show clearly better. Small differences are mostly
+    // sampling noise, and acting on them made Good pass far too often.
+    static improvedMove(view, moves, samples) {
+        var normal = BotAI.chooseMove(view, "good");
+        var options = moves.map(move => ({ move, score: BotAI.basicScore(view, move) }))
+            .sort((a, b) => b.score - a.score).slice(0, BotAI.proRollouts.finalists).map(entry => entry.move);
+        if (view.top != null) { options.push(null); }
+        var isNormal = move => normal == null ? move == null :
+            move != null && move.length == normal.length && move[0].strengthRank == normal[0].strengthRank;
+        if (!options.some(isNormal)) { options.push(normal); }
+        var rated = options.map(move => ({
+            move, value: samples.reduce((sum, hands) =>
+                sum + BotAI.rollout(view, move, hands, BotAI.proRollouts.marginWeight), 0) / samples.length
+        }));
+        var base = rated.find(entry => isNormal(entry.move));
+        var best = rated.reduce((a, b) => b.value > a.value ? b : a);
+        return best.value - base.value >= BotAI.proRollouts.margin ? best.move : normal;
     }
 
     static chooseMove(view, skill = "good", random = Math.random) {
@@ -353,13 +651,20 @@ class BotAI {
         if (moves.length == 0) { return null; }
         var winning = moves.find(move => move.length == view.cards.length && move[0].strengthRank != 16);
         if (winning != null) { return winning; }
+        var clubThree = moves.find(move => BotAI.clubThreeWins(view, move));
+        if (clubThree != null) { return clubThree; }
         // Skipping the only opponent hands the turn back on your own cards; only then is it a free play.
         if (view.top != null && view.top.own && !(view.rules || {}).sameRankSkip) { return null; }
+        // Counting played cards is what separates Good from Normal.
+        var certain = skill == "good" ? null : BotAI.certainMove(view, moves);
+        if (certain != null) { return certain; }
         if (skill == "god") {
             if (view.opponents.some(other => !Array.isArray(other.cards) || other.cards.length != other.count)) {
                 throw new Error("Gud-nivået krever motspillernes faktiske kort.");
             }
             var hands = view.opponents.map(other => other.cards);
+            var solved = BotAI.searchedMove(view, [hands], BotAI.searchLimits.god);
+            if (solved !== undefined) { return solved; }
             var candidates = moves.map(move => ({
                 move, score: BotAI.proScore(view, move, [hands]),
                 outcome: BotAI.rollout(view, move, hands)
@@ -373,26 +678,16 @@ class BotAI {
             candidates.sort((a, b) => (b.outcome * 100 + b.score) - (a.outcome * 100 + a.score));
             return candidates[0].move;
         }
-        var samples = skill == "pro" ? BotAI.samples(view, random) : null;
-        var scored = moves.map(move => ({
-            move,
-            score: skill == "pro" ? BotAI.proScore(view, move, samples) : BotAI.basicScore(view, move)
-        }));
-        scored.sort((a, b) => b.score - a.score);
         if (skill == "pro") {
-            var finalists = scored.slice(0, 4);
-            if (view.top != null) { finalists.push({ move: null, score: -BotAI.handCost(view.cards) }); }
-            finalists.forEach(candidate => {
-                candidate.rollout = samples.slice(0, 8).reduce((sum, hands) =>
-                    sum + BotAI.rollout(view, candidate.move, hands), 0) / 8;
-                candidate.value = candidate.score + candidate.rollout * 35;
-            });
-            finalists.sort((a, b) => b.value - a.value);
-            return finalists[0].move;
+            var samples = BotAI.samples(view, random);
+            var searched = BotAI.searchedMove(view, samples.slice(0, BotAI.searchLimits.pro.samples), BotAI.searchLimits.pro);
+            if (searched !== undefined) { return searched; }
+            return BotAI.improvedMove(view, moves, samples.slice(0, BotAI.proRollouts.samples));
         }
-        var best = scored[0];
+        var best = moves.map(move => ({ move, score: BotAI.basicScore(view, move) }))
+            .sort((a, b) => b.score - a.score)[0];
         if (view.top != null && !view.opponents.some(other => other.count <= 2) &&
-            best.score < -BotAI.handCost(view.cards) - 2) { return null; }
+            best.score < -BotAI.handCost(view.cards) - BotAI.passMargin) { return null; }
         return best.move;
     }
 

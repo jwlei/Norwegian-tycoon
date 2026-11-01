@@ -773,6 +773,245 @@ test("rollouts agree with the actual engine when supplied the same hands", () =>
     }
 });
 
+const clubThree = () => card(3, 3);
+
+test("no tier spends club three on an empty table while more than one other combination remains", () => {
+    const cards = [clubThree(), card(5), card(9), card(13)];
+    assert.equal(BotAI.moves(view(cards)).some(move => move[0].strengthRank == 16), false);
+    for (const skill of BotAI.skills) {
+        assert.notEqual(BotAI.chooseMove(view(cards), skill, seededRandom(21))[0].strengthRank, 16);
+    }
+});
+
+test("every tier plays club three at once when one combination remains, since that line cannot be stopped", () => {
+    for (const skill of BotAI.skills) {
+        const lead = [clubThree(), card(9), card(9, 2)];
+        assert.equal(BotAI.chooseMove(view(lead), skill, seededRandom(22))[0].strengthRank, 16);
+        const steal = [clubThree(), card(5)];
+        assert.equal(BotAI.chooseMove(view(steal, { rank: 13, count: 1, own: false }), skill, seededRandom(22))[0].strengthRank, 16);
+    }
+});
+
+test("Normal keeps club three for a cheap legal play and does not steal with many combinations left", () => {
+    const hand = () => [clubThree(), card(4), card(6), card(8), card(10), card(12)];
+    assert.equal(BotAI.chooseMove(view(hand(), { rank: 5, count: 1, own: false }), "good")[0].strengthRank, 6);
+    assert.equal(BotAI.chooseMove(view(hand(), { rank: 15, count: 1, own: false }), "good"), null);
+});
+
+test("holding club three makes a hand cheaper, but stranding it stays a disaster", () => {
+    assert.ok(BotAI.handCost([card(5), clubThree()]) < BotAI.handCost([card(5)]));
+    assert.ok(BotAI.handCost([clubThree()]) > 50);
+});
+
+test("four of a kind built on the table is known to clear and keep the lead", () => {
+    const state = view([card(7, 4), card(4)], { rank: 7, count: 1, own: false });
+    state.tableCards = [{ suit: 1, rank: 7 }, { suit: 2, rank: 7 }, { suit: 3, rank: 7 }];
+    assert.equal(BotAI.clears(state, [state.cards[0]]), true);
+    assert.deepEqual({ ...BotAI.responseRisk(state, [state.cards[0]], [[[card(2)]]]) }, { control: 1, finish: 0 });
+    state.tableCards = state.tableCards.slice(1);
+    assert.equal(BotAI.clears(state, [state.cards[0]]), false);
+});
+
+test("a passed opponent is locked out of control estimates unless Open pass reopens them", () => {
+    const hand = [card(9), card(4)];
+    const answer = [[[card(1)]]];
+    const passed = view(hand, null, [{ name: "Other", count: 1, passed: true }]);
+    assert.equal(BotAI.responseRisk(passed, [hand[0]], answer).control, 1);
+    passed.rules = { openPass: true };
+    assert.equal(BotAI.responseRisk(passed, [hand[0]], answer).control, 0);
+    assert.equal(BotAI.responseRisk(view(hand), [hand[0]], [[[card(1), card(4, 2), card(5, 2), card(6, 2), card(7, 2), card(8, 2), card(9, 2), card(10, 2)]]]).control, 0);
+});
+
+function activeHands(game, seat) {
+    const count = game.players.length;
+    const direction = game.turnDirection === -1 ? -1 : 1;
+    const hands = [];
+    for (let step = 1; step < count; step++) {
+        const other = game.players[(seat + direction * step + count * 2) % count];
+        if (other.placement == 0) { hands.push(other.cards.slice()); }
+    }
+    return hands;
+}
+
+function dealtGame(seed, count, skills, rules) {
+    const random = seededRandom(seed);
+    const deck = new CardDeck();
+    deck.addStandardCards((suit, rank) => new PresidentCard(suit, rank));
+    if (count == 3) { deck.splice(deck.findIndex(c => c.suit == 4 && c.rank == 3), 1); }
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    if (count == 2) { deck.splice(0, 12); }
+    const hands = Array.from({ length: count }, () => []);
+    deck.forEach((c, index) => hands[index % count].push(c));
+    const game = gameWithHands(hands, skills);
+    game.rules = rules;
+    const heartThree = game.players.findIndex(p => p.cards.some(c => c.suit == 2 && c.rank == 3));
+    game.setTurn(heartThree < 0 ? 0 : heartThree);
+    return game;
+}
+
+function advance(game) {
+    if (game.turnPause) {
+        if (game.turnPause.pendingGameEnd) { game.finishGame(); return; }
+        game.turnPause = null;
+    }
+    if (game.status == "S") { playBotTurn(game, game.players[game.turn]); }
+}
+
+for (const [label, rules] of Object.entries({
+    standard: {}, "open pass": { openPass: true }, "same rank skip": { sameRankSkip: true },
+    "higher only": { higherOnly: true }, "reversing nine": { reversingNine: true },
+    "clearing two and ten": { twoClears: true, tenClears: true },
+    "four always clears": { fourAlwaysClears: true }, "club three beats four": { clubThreeBeatsFour: true },
+    downfall: { downfall: true }
+})) {
+    test(`rollouts predict the engine from mid-game positions: ${label}`, () => {
+        for (const count of [2, 3, 4]) {
+            for (let seed = 1; seed <= 25; seed++) {
+                const game = dealtGame(seed, count, Array(count).fill("good"), rules);
+                game.players.forEach((player, index) => { player.lastPlacement = index + 1; });
+                const stop = Math.floor(seededRandom(seed)() * 40);
+                for (let step = 0; step < stop && game.status == "S"; step++) { advance(game); }
+                if (game.status != "S" || game.turnPause?.pendingGameEnd) { continue; }
+                game.turnPause = null;
+                if (game.players.filter(player => player.placement == 0).length < 2) { continue; }
+                const player = game.players[game.turn];
+                const state = BotAI.observe(game, player);
+                const hands = activeHands(game, game.turn);
+                const move = BotAI.chooseMove(state, "good");
+                const forecast = BotAI.rollout(state, move, hands);
+                const taken = new Set(game.players.filter(other => other.placement > 0).map(other => other.placement));
+                let winners = 0;
+                while (taken.has(winners + 1)) { winners++; }
+                if (move) {
+                    const pile = new CardPile(player.name);
+                    move.forEach(c => pile.push(c));
+                    game.playCards(player, pile);
+                } else {
+                    game.passTurn(player);
+                }
+                for (let step = 0; step < 1500 && game.status == "S"; step++) { advance(game); }
+                const active = hands.length + 1;
+                assert.equal(forecast, (active - (player.placement - winners)) / (active - 1),
+                    `${count} players, seed ${seed}, after ${stop} turns`);
+            }
+        }
+    });
+}
+
+test("a certain line is played when the unseen cards prove it, and not before", () => {
+    const hand = [card(13), card(5)];
+    const state = view(hand, null, [{ name: "Other", count: 3, passed: false }]);
+    assert.equal(BotAI.certainMove(state, BotAI.moves(state)), null);
+    for (const rank of [1, 2]) {
+        for (let suit = 1; suit <= 4; suit++) { state.playedCards.push({ suit, rank }); }
+    }
+    for (const suit of [2, 3, 4]) { state.playedCards.push({ suit, rank: 13 }); }
+    assert.equal(BotAI.certainMove(state, BotAI.moves(state)), null, "Club three is still unseen");
+    state.playedCards.push({ suit: 3, rank: 3 });
+    assert.deepEqual(Array.from(BotAI.certainMove(state, BotAI.moves(state)), c => c.rank), [13]);
+    assert.equal(BotAI.chooseMove(state, "pro", seededRandom(41))[0].rank, 13, "The king comes before the five");
+    assert.equal(BotAI.chooseMove(state, "god", seededRandom(41)) != null, true);
+});
+
+test("the last combination waits for club three even when nothing can beat it", () => {
+    const state = view([clubThree(), card(2), card(2, 2)], null, [{ name: "Other", count: 1, passed: false }]);
+    assert.equal(BotAI.certainMove(state, BotAI.moves(state)), null);
+    assert.equal(BotAI.chooseMove(state, "good")[0].strengthRank, 16);
+});
+
+test("every certain move is confirmed by exact search against the real hands", () => {
+    for (const rules of [{}, { higherOnly: true }, { twoClears: true }, { openPass: true }, { clubThreeBeatsFour: true }]) {
+        for (const count of [2, 3, 4]) {
+            for (let seed = 1; seed <= 12; seed++) {
+                const game = dealtGame(seed, count, Array(count).fill("good"), rules);
+                for (let step = 0; step < 1500 && game.status == "S"; step++) {
+                    if (game.turnPause) { advance(game); continue; }
+                    const state = BotAI.observe(game, game.players[game.turn]);
+                    const moves = BotAI.moves(state);
+                    const certain = moves.length && !(state.top?.own && !state.rules.sameRankSkip)
+                        ? BotAI.certainMove(state, moves) : null;
+                    if (certain) {
+                        const sim = BotAI.simulation(state, activeHands(game, game.turn));
+                        const places = BotAI.search(BotAI.searchStep(sim, certain), new Map(), { nodes: 50000 });
+                        if (places) { assert.equal(places[0], 1, `seed ${seed}, ${count} players`); }
+                    }
+                    advance(game);
+                }
+            }
+        }
+    }
+});
+
+test("exact search finds wins by sequencing and by a play the old heuristic passed on", () => {
+    const sequence = view([card(14), card(14, 2), card(4)], null, [{ name: "Other", count: 1, passed: false }]);
+    sequence.opponents[0].cards = [card(13, 2)];
+    assert.equal(BotAI.chooseMove(sequence, "god")[0].strengthRank, 14, "Leading the four lets the king finish");
+    const cards = [card(12), card(6), card(9), card(9, 2), card(7), card(6, 2)];
+    const passing = view(cards, { rank: 8, count: 1, own: false, name: "Other" }, [{ name: "Other", count: 7, passed: false }]);
+    passing.opponents[0].cards = [card(12, 2), card(8, 2), card(8, 3), card(12, 3), card(6, 3), card(4), card(7, 2)];
+    passing.playerCount = 2;
+    passing.tableCards = [{ suit: 1, rank: 8 }];
+    passing.tableOwners = ["Other"];
+    assert.equal(BotAI.chooseMove(passing, "god")[0].strengthRank, 9);
+});
+
+test("Good departs from Normal's move only when rollouts show clearly better", () => {
+    const cards = [card(5), card(13)];
+    const state = view(cards, null, [{ name: "Other", count: 1, passed: false }]);
+    const normal = BotAI.chooseMove(state, "good");
+    assert.equal(normal[0].strengthRank, 5, "Normal sheds its lowest single");
+    const moves = BotAI.moves(state);
+    assert.equal(BotAI.improvedMove(state, moves, [[[card(8, 2)]]])[0].strengthRank, 13,
+        "Against an eight, leading the five loses and the king first wins");
+    assert.equal(BotAI.improvedMove(state, moves, [[[card(2, 2)]]])[0].strengthRank, 5,
+        "Against a two every lead loses alike, so there is no reason to depart");
+});
+
+test("Normal passes only when a play looks much worse, since a pass locks it out of the pile", () => {
+    const cards = [card(4), card(4, 2), card(6), card(6, 2), card(8), card(8, 2), card(10), card(10, 2), card(1)];
+    const state = view(cards, { rank: 13, count: 1, own: false });
+    assert.equal(BotAI.chooseMove(state, "good")[0].strengthRank, 14, "Worth the ace rather than sitting the pile out");
+});
+
+test("exact search stands down on big positions and respects its node budget", () => {
+    const state = view([card(4), card(5)], null, [{ name: "Other", count: 30, passed: false }]);
+    assert.equal(BotAI.searchedMove(state, [state.opponents.map(other => other.cards)], BotAI.searchLimits.god), undefined);
+    const budget = { nodes: 3 };
+    const large = dealtGame(5, 2, ["god", "god"], {});
+    assert.equal(BotAI.searchRoot(BotAI.observe(large, large.players[large.turn]), activeHands(large, large.turn), budget), null);
+});
+
+test("exchange receipts teach a bot only what it saw itself, and shape its samples", () => {
+    const given = { suit: 1, rank: 9 };
+    const game = gameWithHands([[card(4), card(5), card(6)], Array.from({ length: 5 }, (_, i) => card(4 + i, 2)), Array.from({ length: 5 }, (_, i) => card(4 + i, 4))]);
+    game.players[0].lastPlacement = 1;
+    game.players[1].lastPlacement = 3;
+    game.players[2].lastPlacement = 2;
+    game.exchangeReceipts = [
+        { id: "1:1:best:1:0", sender: "Bot 1", recipient: "Bot 0", cards: [{ suit: 1, rank: 12 }, { suit: 2, rank: 13 }] },
+        { id: "1:1:back:0:1", sender: "Bot 0", recipient: "Bot 1", cards: [given] },
+        { id: "1:1:trade:2:1", sender: "Bot 2", recipient: "Bot 1", cards: [{ suit: 4, rank: 1 }] }
+    ];
+    const state = BotAI.observe(game, game.players[0]);
+    const plain = value => JSON.parse(JSON.stringify(value));
+    assert.deepEqual(plain(state.held), { "Bot 1": [given] });
+    assert.deepEqual(plain(state.capped), { "Bot 1": 12 });
+    for (const hands of BotAI.samples(state, seededRandom(31))) {
+        const bum = hands[state.opponents.findIndex(other => other.name == "Bot 1")];
+        assert.equal(bum.length, 5);
+        assert.ok(bum.some(c => c.suit == 1 && c.rank == 9), "The card it gave is still there");
+        assert.ok(bum.every(c => c.strengthRank <= 12 || c.strengthRank == 16), "The Bum kept nothing above its best cards");
+    }
+    game.playedCards = [given];
+    assert.deepEqual(plain(BotAI.observe(game, game.players[0]).held), { "Bot 1": [] });
+    const neutral = BotAI.observe(game, game.players[2]);
+    assert.deepEqual(plain(neutral.held), { "Bot 1": [{ suit: 4, rank: 1 }] });
+    assert.deepEqual(plain(neutral.capped), {}, "A trade says nothing about the rest of the hand");
+});
+
 function simulate(seed, skills) {
     const random = seededRandom(seed);
     const deck = new CardDeck();

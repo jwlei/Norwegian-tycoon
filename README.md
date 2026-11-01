@@ -27,7 +27,7 @@ Boms og President (also known as Norwegian Tycoon) is a free card game for 2–4
 - **Browser-native frontend:** The application uses HTML, CSS, and plain JavaScript without a framework or build step. JavaScript files are loaded in dependency order from `index.html`; game logic, rendering, networking, presence, bots, and localization are kept in separate modules.
 - **Firebase Realtime Database:** Firebase JavaScript SDK 8.10.1 stores multiplayer game state and player statistics. Realtime listeners keep connected clients synchronized, while database transactions protect updates that can race, such as player identity allocation and shared game actions.
 - **Multiplayer presence and recovery:** Presence records and Firebase's server-time offset help detect disconnects and stale sessions. Host handoff, action deadlines, and persisted turn/presentation timing allow games to recover and continue across clients.
-- **Bot decision-making:** Bots use different skill profiles. Stronger strategies evaluate legal plays and sample possible unseen hands to estimate responses and future outcomes. The highest “god” profile is intentionally omniscient and can inspect opponents' cards.
+- **Bot decision-making:** Bots use different skill profiles built on one heuristic. Stronger strategies add knowledge: card counting, exchange memory, sampled rollouts and exact endgame search over possible unseen hands. The highest “god” profile is intentionally omniscient and can inspect opponents' cards, which lets it solve endings exactly. Rollouts follow the same rules as the engine, including custom rules.
 - **Browser cryptography:** The Web Crypto API is used for player-name fingerprints and PBKDF2-based PIN profile credentials. PIN recovery is an optional convenience feature, not an account or authentication system.
 - **Accessible interaction and motion:** The interface includes keyboard-operable controls, dialog focus management, ARIA state/status announcements, touch and pointer card interactions, and reduced-motion handling.
 - **Testing:** Automated tests use Node.js's built-in test runner and cover game rules, bots, identity, presence, leaderboard behavior, themes, and card interactions.
@@ -35,6 +35,8 @@ Boms og President (also known as Norwegian Tycoon) is a free card game for 2–4
 ## Bot tiers
 
 The retired Bad tier is redistributed among three remaining tiers. Normal uses the former Good strategy (stored ID `good`); Good uses the former Pro strategy (stored ID `pro`); God keeps its existing omniscient strategy (`god`), including knowledge of opponents' cards. Existing version-one bot records migrate by name; newly saved records use version two. Legacy `bad` strategy values normalize to Normal.
+
+Each tier adds a kind of knowledge. Normal plays the heuristic without remembering played cards. Good also counts cards to spot lines nothing can stop, remembers its exchange, searches sampled endings exactly, and departs from Normal's move only when rollouts clearly favour it. God sees every hand and solves endings exactly. See [the bot strategy notes](docs/implementation-notes.md#bot-strategy) for how this was measured.
 
 | Tier | Bots |
 | --- | --- |

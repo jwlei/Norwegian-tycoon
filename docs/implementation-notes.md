@@ -8,6 +8,21 @@ On mobile, the playing table gains roughly 70% of the Pass button's height from 
 
 Mandatory President/Boms and Vice President/Vice Boms exchanges complete independently. Each pair receives its cards and confirms its own summary without blocking the other pair's selections or delivery; normal play waits for both pairs. Concurrent confirmations are reapplied to the latest shared state to preserve both trades. Selected outgoing cards and received-card summaries use the sender's card design and foil, respecting the existing card-style visibility preference.
 
+## Bot strategy
+
+Each tier adds a kind of knowledge on top of one heuristic. Normal (stored ID `good`) has no memory of played cards. Good (`pro`) counts cards, remembers its own exchange, searches sampled endings exactly and uses rollouts. God (`god`) sees every hand and solves endings exactly. Strength was measured in paired games: identical deals, every seat rotation, with score 1 for always President and 0 for always Boms, so 0.5 is even.
+
+- **Club three is held, not spent.** Leading it clears nothing and hands the lead straight back, so `moves` removes that option unless only one other combination remains, and then playing it wins by force: club three, then lead the last combination. Holding it lowers `handCost`, and its worth when stealing a pile falls as more combinations remain.
+- **Passing is expensive.** A pass locks the bot out of the whole pile unless Åpent pass is on. Normal's pass margin (`passMargin`) went from 2 to 10, the largest single gain found: about 0.61 against the old value. Passing never is also better than 2, but worse than 10.
+- **Rollouts follow the engine.** `simulationStep` keeps the engine's order of checks, including locked passes, four of a kind built on the table, and the custom rules. The old rollout let passed players back in and disagreed with the engine in up to 47% of mid-game positions; tests now require exact agreement across the rule sets.
+- **Good departs from Normal only on clear evidence.** The older mix of score and noisy rollouts passed 3.6 times as often as Normal, and those passes lost value when checked on the true hands. `improvedMove` keeps Normal's move unless rollouts show at least 0.3 more value. Rollouts score the winning margin for this, because placement alone rates most moves equal.
+- **Certain lines are proved.** `certainMove` plays a line only if the unseen cards show that every combination but the last is unbeatable. Tests confirm these claims with exact search on the real hands.
+- **Exact search.** `search` explores the rest of the round, with each player picking what places them best. God searches its real view at up to 18 cards in play. Good averages over sampled hands at up to 12 cards, so it never reads hidden cards. Both have a node budget and fall back when it runs out.
+
+Results from the final tuning run: Normal, Good and God scored 0.63, 0.62 and 0.67 heads-up against their old selves, 0.68, 0.60 and 0.65 with three players, and 0.63, 0.54 and 0.62 with four. In mixed games God, Good and Normal scored 0.77, 0.44 and 0.30 with three players. With four, Normal averaged 0.37 against 0.48 for Good and 0.78 for God. Heads-up, God beats Good 0.74 to 0.26. Good and Normal are level there, at 0.48 ± 0.03 for Good.
+
+Changing which cards the President gives back made no measurable difference across a wide range of weights. Tuning Good's rollout count, finalist count and score weights also stayed within noise, so they were left alone.
+
 ## Card depth, landing and rendering
 
 Settings include a local, saved **Card shadows** choice. **Fancy** (the default) keeps the
