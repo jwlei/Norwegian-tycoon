@@ -1,0 +1,43 @@
+{
+ "baseline": {
+  "variant": "baseline",
+  "tests": 770,
+  "pass": 770,
+  "fail": 0,
+  "failed": []
+ },
+ "results": [
+  {
+   "variant": "17-foil-static-base-plain-sheen",
+   "tests": 770,
+   "pass": 769,
+   "fail": 1,
+   "failed": [
+    "six-second idle foil uses compositor-friendly opacity and contained glare drift"
+   ],
+   "added": [
+    "six-second idle foil uses compositor-friendly opacity and contained glare drift"
+   ],
+   "fixed": []
+  },
+  {
+   "variant": "17-foil-static-base-plain-sheen+18-foil-moving-cards-own-layers",
+   "tests": 770,
+   "pass": 766,
+   "fail": 4,
+   "failed": [
+    "normal play animation restores the original movement, easing and card stagger",
+    "depth flights render rotation internally, preserve foil rendering, and release renderer state",
+    "played flights retain source tilt, scale and foil position and settle level before cleanup",
+    "six-second idle foil uses compositor-friendly opacity and contained glare drift"
+   ],
+   "added": [
+    "normal play animation restores the original movement, easing and card stagger",
+    "depth flights render rotation internally, preserve foil rendering, and release renderer state",
+    "played flights retain source tilt, scale and foil position and settle level before cleanup",
+    "six-second idle foil uses compositor-friendly opacity and contained glare drift"
+   ],
+   "fixed": []
+  }
+ ]
+}

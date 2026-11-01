@@ -52,4 +52,4 @@ function serve(root, { stub = true } = {}) {
     })));
 }
 
-module.exports = { serve };
+module.exports = { serve, rewriteIndex, TYPES };

@@ -1,0 +1,160 @@
+{
+ "measuredAt": "2026-11-01T11:05:23.827Z",
+ "node": "v24.20.0",
+ "pixels": {
+  "phone": {
+   "physicalWidth": 1272,
+   "physicalHeight": 2772,
+   "dpr": 3.5,
+   "cssWidth": 363,
+   "cssHeight": 792
+  },
+  "cardCssPixels": [
+   104,
+   156
+  ],
+  "cardPixels": 198744,
+  "budgetMs": {
+   "60 Hz": 16.7,
+   "120 Hz": 8.3,
+   "165 Hz": 6.1
+  },
+  "scenes": [
+   {
+    "name": "Scroll the hand",
+    "source": "stack-idle-with-05.json",
+    "today": 30.8,
+    "proposed": 3.9,
+    "offscreenPixelsToday": 5346214,
+    "offscreenPixelsProposed": 0
+   },
+   {
+    "name": "Drag one card",
+    "source": "patch-drag.json",
+    "today": 31.1,
+    "proposed": 5.9,
+    "offscreenPixelsToday": 5405837,
+    "offscreenPixelsProposed": 397488
+   },
+   {
+    "name": "Play 1 card onto 12",
+    "source": "attribution.json",
+    "today": 26.6,
+    "proposed": 5.9,
+    "offscreenPixelsToday": 4511489,
+    "offscreenPixelsProposed": 397488
+   },
+   {
+    "name": "Resting table of 30",
+    "source": "stack-idle-with-05.json",
+    "today": 23.9,
+    "proposed": 3.9,
+    "offscreenPixelsToday": 3974880,
+    "offscreenPixelsProposed": 0
+   }
+  ]
+ },
+ "sheen": {
+  "styles": 28,
+  "colours": 199,
+  "factor": 0.145,
+  "worstLevels": 6,
+  "meanLevels": 2.3,
+  "artworkWorstLevels": 6,
+  "artworkMeanLevels": 2.09,
+  "withoutGlareWorstLevels": 10.2,
+  "stops": {
+   "centre": 0.077,
+   "middle": 0.019
+  },
+  "unchangedGlareOnPlainWhite": 0
+ },
+ "writes": {
+  "drag": [
+   {
+    "hz": 60,
+    "today": {
+     "frames": 181,
+     "tiltWrites": 181,
+     "foilWrites": 181,
+     "foilWritesPerSecond": 60
+    },
+    "held": {
+     "frames": 181,
+     "tiltWrites": 181,
+     "foilWrites": 91,
+     "foilWritesPerSecond": 30
+    }
+   },
+   {
+    "hz": 120,
+    "today": {
+     "frames": 360,
+     "tiltWrites": 360,
+     "foilWrites": 360,
+     "foilWritesPerSecond": 120
+    },
+    "held": {
+     "frames": 360,
+     "tiltWrites": 360,
+     "foilWrites": 90,
+     "foilWritesPerSecond": 30
+    }
+   },
+   {
+    "hz": 165,
+    "today": {
+     "frames": 496,
+     "tiltWrites": 496,
+     "foilWrites": 496,
+     "foilWritesPerSecond": 165
+    },
+    "held": {
+     "frames": 496,
+     "tiltWrites": 496,
+     "foilWrites": 83,
+     "foilWritesPerSecond": 28
+    }
+   }
+  ],
+  "flight": [
+   {
+    "hz": 60,
+    "today": {
+     "framesInFlight": 31,
+     "foilPaints": 31
+    },
+    "held": {
+     "framesInFlight": 31,
+     "foilPaints": 17
+    }
+   },
+   {
+    "hz": 120,
+    "today": {
+     "framesInFlight": 62,
+     "foilPaints": 62
+    },
+    "held": {
+     "framesInFlight": 62,
+     "foilPaints": 17
+    }
+   },
+   {
+    "hz": 165,
+    "today": {
+     "framesInFlight": 86,
+     "foilPaints": 86
+    },
+    "held": {
+     "framesInFlight": 86,
+     "foilPaints": 17
+    }
+   }
+  ]
+ },
+ "keyframes": {
+  "perFlightMs81Frames": 0.0055,
+  "perFlightMs17Frames": 0.0015
+ }
+}

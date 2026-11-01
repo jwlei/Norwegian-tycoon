@@ -1,0 +1,119 @@
+diff --git a/css/foil.css b/css/foil.css
+index 3c138a5..dfb9f31 100644
+--- a/css/foil.css
++++ b/css/foil.css
+@@ -283,6 +283,12 @@ body.has-open-dialog :is(#playerHand .game-card, #gameTable .card-preview)::afte
+     animation: none !important;
+ }
+ 
++/* A moving card's foil keeps its own layers, so tilting the card moves them without repainting the gradients. */
++:is(.card-drag-preview, .card-flight)[data-foil]:not([data-foil="none"])::before,
++:is(.card-drag-preview, .card-flight)[data-foil]:not([data-foil="none"])::after {
++    will-change: transform;
++}
++
+ .is-foil-offscreen[data-foil]::before,
+ .is-foil-offscreen[data-foil]::after {
+     animation-play-state: paused !important;
+diff --git a/js/game.js b/js/game.js
+index d287e48..697cae9 100644
+--- a/js/game.js
++++ b/js/game.js
+@@ -538,6 +538,8 @@ function resetCardTilt(cardElement) {
+ 
+ // Equivalent to the 400 ms ease-out foil transition restarted every frame, without creating transitions.
+ var CARD_DRAG_FOIL_PATTERN_MS = 230;
++// The tilt follows every frame. The light moves slowly and repainting it is the costly part, so it updates less often.
++var CARD_DRAG_FOIL_PAINT_MS = 33;
+ 
+ function prepareCardDragPreview(card, bounds) {
+     var image = card.querySelector("img");
+@@ -659,6 +661,8 @@ function animateCardDragTilt(drag, time) {
+     if (settled) { drag.pitch = drag.yaw = drag.targetPitch = drag.targetYaw = 0; }
+     var patternBlend = reducedMotion ? 1 : 1 - Math.exp(-elapsed / CARD_DRAG_FOIL_PATTERN_MS);
+     var patternsSettled = true;
++    var paintFoil = drag.lastFoilPaint == null || time - drag.lastFoilPaint >= CARD_DRAG_FOIL_PAINT_MS;
++    if (paintFoil) { drag.lastFoilPaint = time; }
+     drag.previews.forEach((preview, index) => {
+         var pitchScale = drag.cards.length == 1 ? 1 : 0.9 + 0.2 * index / (drag.cards.length - 1);
+         var pitch = Math.max(-18, Math.min(18, drag.pitch * pitchScale));
+@@ -677,10 +681,13 @@ function animateCardDragTilt(drag, time) {
+         }
+         preview.style.setProperty("--tilt-x", pitch == 0 ? "0deg" : `${pitch.toFixed(2)}deg`);
+         preview.style.setProperty("--tilt-y", drag.yaw == 0 ? "0deg" : `${drag.yaw.toFixed(2)}deg`);
+-        preview.style.setProperty("--pointer-x", `${pointerX.toFixed(2)}%`);
+-        preview.style.setProperty("--pointer-y", `${pointerY.toFixed(2)}%`);
+-        preview.style.setProperty("--foil-pattern-x", `${pattern.x.toFixed(2)}%`);
+-        preview.style.setProperty("--foil-pattern-y", `${pattern.y.toFixed(2)}%`);
++        // The last frame always paints, so the light comes to rest exactly where it should.
++        if (paintFoil || settled && pattern.x == patternX && pattern.y == patternY) {
++            preview.style.setProperty("--pointer-x", `${pointerX.toFixed(2)}%`);
++            preview.style.setProperty("--pointer-y", `${pointerY.toFixed(2)}%`);
++            preview.style.setProperty("--foil-pattern-x", `${pattern.x.toFixed(2)}%`);
++            preview.style.setProperty("--foil-pattern-y", `${pattern.y.toFixed(2)}%`);
++        }
+         preview.classList.toggle("is-tilting", !settled && !reducedMotion);
+         if (typeof CardDepth != "undefined") {
+             CardDepth.update(preview, { pitch, yaw: drag.yaw, lift: reducedMotion ? 0 : 18 });
+diff --git a/js/layout-animations.js b/js/layout-animations.js
+index 9af69a6..6f57655 100644
+--- a/js/layout-animations.js
++++ b/js/layout-animations.js
+@@ -238,6 +238,7 @@ GameLayout.extend(class {
+                     };
+                 });
+             }
++            var foilFrames = null;
+             if (flight.dataset.foil !== "none") {
+                 // Match the visible light and eased pattern, then join the table's idle phase at reveal.
+                 var sourceX = source.pointerX != null ? parseFloat(source.pointerX) : 50 + yaw / 18 * 45;
+@@ -257,7 +258,13 @@ GameLayout.extend(class {
+                 var endGlareX = restingFoil?.glareX ?? 0;
+                 var endGlareY = restingFoil?.glareY ?? 0;
+                 var restPose = landingPose ? landingPose.orientationAtProgress(1) : { pitch: 0, yaw: 0 };
++                foilFrames = [];
+                 flightFrames.forEach((frame, index) => {
++                    // Every fifth sample, held until the next: about 30 foil repaints per second at any display rate.
++                    if (landingPose && index % 5) { return; }
++                    var foilFrame = { offset: frame.offset ?? (index === 0 ? 0 : index === flightFrames.length - 1 ? 1 : .68) };
++                    if (landingPose) { foilFrame.easing = "step-end"; }
++                    foilFrames.push(foilFrame);
+                     var progress = frame.offset ?? (index === 0 ? 0 : index === flightFrames.length - 1 ? 1 : .68);
+                     var blend = progress * progress * (3 - 2 * progress);
+                     var pose = landingPose ? landingPose.orientationAtProgress(progress) :
+@@ -265,22 +272,25 @@ GameLayout.extend(class {
+                             yaw: index === 0 ? yaw : index === 1 ? middleYaw : 0 };
+                     var tiltX = (pose.yaw - yaw - (restPose.yaw - yaw) * blend) / 18 * 45;
+                     var tiltY = (pose.pitch - pitch - (restPose.pitch - pitch) * blend) / 18 * 45;
+-                    frame["--pointer-x"] = `${sourceX + (endX - sourceX) * blend + tiltX}%`;
+-                    frame["--pointer-y"] = `${sourceY + (endY - sourceY) * blend + tiltY}%`;
+-                    frame["--foil-pattern-x"] = `${sourcePatternX + (endPatternX - sourcePatternX) * blend + tiltX * .8}%`;
+-                    frame["--foil-pattern-y"] = `${sourcePatternY + (endPatternY - sourcePatternY) * blend + tiltY * .8}%`;
+-                    frame["--foil-color-opacity"] = sourceColor + (endColor - sourceColor) * blend;
+-                    frame["--foil-glare-opacity"] = sourceGlare + (endGlare - sourceGlare) * blend;
+-                    frame["--foil-glare-x"] = `${sourceGlareX + (endGlareX - sourceGlareX) * blend}%`;
+-                    frame["--foil-glare-y"] = `${sourceGlareY + (endGlareY - sourceGlareY) * blend}%`;
++                    foilFrame["--pointer-x"] = `${sourceX + (endX - sourceX) * blend + tiltX}%`;
++                    foilFrame["--pointer-y"] = `${sourceY + (endY - sourceY) * blend + tiltY}%`;
++                    foilFrame["--foil-pattern-x"] = `${sourcePatternX + (endPatternX - sourcePatternX) * blend + tiltX * .8}%`;
++                    foilFrame["--foil-pattern-y"] = `${sourcePatternY + (endPatternY - sourcePatternY) * blend + tiltY * .8}%`;
++                    foilFrame["--foil-color-opacity"] = sourceColor + (endColor - sourceColor) * blend;
++                    foilFrame["--foil-glare-opacity"] = sourceGlare + (endGlare - sourceGlare) * blend;
++                    foilFrame["--foil-glare-x"] = `${sourceGlareX + (endGlareX - sourceGlareX) * blend}%`;
++                    foilFrame["--foil-glare-y"] = `${sourceGlareY + (endGlareY - sourceGlareY) * blend}%`;
+                 });
+             }
+-            var animation = flight.animate(flightFrames, {
++            var flightTiming = {
+                 duration: duration,
+                 delay: animationDuration(typeof currentGame != "undefined" ? currentGame : null, cardIndex * 55),
+                 easing: landingPose ? "linear" : "cubic-bezier(.22,.8,.25,1)",
+                 fill: "both"
+-            });
++            };
++            var animation = flight.animate(flightFrames, flightTiming);
++            // A separate animation, because custom properties in the same one would keep the transform off the compositor.
++            if (foilFrames) { flight.animate(foilFrames, flightTiming); }
+             if (usesDepth) {
+                 CardDepth.update(flight, { pitch, yaw, roll: startRotation, lift: 18 });
+                 CardDepth.follow(flight, animation, progress => {

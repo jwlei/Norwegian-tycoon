@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <base href="/" />
+    <title>Foil look</title>
+    <link rel="stylesheet" href="css/foil.css">
+    <style>
+        html, body { margin: 0; background: #17281f; }
+        #cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; padding: 10px; }
+        .card-preview { position: relative; display: block; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 8px; }
+        .card-preview img { display: block; width: 100%; height: 100%; }
+    </style>
+</head>
+<body>
+<div id="cards"></div>
+<script src="js/cards.js"></script>
+<script>
+    "use strict";
+    // One card per foil, drawn by this tree's real foil.css. The lab stacks two of these pages to compare them exactly.
+    const cards = document.getElementById("cards");
+    function render(style) {
+        cards.replaceChildren(...Card.foilOptions().filter(option => option.id != "none").map((option, index) => {
+            const element = document.createElement("div");
+            element.className = `card-preview card-preview--${style}`;
+            element.dataset.foil = option.id;
+            const image = document.createElement("img");
+            image.src = new Card(index % 4 + 1, index % 13 + 1).toImageDataUri(style, option.id);
+            image.alt = "";
+            element.append(image);
+            return element;
+        }));
+    }
+    function hold() {
+        document.getAnimations().forEach(animation => { animation.pause(); animation.currentTime = 1500; });
+    }
+    let moving = false;
+    window.addEventListener("message", event => {
+        if (event.origin != location.origin) { return; }
+        const { style, light, motion } = event.data;
+        if (style) { render(style); }
+        if (light != null) {
+            cards.querySelectorAll(".card-preview").forEach(element => {
+                element.style.setProperty("--pointer-x", `${light}%`);
+                element.style.setProperty("--pointer-y", `${100 - light}%`);
+            });
+        }
+        if (motion != null) { moving = motion; }
+        document.getAnimations().forEach(animation => { if (moving) { animation.play(); } });
+        if (!moving) { hold(); }
+    });
+    render("normal");
+    hold();
+</script>
+</body>
+</html>

@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Foil Phone Lab</title>
+<style>
+:root { color-scheme: dark; --bg: #101a15; --panel: #1a2a22; --line: #33493d; --text: #edf3ef; --muted: #a2b5a9; --accent: #c7a4ff; --good: #7fd8a0; --bad: #ff9c8f; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 1.35rem; margin: 0 0 4px; }
+h2 { font-size: 1.05rem; margin: 22px 0 8px; }
+p { margin: 6px 0; }
+.muted { color: var(--muted); font-size: .9rem; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 12px 0; }
+.tabs { display: flex; gap: 6px; margin: 14px 0; }
+.tabs button { flex: 1; }
+button, select, .button { font: inherit; color: var(--text); background: #26382e; border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; min-height: 44px; text-decoration: none; display: inline-block; text-align: center; }
+button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #1a1026; font-weight: 700; width: 100%; }
+button:disabled { opacity: .5; }
+label { display: block; margin: 8px 0; }
+label select, label input[type=range] { display: block; width: 100%; margin-top: 4px; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: .9rem; }
+th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; white-space: normal; }
+.better { color: var(--good); } .worse { color: var(--bad); }
+#stage { position: fixed; inset: 0; z-index: 10; display: none; background: #000; }
+#stage iframe { width: 100%; height: 100%; border: 0; display: block; }
+#look { position: relative; height: 70vh; overflow: hidden; border-radius: 10px; background: #000; isolation: isolate; }
+#look iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+#look.difference { filter: brightness(4); }
+#look.difference iframe + iframe { mix-blend-mode: difference; }
+.feel { display: grid; gap: 8px; }
+textarea { width: 100%; height: 120px; background: #0b120e; color: var(--text); border: 1px solid var(--line); border-radius: 8px; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+    <h1>Foil Phone Lab</h1>
+    <p class="muted" id="device">Reading this device...</p>
+    <div class="tabs" role="group" aria-label="Sections">
+        <button type="button" data-tab="run" aria-pressed="true">Benchmark</button>
+        <button type="button" data-tab="feel" aria-pressed="false">Feel it</button>
+        <button type="button" data-tab="compare" aria-pressed="false">Compare look</button>
+    </div>
+
+    <section id="run">
+        <div class="panel">
+            <p>Runs the real game with scripted scrolling, dragging and playing, once per build, and compares frame times on this phone.</p>
+            <label>Length
+                <select id="length">
+                    <option value="quick">Quick</option>
+                    <option value="full">Full</option>
+                </select>
+            </label>
+            <label>Foil
+                <select id="foil"></select>
+            </label>
+            <p class="muted">Before you start: plug in or turn off battery saver, set the screen timeout to 10 minutes, close other apps, and don't touch the screen during the run.</p>
+            <button type="button" class="primary" id="start">Start</button>
+            <p id="progress" class="muted" aria-live="polite"></p>
+        </div>
+        <div id="results"></div>
+        <div id="save" class="panel" hidden>
+            <p id="saveStatus"></p>
+            <div id="manualSave" hidden>
+                <p class="muted">Could not save to the computer. Copy this and paste it to Claude:</p>
+                <textarea id="json" readonly></textarea>
+                <button type="button" id="copy">Copy</button>
+            </div>
+        </div>
+    </section>
+
+    <section id="feel" hidden>
+        <div class="panel">
+            <p>A real game against bots with every player on the chosen foil. Play a round in each build and watch the meter in the corner. Your finger is the test: try dragging, throwing and scrolling your hand.</p>
+            <label>Foil
+                <select id="feelFoil"></select>
+            </label>
+            <div class="feel" id="feelLinks"></div>
+        </div>
+    </section>
+
+    <section id="compare" hidden>
+        <div class="panel">
+            <p>Every foil, drawn by each build's real CSS and held at the same moment. Difference shows only what changed, brightened 4 times.</p>
+            <div class="tabs" role="group" aria-label="View">
+                <button type="button" data-view="a" aria-pressed="true">Before</button>
+                <button type="button" data-view="b" aria-pressed="false">Patched</button>
+                <button type="button" data-view="diff" aria-pressed="false">Difference</button>
+            </div>
+            <label>Card style
+                <select id="lookStyle">
+                    <option value="normal">Classic (light)</option>
+                    <option value="cosmic">Cosmic (dark)</option>
+                    <option value="gold">Gold</option>
+                    <option value="neon">Neon</option>
+                </select>
+            </label>
+            <label>Light position
+                <input type="range" id="lookLight" min="0" max="100" value="50">
+            </label>
+            <label><input type="checkbox" id="lookMotion"> Let idle motion run (Difference is only exact when held)</label>
+        </div>
+        <div id="look">
+            <iframe id="lookA" src="/v/baseline/foil-look.html" title="Before"></iframe>
+            <iframe id="lookB" src="/v/17%2B18/foil-look.html" title="Patched" style="visibility:hidden"></iframe>
+        </div>
+    </section>
+</main>
+<div id="stage"></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const FOILS = ["rainbow", "holo", "galaxy", "v", "vmax", "vstar", "full-art", "trainer-full-art", "rainbow-alt", "gold", "radiant", "gallery-holo", "gallery-v", "gallery-vmax"];
+const VARIANTS = [
+    { id: "none", tree: "baseline", label: "No foil", foil: "none" },
+    { id: "today", tree: "baseline", label: "Before the patches" },
+    { id: "idle-off", tree: "baseline", label: "Before, idle switch off", idleFoil: false },
+    { id: "17", tree: "17", label: "Patch 17" },
+    { id: "17+18", tree: "17+18", label: "Patches 17+18" }
+];
+
+// ---- Measuring -------------------------------------------------------------------------------------------------
+function startFrames(win) {
+    const intervals = [];
+    let previous = null, stopped = false;
+    const loop = time => {
+        if (previous != null) { intervals.push(time - previous); }
+        previous = time;
+        if (!stopped) { win.requestAnimationFrame(loop); }
+    };
+    win.requestAnimationFrame(loop);
+    return () => { stopped = true; return intervals; };
+}
+
+function quantile(sorted, q) {
+    return sorted.length ? sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * q) - 1)] : null;
+}
+
+// A phone can change refresh rate during a run, so a run is judged against its own steady frames, not the empty page's rate.
+function steadyFrameTime(intervals) {
+    return quantile(intervals.slice().sort((a, b) => a - b), .1) || 1000 / 60;
+}
+
+function summarize(intervals, vsync) {
+    const sorted = intervals.slice().sort((a, b) => a - b);
+    const total = intervals.reduce((sum, value) => sum + value, 0);
+    const dropped = intervals.reduce((sum, value) => sum + Math.max(0, Math.round(value / vsync) - 1), 0);
+    const expected = total / vsync;
+    return {
+        frames: intervals.length,
+        fps: total ? intervals.length / total * 1000 : 0,
+        droppedPercent: expected ? dropped / expected * 100 : 0,
+        refreshHz: 1000 / vsync,
+        p50: quantile(sorted, .5), p95: quantile(sorted, .95), p99: quantile(sorted, .99), worst: sorted.at(-1) ?? null
+    };
+}
+
+function median(values) {
+    const sorted = values.filter(value => value != null).sort((a, b) => a - b);
+    return sorted.length ? sorted[Math.floor((sorted.length - 1) / 2)] : null;
+}
+
+async function measureRefresh(duration = 2000) {
+    const stop = startFrames(window);
+    await sleep(duration);
+    return median(stop()) || 1000 / 60;
+}
+
+// ---- Scenes: the same fixture and gestures as perf/run.cjs, driven from inside the page -------------------------------
+async function dragGesture(win, duration) {
+    const point = win.Perf.cardPoint(9);
+    const hand = win.document.getElementById("playerHand");
+    const card = hand.querySelectorAll(".game-card")[9];
+    const event = (type, x, y) => new win.PointerEvent(type, { bubbles: true, cancelable: true, composed: true,
+        pointerId: 77, pointerType: "touch", isPrimary: true, button: type == "pointermove" ? -1 : 0,
+        buttons: type == "pointerup" ? 0 : 1, clientX: x, clientY: y });
+    card.dispatchEvent(event("pointerdown", point.x, point.y));
+    let dragged = false;
+    await new Promise(resolve => {
+        let start = null;
+        const step = time => {
+            if (start == null) { start = time; }
+            const elapsed = time - start;
+            if (elapsed >= duration) { resolve(); return; }
+            const lift = Math.min(1, elapsed / 300), angle = elapsed / 280;
+            hand.dispatchEvent(event("pointermove",
+                point.x + (point.tableX - point.x) * lift + Math.sin(angle) * 90 * lift,
+                point.y + (point.tableY - point.y) * lift + Math.cos(angle * 1.3) * 60 * lift));
+            dragged = dragged || !!win.document.querySelector(".card-drag-layer .card-drag-preview");
+            win.requestAnimationFrame(step);
+        };
+        win.requestAnimationFrame(step);
+    });
+    hand.dispatchEvent(event("pointermove", point.x, point.y));
+    hand.dispatchEvent(event("pointerup", point.x, point.y));
+    await sleep(500);
+    return dragged;
+}
+
+async function flights(win, count, play) {
+    const stop = startFrames(win);
+    const sync = [];
+    for (let index = 0; index < count; index++) {
+        sync.push(play());
+        await win.Perf.waitForFlights();
+        await win.Perf.settle(150);
+    }
+    return { intervals: stop(), syncMs: median(sync) };
+}
+
+const SCENES = {
+    scroll: { label: "Scroll the hand", setup: { hand: 26 }, run: async win => ({ intervals: (await win.Perf.scrollHand(3000)).intervals }) },
+    drag: { label: "Drag a card", setup: { hand: 13, table: 6 }, run: async win => {
+        const stop = startFrames(win);
+        const dragged = await dragGesture(win, 3000);
+        const intervals = stop();
+        if (!dragged) { throw new Error("The scripted drag did not pick up a card."); }
+        return { intervals };
+    } },
+    select: { label: "Select cards", setup: { hand: 13 }, run: async win => {
+        const stop = startFrames(win);
+        const sync = [];
+        for (let index = 0; index < 8; index++) {
+            sync.push(win.Perf.selectCard(index % 13));
+            await win.Perf.settle(120);
+        }
+        return { intervals: stop(), syncMs: median(sync) };
+    } },
+    play1: { label: "Play 1 card onto 12", setup: { hand: 13, table: 12 }, run: win => flights(win, 4, () => win.Perf.play(1)) },
+    play4: { label: "Play 4 cards onto 30", setup: { hand: 13, table: 30 }, run: win => flights(win, 3, () => win.Perf.play(4)) },
+    opponent: { label: "Opponent plays", setup: { hand: 13, table: 8, myTurn: false }, run: win => flights(win, 4, () => win.Perf.opponentPlays()) }
+};
+const LENGTHS = {
+    quick: { rounds: 2, scenes: ["drag", "scroll", "play1"], variants: ["today", "idle-off", "17", "17+18"] },
+    full: { rounds: 3, scenes: ["drag", "scroll", "select", "play1", "play4", "opponent"], variants: ["none", "today", "idle-off", "17", "17+18"] }
+};
+// A page load, setup and scene take about this long, for the time estimate only.
+const SECONDS_PER_RUN = 7;
+
+function loadFrame(variant) {
+    return new Promise((resolve, reject) => {
+        const frame = document.createElement("iframe");
+        const timer = setTimeout(() => reject(new Error("The page took too long to load.")), 30000);
+        frame.onload = () => { clearTimeout(timer); resolve(frame); };
+        frame.src = `/v/${encodeURIComponent(variant.tree)}/index.html`;
+        $("stage").replaceChildren(frame);
+    });
+}
+
+async function runOnce(variant, sceneName, foil) {
+    const frame = await loadFrame(variant);
+    const win = frame.contentWindow;
+    const errors = [];
+    win.addEventListener("error", event => errors.push(event.message));
+    // Scripted pointer events have no real pointer to capture.
+    win.Element.prototype.setPointerCapture = () => { };
+    win.Element.prototype.releasePointerCapture = () => { };
+    win.Element.prototype.hasPointerCapture = () => true;
+    await sleep(600);
+    const scene = SCENES[sceneName];
+    win.Perf.setup({ ...scene.setup, foil: variant.foil || foil, idleFoil: variant.idleFoil !== false });
+    await win.Perf.ready();
+    await sleep(400);
+    const stats = win.Perf.stats();
+    const result = await scene.run(win);
+    return { intervals: result.intervals, syncMs: result.syncMs ?? null, errors, runningFoil: stats.runningFoil };
+}
+
+// ---- Running ---------------------------------------------------------------------------------------------------
+function plan(config) {
+    const order = [];
+    for (let round = 0; round < config.rounds; round++) {
+        for (const scene of config.scenes) {
+            // Alternate the order each round, so warm-up and heat do not favour one build.
+            const variants = round % 2 ? config.variants.slice().reverse() : config.variants;
+            for (const variant of variants) { order.push({ round, scene, variant }); }
+        }
+    }
+    return order;
+}
+
+async function waitUntilVisible() {
+    while (document.hidden) { await sleep(500); }
+}
+
+async function run() {
+    const config = LENGTHS[$("length").value];
+    const foil = $("foil").value;
+    const steps = plan(config);
+    document.querySelector("main").hidden = true;
+    $("stage").style.display = "block";
+    window.scrollTo(0, 0);
+    const refreshBefore = await measureRefresh();
+    const runs = [];
+    for (const [index, step] of steps.entries()) {
+        const variant = VARIANTS.find(candidate => candidate.id == step.variant);
+        const record = { ...step };
+        for (let attempt = 0; attempt < 2; attempt++) {
+            await waitUntilVisible();
+            try {
+                const result = await runOnce(variant, step.scene, foil);
+                if (document.hidden) { record.error = "The page was hidden during the run."; continue; }
+                delete record.error;
+                record.stats = summarize(result.intervals, steadyFrameTime(result.intervals));
+                record.intervals = result.intervals.map(value => Math.round(value * 10) / 10);
+                record.syncMs = result.syncMs;
+                record.pageErrors = result.errors;
+                record.runningFoil = result.runningFoil;
+                break;
+            } catch (error) {
+                record.error = String(error && error.message || error);
+            }
+        }
+        runs.push(record);
+        document.title = `${index + 1}/${steps.length} Foil Phone Lab`;
+    }
+    $("stage").replaceChildren();
+    const refreshAfter = await measureRefresh();
+    $("stage").style.display = "none";
+    document.querySelector("main").hidden = false;
+    document.title = "Foil Phone Lab";
+    const report = { measuredAt: new Date().toISOString(), device: deviceInfo(), refreshMsBefore: refreshBefore, refreshMsAfter: refreshAfter, foil, length: $("length").value, runs };
+    showResults(report);
+    await saveResults(report);
+}
+
+// ---- Results ---------------------------------------------------------------------------------------------------
+function aggregate(runs, scene, variant) {
+    const list = runs.filter(entry => entry.scene == scene && entry.variant == variant && entry.stats);
+    if (!list.length) { return null; }
+    const pick = key => median(list.map(entry => entry.stats[key]));
+    return { fps: pick("fps"), droppedPercent: pick("droppedPercent"), p95: pick("p95"), worst: pick("worst"), runs: list.length };
+}
+
+function element(tag, text, className) {
+    const node = document.createElement(tag);
+    if (text != null) { node.textContent = text; }
+    if (className) { node.className = className; }
+    return node;
+}
+
+function showResults(report) {
+    const host = $("results");
+    host.replaceChildren();
+    const hz = Math.round(median(report.runs.filter(entry => entry.stats).map(entry => entry.stats.refreshHz)) || 0);
+    host.append(element("p", `Browser: ${report.device.userAgent}. Refresh on the empty page: ${Math.round(1000 / report.refreshMsBefore)} Hz. During the scenes: ${hz} Hz.`, "muted"));
+    if (Math.abs(report.refreshMsAfter - report.refreshMsBefore) > 1) {
+        host.append(element("p", `The refresh rate changed during the run (now ${Math.round(1000 / report.refreshMsAfter)} Hz), so the phone may have got hot or changed mode. Compare with care.`, "worse"));
+    }
+    const failures = report.runs.filter(entry => entry.error);
+    if (failures.length) {
+        host.append(element("p", `${failures.length} of ${report.runs.length} runs failed, for example: ${failures[0].error}`, "worse"));
+    }
+    const scenes = [...new Set(report.runs.map(entry => entry.scene))];
+    const variants = VARIANTS.filter(variant => report.runs.some(entry => entry.variant == variant.id));
+    for (const scene of scenes) {
+        host.append(element("h2", SCENES[scene].label));
+        const reference = aggregate(report.runs, scene, "today");
+        const table = element("table");
+        const head = table.createTHead().insertRow();
+        ["Build", "fps", "Dropped", "p95 ms", "Worst ms"].forEach(title => head.append(element("th", title)));
+        const body = table.createTBody();
+        for (const variant of variants) {
+            const row = body.insertRow();
+            const value = aggregate(report.runs, scene, variant.id);
+            row.append(element("td", variant.label));
+            if (!value) {
+                const empty = element("td", "failed");
+                empty.colSpan = 4;
+                row.append(empty);
+                continue;
+            }
+            const compare = reference && variant.id != "today" ? value.droppedPercent - reference.droppedPercent : 0;
+            row.append(element("td", value.fps.toFixed(0)));
+            row.append(element("td", `${value.droppedPercent.toFixed(1)}%`, compare < -1 ? "better" : compare > 1 ? "worse" : ""));
+            row.append(element("td", value.p95.toFixed(1)));
+            row.append(element("td", value.worst.toFixed(0)));
+        }
+        const wrap = element("div", null, "table-wrap");
+        wrap.append(table);
+        host.append(wrap);
+    }
+}
+
+async function saveResults(report) {
+    $("save").hidden = false;
+    $("manualSave").hidden = true;
+    $("saveStatus").textContent = "Saving...";
+    try {
+        const response = await fetch("/__lab/results", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(report) });
+        if (!response.ok) { throw new Error(`HTTP ${response.status}`); }
+        const { file } = await response.json();
+        $("saveStatus").textContent = `Saved on the computer as ${file}. Tell Claude it is there.`;
+    } catch (error) {
+        $("saveStatus").textContent = `Not saved: ${error.message}`;
+        $("json").value = JSON.stringify({ ...report, runs: report.runs.map(({ intervals, ...rest }) => rest) });
+        $("manualSave").hidden = false;
+    }
+}
+
+// ---- Page ------------------------------------------------------------------------------------------------------
+function gpuName() {
+    try {
+        const gl = document.createElement("canvas").getContext("webgl");
+        const info = gl && gl.getExtension("WEBGL_debug_renderer_info");
+        const name = info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : null;
+        const lose = gl && gl.getExtension("WEBGL_lose_context");
+        if (lose) { lose.loseContext(); }
+        return name;
+    } catch (error) { return null; }
+}
+
+function deviceInfo() {
+    return { userAgent: navigator.userAgent, dpr: devicePixelRatio, viewport: [innerWidth, innerHeight],
+        physical: [Math.round(screen.width * devicePixelRatio), Math.round(screen.height * devicePixelRatio)],
+        cores: navigator.hardwareConcurrency, gpu: GPU_NAME, reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+        coarsePointer: matchMedia("(pointer: coarse)").matches };
+}
+
+const GPU_NAME = gpuName();
+
+function fillFoils(select) {
+    FOILS.forEach(foil => select.add(new Option(foil.replaceAll("-", " "), foil)));
+}
+
+function updateFeelLinks() {
+    const foil = $("feelFoil").value;
+    $("feelLinks").replaceChildren(...VARIANTS.map(variant => {
+        const link = element("a", variant.label, "button");
+        const query = new URLSearchParams({ foil: variant.foil || foil, label: variant.label });
+        if (variant.idleFoil === false) { query.set("idle", "off"); }
+        link.href = `/v/${encodeURIComponent(variant.tree)}/play.html?${query}`;
+        return link;
+    }));
+}
+
+function lookFrames() { return [$("lookA"), $("lookB")]; }
+function tellLook(message) {
+    lookFrames().forEach(frame => { if (frame.contentWindow) { frame.contentWindow.postMessage(message, location.origin); } });
+}
+function setLookView(view) {
+    document.querySelectorAll("[data-view]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.view == view)));
+    $("look").classList.toggle("difference", view == "diff");
+    $("lookA").style.visibility = view == "b" ? "hidden" : "visible";
+    $("lookB").style.visibility = view == "a" ? "hidden" : "visible";
+    if (view == "diff" && $("lookMotion").checked) {
+        $("lookMotion").checked = false;
+        tellLook({ motion: false });
+    }
+}
+
+document.querySelectorAll("[data-tab]").forEach(button => button.addEventListener("click", () => {
+    document.querySelectorAll("[data-tab]").forEach(other => other.setAttribute("aria-pressed", String(other == button)));
+    ["run", "feel", "compare"].forEach(id => { $(id).hidden = id != button.dataset.tab; });
+}));
+document.querySelectorAll("[data-view]").forEach(button => button.addEventListener("click", () => setLookView(button.dataset.view)));
+$("lookStyle").addEventListener("change", event => tellLook({ style: event.target.value, light: $("lookLight").value, motion: $("lookMotion").checked }));
+$("lookLight").addEventListener("input", event => tellLook({ light: event.target.value }));
+$("lookMotion").addEventListener("change", event => tellLook({ motion: event.target.checked }));
+$("feelFoil").addEventListener("change", updateFeelLinks);
+$("length").addEventListener("change", updateEstimate);
+$("start").addEventListener("click", () => {
+    $("start").disabled = true;
+    run().catch(error => {
+        $("stage").style.display = "none";
+        document.querySelector("main").hidden = false;
+        $("progress").textContent = `The run stopped: ${error.message}`;
+    }).finally(() => { $("start").disabled = false; });
+});
+$("copy").addEventListener("click", () => {
+    $("json").select();
+    document.execCommand("copy");
+});
+
+function updateEstimate() {
+    const steps = plan(LENGTHS[$("length").value]);
+    $("progress").textContent = `${steps.length} runs, about ${Math.ceil(steps.length * SECONDS_PER_RUN / 60)} minutes.`;
+}
+
+fillFoils($("foil"));
+fillFoils($("feelFoil"));
+updateFeelLinks();
+updateEstimate();
+const info = deviceInfo();
+$("device").textContent = `${info.physical.join(" x ")} px at ${info.dpr}x, ${info.viewport.join(" x ")} CSS px${GPU_NAME ? `, ${GPU_NAME}` : ""}${info.reducedMotion ? ". Reduced motion is ON, so cards will not fly: turn it off first." : ""}`;
+</script>
+</body>
+</html>

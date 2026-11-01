@@ -1,0 +1,69 @@
+diff --git a/css/card-depth.css b/css/card-depth.css
+index a0e0580..4711cab 100644
+--- a/css/card-depth.css
++++ b/css/card-depth.css
+@@ -30,6 +30,10 @@
+ .table-card-pile.is-landing .table-play__card.is-depth-detailed {
+     will-change: transform;
+ }
++/* Foil is painted into its card's layer, so the top cards keep their layers rather than repainting at every landing. */
++.table-card-pile .table-play__card.is-depth-detailed[data-foil]:not([data-foil="none"]) {
++    will-change: transform;
++}
+ .card-preview--gold .card-depth-face {
+     filter: drop-shadow(0 0 10px rgb(240 190 60 / 45%));
+ }
+diff --git a/css/foil.css b/css/foil.css
+index 9082736..3c138a5 100644
+--- a/css/foil.css
++++ b/css/foil.css
+@@ -104,9 +104,10 @@
+     border-radius: var(--foil-radius);
+     content: "";
+     pointer-events: none;
++    /* A plain white stand-in for a soft-light glare: within 6 of 255 levels on any colour (perf/foil-model.cjs),
++       and it needs no off-screen render pass, so it can drift on the compositor for almost nothing. */
+     background: radial-gradient(farthest-corner circle at var(--foil-x) var(--foil-y),
+-        #fff8 0%, #fff2 25%, transparent 65%);
+-    mix-blend-mode: soft-light;
++        rgb(255 255 255 / .077) 0%, rgb(255 255 255 / .019) 25%, transparent 65%);
+     opacity: calc(.3 * var(--foil-strength));
+     transition: opacity 400ms ease;
+ }
+@@ -249,10 +250,6 @@
+     --foil-filter: brightness(.9) contrast(2.5) saturate(1);
+ }
+ 
+-@keyframes foil-idle-color {
+-    0%, 100% { opacity: calc(.46 * var(--foil-strength)); }
+-    50% { opacity: calc(.50 * var(--foil-strength)); }
+-}
+ @keyframes foil-idle-glare {
+     0%, 100% { translate: -3.2% -1.6%; }
+     50% { translate: 3.2% 1.6%; }
+@@ -264,12 +261,12 @@ body.has-open-dialog :is(#playerHand .game-card, #gameTable .card-preview)::afte
+     animation-play-state: paused !important;
+ }
+ 
+-/* Idle motion uses only opacity and translate, so foil gradients are not recalculated every frame. */
++/* The blended colour layer stays still at rest, so it is painted once into its card's layer and costs no render pass
++   while something else on the page moves. Only the plain glare drifts, and only on cards that nothing covers. */
+ @media (prefers-reduced-motion: no-preference) {
+     body:not([data-idle-foil-animation="off"]) :is(#playerHand .game-card, .card-preview)[data-foil]:not([data-foil="none"]):not(.is-tilting,
+         .card-flight, .card-discard-flight, .is-drag-source, .card-drag-layer *,
+         .card-foil-option:is(:hover, :focus-visible) *)::before {
+-        animation: foil-idle-color 6s steps(45) infinite;
+         transition: none;
+     }
+     /* The drifting glare is inset by its travel distance, so it never extends past the card. */
+@@ -282,6 +279,10 @@ body.has-open-dialog :is(#playerHand .game-card, #gameTable .card-preview)::afte
+     }
+ }
+ 
++.table-play[data-top-play="false"] .card-preview::after {
++    animation: none !important;
++}
++
+ .is-foil-offscreen[data-foil]::before,
+ .is-foil-offscreen[data-foil]::after {
+     animation-play-state: paused !important;
