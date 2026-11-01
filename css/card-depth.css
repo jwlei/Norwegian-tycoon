@@ -30,6 +30,10 @@
 .table-card-pile.is-landing .table-play__card.is-depth-detailed {
     will-change: transform;
 }
+/* Foil is painted into its card's layer, so the top cards keep their layers rather than repainting at every landing. */
+.table-card-pile .table-play__card.is-depth-detailed[data-foil]:not([data-foil="none"]) {
+    will-change: transform;
+}
 .card-preview--gold .card-depth-face {
     filter: drop-shadow(0 0 10px rgb(240 190 60 / 45%));
 }

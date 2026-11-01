@@ -49,7 +49,7 @@ then restores all clocks before constructing any flights.
 Where IntersectionObserver is available, hand and table foil animations pause outside the
 visible/clipped area, with a 128px viewport margin. On return their clocks advance by the time spent
 offscreen, preserving the shimmer phase rather than restarting it. Observers disconnect when a hand
-or pile is replaced. The idle glare layer is static, so only the foil color layer animates.
+or pile is replaced. The foil color layer is static, so only the plain glare layer animates.
 
 Multi-card pickup prepares the unchanged SVG drag previews during idle time, selected cards first.
 Preparation stops during active gestures; an unprepared pickup still builds synchronously without
@@ -64,7 +64,9 @@ Preview preparation waits until auto-scroll or hand inertia finishes instead of 
 Hand scroll events no longer measure or reposition unrelated landing flights; page or table-ancestor
 scrolls still update every flight immediately, with one table measurement before all position writes.
 
-Idle foils use one six-second light drift and gentle intensity pulse, without moving the card or changing its tuned colors. The glare layer stays static at rest, reducing each foil from two animated layers to one; dragging, flights, hidden drag sources and reduced-motion preferences disable idle motion. The foil palette and full-resolution artwork remain unchanged.
+Idle foils use one six-second light drift, without moving the card or changing its tuned colors. Only the glare drifts, and only on hand cards and the top play; dragging, flights, hidden drag sources and reduced-motion preferences disable idle motion. The foil palette and full-resolution artwork remain unchanged.
+
+The blended color layer never animates, because an animated blended layer needs off-screen render passes every time anything on the page moves, about three per card in Chromium. Still, it is painted once into its card's layer and costs what no foil costs (3.9 passes per frame either way). The glare uses a plain white gradient instead of soft-light, so it needs no pass of its own; [perf/foil-model.cjs](../perf/foil-model.cjs) fits it to the old look within 6 of 255 levels on any color, 2.3 on average. The top table cards keep their layers so landings do not repaint their foil. [perf/phone-lab.cjs](../perf/phone-lab.cjs) measures this on a real phone.
 
 The saved **Idle foil animation** switch under Appearance defaults to on. Turning it off stops idle motion across hand, table and settings-preview cards while keeping static foil visible and retaining drag/flight reflections. It applies immediately, synchronizes across tabs and still respects reduced-motion preferences.
 
@@ -110,7 +112,7 @@ Use [per-foil settings](../sandbox/foil-settings-preview.html) to choose one sha
 
 Production foil treatments now use the approved per-foil opacity, saturation, blend and printed-layer choices in `Card.foilTreatments`, keyed by English foil names (stripes, stardust, prism, waves, facets, rings, weave, rainbow, contrast, gold-sheen, grid, iridescent, pearlescent, rays). Existing saved IDs remain compatible. CSS reflections apply the same reductions at rest, during dragging and in flight; printed SVG foil is disabled for prism, waves, contrast, grid and rays. The settings preview starts from these production choices when no local choices exist and exports English-named version-2 configuration. Preview images request untreated artwork so adjustments are not applied twice.
 
-Production uses the full CSS foil with idle animation on by default. Idle foil animates only an opacity pulse and a translated glare layer inset by its travel distance, avoiding per-frame gradient recalculation; table cards, hand cards and flights share the same phase. Dragged cards ease their foil pattern in JavaScript rather than restarting CSS transitions each frame. Foil stays visible while scrolling, and pointer, drag and flight reflections remain. The Appearance idle-animation toggle still saves and synchronizes across tabs; an explicitly saved disabled preference is honored.
+Production uses the full CSS foil with idle animation on by default. Idle foil animates only a translated plain glare layer inset by its travel distance, avoiding per-frame gradient recalculation; table cards, hand cards and flights share the same phase. Dragged cards ease their foil pattern in JavaScript rather than restarting CSS transitions each frame. Foil stays visible while scrolling, and pointer, drag and flight reflections remain. The Appearance idle-animation toggle still saves and synchronizes across tabs; an explicitly saved disabled preference is honored.
 
 The Messages setting is off by default and controls board messages, not the game log. Its switch is on when messages are enabled; message timing settings appear only while enabled. Existing saved visibility preferences are preserved.
 

@@ -772,11 +772,18 @@ test("idle foil animation toggle defaults on, preserves opt-out, persists and sy
     assert.match(translations, /"Folieanimasjon i hvile": "Idle foil animation"/);
 });
 
-test("six-second idle foil uses compositor-friendly opacity and contained glare drift", () => {
+test("six-second idle foil keeps the blended colour layer still and drifts only a plain glare", () => {
     const css = fs.readFileSync(path.join(__dirname, "..", "css", "foil.css"), "utf8");
+    const depthCss = fs.readFileSync(path.join(__dirname, "..", "css", "card-depth.css"), "utf8");
     assert.match(css, /@media \(prefers-reduced-motion: no-preference\)/);
-    assert.match(css, /animation: foil-idle-color 6s steps\(45\) infinite;/);
+    assert.doesNotMatch(css, /foil-idle-color/, "An animated colour layer would need off-screen passes while anything moves");
     assert.match(css, /animation: foil-idle-glare 6s steps\(45\) infinite;/);
+    const glareRule = css.match(/\[data-foil\]:not\(\[data-foil="none"\]\)::after \{[^}]*\}/)[0];
+    assert.doesNotMatch(glareRule, /mix-blend-mode/, "The glare must not need a pass of its own");
+    assert.match(glareRule, /rgb\(255 255 255 \/ \.077\) 0%, rgb\(255 255 255 \/ \.019\) 25%, transparent 65%/);
+    assert.match(css, /\.table-play\[data-top-play="false"\] \.card-preview::after \{\s*animation: none !important;/);
+    assert.match(depthCss, /\.table-card-pile \.table-play__card\.is-depth-detailed\[data-foil\]:not\(\[data-foil="none"\]\) \{\s*will-change: transform;/,
+        "Painted foil must not be repainted when the top cards are promoted at every landing");
     assert.match(css, /body:not\(\[data-idle-foil-animation="off"\]\) :is\(#playerHand \.game-card, \.card-preview\)/);
     assert.doesNotMatch(css, /foil-idle-reflection/);
     assert.match(css, /:not\(\.is-tilting,\s*\.card-flight, \.card-discard-flight, \.is-drag-source, \.card-drag-layer \*/);
@@ -784,10 +791,6 @@ test("six-second idle foil uses compositor-friendly opacity and contained glare 
         const start = css.indexOf(`@keyframes ${name}`);
         return css.slice(start, css.indexOf("\n}", start));
     };
-    const color = keyframes("foil-idle-color");
-    assert.match(color, /0%, 100% \{ opacity: calc\(\.46 \* var\(--foil-strength\)\); \}/);
-    assert.match(color, /50% \{ opacity: calc\(\.50 \* var\(--foil-strength\)\); \}/);
-    assert.doesNotMatch(color, /--pointer|background|transform|filter/);
     const glare = keyframes("foil-idle-glare");
     assert.match(glare, /translate: -3\.2% -1\.6%/);
     assert.match(glare, /translate: 3\.2% 1\.6%/);
