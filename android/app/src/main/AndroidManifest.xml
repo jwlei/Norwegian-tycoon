@@ -17,9 +17,10 @@
             android:name="com.google.androidbrowserhelper.trusted.LauncherActivity"
             android:exported="true"
             android:label="@string/app_name">
+            <!-- Must be a literal: the library reads it with getString, which does not resolve @string references. -->
             <meta-data
                 android:name="android.support.customtabs.trusted.DEFAULT_URL"
-                android:value="@string/launch_url" />
+                android:value="https://playboms.eu/" />
             <meta-data
                 android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR"
                 android:resource="@color/background" />
