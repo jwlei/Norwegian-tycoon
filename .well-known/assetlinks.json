@@ -1,0 +1,12 @@
+[
+    {
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {
+            "namespace": "android_app",
+            "package_name": "eu.playboms.app",
+            "sha256_cert_fingerprints": [
+                "01:ED:A7:89:F8:61:7B:68:1A:DE:AB:94:84:9F:B1:27:CD:91:0A:1B:12:80:28:1B:53:6E:ED:1F:22:DD:12:CC"
+            ]
+        }
+    }
+]

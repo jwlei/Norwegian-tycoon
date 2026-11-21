@@ -1,0 +1,6 @@
+# GitHub Pages builds this site with Jekyll, which skips dot-folders by default.
+# .well-known/assetlinks.json must be served so the Android app can open the site full-screen.
+include:
+  - .well-known
+exclude:
+  - android
